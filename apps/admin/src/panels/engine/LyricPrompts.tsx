@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { LyricPromptRow } from '../../api.js'
-import { T } from '../../App.js'
+import { T } from '../../tokens.js'
 import { Header, History } from './DecomposerRules.js'
 
 type Kind = 'draft' | 'edit'

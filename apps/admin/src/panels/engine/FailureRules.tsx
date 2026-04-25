@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { FailureRuleRow } from '../../api.js'
-import { T } from '../../App.js'
+import { T } from '../../tokens.js'
 import { Header } from './DecomposerRules.js'
 
 type Draft = Omit<FailureRuleRow, 'id'>

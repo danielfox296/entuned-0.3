@@ -1,31 +1,11 @@
 import { useEffect, useState, useCallback } from 'react'
 import { api, getToken, setToken, clearToken } from './api.js'
 import type { MeResponse } from './api.js'
+import { T } from './tokens.js'
 import { DecomposerRules } from './panels/engine/DecomposerRules.js'
 import { FailureRules } from './panels/engine/FailureRules.js'
 import { StyleTemplate } from './panels/engine/StyleTemplate.js'
 import { LyricPrompts } from './panels/engine/LyricPrompts.js'
-
-// ── Design tokens ──────────────────────────────────────────────
-export const T = {
-  bg:            '#0C0C0E',
-  surface:       '#141416',
-  surfaceRaised: '#1A1A1E',
-  surfaceHover:  '#222226',
-  border:        '#2A2A2F',
-  borderSubtle:  '#1E1E22',
-  text:          '#E8E6E1',
-  textMuted:     '#8A877F',
-  textDim:       '#5A5850',
-  accent:        '#C4A052',
-  accentMuted:   '#8B7337',
-  accentGlow:    'rgba(196, 160, 82, 0.08)',
-  danger:        '#C45252',
-  success:       '#52C47A',
-  warn:          '#C4A052',
-  mono:          "'DM Mono', 'SF Mono', 'Fira Code', monospace",
-  sans:          "'DM Sans', 'Helvetica Neue', system-ui, sans-serif",
-} as const
 
 // ── Surface groups (from admin-ui.md, priority order) ──────────
 interface SurfaceGroup {
