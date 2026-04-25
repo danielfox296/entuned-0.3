@@ -187,6 +187,7 @@ model ReferenceTrack {
 
   icp           ICP             @relation(fields: [icpId], references: [id], onDelete: Cascade)
   decomposition Decomposition?
+  submissions   Submission[]
 
   @@index([icpId, bucket])
   @@map("reference_tracks")
@@ -319,6 +320,83 @@ model LyricEditPrompt {
   @@map("lyric_edit_prompts")
 }
 
+// ---------- Card 14 Eno (OutcomePrependTemplate, EnoRun, Submission) ----------
+
+model OutcomePrependTemplate {
+  id           String   @id @default(uuid()) @db.Uuid
+  version      Int      @unique
+  templateText String   @map("template_text")
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById  String?  @map("created_by") @db.Uuid
+
+  @@map("outcome_prepend_templates")
+}
+
+model EnoRun {
+  id              String    @id @default(uuid()) @db.Uuid
+  icpId           String    @map("icp_id") @db.Uuid
+  outcomeId       String    @map("outcome_id") @db.Uuid
+  requestedN      Int       @map("requested_n")
+  producedN       Int?      @map("produced_n")
+  reason          String?   // complete | pool_exhausted | precheck_failed
+  triggeredBy     String    @map("triggered_by") // manual | cron
+  triggeredByUser String?   @map("triggered_by_user") @db.Uuid
+  startedAt       DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  finishedAt      DateTime? @map("finished_at") @db.Timestamptz(6)
+
+  submissions     Submission[]
+
+  @@index([icpId, startedAt(sort: Desc)])
+  @@map("eno_runs")
+}
+
+model Submission {
+  id                            String   @id @default(uuid()) @db.Uuid
+  enoRunId                      String   @map("eno_run_id") @db.Uuid
+  icpId                         String   @map("icp_id") @db.Uuid
+  hookId                        String   @map("hook_id") @db.Uuid
+  outcomeId                     String   @map("outcome_id") @db.Uuid
+  referenceTrackId              String?  @map("reference_track_id") @db.Uuid
+  status                        String   @default("assembling") // assembling|queued|accepted|abandoned|skipped|failed
+
+  // Submission payload (filled at queue time)
+  style                         String?
+  stylePortionRaw               String?  @map("style_portion_raw")
+  negativeStyle                 String?  @map("negative_style")
+  vocalGender                   String?  @map("vocal_gender")
+  lyrics                        String?
+  title                         String?
+
+  // Provenance snapshots
+  outcomePrependTemplateVersion Int?     @map("outcome_prepend_template_version")
+  marsPromptVersion             Int?     @map("mars_prompt_version")
+  bernieDraftPromptVersion      Int?     @map("bernie_draft_prompt_version")
+  bernieEditPromptVersion       Int?     @map("bernie_edit_prompt_version")
+  firedFailureRuleIds           String[] @map("fired_failure_rule_ids") @db.Uuid
+  errorText                     String?  @map("error_text")
+
+  // Operator claim (Card 16 process state — pending = queued + claimedById null)
+  claimedById                   String?  @map("claimed_by") @db.Uuid
+  claimedAt                     DateTime? @map("claimed_at") @db.Timestamptz(6)
+
+  createdAt                     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  terminalAt                    DateTime? @map("terminal_at") @db.Timestamptz(6)
+
+  enoRun         EnoRun           @relation(fields: [enoRunId], references: [id])
+  hook           Hook             @relation(fields: [hookId], references: [id])
+  outcome        Outcome          @relation(fields: [outcomeId], references: [id])
+  referenceTrack ReferenceTrack?  @relation(fields: [referenceTrackId], references: [id])
+  lineageRows    LineageRow[]
+
+  @@index([enoRunId])
+  @@index([status])
+  @@index([icpId, status])
+  @@index([hookId])
+  @@map("submissions")
+}
+
 // ---------- Card 9 Stones (Outcome, copy-on-write versioned) ----------
 
 model Outcome {
@@ -339,6 +417,7 @@ model Outcome {
   scheduleRows     ScheduleRow[]
   hooks            Hook[]
   lineageRows      LineageRow[]
+  submissions      Submission[]
 
   @@unique([outcomeKey, version])
   @@index([outcomeKey, version(sort: Desc)])
@@ -380,6 +459,7 @@ model Hook {
   icp         ICP          @relation(fields: [icpId], references: [id], onDelete: Cascade)
   outcome     Outcome      @relation(fields: [outcomeId], references: [id])
   lineageRows LineageRow[]
+  submissions Submission[]
 
   @@index([icpId, status])
   @@index([outcomeId])
@@ -416,9 +496,10 @@ model LineageRow {
   active       Boolean  @default(true)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  song    Song    @relation(fields: [songId], references: [id])
-  outcome Outcome @relation(fields: [outcomeId], references: [id])
-  hook    Hook    @relation(fields: [hookId], references: [id])
+  song       Song        @relation(fields: [songId], references: [id])
+  outcome    Outcome     @relation(fields: [outcomeId], references: [id])
+  hook       Hook        @relation(fields: [hookId], references: [id])
+  submission Submission? @relation(fields: [submissionId], references: [id])
 
   @@index([icpId, outcomeId, active]) // Hendrix hot path
   @@index([hookId])

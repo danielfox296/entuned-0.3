@@ -21,6 +21,7 @@ import { verify } from '../lib/auth.js'
 import { decompose } from '../lib/decomposer/decomposer.js'
 import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
+import { runEno } from '../lib/eno/eno.js'
 
 interface AuthedOp {
   operatorId: string
@@ -768,6 +769,201 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
     await prisma.hook.delete({ where: { id } })
     return { ok: true }
+  })
+
+  // ----- Operator Seeding (Card 16): Submissions + EnoRuns -----
+
+  const SubmissionsListQuery = z.object({
+    icpId: z.string().uuid().optional(),
+    status: z.string().optional(),
+    claimedBy: z.string().optional(), // 'me' | 'unclaimed' | uuid
+    limit: z.coerce.number().int().min(1).max(200).optional(),
+  })
+
+  app.get('/submissions', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = SubmissionsListQuery.safeParse(req.query)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_query', details: parsed.error.flatten() })
+    const where: any = {}
+    if (parsed.data.icpId) where.icpId = parsed.data.icpId
+    if (parsed.data.status) where.status = parsed.data.status
+    if (parsed.data.claimedBy === 'unclaimed') where.claimedById = null
+    else if (parsed.data.claimedBy === 'me') where.claimedById = op.operatorId
+    else if (parsed.data.claimedBy) where.claimedById = parsed.data.claimedBy
+    const rows = await prisma.submission.findMany({
+      where,
+      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+      take: parsed.data.limit ?? 100,
+      include: {
+        hook: { select: { id: true, text: true } },
+        outcome: { select: { id: true, title: true, version: true } },
+        referenceTrack: { select: { id: true, artist: true, title: true } },
+        enoRun: { select: { id: true, startedAt: true, triggeredBy: true } },
+      },
+    })
+    return rows
+  })
+
+  app.get('/submissions/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const row = await prisma.submission.findUnique({
+      where: { id },
+      include: {
+        hook: { select: { id: true, text: true } },
+        outcome: true,
+        referenceTrack: { include: { decomposition: true } },
+        enoRun: true,
+        lineageRows: { include: { song: true } },
+      },
+    })
+    if (!row) return reply.code(404).send({ error: 'not_found' })
+    return row
+  })
+
+  const EnoRunBody = z.object({
+    icpId: z.string().uuid(),
+    outcomeId: z.string().uuid(),
+    n: z.number().int().min(1).max(20),
+  })
+
+  app.post('/eno/run', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = EnoRunBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const result = await runEno({
+        icpId: parsed.data.icpId,
+        outcomeId: parsed.data.outcomeId,
+        n: parsed.data.n,
+        triggeredBy: 'manual',
+        triggeredByUser: op.operatorId,
+      })
+      return result
+    } catch (e: any) {
+      return reply.code(502).send({ error: 'eno_failed', message: e.message ?? 'unknown' })
+    }
+  })
+
+  app.post('/submissions/:id/claim', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const existing = await prisma.submission.findUnique({ where: { id } })
+    if (!existing) return reply.code(404).send({ error: 'not_found' })
+    if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued', message: `Submission is ${existing.status}` })
+    if (existing.claimedById && existing.claimedById !== op.operatorId) {
+      return reply.code(409).send({ error: 'already_claimed' })
+    }
+    const row = await prisma.submission.update({
+      where: { id }, data: { claimedById: op.operatorId, claimedAt: new Date() },
+    })
+    return row
+  })
+
+  app.post('/submissions/:id/release', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const existing = await prisma.submission.findUnique({ where: { id } })
+    if (!existing) return reply.code(404).send({ error: 'not_found' })
+    if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued' })
+    const row = await prisma.submission.update({
+      where: { id }, data: { claimedById: null, claimedAt: null },
+    })
+    return row
+  })
+
+  app.post('/submissions/:id/skip', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const existing = await prisma.submission.findUnique({ where: { id } })
+    if (!existing) return reply.code(404).send({ error: 'not_found' })
+    if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued' })
+    const row = await prisma.submission.update({
+      where: { id }, data: { status: 'skipped', terminalAt: new Date() },
+    })
+    return row
+  })
+
+  app.post('/submissions/:id/abandon', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const existing = await prisma.submission.findUnique({ where: { id } })
+    if (!existing) return reply.code(404).send({ error: 'not_found' })
+    if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued' })
+    const row = await prisma.submission.update({
+      where: { id }, data: { status: 'abandoned', terminalAt: new Date() },
+    })
+    return row
+  })
+
+  // Accept: body { takes: [{ r2Url, r2ObjectKey?, byteSize?, contentType? }] }
+  // For each take: upsert Song (r2Url unique), create LineageRow. Then status=accepted, terminal_at=now,
+  // increment reference_track.use_count.
+  const AcceptBody = z.object({
+    takes: z.array(z.object({
+      r2Url: z.string().min(1),
+      r2ObjectKey: z.string().optional(),
+      byteSize: z.number().int().nonnegative().optional(),
+      contentType: z.string().optional(),
+    })).min(1).max(2),
+  })
+
+  app.post('/submissions/:id/accept', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = AcceptBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+
+    const existing = await prisma.submission.findUnique({ where: { id } })
+    if (!existing) return reply.code(404).send({ error: 'not_found' })
+    if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued', message: `Submission is ${existing.status}` })
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const lineage: any[] = []
+        for (const take of parsed.data.takes) {
+          const song = await tx.song.upsert({
+            where: { r2Url: take.r2Url },
+            create: {
+              r2Url: take.r2Url,
+              r2ObjectKey: take.r2ObjectKey ?? take.r2Url,
+              byteSize: take.byteSize ? BigInt(take.byteSize) : null,
+              contentType: take.contentType ?? null,
+            },
+            update: {},
+          })
+          const row = await tx.lineageRow.create({
+            data: {
+              songId: song.id,
+              r2Url: take.r2Url,
+              icpId: existing.icpId,
+              outcomeId: existing.outcomeId,
+              hookId: existing.hookId,
+              submissionId: existing.id,
+              active: true,
+            },
+          })
+          lineage.push(row)
+        }
+        // Status flip — partial unique on (hook_id) WHERE status='accepted' enforces 1-per-hook.
+        const updated = await tx.submission.update({
+          where: { id }, data: { status: 'accepted', terminalAt: new Date() },
+        })
+        if (existing.referenceTrackId) {
+          await tx.referenceTrack.update({
+            where: { id: existing.referenceTrackId },
+            data: { useCount: { increment: 1 } },
+          })
+        }
+        return { submission: updated, lineageRows: lineage }
+      })
+      return result
+    } catch (e: any) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        return reply.code(409).send({ error: 'hook_already_accepted', message: 'Another submission for this hook has already been accepted.' })
+      }
+      return reply.code(500).send({ error: 'accept_failed', message: e.message ?? 'unknown' })
+    }
   })
 
   app.put('/decompositions/:id', async (req, reply) => {
