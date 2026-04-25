@@ -295,6 +295,30 @@ model FailureRule {
   @@map("failure_rules")
 }
 
+// ---------- Card 13 Bernie (lyric prompts) ----------
+
+model LyricDraftPrompt {
+  id          String   @id @default(uuid()) @db.Uuid
+  version     Int      @unique
+  promptText  String   @map("prompt_text")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by") @db.Uuid
+
+  @@map("lyric_draft_prompts")
+}
+
+model LyricEditPrompt {
+  id          String   @id @default(uuid()) @db.Uuid
+  version     Int      @unique
+  promptText  String   @map("prompt_text")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by") @db.Uuid
+
+  @@map("lyric_edit_prompts")
+}
+
 // ---------- Card 9 Stones (Outcome, copy-on-write versioned) ----------
 
 model Outcome {

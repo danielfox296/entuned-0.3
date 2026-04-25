@@ -4,6 +4,7 @@ import { healthRoutes } from './routes/health.js'
 import { hendrixRoutes } from './routes/hendrix.js'
 import { eventsRoutes } from './routes/events.js'
 import { authRoutes } from './routes/auth.js'
+import { adminRoutes } from './routes/admin.js'
 
 const app = Fastify({
   logger: {
@@ -18,6 +19,7 @@ await app.register(healthRoutes)
 await app.register(hendrixRoutes, { prefix: '/hendrix' })
 await app.register(eventsRoutes, { prefix: '/events' })
 await app.register(authRoutes, { prefix: '/auth' })
+await app.register(adminRoutes, { prefix: '/admin' })
 
 const port = Number(process.env.PORT ?? 3000)
 await app.listen({ port, host: '0.0.0.0' })
