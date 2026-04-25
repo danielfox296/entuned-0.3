@@ -1,0 +1,11 @@
+# Override Nixpacks's auto-detected pnpm install (which assumes a lockfile at the build root).
+# Build root = apps/server; lockfile lives at the monorepo root, so we install without --frozen-lockfile.
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = [
+  "corepack enable",
+  "corepack prepare pnpm@9.12.0 --activate",
+  "pnpm install"
+]
