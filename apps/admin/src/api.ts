@@ -380,6 +380,8 @@ export const api = {
 
   outcomes: (token: string) =>
     req<OutcomeRowFull[]>('/admin/outcomes', {}, token),
+  outcomeLibrary: (token: string) =>
+    req<(OutcomeRowFull & { lineageCount: number })[]>('/admin/outcomes?include=all', {}, token),
   icpHooks: (icpId: string, token: string) =>
     req<HookRowFull[]>(`/admin/icps/${icpId}/hooks`, {}, token),
   createHook: (icpId: string, body: { text: string; outcomeId: string; approve?: boolean }, token: string) =>

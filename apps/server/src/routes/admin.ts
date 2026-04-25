@@ -429,11 +429,20 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/outcomes', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
+    const includeSuperseded = (req.query as any)?.include === 'all'
     const rows = await prisma.outcome.findMany({
-      where: { supersededAt: null },
-      orderBy: [{ title: 'asc' }],
+      where: includeSuperseded ? {} : { supersededAt: null },
+      orderBy: [{ title: 'asc' }, { version: 'desc' }],
     })
-    return rows
+    if (!includeSuperseded) return rows
+    // For library view: include global active LineageRow counts per outcome.
+    const counts = await prisma.lineageRow.groupBy({
+      by: ['outcomeId'],
+      where: { active: true },
+      _count: { _all: true },
+    })
+    const countMap = new Map(counts.map((c) => [c.outcomeId, c._count._all]))
+    return rows.map((o) => ({ ...o, lineageCount: countMap.get(o.id) ?? 0 }))
   })
 
   // ----- Hooks (per-ICP queue) -----

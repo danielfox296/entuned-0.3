@@ -10,6 +10,7 @@ import { IcpEditor } from './panels/brand/IcpEditor.js'
 import { HookQueue } from './panels/brand/HookQueue.js'
 import { LiveStoreView } from './panels/playback/LiveStoreView.js'
 import { OutcomeSchedule } from './panels/schedule/OutcomeSchedule.js'
+import { OutcomeLibrary } from './panels/schedule/OutcomeLibrary.js'
 
 // ── Surface groups (from admin-ui.md, priority order) ──────────
 interface SurfaceGroup {
@@ -298,7 +299,7 @@ function ScheduleRouter({ cards }: { cards: string[] }) {
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
         {cards.map((c) => {
           const on = active === c
-          const ready = c === 'Outcome Schedule'
+          const ready = c === 'Outcome Schedule' || c === 'Outcome Library'
           return (
             <button
               key={c}
@@ -317,6 +318,7 @@ function ScheduleRouter({ cards }: { cards: string[] }) {
         })}
       </div>
       {active === 'Outcome Schedule' && <OutcomeSchedule />}
+      {active === 'Outcome Library' && <OutcomeLibrary />}
     </div>
   )
 }
