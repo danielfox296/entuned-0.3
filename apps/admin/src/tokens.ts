@@ -10,20 +10,20 @@ export const T = {
   inkDeep:       '#1a1a17',   // footer, deepest surface
 
   // ── Borders ────────────────────────────────────────────────────
-  border:        'rgba(106, 176, 187, 0.18)',   // primary divider
-  borderSubtle:  'rgba(106, 176, 187, 0.08)',   // secondary / background divider
+  border:        'rgba(106, 176, 187, 0.28)',   // primary divider (+20%)
+  borderSubtle:  'rgba(106, 176, 187, 0.14)',   // secondary / background divider (+20%)
 
   // ── Text (ice palette) ─────────────────────────────────────────
   text:          '#d4e1e5',                      // ice — primary
-  textMuted:     'rgba(212, 225, 229, 0.75)',    // secondary labels
-  textDim:       'rgba(212, 225, 229, 0.55)',    // tertiary / faint
-  textFaint:     'rgba(212, 225, 229, 0.35)',    // placeholder, disabled
+  textMuted:     'rgba(212, 225, 229, 0.90)',    // secondary labels (+20%)
+  textDim:       'rgba(212, 225, 229, 0.70)',    // tertiary / faint (+20%)
+  textFaint:     'rgba(212, 225, 229, 0.50)',    // placeholder, disabled (+20%)
 
   // ── Accent (teal) ──────────────────────────────────────────────
   accent:        '#6ab0bb',                      // primary brand accent
   accentHover:   '#82c3cd',                      // hover / lift
-  accentMuted:   'rgba(106, 176, 187, 0.55)',    // readable teal label text + soft borders
-  accentGlow:    'rgba(106, 176, 187, 0.08)',    // subtle bg tint / active row
+  accentMuted:   'rgba(106, 176, 187, 0.66)',    // readable teal label text + soft borders (+20%)
+  accentGlow:    'rgba(106, 176, 187, 0.12)',    // subtle bg tint / active row (+20%)
 
   // ── Secondary accents ──────────────────────────────────────────
   gold:          '#e8b458',   // secondary — use sparingly
