@@ -11,6 +11,7 @@ import { HookQueue } from './panels/brand/HookQueue.js'
 import { LiveStoreView } from './panels/playback/LiveStoreView.js'
 import { OutcomeSchedule } from './panels/schedule/OutcomeSchedule.js'
 import { OutcomeLibrary } from './panels/schedule/OutcomeLibrary.js'
+import { IntentQueue } from './panels/seeding/IntentQueue.js'
 
 // ── Surface groups (from admin-ui.md, priority order) ──────────
 interface SurfaceGroup {
@@ -155,7 +156,8 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
         {group.key === 'engine' ? <EngineRouter cards={group.cards} /> :
          group.key === 'brand' ? <BrandRouter cards={group.cards} /> :
          group.key === 'playback' ? <PlaybackRouter cards={group.cards} /> :
-         group.key === 'schedule' ? <ScheduleRouter cards={group.cards} /> : (
+         group.key === 'schedule' ? <ScheduleRouter cards={group.cards} /> :
+         group.key === 'seeding' ? <SeedingRouter cards={group.cards} /> : (
         <>
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12,
@@ -319,6 +321,38 @@ function ScheduleRouter({ cards }: { cards: string[] }) {
       </div>
       {active === 'Outcome Schedule' && <OutcomeSchedule />}
       {active === 'Outcome Library' && <OutcomeLibrary />}
+    </div>
+  )
+}
+
+// ── Seeding router ─────────────────────────────────────────────
+function SeedingRouter({ cards }: { cards: string[] }) {
+  const [active, setActive] = useState<string>('Intent Queue')
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
+        {cards.map((c) => {
+          const on = active === c
+          // Intent Detail is reached by clicking a row in Intent Queue, not as a top-level tab.
+          const ready = c === 'Intent Queue'
+          return (
+            <button
+              key={c}
+              onClick={() => ready && setActive(c)}
+              disabled={!ready}
+              style={{
+                background: 'transparent', border: 'none',
+                borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
+                color: on ? T.text : (ready ? T.textMuted : T.textDim),
+                padding: '8px 14px', cursor: ready ? 'pointer' : 'default',
+                fontFamily: T.sans, fontSize: 12, fontWeight: on ? 500 : 400,
+                marginBottom: -1,
+              }}
+            >{c}{ready ? '' : ' (drill-in)'}</button>
+          )
+        })}
+      </div>
+      {active === 'Intent Queue' && <IntentQueue />}
     </div>
   )
 }

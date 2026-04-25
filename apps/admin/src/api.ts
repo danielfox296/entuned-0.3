@@ -199,6 +199,56 @@ export interface NewReferenceTrack {
 
 export type IcpUpdate = Partial<Omit<IcpRow, 'id' | 'clientId' | 'createdAt' | 'updatedAt'>>
 export type RefTrackUpdate = Partial<NewReferenceTrack>
+// --- Operator Seeding (Submissions / EnoRuns) ---
+
+export type SubmissionStatus = 'assembling' | 'queued' | 'accepted' | 'abandoned' | 'skipped' | 'failed'
+
+export interface SubmissionListRow {
+  id: string
+  enoRunId: string
+  icpId: string
+  hookId: string
+  outcomeId: string
+  referenceTrackId: string | null
+  status: SubmissionStatus
+  style: string | null
+  negativeStyle: string | null
+  vocalGender: string | null
+  lyrics: string | null
+  title: string | null
+  errorText: string | null
+  claimedById: string | null
+  claimedAt: string | null
+  createdAt: string
+  updatedAt: string
+  terminalAt: string | null
+  hook: { id: string; text: string }
+  outcome: { id: string; title: string; version: number }
+  referenceTrack: { id: string; artist: string; title: string } | null
+  enoRun: { id: string; startedAt: string; triggeredBy: string }
+}
+
+export interface SubmissionDetail extends SubmissionListRow {
+  stylePortionRaw: string | null
+  outcomePrependTemplateVersion: number | null
+  marsPromptVersion: number | null
+  bernieDraftPromptVersion: number | null
+  bernieEditPromptVersion: number | null
+  firedFailureRuleIds: string[]
+  outcome: any
+  referenceTrack: any
+  enoRun: any
+  lineageRows: any[]
+}
+
+export interface EnoRunResult {
+  enoRunId: string
+  requestedN: number
+  producedN: number
+  reason: 'complete' | 'pool_exhausted' | 'precheck_failed'
+  errors: string[]
+}
+
 export interface ScheduleRow {
   id: string
   storeId: string
@@ -412,4 +462,30 @@ export const api = {
     req<ScheduleRow>(`/admin/schedule-rows/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   deleteScheduleRow: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/schedule-rows/${id}`, { method: 'DELETE' }, token),
+
+  // --- Operator Seeding ---
+
+  submissions: (token: string, params: { icpId?: string; status?: string; claimedBy?: string; limit?: number } = {}) => {
+    const qs = new URLSearchParams()
+    if (params.icpId) qs.set('icpId', params.icpId)
+    if (params.status) qs.set('status', params.status)
+    if (params.claimedBy) qs.set('claimedBy', params.claimedBy)
+    if (params.limit) qs.set('limit', String(params.limit))
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return req<SubmissionListRow[]>(`/admin/submissions${q}`, {}, token)
+  },
+  submissionDetail: (id: string, token: string) =>
+    req<SubmissionDetail>(`/admin/submissions/${id}`, {}, token),
+  runEno: (body: { icpId: string; outcomeId: string; n: number }, token: string) =>
+    req<EnoRunResult>('/admin/eno/run', { method: 'POST', body: JSON.stringify(body) }, token),
+  claimSubmission: (id: string, token: string) =>
+    req<SubmissionListRow>(`/admin/submissions/${id}/claim`, { method: 'POST' }, token),
+  releaseSubmission: (id: string, token: string) =>
+    req<SubmissionListRow>(`/admin/submissions/${id}/release`, { method: 'POST' }, token),
+  skipSubmission: (id: string, token: string) =>
+    req<SubmissionListRow>(`/admin/submissions/${id}/skip`, { method: 'POST' }, token),
+  abandonSubmission: (id: string, token: string) =>
+    req<SubmissionListRow>(`/admin/submissions/${id}/abandon`, { method: 'POST' }, token),
+  acceptSubmission: (id: string, body: { takes: { r2Url: string; r2ObjectKey?: string; byteSize?: number; contentType?: string }[] }, token: string) =>
+    req<{ submission: SubmissionListRow; lineageRows: any[] }>(`/admin/submissions/${id}/accept`, { method: 'POST', body: JSON.stringify(body) }, token),
 }
