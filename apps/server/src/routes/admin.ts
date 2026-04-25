@@ -19,6 +19,8 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
 import { verify } from '../lib/auth.js'
 import { decompose } from '../lib/decomposer/decomposer.js'
+import { nextQueue } from '../lib/hendrix.js'
+import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 
 interface AuthedOp {
   operatorId: string
@@ -496,6 +498,137 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       include: { outcome: { select: { id: true, title: true, version: true } } },
     })
     return row
+  })
+
+  // ----- Playback: live store view + override -----
+
+  app.get('/stores/:id/live', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const store = await prisma.store.findUnique({
+      where: { id },
+      include: { client: { select: { companyName: true } } },
+    })
+    if (!store) return reply.code(404).send({ error: 'not_found' })
+
+    const [hendrix, outcomes, lineageCounts, events] = await Promise.all([
+      nextQueue(id),
+      prisma.outcome.findMany({ where: { supersededAt: null }, orderBy: { title: 'asc' } }),
+      prisma.lineageRow.groupBy({
+        by: ['outcomeId'],
+        where: { icpId: store.icpId, active: true },
+        _count: { _all: true },
+      }),
+      prisma.audioEvent.findMany({
+        where: { storeId: id },
+        orderBy: { occurredAt: 'desc' },
+        take: 30,
+        include: {
+          operator: { select: { id: true, email: true } },
+        },
+      }),
+    ])
+
+    const poolByOutcome = new Map(lineageCounts.map((c) => [c.outcomeId, c._count._all]))
+    const outcomeById = new Map(outcomes.map((o) => [o.id, o]))
+
+    const queueHookIds = [...new Set(hendrix.queue.map((q) => q.hookId))]
+    const queueHooks = queueHookIds.length
+      ? await prisma.hook.findMany({ where: { id: { in: queueHookIds } }, select: { id: true, text: true } })
+      : []
+    const hookTextById = new Map(queueHooks.map((h) => [h.id, h.text]))
+    const queueWithTitles = hendrix.queue.map((q) => ({
+      ...q,
+      hookText: hookTextById.get(q.hookId) ?? null,
+      outcomeTitle: outcomeById.get(q.outcomeId)?.title ?? null,
+    }))
+
+    const activeOutcomeRow = hendrix.activeOutcome ? outcomeById.get(hendrix.activeOutcome.outcomeId) : null
+
+    return {
+      store: {
+        id: store.id,
+        name: store.name,
+        clientName: store.client.companyName,
+        timezone: store.timezone,
+        icpId: store.icpId,
+        defaultOutcomeId: store.defaultOutcomeId,
+        manualOverrideOutcomeId: store.manualOverrideOutcomeId,
+        manualOverrideExpiresAt: store.manualOverrideExpiresAt,
+      },
+      active: hendrix.activeOutcome ? {
+        outcomeId: hendrix.activeOutcome.outcomeId,
+        outcomeTitle: activeOutcomeRow?.title ?? null,
+        source: hendrix.activeOutcome.source,
+        expiresAt: hendrix.activeOutcome.expiresAt ?? null,
+      } : null,
+      queue: queueWithTitles,
+      fallbackTier: hendrix.fallbackTier,
+      reason: hendrix.reason,
+      outcomes: outcomes.map((o) => ({
+        outcomeId: o.id,
+        title: o.title,
+        version: o.version,
+        tempoBpm: o.tempoBpm,
+        mode: o.mode,
+        poolSize: poolByOutcome.get(o.id) ?? 0,
+      })),
+      recentEvents: events.map((e) => ({
+        id: e.id,
+        eventType: e.eventType,
+        occurredAt: e.occurredAt,
+        songId: e.songId,
+        hookId: e.hookId,
+        outcomeId: e.outcomeId,
+        outcomeTitle: e.outcomeId ? (outcomeById.get(e.outcomeId)?.title ?? null) : null,
+        operatorId: e.operatorId,
+        operatorEmail: e.operator?.email ?? null,
+        reportReason: e.reportReason,
+      })),
+    }
+  })
+
+  const OverrideBody = z.object({ outcomeId: z.string().uuid() })
+
+  app.post('/stores/:id/override', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = OverrideBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const { outcomeId, expiresAt } = await setOverride(id, parsed.data.outcomeId)
+      await prisma.audioEvent.create({
+        data: {
+          eventType: 'outcome_override',
+          storeId: id,
+          occurredAt: new Date(),
+          operatorId: op.operatorId,
+          outcomeId,
+        },
+      })
+      return { outcomeId, expiresAt: expiresAt.toISOString() }
+    } catch (e: any) {
+      return reply.code(404).send({ error: e.message ?? 'failed' })
+    }
+  })
+
+  app.post('/stores/:id/override/clear', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    try {
+      await clearOverride(id)
+      await prisma.audioEvent.create({
+        data: {
+          eventType: 'outcome_override_cleared',
+          storeId: id,
+          occurredAt: new Date(),
+          operatorId: op.operatorId,
+        },
+      })
+      return { ok: true }
+    } catch (e: any) {
+      return reply.code(404).send({ error: e.message ?? 'failed' })
+    }
   })
 
   app.delete('/hooks/:id', async (req, reply) => {

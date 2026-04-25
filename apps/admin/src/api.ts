@@ -199,6 +199,61 @@ export interface NewReferenceTrack {
 
 export type IcpUpdate = Partial<Omit<IcpRow, 'id' | 'clientId' | 'createdAt' | 'updatedAt'>>
 export type RefTrackUpdate = Partial<NewReferenceTrack>
+export interface OutcomeWithPool {
+  outcomeId: string
+  title: string
+  version: number
+  tempoBpm: number
+  mode: string
+  poolSize: number
+}
+
+export interface QueueEntry {
+  songId: string
+  audioUrl: string
+  hookId: string
+  outcomeId: string
+  hookText: string | null
+  outcomeTitle: string | null
+}
+
+export interface AudioEventRow {
+  id: string
+  eventType: string
+  occurredAt: string
+  songId: string | null
+  hookId: string | null
+  outcomeId: string | null
+  outcomeTitle: string | null
+  operatorId: string | null
+  operatorEmail: string | null
+  reportReason: string | null
+}
+
+export interface LiveStoreView {
+  store: {
+    id: string
+    name: string
+    clientName: string
+    timezone: string
+    icpId: string
+    defaultOutcomeId: string | null
+    manualOverrideOutcomeId: string | null
+    manualOverrideExpiresAt: string | null
+  }
+  active: {
+    outcomeId: string
+    outcomeTitle: string | null
+    source: 'override' | 'schedule' | 'default'
+    expiresAt: string | null
+  } | null
+  queue: QueueEntry[]
+  fallbackTier: 'none' | 'daily_cap' | 'sibling_spacing' | 'no_repeat_window'
+  reason: 'no_pool' | null
+  outcomes: OutcomeWithPool[]
+  recentEvents: AudioEventRow[]
+}
+
 export interface OutcomeRowFull {
   id: string
   outcomeKey: string
@@ -317,4 +372,13 @@ export const api = {
     req<HookRowFull>(`/admin/hooks/${id}/approve`, { method: 'POST' }, token),
   deleteHook: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/hooks/${id}`, { method: 'DELETE' }, token),
+
+  // --- Playback ---
+
+  liveStore: (id: string, token: string) =>
+    req<LiveStoreView>(`/admin/stores/${id}/live`, {}, token),
+  setOverride: (id: string, outcomeId: string, token: string) =>
+    req<{ outcomeId: string; expiresAt: string }>(`/admin/stores/${id}/override`, { method: 'POST', body: JSON.stringify({ outcomeId }) }, token),
+  clearOverride: (id: string, token: string) =>
+    req<{ ok: true }>(`/admin/stores/${id}/override/clear`, { method: 'POST' }, token),
 }
