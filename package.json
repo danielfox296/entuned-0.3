@@ -9,6 +9,7 @@
   "scripts": {
     "dev:server": "pnpm --filter server dev",
     "dev:player": "pnpm --filter player dev",
+    "dev:admin": "pnpm --filter admin dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck"
   }
