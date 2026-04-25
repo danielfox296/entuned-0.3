@@ -199,6 +199,24 @@ export interface NewReferenceTrack {
 
 export type IcpUpdate = Partial<Omit<IcpRow, 'id' | 'clientId' | 'createdAt' | 'updatedAt'>>
 export type RefTrackUpdate = Partial<NewReferenceTrack>
+export interface ScheduleRow {
+  id: string
+  storeId: string
+  dayOfWeek: number
+  startTime: string
+  endTime: string
+  outcomeId: string
+  outcomeTitle: string
+  outcomeVersion: number
+}
+
+export type ScheduleRowInput = {
+  dayOfWeek: number
+  startTime: string
+  endTime: string
+  outcomeId: string
+}
+
 export interface OutcomeWithPool {
   outcomeId: string
   title: string
@@ -381,4 +399,15 @@ export const api = {
     req<{ outcomeId: string; expiresAt: string }>(`/admin/stores/${id}/override`, { method: 'POST', body: JSON.stringify({ outcomeId }) }, token),
   clearOverride: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/stores/${id}/override/clear`, { method: 'POST' }, token),
+
+  // --- Schedule ---
+
+  schedule: (storeId: string, token: string) =>
+    req<ScheduleRow[]>(`/admin/stores/${storeId}/schedule`, {}, token),
+  createScheduleRow: (storeId: string, body: ScheduleRowInput, token: string) =>
+    req<ScheduleRow>(`/admin/stores/${storeId}/schedule`, { method: 'POST', body: JSON.stringify(body) }, token),
+  updateScheduleRow: (id: string, body: ScheduleRowInput, token: string) =>
+    req<ScheduleRow>(`/admin/schedule-rows/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+  deleteScheduleRow: (id: string, token: string) =>
+    req<{ ok: true }>(`/admin/schedule-rows/${id}`, { method: 'DELETE' }, token),
 }

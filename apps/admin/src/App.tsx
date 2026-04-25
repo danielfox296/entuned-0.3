@@ -9,6 +9,7 @@ import { LyricPrompts } from './panels/engine/LyricPrompts.js'
 import { IcpEditor } from './panels/brand/IcpEditor.js'
 import { HookQueue } from './panels/brand/HookQueue.js'
 import { LiveStoreView } from './panels/playback/LiveStoreView.js'
+import { OutcomeSchedule } from './panels/schedule/OutcomeSchedule.js'
 
 // ── Surface groups (from admin-ui.md, priority order) ──────────
 interface SurfaceGroup {
@@ -152,7 +153,8 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
       <div style={{ flex: 1, overflow: 'auto', padding: 28 }}>
         {group.key === 'engine' ? <EngineRouter cards={group.cards} /> :
          group.key === 'brand' ? <BrandRouter cards={group.cards} /> :
-         group.key === 'playback' ? <PlaybackRouter cards={group.cards} /> : (
+         group.key === 'playback' ? <PlaybackRouter cards={group.cards} /> :
+         group.key === 'schedule' ? <ScheduleRouter cards={group.cards} /> : (
         <>
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12,
@@ -284,6 +286,37 @@ function PlaybackRouter({ cards }: { cards: string[] }) {
         })}
       </div>
       {active === 'Live Store View' && <LiveStoreView />}
+    </div>
+  )
+}
+
+// ── Schedule router ────────────────────────────────────────────
+function ScheduleRouter({ cards }: { cards: string[] }) {
+  const [active, setActive] = useState<string>('Outcome Schedule')
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
+        {cards.map((c) => {
+          const on = active === c
+          const ready = c === 'Outcome Schedule'
+          return (
+            <button
+              key={c}
+              onClick={() => ready && setActive(c)}
+              disabled={!ready}
+              style={{
+                background: 'transparent', border: 'none',
+                borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
+                color: on ? T.text : (ready ? T.textMuted : T.textDim),
+                padding: '8px 14px', cursor: ready ? 'pointer' : 'default',
+                fontFamily: T.sans, fontSize: 12, fontWeight: on ? 500 : 400,
+                marginBottom: -1,
+              }}
+            >{c}{ready ? '' : ' (soon)'}</button>
+          )
+        })}
+      </div>
+      {active === 'Outcome Schedule' && <OutcomeSchedule />}
     </div>
   )
 }

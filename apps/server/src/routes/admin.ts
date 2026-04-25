@@ -52,6 +52,23 @@ async function requireAdmin(req: FastifyRequest, reply: FastifyReply): Promise<A
   return { operatorId: op.id, email: op.email, isAdmin: op.isAdmin }
 }
 
+// Time helpers — Prisma @db.Time(6) round-trips as Date with UTC time portion.
+function timeToHHMM(d: Date): string {
+  const h = String(d.getUTCHours()).padStart(2, '0')
+  const m = String(d.getUTCMinutes()).padStart(2, '0')
+  return `${h}:${m}`
+}
+
+function hhmmToTime(s: string): Date {
+  const padded = s.length === 5 ? `${s}:00` : s
+  return new Date(`1970-01-01T${padded}.000Z`)
+}
+
+function hhmmToSec(s: string): number {
+  const [h, m, sec] = s.split(':').map((x) => parseInt(x, 10))
+  return (h ?? 0) * 3600 + (m ?? 0) * 60 + (sec ?? 0)
+}
+
 // Schemas
 const RulesPostBody = z.object({ rulesText: z.string().min(1), notes: z.string().optional() })
 
@@ -628,6 +645,107 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       return { ok: true }
     } catch (e: any) {
       return reply.code(404).send({ error: e.message ?? 'failed' })
+    }
+  })
+
+  // ----- Schedule (per-store weekly grid) -----
+
+  app.get('/stores/:id/schedule', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const rows = await prisma.scheduleRow.findMany({
+      where: { storeId: id },
+      orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+      include: { outcome: { select: { id: true, title: true, version: true } } },
+    })
+    return rows.map((r) => ({
+      id: r.id,
+      storeId: r.storeId,
+      dayOfWeek: r.dayOfWeek,
+      startTime: timeToHHMM(r.startTime),
+      endTime: timeToHHMM(r.endTime),
+      outcomeId: r.outcomeId,
+      outcomeTitle: r.outcome.title,
+      outcomeVersion: r.outcome.version,
+    }))
+  })
+
+  const ScheduleBody = z.object({
+    dayOfWeek: z.number().int().min(1).max(7),
+    startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+    endTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+    outcomeId: z.string().uuid(),
+  })
+
+  app.post('/stores/:id/schedule', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = ScheduleBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    if (hhmmToSec(parsed.data.startTime) >= hhmmToSec(parsed.data.endTime)) {
+      return reply.code(400).send({ error: 'start_must_precede_end' })
+    }
+    try {
+      const row = await prisma.scheduleRow.create({
+        data: {
+          storeId: id,
+          dayOfWeek: parsed.data.dayOfWeek,
+          startTime: hhmmToTime(parsed.data.startTime),
+          endTime: hhmmToTime(parsed.data.endTime),
+          outcomeId: parsed.data.outcomeId,
+        },
+        include: { outcome: { select: { title: true, version: true } } },
+      })
+      return {
+        id: row.id, storeId: row.storeId, dayOfWeek: row.dayOfWeek,
+        startTime: timeToHHMM(row.startTime), endTime: timeToHHMM(row.endTime),
+        outcomeId: row.outcomeId, outcomeTitle: row.outcome.title, outcomeVersion: row.outcome.version,
+      }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+        return reply.code(404).send({ error: 'store_or_outcome_not_found' })
+      }
+      throw e
+    }
+  })
+
+  app.put('/schedule-rows/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = ScheduleBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    if (hhmmToSec(parsed.data.startTime) >= hhmmToSec(parsed.data.endTime)) {
+      return reply.code(400).send({ error: 'start_must_precede_end' })
+    }
+    try {
+      const row = await prisma.scheduleRow.update({
+        where: { id },
+        data: {
+          dayOfWeek: parsed.data.dayOfWeek,
+          startTime: hhmmToTime(parsed.data.startTime),
+          endTime: hhmmToTime(parsed.data.endTime),
+          outcomeId: parsed.data.outcomeId,
+        },
+        include: { outcome: { select: { title: true, version: true } } },
+      })
+      return {
+        id: row.id, storeId: row.storeId, dayOfWeek: row.dayOfWeek,
+        startTime: timeToHHMM(row.startTime), endTime: timeToHHMM(row.endTime),
+        outcomeId: row.outcomeId, outcomeTitle: row.outcome.title, outcomeVersion: row.outcome.version,
+      }
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
+    }
+  })
+
+  app.delete('/schedule-rows/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    try {
+      await prisma.scheduleRow.delete({ where: { id } })
+      return { ok: true }
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
     }
   })
 
