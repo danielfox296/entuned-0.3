@@ -406,6 +406,110 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     harmonicAndGroove: z.string().nullable().optional(),
   })
 
+  // ----- Outcomes (read-only list for hook picker etc.) -----
+
+  app.get('/outcomes', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const rows = await prisma.outcome.findMany({
+      where: { supersededAt: null },
+      orderBy: [{ title: 'asc' }],
+    })
+    return rows
+  })
+
+  // ----- Hooks (per-ICP queue) -----
+
+  app.get('/icps/:id/hooks', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const icpId = (req.params as any).id as string
+    const rows = await prisma.hook.findMany({
+      where: { icpId },
+      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+      include: { outcome: { select: { id: true, title: true, version: true } } },
+    })
+    return rows
+  })
+
+  const HookCreateBody = z.object({
+    text: z.string().min(1),
+    outcomeId: z.string().uuid(),
+    approve: z.boolean().optional(),
+  })
+
+  app.post('/icps/:id/hooks', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const icpId = (req.params as any).id as string
+    const parsed = HookCreateBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const data: any = {
+        icpId,
+        outcomeId: parsed.data.outcomeId,
+        text: parsed.data.text,
+        status: parsed.data.approve ? 'approved' : 'draft',
+      }
+      if (parsed.data.approve) {
+        data.approvedAt = new Date()
+        data.approvedById = op.operatorId
+      }
+      const row = await prisma.hook.create({ data, include: { outcome: { select: { id: true, title: true, version: true } } } })
+      return row
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+        return reply.code(404).send({ error: 'icp_or_outcome_not_found' })
+      }
+      throw e
+    }
+  })
+
+  const HookUpdateBody = z.object({
+    text: z.string().min(1).optional(),
+    outcomeId: z.string().uuid().optional(),
+  })
+
+  app.put('/hooks/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = HookUpdateBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const existing = await prisma.hook.findUnique({ where: { id } })
+    if (!existing) return reply.code(404).send({ error: 'not_found' })
+    if (existing.status === 'approved') {
+      return reply.code(409).send({ error: 'approved_hook_immutable', message: 'Approved hooks cannot be edited. Create a new hook instead.' })
+    }
+    const row = await prisma.hook.update({
+      where: { id }, data: parsed.data,
+      include: { outcome: { select: { id: true, title: true, version: true } } },
+    })
+    return row
+  })
+
+  app.post('/hooks/:id/approve', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const existing = await prisma.hook.findUnique({ where: { id } })
+    if (!existing) return reply.code(404).send({ error: 'not_found' })
+    if (existing.status === 'approved') return existing
+    const row = await prisma.hook.update({
+      where: { id },
+      data: { status: 'approved', approvedAt: new Date(), approvedById: op.operatorId },
+      include: { outcome: { select: { id: true, title: true, version: true } } },
+    })
+    return row
+  })
+
+  app.delete('/hooks/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const existing = await prisma.hook.findUnique({ where: { id } })
+    if (!existing) return reply.code(404).send({ error: 'not_found' })
+    if (existing.status === 'approved') {
+      return reply.code(409).send({ error: 'approved_hook_immutable', message: 'Approved hooks cannot be deleted. Retirement flow not implemented yet.' })
+    }
+    await prisma.hook.delete({ where: { id } })
+    return { ok: true }
+  })
+
   app.put('/decompositions/:id', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string

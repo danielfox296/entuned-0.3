@@ -7,6 +7,7 @@ import { FailureRules } from './panels/engine/FailureRules.js'
 import { StyleTemplate } from './panels/engine/StyleTemplate.js'
 import { LyricPrompts } from './panels/engine/LyricPrompts.js'
 import { IcpEditor } from './panels/brand/IcpEditor.js'
+import { HookQueue } from './panels/brand/HookQueue.js'
 
 // ── Surface groups (from admin-ui.md, priority order) ──────────
 interface SurfaceGroup {
@@ -229,7 +230,7 @@ function BrandRouter({ cards }: { cards: string[] }) {
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
         {cards.map((c) => {
           const on = active === c
-          const ready = c === 'ICP Editor'
+          const ready = c === 'ICP Editor' || c === 'Hook Queue'
           return (
             <button
               key={c}
@@ -249,6 +250,7 @@ function BrandRouter({ cards }: { cards: string[] }) {
         })}
       </div>
       {active === 'ICP Editor' && <IcpEditor />}
+      {active === 'Hook Queue' && <HookQueue />}
     </div>
   )
 }

@@ -199,6 +199,32 @@ export interface NewReferenceTrack {
 
 export type IcpUpdate = Partial<Omit<IcpRow, 'id' | 'clientId' | 'createdAt' | 'updatedAt'>>
 export type RefTrackUpdate = Partial<NewReferenceTrack>
+export interface OutcomeRowFull {
+  id: string
+  outcomeKey: string
+  version: number
+  title: string
+  tempoBpm: number
+  mode: string
+  dynamics: string | null
+  instrumentation: string | null
+  supersededAt: string | null
+  createdAt: string
+}
+
+export interface HookRowFull {
+  id: string
+  icpId: string
+  outcomeId: string
+  text: string
+  status: 'draft' | 'approved'
+  approvedAt: string | null
+  approvedById: string | null
+  createdAt: string
+  updatedAt: string
+  outcome: { id: string; title: string; version: number }
+}
+
 export type DecompositionUpdate = Partial<{
   status: 'draft' | 'verified'
   confidence: 'low' | 'medium' | 'high' | null
@@ -276,4 +302,19 @@ export const api = {
     req<DecompositionRow>(`/admin/reference-tracks/${id}/decompose${force ? '?force=1' : ''}`, { method: 'POST' }, token),
   updateDecomposition: (id: string, body: DecompositionUpdate, token: string) =>
     req<DecompositionRow>(`/admin/decompositions/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+
+  // --- Hooks ---
+
+  outcomes: (token: string) =>
+    req<OutcomeRowFull[]>('/admin/outcomes', {}, token),
+  icpHooks: (icpId: string, token: string) =>
+    req<HookRowFull[]>(`/admin/icps/${icpId}/hooks`, {}, token),
+  createHook: (icpId: string, body: { text: string; outcomeId: string; approve?: boolean }, token: string) =>
+    req<HookRowFull>(`/admin/icps/${icpId}/hooks`, { method: 'POST', body: JSON.stringify(body) }, token),
+  updateHook: (id: string, body: { text?: string; outcomeId?: string }, token: string) =>
+    req<HookRowFull>(`/admin/hooks/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+  approveHook: (id: string, token: string) =>
+    req<HookRowFull>(`/admin/hooks/${id}/approve`, { method: 'POST' }, token),
+  deleteHook: (id: string, token: string) =>
+    req<{ ok: true }>(`/admin/hooks/${id}`, { method: 'DELETE' }, token),
 }
