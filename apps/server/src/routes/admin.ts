@@ -22,6 +22,7 @@ import { decompose } from '../lib/decomposer/decomposer.js'
 import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 import { runEno } from '../lib/eno/eno.js'
+import { downloadAndUploadFromUrl } from '../lib/r2.js'
 
 interface AuthedOp {
   operatorId: string
@@ -896,15 +897,13 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return row
   })
 
-  // Accept: body { takes: [{ r2Url, r2ObjectKey?, byteSize?, contentType? }] }
-  // For each take: upsert Song (r2Url unique), create LineageRow. Then status=accepted, terminal_at=now,
-  // increment reference_track.use_count.
+  // Accept: body { takes: [{ sourceUrl }] }
+  // For each take: download from sourceUrl (Suno CDN, etc.), upload to R2 under
+  // submissions/{id}/take-{i}.mp3, upsert Song (r2Url unique), create LineageRow.
+  // Then status=accepted, terminal_at=now, increment reference_track.use_count.
   const AcceptBody = z.object({
     takes: z.array(z.object({
-      r2Url: z.string().min(1),
-      r2ObjectKey: z.string().optional(),
-      byteSize: z.number().int().nonnegative().optional(),
-      contentType: z.string().optional(),
+      sourceUrl: z.string().url(),
     })).min(1).max(2),
   })
 
@@ -918,24 +917,40 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (!existing) return reply.code(404).send({ error: 'not_found' })
     if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued', message: `Submission is ${existing.status}` })
 
+    // Step 1: download + reupload each take to R2 BEFORE opening the transaction.
+    // R2 puts are external I/O — keeping them out of the DB transaction avoids
+    // long-held DB connections.
+    const uploaded: { url: string; key: string; byteSize: number; contentType: string }[] = []
+    try {
+      for (let i = 0; i < parsed.data.takes.length; i++) {
+        const take = parsed.data.takes[i]!
+        const key = `submissions/${id}/take-${i + 1}-${Date.now()}.mp3`
+        const obj = await downloadAndUploadFromUrl(take.sourceUrl, key)
+        uploaded.push(obj)
+      }
+    } catch (e: any) {
+      return reply.code(502).send({ error: 'r2_upload_failed', message: e.message ?? 'unknown' })
+    }
+
+    // Step 2: persist (Songs + LineageRows + Submission flip + useCount bump) in one transaction.
     try {
       const result = await prisma.$transaction(async (tx) => {
         const lineage: any[] = []
-        for (const take of parsed.data.takes) {
+        for (const obj of uploaded) {
           const song = await tx.song.upsert({
-            where: { r2Url: take.r2Url },
+            where: { r2Url: obj.url },
             create: {
-              r2Url: take.r2Url,
-              r2ObjectKey: take.r2ObjectKey ?? take.r2Url,
-              byteSize: take.byteSize ? BigInt(take.byteSize) : null,
-              contentType: take.contentType ?? null,
+              r2Url: obj.url,
+              r2ObjectKey: obj.key,
+              byteSize: BigInt(obj.byteSize),
+              contentType: obj.contentType,
             },
             update: {},
           })
           const row = await tx.lineageRow.create({
             data: {
               songId: song.id,
-              r2Url: take.r2Url,
+              r2Url: obj.url,
               icpId: existing.icpId,
               outcomeId: existing.outcomeId,
               hookId: existing.hookId,

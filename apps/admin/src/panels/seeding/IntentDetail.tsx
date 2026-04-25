@@ -8,7 +8,7 @@ export function IntentDetail({ submissionId, onClose }: { submissionId: string; 
   const [data, setData] = useState<SubmissionDetail | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
-  const [takes, setTakes] = useState<{ r2Url: string }[]>([{ r2Url: '' }])
+  const [takes, setTakes] = useState<{ sourceUrl: string }[]>([{ sourceUrl: '' }])
 
   const load = async () => {
     const token = getToken(); if (!token) return
@@ -28,9 +28,9 @@ export function IntentDetail({ submissionId, onClose }: { submissionId: string; 
 
   const accept = async () => {
     const token = getToken(); if (!token) return
-    const validTakes = takes.filter((t) => t.r2Url.trim())
-    if (validTakes.length === 0) { alert('Add at least one r2 URL.'); return }
-    if (!confirm(`Accept submission with ${validTakes.length} take(s)? Creates Song(s) + LineageRow(s) and finalizes the hook.`)) return
+    const validTakes = takes.filter((t) => t.sourceUrl.trim())
+    if (validTakes.length === 0) { alert('Add at least one source URL.'); return }
+    if (!confirm(`Accept ${validTakes.length} take(s)? Server downloads each from its source URL, re-hosts on our R2 bucket, then creates Song(s) + LineageRow(s) and finalizes the hook.`)) return
     setBusy('accept'); setErr(null)
     try {
       await api.acceptSubmission(submissionId, { takes: validTakes }, token)
@@ -117,13 +117,13 @@ export function IntentDetail({ submissionId, onClose }: { submissionId: string; 
       )}
 
       {isQueued && (
-        <Section title="Accept takes" subtitle="Paste R2 URL(s) of accepted Suno takes (1–2 per submission). Creates Songs + LineageRows.">
+        <Section title="Accept takes" subtitle="Paste the Suno (or other) source URL(s). Server downloads and re-hosts on our R2 bucket; only the R2 URL is stored.">
           {takes.map((t, i) => (
             <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
               <input
-                value={t.r2Url}
-                onChange={(e) => setTakes(takes.map((x, j) => j === i ? { r2Url: e.target.value } : x))}
-                placeholder="https://r2.../song-take-N.mp3"
+                value={t.sourceUrl}
+                onChange={(e) => setTakes(takes.map((x, j) => j === i ? { sourceUrl: e.target.value } : x))}
+                placeholder="https://cdn1.suno.ai/...mp3"
                 style={{ ...inputStyle, flex: 1 }}
               />
               {takes.length > 1 && (
@@ -132,11 +132,11 @@ export function IntentDetail({ submissionId, onClose }: { submissionId: string; 
             </div>
           ))}
           {takes.length < 2 && (
-            <button onClick={() => setTakes([...takes, { r2Url: '' }])} style={ghostBtn}>+ second take</button>
+            <button onClick={() => setTakes([...takes, { sourceUrl: '' }])} style={ghostBtn}>+ second take</button>
           )}
           <div style={{ marginTop: 10 }}>
-            <button onClick={accept} disabled={busy !== null || takes.every((t) => !t.r2Url.trim())} style={primaryBtn(takes.some((t) => t.r2Url.trim()), busy === 'accept')}>
-              {busy === 'accept' ? 'accepting…' : 'accept'}
+            <button onClick={accept} disabled={busy !== null || takes.every((t) => !t.sourceUrl.trim())} style={primaryBtn(takes.some((t) => t.sourceUrl.trim()), busy === 'accept')}>
+              {busy === 'accept' ? 'downloading + uploading…' : 'accept'}
             </button>
           </div>
         </Section>

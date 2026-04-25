@@ -488,6 +488,6 @@ export const api = {
     req<SubmissionListRow>(`/admin/submissions/${id}/skip`, { method: 'POST' }, token),
   abandonSubmission: (id: string, token: string) =>
     req<SubmissionListRow>(`/admin/submissions/${id}/abandon`, { method: 'POST' }, token),
-  acceptSubmission: (id: string, body: { takes: { r2Url: string; r2ObjectKey?: string; byteSize?: number; contentType?: string }[] }, token: string) =>
+  acceptSubmission: (id: string, body: { takes: { sourceUrl: string }[] }, token: string) =>
     req<{ submission: SubmissionListRow; lineageRows: any[] }>(`/admin/submissions/${id}/accept`, { method: 'POST', body: JSON.stringify(body) }, token),
 }
