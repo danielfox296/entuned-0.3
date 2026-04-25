@@ -12,6 +12,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../db.js'
 import { MUSICOLOGICAL_RULES_V1 } from './rules-v1.js'
 import { MUSICOLOGICAL_RULES_V2 } from './rules-v2.js'
+import { MUSICOLOGICAL_RULES_V3 } from './rules-v3.js'
 
 const MODEL = process.env.DECOMPOSER_MODEL ?? 'claude-sonnet-4-5'
 
@@ -19,8 +20,9 @@ const MODEL = process.env.DECOMPOSER_MODEL ?? 'claude-sonnet-4-5'
 const RULES_BY_VERSION: Record<number, string> = {
   1: MUSICOLOGICAL_RULES_V1,
   2: MUSICOLOGICAL_RULES_V2,
+  3: MUSICOLOGICAL_RULES_V3,
 }
-const LATEST_RULES_VERSION = 2
+const LATEST_RULES_VERSION = 3
 
 export interface DecomposeInput {
   artist: string

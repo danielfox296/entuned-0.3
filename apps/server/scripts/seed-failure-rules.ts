@@ -36,16 +36,19 @@ const V1_RULES: SeedRule[] = [
     triggerValue: '',
     exclude: 'autotuned vocal, pitch-corrected vocal',
     overrideField: 'vocal_character',
-    overridePattern: 'autotune',
-    note: 'Suno autotune default; skip when vocal_character explicitly says autotuned',
+    // Only an affirmative past-participle mention skips the rule. "no autotune" doesn't.
+    overridePattern: 'autotuned',
+    note: 'Suno autotune default; skip only when vocal_character affirmatively says "autotuned"',
   },
   {
     triggerField: '*',
     triggerValue: '',
     exclude: 'wash of ambient pads, generic pad layer',
     overrideField: 'instrumentation_palette',
-    overridePattern: 'pad',
-    note: 'pad-wash default; skip when instrumentation_palette mentions pads',
+    // "pads" plural — affirmative listing. "padded snare" wouldn't match. Negation phrasing
+    // ("no pads") is rare from the decomposer.
+    overridePattern: 'pads',
+    note: 'pad-wash default; skip when instrumentation_palette lists "pads"',
   },
   { triggerField: '*', triggerValue: '', exclude: 'Billie Eilish whispered vocal', note: 'breathy-whisper vocal default' },
   { triggerField: '*', triggerValue: '', exclude: 'generic genre centroid, sanitized, polished', note: 'the chaos-up principle' },

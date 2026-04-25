@@ -23,7 +23,12 @@ export async function marsAssemble(
 ): Promise<MarsOutput> {
   const style = assembleStylePortion({ decomposition, outcome })
   const { negativeStyle, firedRuleIds } = await buildNegativeStyle(decomposition)
-  const vocalGender = extractVocalGender(decomposition.vocalCharacter)
+  // Look at both vocal fields for gender hints — a track may have a male lead and a
+  // female sample, only one of which gets tagged in vocal_character.
+  const vocalText = [decomposition.vocalCharacter, decomposition.vocalArrangement]
+    .filter(Boolean)
+    .join(' · ')
+  const vocalGender = extractVocalGender(vocalText)
 
   return {
     style,
