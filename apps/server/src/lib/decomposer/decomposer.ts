@@ -55,6 +55,8 @@ export interface DecompositionOutput {
   vocal_arrangement: string
   harmonic_and_groove: string
   confidence: 'low' | 'medium' | 'high'
+  // v3-only: explicit gender for Suno (always present in v3+)
+  vocal_gender?: 'male' | 'female' | 'duet' | 'instrumental'
 }
 
 function decadeFromYear(y: number): string {
@@ -123,7 +125,9 @@ export async function decompose(input: DecomposeInput): Promise<DecomposeResult>
 
   const client = new Anthropic({ apiKey })
 
-  const requiredKeys = rulesRow.version >= 2
+  const requiredKeys = rulesRow.version >= 3
+    ? 'verifiable_facts, confidence, vibe_pitch, era_production_signature, instrumentation_palette, standout_element, arrangement_shape, dynamic_curve, vocal_gender, vocal_character, vocal_arrangement, harmonic_and_groove'
+    : rulesRow.version >= 2
     ? 'verifiable_facts, confidence, vibe_pitch, era_production_signature, instrumentation_palette, standout_element, arrangement_shape, dynamic_curve, vocal_character, vocal_arrangement, harmonic_and_groove'
     : 'vibe_pitch, era_production_signature, instrumentation_palette, standout_element, arrangement_shape, dynamic_curve, vocal_character, vocal_arrangement, harmonic_and_groove, confidence'
 

@@ -23,6 +23,10 @@
 
 import type { Decomposition, Outcome } from '@prisma/client'
 import { stripTempoAndKey } from './sanitize.js'
+import { capStyle } from './cap.js'
+
+// Suno's style field is capped at 1000 chars. Leave safety margin to avoid edge cases.
+const FULL_CAP = 950
 
 export interface StyleAssemblyInput {
   decomposition: Pick<
@@ -63,5 +67,6 @@ export function assembleStylePortion({ decomposition: d, outcome: o }: StyleAsse
   if (d.harmonicAndGroove) parts.push(stripTempoAndKey(d.harmonicAndGroove))
 
   // Comma-joined, not period-joined: Suno reads comma-fragment style better.
-  return parts.filter(Boolean).join(', ').replace(/\s+,/g, ',').replace(/\s+/g, ' ').trim()
+  const joined = parts.filter(Boolean).join(', ').replace(/\s+,/g, ',').replace(/\s+/g, ' ').trim()
+  return capStyle(joined, FULL_CAP)
 }

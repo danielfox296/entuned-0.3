@@ -14,10 +14,16 @@
 const BPM_RE = /(?:\bat\s+)?\b\d{2,3}\s*-?\s*bpm\b/gi
 const KEY_RE = /\b(?:in\s+(?:the\s+key\s+of\s+)?)?(?:[A-G](?:[#b])?)\s+(?:major|minor|maj|min)(?:\s+key)?\b/gi
 const STANDALONE_MODE_RE = /\b(?:major|minor)\s+key\b/gi
+// Anthropic's web_search tool can emit <cite index="..."> ... </cite> wrappers around
+// claims sourced from search results. They pollute the Suno style prompt — strip.
+const CITE_OPEN_RE = /<cite\b[^>]*>/gi
+const CITE_CLOSE_RE = /<\/cite>/gi
 
 export function stripTempoAndKey(text: string | null | undefined): string {
   if (!text) return ''
   let s = text
+  s = s.replace(CITE_OPEN_RE, '')
+  s = s.replace(CITE_CLOSE_RE, '')
   s = s.replace(BPM_RE, '')
   s = s.replace(KEY_RE, '')
   s = s.replace(STANDALONE_MODE_RE, '')

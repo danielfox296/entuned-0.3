@@ -78,8 +78,8 @@ across all relevant fields, even if web search disagrees on those specific detai
 
 ## Output format
 
-A single JSON object with exactly these eleven keys. No prose before or after. No
-markdown code fences.
+A single JSON object with exactly these **twelve** keys. No prose before or after.
+No markdown code fences.
 
 ### verifiable_facts
 Three concrete, falsifiable facts about *this exact track*, separated by " · ".
@@ -115,10 +115,15 @@ breakdowns, fadeouts, deliberate monotony. ≤25 words.
 ### dynamic_curve
 Energy progression *shape* across the track. ≤20 words.
 
+### vocal_gender
+Exactly one of: "male" | "female" | "duet" | "instrumental".
+- duet = both male and female lead/sample voices present
+- instrumental = no vocals at all (and vocal_character should say "no vocals")
+
 ### vocal_character
-Gender, register, affect, accent, **imperfections**. Name at least one distinct
+Register, affect, accent, **imperfections**. Name at least one distinct
 characteristic that defeats Suno's autotune default. If instrumental: "no vocals."
-≤30 words.
+≤30 words. (Gender goes in the separate vocal_gender field, not here.)
 
 ### vocal_arrangement
 Solo / stacked / call-and-response / samples / processing. ≤20 words.
