@@ -1,9 +1,13 @@
 import { useEffect, useState, useCallback } from 'react'
 import { api, getToken, setToken, clearToken } from './api.js'
 import type { MeResponse } from './api.js'
+import { DecomposerRules } from './panels/engine/DecomposerRules.js'
+import { FailureRules } from './panels/engine/FailureRules.js'
+import { StyleTemplate } from './panels/engine/StyleTemplate.js'
+import { LyricPrompts } from './panels/engine/LyricPrompts.js'
 
 // ── Design tokens ──────────────────────────────────────────────
-const T = {
+export const T = {
   bg:            '#0C0C0E',
   surface:       '#141416',
   surfaceRaised: '#1A1A1E',
@@ -42,6 +46,9 @@ const GROUPS: SurfaceGroup[] = [
   { key: 'schedule', label: 'Scheduling & Goals', short: 'Schedule', icon: '▦',
     cards: ['Outcome Schedule', 'Goal Editor', 'Outcome Library', 'Dry Run'],
     description: 'Weekly outcome grids, goals, schedule preview' },
+  { key: 'engine', label: 'Engine', short: 'Engine', icon: '⚙',
+    cards: ['Decomposer Rules', 'Failure Rules', 'Style Template', 'Lyric Prompts'],
+    description: 'System-level prompts that drive decomposer, Mars, and Bernie' },
   { key: 'catalogue', label: 'Song Catalogue', short: 'Catalogue', icon: '♫',
     cards: ['Song Browser', 'Flagged Review', 'Retired Songs', 'Pool Depth'],
     description: 'Browse songs, review flags, monitor pool depth' },
@@ -160,6 +167,8 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: 28 }}>
+        {group.key === 'engine' ? <EngineRouter cards={group.cards} /> : (
+        <>
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12,
         }}>
@@ -190,7 +199,42 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
             </div>
           </div>
         )}
+        </>
+        )}
       </div>
+    </div>
+  )
+}
+
+// ── Engine router ──────────────────────────────────────────────
+function EngineRouter({ cards }: { cards: string[] }) {
+  const [active, setActive] = useState<string>(cards[0]!)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}`, paddingBottom: 0 }}>
+        {cards.map((c) => {
+          const on = active === c
+          return (
+            <button
+              key={c}
+              onClick={() => setActive(c)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
+                color: on ? T.text : T.textMuted,
+                padding: '8px 14px', cursor: 'pointer',
+                fontFamily: T.sans, fontSize: 12, fontWeight: on ? 500 : 400,
+                marginBottom: -1,
+              }}
+            >{c}</button>
+          )
+        })}
+      </div>
+      {active === 'Decomposer Rules' && <DecomposerRules />}
+      {active === 'Failure Rules' && <FailureRules />}
+      {active === 'Style Template' && <StyleTemplate />}
+      {active === 'Lyric Prompts' && <LyricPrompts />}
     </div>
   )
 }

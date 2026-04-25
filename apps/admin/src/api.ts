@@ -85,6 +85,40 @@ export interface HookRow {
   approvedAt: string | null
 }
 
+export interface MusicologicalRulesRow {
+  id: string
+  version: number
+  rulesText: string
+  notes: string | null
+  createdAt: string
+}
+
+export interface FailureRuleRow {
+  id: string
+  triggerField: string
+  triggerValue: string
+  exclude: string
+  overrideField: string | null
+  overridePattern: string | null
+  note: string | null
+}
+
+export interface StyleTemplateRow {
+  id: string
+  version: number
+  templateText: string
+  notes: string | null
+  createdAt: string
+}
+
+export interface LyricPromptRow {
+  id: string
+  version: number
+  promptText: string
+  notes: string | null
+  createdAt: string
+}
+
 // --- API methods ---
 // health + auth reuse existing server routes.
 // Admin-specific data queries will need new server routes — stubbed here
@@ -102,16 +136,31 @@ export const api = {
   health: () =>
     req<HealthResponse>('/health'),
 
-  // --- Admin data routes (to be added to server) ---
-  // These will 404 until we add the corresponding Fastify routes.
-  // Uncomment and wire as each panel gets built.
+  // --- Engine (decomposer rules, failure rules, style template, lyric prompts) ---
 
-  // stores: (token: string) =>
-  //   req<StoreRow[]>('/admin/stores', {}, token),
-  // outcomes: (token: string) =>
-  //   req<OutcomeRow[]>('/admin/outcomes', {}, token),
-  // poolSummary: (storeId: string, token: string) =>
-  //   req<LineageRowSummary[]>(`/admin/stores/${storeId}/pool-summary`, {}, token),
-  // hooks: (icpId: string, token: string) =>
-  //   req<HookRow[]>(`/admin/icps/${icpId}/hooks`, {}, token),
+  musicologicalRules: (token: string) =>
+    req<{ latest: MusicologicalRulesRow | null; history: MusicologicalRulesRow[] }>('/admin/musicological-rules', {}, token),
+  saveMusicologicalRules: (rulesText: string, notes: string | undefined, token: string) =>
+    req<MusicologicalRulesRow>('/admin/musicological-rules', { method: 'POST', body: JSON.stringify({ rulesText, notes }) }, token),
+
+  failureRules: (token: string) =>
+    req<FailureRuleRow[]>('/admin/failure-rules', {}, token),
+  createFailureRule: (body: Omit<FailureRuleRow, 'id'>, token: string) =>
+    req<FailureRuleRow>('/admin/failure-rules', { method: 'POST', body: JSON.stringify(body) }, token),
+  updateFailureRule: (id: string, body: Omit<FailureRuleRow, 'id'>, token: string) =>
+    req<FailureRuleRow>(`/admin/failure-rules/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+  deleteFailureRule: (id: string, token: string) =>
+    req<{ ok: true }>(`/admin/failure-rules/${id}`, { method: 'DELETE' }, token),
+
+  styleTemplate: (token: string) =>
+    req<{ latest: StyleTemplateRow | null; history: StyleTemplateRow[] }>('/admin/style-template', {}, token),
+  saveStyleTemplate: (templateText: string, notes: string | undefined, token: string) =>
+    req<StyleTemplateRow>('/admin/style-template', { method: 'POST', body: JSON.stringify({ templateText, notes }) }, token),
+
+  lyricPrompts: (token: string) =>
+    req<{ draft: { latest: LyricPromptRow | null; history: LyricPromptRow[] }; edit: { latest: LyricPromptRow | null; history: LyricPromptRow[] } }>('/admin/lyric-prompts', {}, token),
+  saveDraftPrompt: (promptText: string, notes: string | undefined, token: string) =>
+    req<LyricPromptRow>('/admin/lyric-prompts/draft', { method: 'POST', body: JSON.stringify({ promptText, notes }) }, token),
+  saveEditPrompt: (promptText: string, notes: string | undefined, token: string) =>
+    req<LyricPromptRow>('/admin/lyric-prompts/edit', { method: 'POST', body: JSON.stringify({ promptText, notes }) }, token),
 }
