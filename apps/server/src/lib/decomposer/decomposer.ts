@@ -13,6 +13,7 @@ import { prisma } from '../../db.js'
 import { MUSICOLOGICAL_RULES_V1 } from './rules-v1.js'
 import { MUSICOLOGICAL_RULES_V2 } from './rules-v2.js'
 import { MUSICOLOGICAL_RULES_V3 } from './rules-v3.js'
+import { MUSICOLOGICAL_RULES_V4 } from './rules-v4.js'
 
 const MODEL = process.env.DECOMPOSER_MODEL ?? 'claude-sonnet-4-5'
 
@@ -21,8 +22,9 @@ const RULES_BY_VERSION: Record<number, string> = {
   1: MUSICOLOGICAL_RULES_V1,
   2: MUSICOLOGICAL_RULES_V2,
   3: MUSICOLOGICAL_RULES_V3,
+  4: MUSICOLOGICAL_RULES_V4,
 }
-const LATEST_RULES_VERSION = 3
+const LATEST_RULES_VERSION = 4
 
 export interface DecomposeInput {
   artist: string
@@ -126,7 +128,7 @@ export async function decompose(input: DecomposeInput): Promise<DecomposeResult>
   const client = new Anthropic({ apiKey })
 
   const requiredKeys = rulesRow.version >= 3
-    ? 'verifiable_facts, confidence, vibe_pitch, era_production_signature, instrumentation_palette, standout_element, arrangement_shape, dynamic_curve, vocal_gender, vocal_character, vocal_arrangement, harmonic_and_groove'
+    ? 'verifiable_facts, confidence, vibe_pitch, era_production_signature, instrumentation_palette, standout_element, arrangement_shape, dynamic_curve, vocal_character, vocal_arrangement, harmonic_and_groove, vocal_gender'
     : rulesRow.version >= 2
     ? 'verifiable_facts, confidence, vibe_pitch, era_production_signature, instrumentation_palette, standout_element, arrangement_shape, dynamic_curve, vocal_character, vocal_arrangement, harmonic_and_groove'
     : 'vibe_pitch, era_production_signature, instrumentation_palette, standout_element, arrangement_shape, dynamic_curve, vocal_character, vocal_arrangement, harmonic_and_groove, confidence'
