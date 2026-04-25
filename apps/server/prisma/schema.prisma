@@ -162,9 +162,101 @@ model ICP {
   client Client  @relation(fields: [clientId], references: [id])
   stores Store[]
   hooks  Hook[]
+  referenceTracks ReferenceTrack[]
 
   @@index([clientId])
   @@map("icps")
+}
+
+// ---------- Card 4 ReferenceTrack ----------
+
+model ReferenceTrack {
+  id          String   @id @default(uuid()) @db.Uuid
+  icpId       String   @map("icp_id") @db.Uuid
+  bucket      Bucket
+  artist      String
+  title       String
+  year        Int?
+  verifiedById String? @map("verified_by") @db.Uuid
+  useCount    Int      @default(0) @map("use_count")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  icp           ICP             @relation(fields: [icpId], references: [id], onDelete: Cascade)
+  decomposition Decomposition?
+
+  @@index([icpId, bucket])
+  @@map("reference_tracks")
+}
+
+// ---------- Card 5 Reference-Track Decomposition ----------
+
+model MusicologicalRules {
+  id          String   @id @default(uuid()) @db.Uuid
+  version     Int      @unique
+  rulesText   String   @map("rules_text")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by") @db.Uuid
+
+  decompositions Decomposition[]
+
+  @@map("musicological_rules")
+}
+
+// Background reference data ported from Mingus/Ronson era_reference table.
+// Provides per-(decade, genre) production context to the decomposer prompt.
+model EraReference {
+  id                  String   @id @default(uuid()) @db.Uuid
+  decade              String
+  genreSlug           String   @map("genre_slug")
+  genreDisplayName    String?  @map("genre_display_name")
+  isEraOverview       Boolean  @default(false) @map("is_era_overview")
+  promptBlock         String?  @map("prompt_block")
+  textureLanguage     String?  @map("texture_language")
+  excludeList         String?  @map("exclude_list")
+  bpmRangeLow         Int?     @map("bpm_range_low")
+  bpmRangeHigh        Int?     @map("bpm_range_high")
+  bpmCompensation     Int?     @map("bpm_compensation")
+  extensionTechniques String?  @map("extension_techniques")
+  instruments         String?
+  recordingChain      String?  @map("recording_chain")
+  vocalsDescription   String?  @map("vocals_description")
+  sunoDriftNotes      String?  @map("suno_drift_notes")
+  notes               String?
+  isActive            Boolean  @default(true) @map("is_active")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([decade, genreSlug])
+  @@index([decade])
+  @@map("era_references")
+}
+
+model Decomposition {
+  id                          String   @id @default(uuid()) @db.Uuid
+  referenceTrackId            String   @unique @map("reference_track_id") @db.Uuid
+  musicologicalRulesVersion   Int      @map("musicological_rules_version")
+  status                      String   @default("draft")
+  verifiedAt                  DateTime? @map("verified_at") @db.Timestamptz(6)
+  verifiedById                String?  @map("verified_by") @db.Uuid
+  confidence                  String?  // low | medium | high
+  // V1 locked fields (per CARD_5_PROPOSAL.md, 2026-04-25)
+  vibePitch                   String?  @map("vibe_pitch")
+  eraProductionSignature      String?  @map("era_production_signature")
+  instrumentationPalette      String?  @map("instrumentation_palette")
+  standoutElement             String?  @map("standout_element")
+  arrangementShape            String?  @map("arrangement_shape")
+  dynamicCurve                String?  @map("dynamic_curve")
+  vocalCharacter              String?  @map("vocal_character")
+  vocalArrangement            String?  @map("vocal_arrangement")
+  harmonicAndGroove           String?  @map("harmonic_and_groove")
+  createdAt                   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  referenceTrack ReferenceTrack     @relation(fields: [referenceTrackId], references: [id], onDelete: Cascade)
+  rules          MusicologicalRules @relation(fields: [musicologicalRulesVersion], references: [version])
+
+  @@index([status])
+  @@map("decompositions")
 }
 
 // ---------- Card 9 Stones (Outcome, copy-on-write versioned) ----------
