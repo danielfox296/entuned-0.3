@@ -6,6 +6,7 @@ import { DecomposerRules } from './panels/engine/DecomposerRules.js'
 import { FailureRules } from './panels/engine/FailureRules.js'
 import { StyleTemplate } from './panels/engine/StyleTemplate.js'
 import { LyricPrompts } from './panels/engine/LyricPrompts.js'
+import { IcpEditor } from './panels/brand/IcpEditor.js'
 
 // ── Surface groups (from admin-ui.md, priority order) ──────────
 interface SurfaceGroup {
@@ -147,7 +148,8 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: 28 }}>
-        {group.key === 'engine' ? <EngineRouter cards={group.cards} /> : (
+        {group.key === 'engine' ? <EngineRouter cards={group.cards} /> :
+         group.key === 'brand' ? <BrandRouter cards={group.cards} /> : (
         <>
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12,
@@ -215,6 +217,38 @@ function EngineRouter({ cards }: { cards: string[] }) {
       {active === 'Failure Rules' && <FailureRules />}
       {active === 'Style Template' && <StyleTemplate />}
       {active === 'Lyric Prompts' && <LyricPrompts />}
+    </div>
+  )
+}
+
+// ── Brand router ───────────────────────────────────────────────
+function BrandRouter({ cards }: { cards: string[] }) {
+  const [active, setActive] = useState<string>('ICP Editor')
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
+        {cards.map((c) => {
+          const on = active === c
+          const ready = c === 'ICP Editor'
+          return (
+            <button
+              key={c}
+              onClick={() => ready && setActive(c)}
+              disabled={!ready}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
+                color: on ? T.text : (ready ? T.textMuted : T.textDim),
+                padding: '8px 14px', cursor: ready ? 'pointer' : 'default',
+                fontFamily: T.sans, fontSize: 12, fontWeight: on ? 500 : 400,
+                marginBottom: -1,
+              }}
+            >{c}{ready ? '' : ' (soon)'}</button>
+          )
+        })}
+      </div>
+      {active === 'ICP Editor' && <IcpEditor />}
     </div>
   )
 }

@@ -119,6 +119,100 @@ export interface LyricPromptRow {
   createdAt: string
 }
 
+// --- Brand: stores, ICPs, reference tracks, decompositions ---
+
+export type Bucket = 'FormationEra' | 'Subculture' | 'Aspirational'
+
+export interface StoreSummary {
+  id: string
+  name: string
+  timezone: string
+  clientId: string
+  clientName: string
+  icpId: string
+}
+
+export interface IcpRow {
+  id: string
+  clientId: string
+  name: string
+  ageRange: string | null
+  location: string | null
+  politicalSpectrum: string | null
+  openness: string | null
+  fears: string | null
+  values: string | null
+  desires: string | null
+  unexpressedDesires: string | null
+  turnOffs: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DecompositionRow {
+  id: string
+  referenceTrackId: string
+  musicologicalRulesVersion: number
+  status: string
+  verifiedAt: string | null
+  verifiedById: string | null
+  confidence: string | null
+  vibePitch: string | null
+  eraProductionSignature: string | null
+  instrumentationPalette: string | null
+  standoutElement: string | null
+  arrangementShape: string | null
+  dynamicCurve: string | null
+  vocalCharacter: string | null
+  vocalArrangement: string | null
+  harmonicAndGroove: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ReferenceTrackRow {
+  id: string
+  icpId: string
+  bucket: Bucket
+  artist: string
+  title: string
+  year: number | null
+  operatorNotes: string | null
+  useCount: number
+  createdAt: string
+  decomposition: DecompositionRow | null
+}
+
+export interface StoreDetail {
+  store: { id: string; name: string; timezone: string; clientId: string; clientName: string }
+  icp: IcpRow & { referenceTracks: ReferenceTrackRow[] }
+  sharedWith: { id: string; name: string; clientName: string }[]
+}
+
+export interface NewReferenceTrack {
+  bucket: Bucket
+  artist: string
+  title: string
+  year?: number | null
+  operatorNotes?: string | null
+}
+
+export type IcpUpdate = Partial<Omit<IcpRow, 'id' | 'clientId' | 'createdAt' | 'updatedAt'>>
+export type RefTrackUpdate = Partial<NewReferenceTrack>
+export type DecompositionUpdate = Partial<{
+  status: 'draft' | 'verified'
+  confidence: 'low' | 'medium' | 'high' | null
+  vibePitch: string | null
+  eraProductionSignature: string | null
+  instrumentationPalette: string | null
+  standoutElement: string | null
+  arrangementShape: string | null
+  dynamicCurve: string | null
+  vocalCharacter: string | null
+  vocalArrangement: string | null
+  harmonicAndGroove: string | null
+}>
+
 // --- API methods ---
 // health + auth reuse existing server routes.
 // Admin-specific data queries will need new server routes — stubbed here
@@ -163,4 +257,23 @@ export const api = {
     req<LyricPromptRow>('/admin/lyric-prompts/draft', { method: 'POST', body: JSON.stringify({ promptText, notes }) }, token),
   saveEditPrompt: (promptText: string, notes: string | undefined, token: string) =>
     req<LyricPromptRow>('/admin/lyric-prompts/edit', { method: 'POST', body: JSON.stringify({ promptText, notes }) }, token),
+
+  // --- Brand ---
+
+  stores: (token: string) =>
+    req<StoreSummary[]>('/admin/stores', {}, token),
+  storeDetail: (id: string, token: string) =>
+    req<StoreDetail>(`/admin/stores/${id}`, {}, token),
+  updateIcp: (id: string, body: IcpUpdate, token: string) =>
+    req<IcpRow>(`/admin/icps/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+  createReferenceTrack: (icpId: string, body: NewReferenceTrack, token: string) =>
+    req<ReferenceTrackRow>(`/admin/icps/${icpId}/reference-tracks`, { method: 'POST', body: JSON.stringify(body) }, token),
+  updateReferenceTrack: (id: string, body: RefTrackUpdate, token: string) =>
+    req<ReferenceTrackRow>(`/admin/reference-tracks/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+  deleteReferenceTrack: (id: string, token: string) =>
+    req<{ ok: true }>(`/admin/reference-tracks/${id}`, { method: 'DELETE' }, token),
+  decomposeReferenceTrack: (id: string, force: boolean, token: string) =>
+    req<DecompositionRow>(`/admin/reference-tracks/${id}/decompose${force ? '?force=1' : ''}`, { method: 'POST' }, token),
+  updateDecomposition: (id: string, body: DecompositionUpdate, token: string) =>
+    req<DecompositionRow>(`/admin/decompositions/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
 }
