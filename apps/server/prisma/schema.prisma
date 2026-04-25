@@ -44,6 +44,15 @@ enum ReportReason {
   SongAudioIssues   @map("Song Audio Issues")
 }
 
+enum ClientPlan {
+  mvp_pilot
+  trial
+  paid_pilot
+  production
+  paused
+  inactive
+}
+
 // ---------- Auth (operator login at store + admin) ----------
 
 model Operator {
@@ -89,7 +98,7 @@ model Client {
   contactName           String?  @map("contact_name")
   contactEmail          String?  @map("contact_email") @db.Citext
   contactPhone          String?  @map("contact_phone")
-  plan                  String
+  plan                  ClientPlan @default(mvp_pilot)
   posProvider           String?  @map("pos_provider")
   posCredentials        Json?    @map("pos_credentials")
   brandLyricGuidelines  String?  @map("brand_lyric_guidelines")

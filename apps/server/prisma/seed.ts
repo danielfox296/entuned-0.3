@@ -60,7 +60,7 @@ async function main() {
     create: {
       id: '11111111-1111-1111-1111-111111111111',
       companyName: 'Untuckit (test)',
-      plan: 'mvp',
+      plan: 'mvp_pilot',
       brandLyricGuidelines: 'Warm, confident, never preachy. Avoid jargon.',
     },
   })
