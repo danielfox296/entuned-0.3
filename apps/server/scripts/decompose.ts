@@ -14,14 +14,17 @@ async function main() {
   const title = arg('title')
   const year = arg('year') ? parseInt(arg('year')!, 10) : undefined
   const genreSlug = arg('genre')
+  const operatorNotes = arg('notes')
 
   if (!artist || !title) {
-    console.error('usage: pnpm tsx scripts/decompose.ts --artist "..." --title "..." [--year 1968] [--genre southern-rock]')
+    console.error('usage: pnpm tsx scripts/decompose.ts --artist "..." --title "..." [--year 1968] [--genre southern-rock] [--notes "kick sidechained, flammed snare"]')
     process.exit(1)
   }
 
-  console.log(`Decomposing: ${artist} — ${title}${year ? ` (${year})` : ''}\n`)
-  const result = await decompose({ artist, title, year, genreSlug })
+  console.log(`Decomposing: ${artist} — ${title}${year ? ` (${year})` : ''}`)
+  if (operatorNotes) console.log(`Operator notes: ${operatorNotes}`)
+  console.log()
+  const result = await decompose({ artist, title, year, genreSlug, operatorNotes })
   console.log(`Model: ${result.modelId}`)
   console.log(`MusicologicalRules version: ${result.rulesVersion}`)
   console.log()

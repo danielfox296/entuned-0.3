@@ -30,6 +30,13 @@ export interface DecomposeInput {
   decade?: string
   /** Optional genre hint (slug from era_references); the model can override. */
   genreSlug?: string
+  /**
+   * Operator producer-ear hints. Authoritative — model treats these as fact about the
+   * track and incorporates them across relevant fields. Use to convey track-specific
+   * production detail (sidechain, sample manipulation, flammed snare, etc.) that web
+   * sources don't surface.
+   */
+  operatorNotes?: string
 }
 
 export interface DecompositionOutput {
@@ -118,6 +125,15 @@ export async function decompose(input: DecomposeInput): Promise<DecomposeResult>
     ? 'verifiable_facts, confidence, vibe_pitch, era_production_signature, instrumentation_palette, standout_element, arrangement_shape, dynamic_curve, vocal_character, vocal_arrangement, harmonic_and_groove'
     : 'vibe_pitch, era_production_signature, instrumentation_palette, standout_element, arrangement_shape, dynamic_curve, vocal_character, vocal_arrangement, harmonic_and_groove, confidence'
 
+  const operatorNotesBlock = input.operatorNotes?.trim()
+    ? `# Operator producer notes (AUTHORITATIVE — these come from a human producer who
+heard the track. Treat as ground truth and incorporate across the relevant fields,
+even if web search results disagree on these specific details.)
+
+${input.operatorNotes.trim()}
+`
+    : ''
+
   const userMessage = `# Track to decompose
 
 Artist: ${input.artist}
@@ -126,7 +142,7 @@ ${input.year ? `Year: ${input.year}` : ''}
 Decade: ${decade}
 ${input.genreSlug ? `Genre hint: ${input.genreSlug}` : ''}
 
-# Background context (era reference data — informs but does not replace track-specific listening)
+${operatorNotesBlock}# Background context (era reference data — informs but does not replace track-specific listening)
 
 ${eraContext}
 

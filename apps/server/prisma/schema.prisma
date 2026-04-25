@@ -171,15 +171,19 @@ model ICP {
 // ---------- Card 4 ReferenceTrack ----------
 
 model ReferenceTrack {
-  id          String   @id @default(uuid()) @db.Uuid
-  icpId       String   @map("icp_id") @db.Uuid
-  bucket      Bucket
-  artist      String
-  title       String
-  year        Int?
-  verifiedById String? @map("verified_by") @db.Uuid
-  useCount    Int      @default(0) @map("use_count")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id            String   @id @default(uuid()) @db.Uuid
+  icpId         String   @map("icp_id") @db.Uuid
+  bucket        Bucket
+  artist        String
+  title         String
+  year          Int?
+  /// Operator producer-ear hints injected into the decomposer prompt as authoritative
+  /// context. Captures track-specific production detail (sidechain, sample manipulation,
+  /// flammed snare, etc.) that web sources don't surface. Free text. Ignored if empty.
+  operatorNotes String?  @map("operator_notes")
+  verifiedById  String?  @map("verified_by") @db.Uuid
+  useCount      Int      @default(0) @map("use_count")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   icp           ICP             @relation(fields: [icpId], references: [id], onDelete: Cascade)
   decomposition Decomposition?
