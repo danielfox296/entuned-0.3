@@ -1,0 +1,16 @@
+# Nixpacks needs explicit pnpm install since we use packageManager via corepack.
+[phases.setup]
+nixPkgs = ["nodejs_20", "pnpm-9_x"]
+
+[phases.install]
+cmds = ["pnpm install"]
+
+[phases.build]
+cmds = [
+  "pnpm prisma generate",
+  "pnpm build",
+  "pnpm prisma migrate deploy"
+]
+
+[start]
+cmd = "pnpm start"
