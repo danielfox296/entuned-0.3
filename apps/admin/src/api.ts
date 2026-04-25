@@ -17,9 +17,11 @@ export function clearToken() {
 
 async function req<T>(path: string, init: RequestInit = {}, token?: string): Promise<T> {
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(init.headers as Record<string, string> | undefined),
   }
+  // Only set Content-Type when there's actually a body — Fastify rejects empty JSON bodies
+  // when the header is present.
+  if (init.body != null) headers['Content-Type'] = 'application/json'
   if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(`${API_URL}${path}`, { ...init, headers })
   if (!res.ok) {
