@@ -1,0 +1,303 @@
+// entuned-0.3 — initial Prisma schema (Phase 0: Flow 3 vertical slice)
+// SSOT lives in `../../../entune v0.3/schema/` — keep this file in sync.
+// Phase 0 covers tables touched by the playback tick (Cards 3, 4, 8, 9, 10, 14, 16, 17, 18, 19, 20)
+// plus Auth (operator login). Generation, seeding UI, Duke admin, POS land in later phases.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- enums ----------
+
+enum Bucket {
+  FormationEra
+  Subculture
+  Aspirational
+}
+
+enum AudioEventType {
+  song_start
+  song_complete
+  song_skip
+  song_report
+  song_love
+  outcome_override
+  outcome_override_cleared
+  playback_starved
+  operator_login
+  operator_logout
+}
+
+enum ReportReason {
+  NotOurVibe        @map("Not our Vibe")
+  Boring
+  AwkwardLyrics     @map("Awkward Lyrics")
+  TooSlow           @map("Too Slow")
+  TooIntense        @map("Too Intense")
+  SongAudioIssues   @map("Song Audio Issues")
+}
+
+// ---------- Auth (operator login at store + admin) ----------
+
+model Operator {
+  id              String   @id @default(uuid()) @db.Uuid
+  email           String   @unique @db.Citext
+  passwordHash    String   @map("password_hash")
+  displayName     String?  @map("display_name")
+  isAdmin         Boolean  @default(false) @map("is_admin")
+  disabledAt      DateTime? @map("disabled_at") @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById     String?  @map("created_by") @db.Uuid
+  passwordSetAt   DateTime @default(now()) @map("password_set_at") @db.Timestamptz(6)
+
+  createdBy       Operator?               @relation("OperatorCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdOthers   Operator[]              @relation("OperatorCreator")
+  storeAssignments OperatorStoreAssignment[] @relation("OperatorAssignments")
+  assignmentsMade  OperatorStoreAssignment[] @relation("OperatorAssigner")
+  audioEvents     AudioEvent[]
+
+  @@map("operators")
+}
+
+model OperatorStoreAssignment {
+  operatorId   String   @map("operator_id") @db.Uuid
+  storeId      String   @map("store_id") @db.Uuid
+  assignedAt   DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  assignedById String   @map("assigned_by") @db.Uuid
+
+  operator   Operator @relation("OperatorAssignments", fields: [operatorId], references: [id], onDelete: Cascade)
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  assignedBy Operator @relation("OperatorAssigner", fields: [assignedById], references: [id])
+
+  @@id([operatorId, storeId])
+  @@index([storeId])
+  @@map("operator_store_assignments")
+}
+
+// ---------- Card 3 Duke (Client + Store) ----------
+
+model Client {
+  id                    String   @id @default(uuid()) @db.Uuid
+  companyName           String   @map("company_name")
+  contactName           String?  @map("contact_name")
+  contactEmail          String?  @map("contact_email") @db.Citext
+  contactPhone          String?  @map("contact_phone")
+  plan                  String
+  posProvider           String?  @map("pos_provider")
+  posCredentials        Json?    @map("pos_credentials")
+  brandLyricGuidelines  String?  @map("brand_lyric_guidelines")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  stores Store[]
+  icps   ICP[]
+
+  @@index([companyName])
+  @@map("clients")
+}
+
+model Store {
+  id                          String   @id @default(uuid()) @db.Uuid
+  clientId                    String   @map("client_id") @db.Uuid
+  icpId                       String   @map("icp_id") @db.Uuid
+  name                        String
+  timezone                    String
+  goLiveDate                  DateTime? @map("go_live_date") @db.Date
+  posLocationId               String?  @map("pos_location_id")
+  // Card 8 OutcomeSchedule fields
+  defaultOutcomeId            String?  @map("default_outcome_id") @db.Uuid
+  manualOverrideOutcomeId     String?  @map("manual_override_outcome_id") @db.Uuid
+  manualOverrideExpiresAt     DateTime? @map("manual_override_expires_at") @db.Timestamptz(6)
+  createdAt                   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  client                Client                  @relation(fields: [clientId], references: [id])
+  icp                   ICP                     @relation(fields: [icpId], references: [id])
+  defaultOutcome        Outcome?                @relation("StoreDefaultOutcome", fields: [defaultOutcomeId], references: [id])
+  manualOverrideOutcome Outcome?                @relation("StoreOverrideOutcome", fields: [manualOverrideOutcomeId], references: [id])
+  scheduleRows          ScheduleRow[]
+  operatorAssignments   OperatorStoreAssignment[]
+  audioEvents           AudioEvent[]
+
+  @@index([clientId])
+  @@index([icpId])
+  @@map("stores")
+}
+
+// ---------- Card 4 Gains (ICP) ----------
+// Phase 0 only needs ICP for Store FK; ReferenceTrack/Prompt land when Eno/Mars enter.
+
+model ICP {
+  id                  String   @id @default(uuid()) @db.Uuid
+  clientId            String   @map("client_id") @db.Uuid
+  name                String
+  ageRange            String?  @map("age_range")
+  location            String?
+  politicalSpectrum   String?  @map("political_spectrum")
+  openness            String?
+  fears               String?
+  values              String?
+  desires             String?
+  unexpressedDesires  String?  @map("unexpressed_desires")
+  turnOffs            String?  @map("turn_offs")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  client Client  @relation(fields: [clientId], references: [id])
+  stores Store[]
+  hooks  Hook[]
+
+  @@index([clientId])
+  @@map("icps")
+}
+
+// ---------- Card 9 Stones (Outcome, copy-on-write versioned) ----------
+
+model Outcome {
+  id              String   @id @default(uuid()) @db.Uuid
+  outcomeKey      String   @map("outcome_key") @db.Uuid
+  version         Int
+  title           String
+  tempoBpm        Int      @map("tempo_bpm")
+  mode            String
+  dynamics        String?
+  instrumentation String?
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById     String?  @map("created_by") @db.Uuid
+  supersededAt    DateTime? @map("superseded_at") @db.Timestamptz(6)
+
+  storesAsDefault  Store[]        @relation("StoreDefaultOutcome")
+  storesAsOverride Store[]        @relation("StoreOverrideOutcome")
+  scheduleRows     ScheduleRow[]
+  hooks            Hook[]
+  lineageRows      LineageRow[]
+
+  @@unique([outcomeKey, version])
+  @@index([outcomeKey, version(sort: Desc)])
+  @@map("outcomes")
+}
+
+// ---------- Card 8 OutcomeSchedule rows (live on Store but in their own table) ----------
+
+model ScheduleRow {
+  id          String   @id @default(uuid()) @db.Uuid
+  storeId     String   @map("store_id") @db.Uuid
+  dayOfWeek   Int      @map("day_of_week") // ISO 8601: Mon=1..Sun=7
+  startTime   DateTime @map("start_time") @db.Time(6)
+  endTime     DateTime @map("end_time") @db.Time(6)
+  outcomeId   String   @map("outcome_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  store   Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  outcome Outcome @relation(fields: [outcomeId], references: [id])
+
+  @@index([storeId, dayOfWeek])
+  @@map("schedule_rows")
+}
+
+// ---------- Card 10 Hooks (needed for LineageRow.hookId provenance) ----------
+
+model Hook {
+  id          String   @id @default(uuid()) @db.Uuid
+  icpId       String   @map("icp_id") @db.Uuid
+  outcomeId   String   @map("outcome_id") @db.Uuid
+  text        String
+  status      String   @default("draft") // draft | approved
+  approvedAt  DateTime? @map("approved_at") @db.Timestamptz(6)
+  approvedById String? @map("approved_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  icp         ICP          @relation(fields: [icpId], references: [id], onDelete: Cascade)
+  outcome     Outcome      @relation(fields: [outcomeId], references: [id])
+  lineageRows LineageRow[]
+
+  @@index([icpId, status])
+  @@index([outcomeId])
+  @@map("hooks")
+}
+
+// ---------- Card 17 Song Library ----------
+
+model Song {
+  id           String   @id @default(uuid()) @db.Uuid
+  r2Url        String   @unique @map("r2_url")
+  r2ObjectKey  String   @unique @map("r2_object_key")
+  byteSize     BigInt?  @map("byte_size")
+  contentType  String?  @map("content_type")
+  uploadedAt   DateTime @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+
+  lineageRows LineageRow[]
+  audioEvents AudioEvent[]
+
+  @@map("songs")
+}
+
+// ---------- Card 16 LineageRow (the song pool Hendrix reads) ----------
+
+model LineageRow {
+  id           String   @id @default(uuid()) @db.Uuid
+  songId       String   @map("song_id") @db.Uuid
+  r2Url        String   @map("r2_url")
+  icpId        String   @map("icp_id") @db.Uuid
+  outcomeId    String   @map("outcome_id") @db.Uuid
+  hookId       String   @map("hook_id") @db.Uuid
+  // submissionId omitted for Phase 0 — Submission table lands when Eno enters; backfill at that point.
+  submissionId String?  @map("submission_id") @db.Uuid
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  song    Song    @relation(fields: [songId], references: [id])
+  outcome Outcome @relation(fields: [outcomeId], references: [id])
+  hook    Hook    @relation(fields: [hookId], references: [id])
+
+  @@index([icpId, outcomeId, active]) // Hendrix hot path
+  @@index([hookId])
+  @@index([songId])
+  @@map("lineage_rows")
+}
+
+// ---------- Card 18 Hendrix (RotationRules singleton) ----------
+
+model RotationRules {
+  id                       String   @id @default(uuid()) @db.Uuid
+  siblingSpacingMinutes    Int      @default(240) @map("sibling_spacing_minutes")
+  noRepeatWindowMinutes    Int      @default(45)  @map("no_repeat_window_minutes")
+  dailyCap                 Int      @default(3)   @map("daily_cap")
+  updatedAt                DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedById              String?  @map("updated_by") @db.Uuid
+
+  @@map("rotation_rules")
+}
+
+// ---------- Card 20 AudioEvent (append-only) ----------
+
+model AudioEvent {
+  id            String         @id @default(uuid()) @db.Uuid
+  eventType     AudioEventType @map("event_type")
+  storeId       String         @map("store_id") @db.Uuid
+  occurredAt    DateTime       @map("occurred_at") @db.Timestamptz(6)
+  receivedAt    DateTime       @default(now()) @map("received_at") @db.Timestamptz(6)
+  operatorId    String?        @map("operator_id") @db.Uuid
+  songId        String?        @map("song_id") @db.Uuid
+  hookId        String?        @map("hook_id") @db.Uuid // denormalized for sibling-spacing
+  reportReason  ReportReason?  @map("report_reason")
+  outcomeId     String?        @map("outcome_id") @db.Uuid
+  extra         Json?
+
+  store    Store     @relation(fields: [storeId], references: [id])
+  operator Operator? @relation(fields: [operatorId], references: [id])
+  song     Song?     @relation(fields: [songId], references: [id])
+
+  @@index([storeId, songId, occurredAt(sort: Desc)])
+  @@index([storeId, hookId, occurredAt(sort: Desc)])
+  @@index([storeId, occurredAt(sort: Desc)])
+  @@index([storeId, eventType, occurredAt(sort: Desc)])
+  @@map("audio_events")
+}
