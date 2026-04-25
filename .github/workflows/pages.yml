@@ -41,9 +41,10 @@ jobs:
       - name: Combine dist
         run: |
           mkdir -p dist
-          cp -R apps/player/dist/. dist/
-          mkdir -p dist/admin
-          cp -R apps/admin/dist/. dist/admin/
+          cp -R apps/admin/dist/. dist/
+          mkdir -p dist/player
+          cp -R apps/player/dist/. dist/player/
+          echo "dash.entuned.co" > dist/CNAME
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
