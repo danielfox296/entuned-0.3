@@ -1,12 +1,13 @@
-name: Deploy player to GitHub Pages
+name: Deploy player + admin to GitHub Pages
 
 on:
   push:
     branches: [main]
     paths:
       - "apps/player/**"
+      - "apps/admin/**"
       - "pnpm-lock.yaml"
-      - ".github/workflows/player-pages.yml"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
@@ -33,10 +34,20 @@ jobs:
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
         run: pnpm --filter player build
+      - name: Build admin
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        run: pnpm --filter admin build
+      - name: Combine dist
+        run: |
+          mkdir -p dist
+          cp -R apps/player/dist/. dist/
+          mkdir -p dist/admin
+          cp -R apps/admin/dist/. dist/admin/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: apps/player/dist
+          path: dist
 
   deploy:
     needs: build
