@@ -1,9 +1,13 @@
-# Nixpacks needs explicit pnpm install since we use packageManager via corepack.
+# Nixpacks installs Node 20; we activate pnpm via corepack (bundled with modern Node).
 [phases.setup]
-nixPkgs = ["nodejs_20", "pnpm-9_x"]
+nixPkgs = ["nodejs_20"]
 
 [phases.install]
-cmds = ["pnpm install"]
+cmds = [
+  "corepack enable",
+  "corepack prepare pnpm@9.12.0 --activate",
+  "pnpm install"
+]
 
 [phases.build]
 cmds = [
