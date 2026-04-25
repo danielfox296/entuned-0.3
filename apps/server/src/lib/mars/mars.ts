@@ -1,8 +1,12 @@
 // Card 12 Mars — assembles the Suno style portion deterministically.
-// Inputs: a Decomposition (Card 5) and a target Outcome (Card 9).
-// Outputs: { style, negative_style, vocal_gender, fired_failure_rule_ids, style_template_version }
+// Input: a Decomposition (Card 5). Outcome physiology lives on Suno's other params,
+// not in the style portion (locked 2026-04-25 after Daniel's Suno reality check).
 //
-// No LLM. Pure function over data + DB-backed FailureRule table.
+// Output: { style, negative_style, vocal_gender, fired_failure_rule_ids, style_template_version }
+//
+// No LLM. Pure function over data + DB-backed FailureRule table. Outcome is no
+// longer a parameter — kept the signature optional for source-compat with older callers
+// but it's ignored.
 
 import type { Decomposition, Outcome } from '@prisma/client'
 import { assembleStylePortion, getStyleTemplateVersion } from './style-template-v1.js'
@@ -19,9 +23,9 @@ export interface MarsOutput {
 
 export async function marsAssemble(
   decomposition: Decomposition,
-  outcome: Outcome,
+  _outcome?: Outcome,
 ): Promise<MarsOutput> {
-  const style = assembleStylePortion({ decomposition, outcome })
+  const style = assembleStylePortion({ decomposition })
   const { negativeStyle, firedRuleIds } = await buildNegativeStyle(decomposition)
   // Look at both vocal fields for gender hints — a track may have a male lead and a
   // female sample, only one of which gets tagged in vocal_character.

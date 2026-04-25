@@ -7,7 +7,7 @@
 //   pnpm tsx scripts/compare-modes.ts \
 //     --artist "..." --title "..." --year 1968 \
 //     --outcome "Brand Reinforcement" \
-//     --hook "Good with that, just the way you are" \
+//     --hook "Coming home to a Sunday afternoon" \
 //     [--notes "..."]
 
 import 'dotenv/config'
@@ -28,7 +28,7 @@ async function main() {
   const title = arg('title')
   const year = arg('year') ? parseInt(arg('year')!, 10) : undefined
   const outcomeTitle = arg('outcome') ?? 'Brand Reinforcement'
-  const hookText = arg('hook') ?? 'Good with that, just the way you are'
+  const hookText = arg('hook') ?? 'Coming home to a Sunday afternoon'
   const operatorNotes = arg('notes')
 
   if (!artist || !title) {
@@ -76,9 +76,10 @@ async function main() {
   } as unknown as Decomposition
 
   // 2. Mars (shared: negative_style, vocal_gender, fired rules).
+  // Outcome is no longer used in style assembly (its physiology lives on Suno's other params).
   console.log(`Mars assembling…`)
-  const fullMars = await marsAssemble(decompositionForMars, outcome)
-  const compactStyle = assembleCompactStyle({ decomposition: decompositionForMars, outcome })
+  const fullMars = await marsAssemble(decompositionForMars)
+  const compactStyle = assembleCompactStyle({ decomposition: decompositionForMars })
 
   // 3. Lyrics (proto-Bernie, single pass, shared between both versions).
   console.log(`Generating lyrics around hook…`)

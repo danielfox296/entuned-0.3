@@ -76,7 +76,7 @@ async function main() {
 
   // 2. Mars.
   console.log(`\n[2/2] Mars assembling style...`)
-  const mars = await marsAssemble(decompositionForMars, outcome)
+  const mars = await marsAssemble(decompositionForMars)
 
   console.log(`\n══════════════════════════════════════════════════════════════════`)
   console.log(`SUNO SUBMISSION`)

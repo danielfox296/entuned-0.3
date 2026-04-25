@@ -4,15 +4,8 @@ import { randomUUID } from 'node:crypto'
 
 const prisma = new PrismaClient()
 
-// 8 real Untuckit songs pulled from Mingus prod, grouped as 4 hooks x 2 takes.
+// Real Untuckit songs pulled from Mingus prod, grouped as 3 hooks x 2 takes.
 const SONG_FAMILIES = [
-  {
-    hookText: 'Good with that, just the way you are',
-    takes: [
-      'https://pub-c56d67b37830400a982d07e34b528013.r2.dev/tracks/ac380244-2b13-430a-9dd7-a5ad15527c5f/1.mp3',
-      'https://pub-c56d67b37830400a982d07e34b528013.r2.dev/tracks/ac380244-2b13-430a-9dd7-a5ad15527c5f/2.mp3',
-    ],
-  },
   {
     hookText: 'Coming home to a Sunday afternoon',
     takes: [
