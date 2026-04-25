@@ -299,12 +299,6 @@ export function App() {
     setTokenState(t)
   }
 
-  const handleLogout = () => {
-    clearToken()
-    setTokenState(null)
-    setMe(null)
-  }
-
   if (!token || !me) {
     return <Login onLogin={handleLogin} />
   }

@@ -263,6 +263,38 @@ model Decomposition {
   @@map("decompositions")
 }
 
+// ---------- Card 12 Mars (StyleTemplate + FailureRule) ----------
+
+model StyleTemplate {
+  id           String   @id @default(uuid()) @db.Uuid
+  version      Int      @unique
+  templateText String   @map("template_text")
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById  String?  @map("created_by") @db.Uuid
+
+  @@map("style_templates")
+}
+
+model FailureRule {
+  id           String   @id @default(uuid()) @db.Uuid
+  // trigger_field references a Decomposition column name. '*' means unconditional.
+  triggerField String   @map("trigger_field")
+  // case-insensitive substring matcher. Ignored when triggerField = '*'.
+  triggerValue String   @map("trigger_value")
+  exclude      String
+  // Optional skip rule: if the named decomposition field contains this substring (case-insensitive),
+  // the rule is skipped. Used so e.g. the "no autotune" unconditional doesn't fire when the
+  // vocal_character explicitly says autotuned.
+  overrideField   String? @map("override_field")
+  overridePattern String? @map("override_pattern")
+  note         String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([triggerField])
+  @@map("failure_rules")
+}
+
 // ---------- Card 9 Stones (Outcome, copy-on-write versioned) ----------
 
 model Outcome {
