@@ -55,7 +55,7 @@ function StatusBar({ apiOk }: { apiOk: boolean }) {
     <div style={{
       height: 36, background: T.surface, borderBottom: `1px solid ${T.border}`,
       display: 'flex', alignItems: 'center', padding: '0 16px', gap: 20,
-      flexShrink: 0, fontFamily: T.mono, fontSize: 11,
+      flexShrink: 0, fontFamily: T.sans, fontSize: 11,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <div style={{
@@ -89,12 +89,10 @@ function Sidebar({ active, onSelect, collapsed, onToggle, email }: {
         padding: collapsed ? '0 14px' : '0 16px', gap: 10,
         borderBottom: `1px solid ${T.borderSubtle}`, cursor: 'pointer', flexShrink: 0,
       }}>
-        <span style={{
-          fontSize: 16, color: T.accent, fontFamily: T.mono,
-          fontWeight: 700, letterSpacing: '-0.03em',
-        }}>
-          {collapsed ? 'e' : 'entuned'}
-        </span>
+        {collapsed
+          ? <span style={{ fontSize: 16, color: T.accent, fontFamily: T.heading, fontWeight: 700 }}>e</span>
+          : <img src="/entuned-logo-ice.svg" alt="Entuned" style={{ height: 18, width: 'auto', display: 'block' }} />
+        }
       </div>
 
       <div style={{ flex: 1, padding: '8px 0', overflowY: 'auto' }}>
@@ -123,7 +121,7 @@ function Sidebar({ active, onSelect, collapsed, onToggle, email }: {
 
       {!collapsed && (
         <div style={{ padding: '12px 16px', borderTop: `1px solid ${T.borderSubtle}` }}>
-          <div style={{ fontSize: 10, color: T.textDim, fontFamily: T.mono }}>{email}</div>
+          <div style={{ fontSize: 10, color: T.textDim, fontFamily: T.sans }}>{email}</div>
         </div>
       )}
     </div>
@@ -138,11 +136,11 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
           <span style={{ fontSize: 13, color: T.accent }}>{group.icon}</span>
           <h1 style={{
-            fontSize: 18, fontFamily: T.sans, fontWeight: 600,
+            fontSize: 18, fontFamily: T.heading, fontWeight: 700,
             color: T.text, margin: 0, letterSpacing: '-0.02em',
           }}>{group.label}</h1>
           {group.deferred && <span style={{
-            fontSize: 10, fontFamily: T.mono, color: T.textDim,
+            fontSize: 10, fontFamily: T.sans, color: T.textDim,
             background: T.surfaceRaised, padding: '2px 8px', borderRadius: 3,
             border: `1px solid ${T.borderSubtle}`,
           }}>deferred</span>}
@@ -171,7 +169,7 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
               <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text, marginBottom: 8 }}>
                 {card}
               </div>
-              <div style={{ fontSize: 11, fontFamily: T.mono, color: group.deferred ? T.textDim : T.accentMuted }}>
+              <div style={{ fontSize: 11, fontFamily: T.sans, color: group.deferred ? T.textDim : T.accent }}>
                 {group.deferred ? 'post-mvp' : 'ready for build →'}
               </div>
             </div>
@@ -384,10 +382,9 @@ function Login({ onLogin }: { onLogin: (token: string) => void }) {
       fontFamily: T.sans,
     }}>
       <div style={{ width: 320 }}>
-        <div style={{
-          fontSize: 20, color: T.accent, fontFamily: T.mono,
-          fontWeight: 700, marginBottom: 32, letterSpacing: '-0.03em',
-        }}>entuned admin</div>
+        <div style={{ marginBottom: 32 }}>
+          <img src="/entuned-logo-ice.svg" alt="Entuned" style={{ height: 22, width: 'auto', display: 'block' }} />
+        </div>
         <div style={{ display: 'grid', gap: 12 }}>
           <input
             value={email}
@@ -396,7 +393,7 @@ function Login({ onLogin }: { onLogin: (token: string) => void }) {
             style={{
               background: T.surfaceRaised, border: `1px solid ${T.border}`,
               borderRadius: 4, padding: '10px 12px', color: T.text,
-              fontFamily: T.mono, fontSize: 13, outline: 'none',
+              fontFamily: T.sans, fontSize: 13, outline: 'none',
             }}
           />
           <input
@@ -408,7 +405,7 @@ function Login({ onLogin }: { onLogin: (token: string) => void }) {
             style={{
               background: T.surfaceRaised, border: `1px solid ${T.border}`,
               borderRadius: 4, padding: '10px 12px', color: T.text,
-              fontFamily: T.mono, fontSize: 13, outline: 'none',
+              fontFamily: T.sans, fontSize: 13, outline: 'none',
             }}
           />
           <button
@@ -416,12 +413,12 @@ function Login({ onLogin }: { onLogin: (token: string) => void }) {
             disabled={busy}
             style={{
               background: T.accent, color: T.bg, border: 'none',
-              borderRadius: 4, padding: '10px 12px', fontFamily: T.mono,
+              borderRadius: 4, padding: '10px 12px', fontFamily: T.sans,
               fontSize: 13, fontWeight: 600, cursor: 'pointer',
               opacity: busy ? 0.6 : 1,
             }}
           >{busy ? 'signing in…' : 'sign in'}</button>
-          {error && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{error}</div>}
+          {error && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.sans }}>{error}</div>}
         </div>
       </div>
     </div>

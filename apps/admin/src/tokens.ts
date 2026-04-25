@@ -1,22 +1,40 @@
-// Design tokens — kept in their own module so panel components can import
-// without forming a circular dep with App.tsx.
+// Design tokens — Entuned design system (colors_and_type.css → v0.3 admin)
+// Single source of truth for all inline styles across the admin shell and panels.
 
 export const T = {
-  bg:            '#0C0C0E',
-  surface:       '#141416',
-  surfaceRaised: '#1A1A1E',
-  surfaceHover:  '#222226',
-  border:        '#2A2A2F',
-  borderSubtle:  '#1E1E22',
-  text:          '#E8E6E1',
-  textMuted:     '#8A877F',
-  textDim:       '#5A5850',
-  accent:        '#C4A052',
-  accentMuted:   '#8B7337',
-  accentGlow:    'rgba(196, 160, 82, 0.08)',
-  danger:        '#C45252',
+  // ── Surfaces ───────────────────────────────────────────────────
+  bg:            '#20201c',   // ink — warm near-black
+  surface:       '#252520',   // bg-alt — sidebar, status bar
+  surfaceRaised: '#282825',   // bg-card — cards, inputs
+  surfaceHover:  '#3d3b38',   // bg-stats — elevated band, hovered rows
+  inkDeep:       '#1a1a17',   // footer, deepest surface
+
+  // ── Borders ────────────────────────────────────────────────────
+  border:        'rgba(106, 176, 187, 0.18)',   // primary divider
+  borderSubtle:  'rgba(106, 176, 187, 0.08)',   // secondary / background divider
+
+  // ── Text (ice palette) ─────────────────────────────────────────
+  text:          '#d4e1e5',                      // ice — primary
+  textMuted:     'rgba(212, 225, 229, 0.75)',    // secondary labels
+  textDim:       'rgba(212, 225, 229, 0.55)',    // tertiary / faint
+  textFaint:     'rgba(212, 225, 229, 0.35)',    // placeholder, disabled
+
+  // ── Accent (teal) ──────────────────────────────────────────────
+  accent:        '#6ab0bb',                      // primary brand accent
+  accentHover:   '#82c3cd',                      // hover / lift
+  accentMuted:   'rgba(106, 176, 187, 0.55)',    // readable teal label text + soft borders
+  accentGlow:    'rgba(106, 176, 187, 0.08)',    // subtle bg tint / active row
+
+  // ── Secondary accents ──────────────────────────────────────────
+  gold:          '#e8b458',   // secondary — use sparingly
+
+  // ── Status ─────────────────────────────────────────────────────
+  danger:        '#E24B4A',
   success:       '#52C47A',
-  warn:          '#C4A052',
-  mono:          "'DM Mono', 'SF Mono', 'Fira Code', monospace",
-  sans:          "'DM Sans', 'Helvetica Neue', system-ui, sans-serif",
+  warn:          '#e8b458',
+
+  // ── Typography ─────────────────────────────────────────────────
+  heading:       "'Manrope', sans-serif",
+  sans:          "'Inter', sans-serif",
+  mono:          "'Inter', sans-serif",   // aliased — no monospace on public surfaces
 } as const
