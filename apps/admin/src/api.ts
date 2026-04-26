@@ -434,6 +434,12 @@ export const api = {
     req<OutcomeRowFull[]>('/admin/outcomes', {}, token),
   outcomeLibrary: (token: string) =>
     req<(OutcomeRowFull & { lineageCount: number })[]>('/admin/outcomes?include=all', {}, token),
+  createOutcome: (body: { title: string; tempoBpm: number; mode: string; dynamics?: string | null; instrumentation?: string | null }, token: string) =>
+    req<OutcomeRowFull>('/admin/outcomes', { method: 'POST', body: JSON.stringify(body) }, token),
+  editOutcome: (id: string, body: { title: string; tempoBpm: number; mode: string; dynamics?: string | null; instrumentation?: string | null }, token: string) =>
+    req<OutcomeRowFull>(`/admin/outcomes/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+  supersedeOutcome: (id: string, token: string) =>
+    req<OutcomeRowFull>(`/admin/outcomes/${id}/supersede`, { method: 'POST' }, token),
   icpHooks: (icpId: string, token: string) =>
     req<HookRowFull[]>(`/admin/icps/${icpId}/hooks`, {}, token),
   createHook: (icpId: string, body: { text: string; outcomeId: string; approve?: boolean }, token: string) =>

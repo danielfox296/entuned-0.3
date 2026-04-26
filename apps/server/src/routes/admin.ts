@@ -448,6 +448,78 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return rows.map((o) => ({ ...o, lineageCount: countMap.get(o.id) ?? 0 }))
   })
 
+  // ----- Outcomes (Card 09 copy-on-write versioning) -----
+
+  const OutcomeCreateBody = z.object({
+    title: z.string().min(1),
+    tempoBpm: z.number().int().min(40).max(220),
+    mode: z.string().min(1),
+    dynamics: z.string().nullable().optional(),
+    instrumentation: z.string().nullable().optional(),
+  })
+
+  app.post('/outcomes', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = OutcomeCreateBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const row = await prisma.outcome.create({
+      data: {
+        outcomeKey: crypto.randomUUID(),
+        version: 1,
+        title: parsed.data.title,
+        tempoBpm: parsed.data.tempoBpm,
+        mode: parsed.data.mode,
+        dynamics: parsed.data.dynamics ?? null,
+        instrumentation: parsed.data.instrumentation ?? null,
+        createdById: op.operatorId,
+      },
+    })
+    return row
+  })
+
+  // PUT = create new version with same outcomeKey, supersede the old.
+  // Existing references (hooks, schedule rows, submissions, lineage rows) stay pinned to the old id.
+  app.put('/outcomes/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = OutcomeCreateBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const existing = await prisma.outcome.findUnique({ where: { id } })
+    if (!existing) return reply.code(404).send({ error: 'not_found' })
+    if (existing.supersededAt) return reply.code(409).send({ error: 'already_superseded', message: 'Edit the latest active version of this outcome key.' })
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        await tx.outcome.update({ where: { id }, data: { supersededAt: new Date() } })
+        const created = await tx.outcome.create({
+          data: {
+            outcomeKey: existing.outcomeKey,
+            version: existing.version + 1,
+            title: parsed.data.title,
+            tempoBpm: parsed.data.tempoBpm,
+            mode: parsed.data.mode,
+            dynamics: parsed.data.dynamics ?? null,
+            instrumentation: parsed.data.instrumentation ?? null,
+            createdById: op.operatorId,
+          },
+        })
+        return created
+      })
+      return result
+    } catch (e: any) {
+      return reply.code(500).send({ error: 'edit_failed', message: e.message ?? 'unknown' })
+    }
+  })
+
+  app.post('/outcomes/:id/supersede', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const existing = await prisma.outcome.findUnique({ where: { id } })
+    if (!existing) return reply.code(404).send({ error: 'not_found' })
+    if (existing.supersededAt) return existing
+    const row = await prisma.outcome.update({ where: { id }, data: { supersededAt: new Date() } })
+    return row
+  })
+
   // ----- Hooks (per-ICP queue) -----
 
   app.get('/icps/:id/hooks', async (req, reply) => {

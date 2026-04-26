@@ -7,16 +7,32 @@ import { T } from '../../tokens.js'
 type Row = OutcomeRowFull & { lineageCount: number }
 type Filter = 'active' | 'superseded' | 'all'
 
+interface Draft {
+  title: string
+  tempoBpm: number
+  mode: string
+  dynamics: string
+  instrumentation: string
+}
+
+const MODE_SUGGESTIONS = ['major', 'minor', 'dorian', 'mixolydian', 'lydian', 'phrygian', 'aeolian', 'modal_jazz', 'blues']
+
 export function OutcomeLibrary() {
   const [rows, setRows] = useState<Row[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>('active')
   const [search, setSearch] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [draft, setDraft] = useState<Draft | null>(null)
+  const [adding, setAdding] = useState<Draft | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
 
-  useEffect(() => {
+  const reload = async () => {
     const token = getToken(); if (!token) return
-    api.outcomeLibrary(token).then(setRows).catch((e) => setErr(e.message))
-  }, [])
+    try { setRows(await api.outcomeLibrary(token)); setErr(null) }
+    catch (e: any) { setErr(e.message) }
+  }
+  useEffect(() => { reload() }, [])
 
   const visible = useMemo(() => {
     if (!rows) return []
@@ -35,12 +51,61 @@ export function OutcomeLibrary() {
     all: rows?.length ?? 0,
   }
 
+  const startEdit = (r: Row) => {
+    setEditingId(r.id)
+    setDraft({
+      title: r.title,
+      tempoBpm: r.tempoBpm,
+      mode: r.mode,
+      dynamics: r.dynamics ?? '',
+      instrumentation: r.instrumentation ?? '',
+    })
+  }
+
+  const saveEdit = async () => {
+    if (!editingId || !draft) return
+    const token = getToken(); if (!token) return
+    if (!confirm(`Saves as v{N+1}; the current version stays referenced by existing hooks/schedule rows/submissions. Continue?`.replace('{N+1}', String((rows?.find((r) => r.id === editingId)?.version ?? 0) + 1)))) return
+    setBusy('save'); setErr(null)
+    try {
+      await api.editOutcome(editingId, {
+        title: draft.title, tempoBpm: draft.tempoBpm, mode: draft.mode,
+        dynamics: draft.dynamics || null, instrumentation: draft.instrumentation || null,
+      }, token)
+      setEditingId(null); setDraft(null); await reload()
+    } catch (e: any) { setErr(e.message) }
+    finally { setBusy(null) }
+  }
+
+  const create = async () => {
+    if (!adding) return
+    const token = getToken(); if (!token) return
+    setBusy('create'); setErr(null)
+    try {
+      await api.createOutcome({
+        title: adding.title, tempoBpm: adding.tempoBpm, mode: adding.mode,
+        dynamics: adding.dynamics || null, instrumentation: adding.instrumentation || null,
+      }, token)
+      setAdding(null); await reload()
+    } catch (e: any) { setErr(e.message) }
+    finally { setBusy(null) }
+  }
+
+  const supersede = async (r: Row) => {
+    const token = getToken(); if (!token) return
+    if (!confirm(`Retire "${r.title} v${r.version}"? It stays referenced by existing hooks/schedule rows/submissions but won't appear in pickers.`)) return
+    setBusy(r.id)
+    try { await api.supersedeOutcome(r.id, token); await reload() }
+    catch (e: any) { setErr(e.message) }
+    finally { setBusy(null) }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
         <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Outcome Library</div>
         <div style={{ fontSize: 11, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Read-only browse of the global outcome library. Search by title, mode, or instrumentation.
+          Browse, create, edit (copy-on-write versioned), and retire outcomes.
         </div>
       </div>
 
@@ -67,13 +132,24 @@ export function OutcomeLibrary() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="search title, mode, instrumentation"
-          style={{
-            background: T.surface, border: `1px solid ${T.border}`, color: T.text,
-            fontFamily: T.mono, fontSize: 12, padding: '7px 10px', borderRadius: 4,
-            outline: 'none', minWidth: 280, flex: 1, maxWidth: 480,
-          }}
+          style={{ ...inputStyle, minWidth: 280, flex: 1, maxWidth: 480 }}
         />
+        <button
+          onClick={() => setAdding(adding ? null : { title: '', tempoBpm: 100, mode: 'major', dynamics: '', instrumentation: '' })}
+          style={primaryBtn(!adding, false)}
+        >{adding ? 'cancel' : '+ new outcome'}</button>
       </div>
+
+      {adding && (
+        <OutcomeForm
+          draft={adding}
+          onChange={setAdding}
+          onSubmit={create}
+          onCancel={() => setAdding(null)}
+          submitLabel={busy === 'create' ? 'creating…' : 'create'}
+          intent="new"
+        />
+      )}
 
       {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
 
@@ -81,22 +157,39 @@ export function OutcomeLibrary() {
 
       {rows && (
         <div style={{ border: `1px solid ${T.border}`, borderRadius: 4, overflow: 'hidden' }}>
-          <Header />
+          <HeaderRow />
           {visible.length === 0 && (
             <div style={{ padding: 24, textAlign: 'center', color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>
               no matches
             </div>
           )}
-          {visible.map((r) => <Row key={r.id} row={r} />)}
+          {visible.map((r) => (
+            <div key={r.id}>
+              <DataRow row={r} onEdit={() => startEdit(r)} onSupersede={() => supersede(r)} busy={busy === r.id} />
+              {editingId === r.id && draft && (
+                <div style={{ padding: 14, background: T.accentGlow, borderBottom: `1px solid ${T.borderSubtle}` }}>
+                  <OutcomeForm
+                    draft={draft}
+                    onChange={setDraft}
+                    onSubmit={saveEdit}
+                    onCancel={() => { setEditingId(null); setDraft(null) }}
+                    submitLabel={busy === 'save' ? 'saving…' : `save as v${r.version + 1}`}
+                    intent="edit"
+                    currentVersion={r.version}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
   )
 }
 
-const COLS = '1.6fr 60px 70px 70px 1.4fr 1.6fr 80px 100px'
+const COLS = '1.6fr 60px 70px 90px 1.4fr 1.6fr 80px 90px 110px'
 
-function Header() {
+function HeaderRow() {
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: COLS, gap: 10,
@@ -112,11 +205,14 @@ function Header() {
       <span>instrumentation</span>
       <span style={{ textAlign: 'right' }}>pool</span>
       <span style={{ textAlign: 'right' }}>status</span>
+      <span></span>
     </div>
   )
 }
 
-function Row({ row }: { row: Row }) {
+function DataRow({ row, onEdit, onSupersede, busy }: {
+  row: Row; onEdit: () => void; onSupersede: () => void; busy: boolean
+}) {
   const superseded = !!row.supersededAt
   return (
     <div style={{
@@ -137,10 +233,108 @@ function Row({ row }: { row: Row }) {
         color: superseded ? T.textDim : T.success,
         fontSize: 10,
       }}>{superseded ? 'superseded' : 'active'}</span>
+      <span style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+        {!superseded && (
+          <>
+            <button onClick={onEdit} disabled={busy} style={tinyBtn}>edit</button>
+            <button onClick={onSupersede} disabled={busy} style={tinyDangerBtn}>retire</button>
+          </>
+        )}
+      </span>
+    </div>
+  )
+}
+
+function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent, currentVersion }: {
+  draft: Draft
+  onChange: (d: Draft) => void
+  onSubmit: () => void
+  onCancel: () => void
+  submitLabel: string
+  intent: 'new' | 'edit'
+  currentVersion?: number
+}) {
+  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => onChange({ ...draft, [k]: v })
+  const valid = draft.title.trim() && draft.mode.trim() && draft.tempoBpm >= 40 && draft.tempoBpm <= 220
+
+  return (
+    <div style={{
+      background: intent === 'new' ? T.accentGlow : 'transparent',
+      border: intent === 'new' ? `1px solid ${T.accentMuted}` : 'none',
+      borderRadius: 4, padding: intent === 'new' ? 14 : 0,
+      display: 'grid', gridTemplateColumns: '1fr 100px 140px 1fr 1.2fr', gap: 8,
+    }}>
+      <div>
+        <label style={labelStyle}>title</label>
+        <input value={draft.title} onChange={(e) => set('title', e.target.value)} style={inputStyle} placeholder="Brand Reinforcement" />
+      </div>
+      <div>
+        <label style={labelStyle}>tempo bpm</label>
+        <input type="number" min={40} max={220} value={draft.tempoBpm} onChange={(e) => set('tempoBpm', parseInt(e.target.value, 10) || 100)} style={inputStyle} />
+      </div>
+      <div>
+        <label style={labelStyle}>mode</label>
+        <input list="mode-suggestions" value={draft.mode} onChange={(e) => set('mode', e.target.value)} style={inputStyle} placeholder="major" />
+        <datalist id="mode-suggestions">
+          {MODE_SUGGESTIONS.map((m) => <option key={m} value={m} />)}
+        </datalist>
+      </div>
+      <div>
+        <label style={labelStyle}>dynamics</label>
+        <input value={draft.dynamics} onChange={(e) => set('dynamics', e.target.value)} style={inputStyle} placeholder="medium-loud" />
+      </div>
+      <div>
+        <label style={labelStyle}>instrumentation</label>
+        <input value={draft.instrumentation} onChange={(e) => set('instrumentation', e.target.value)} style={inputStyle} placeholder="rhodes, brushed kit, upright bass" />
+      </div>
+      {intent === 'edit' && currentVersion != null && (
+        <div style={{
+          gridColumn: '1 / -1',
+          fontSize: 10, fontFamily: T.mono, color: T.warn,
+          padding: '4px 0',
+        }}>
+          ⚠ Saves as v{currentVersion + 1}. v{currentVersion} stays referenced by existing hooks, schedule rows, and submissions — those won't auto-upgrade.
+        </div>
+      )}
+      <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 6 }}>
+        <button onClick={onSubmit} disabled={!valid} style={primaryBtn(!!valid, false)}>{submitLabel}</button>
+        <button onClick={onCancel} style={tinyBtn}>cancel</button>
+      </div>
     </div>
   )
 }
 
 const cellTrunc: CSSProperties = {
   color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+}
+
+const inputStyle: CSSProperties = {
+  background: T.surface, border: `1px solid ${T.border}`, color: T.text,
+  fontFamily: T.mono, fontSize: 11, padding: '6px 10px', borderRadius: 3, outline: 'none',
+  width: '100%', boxSizing: 'border-box',
+}
+
+const labelStyle: CSSProperties = {
+  display: 'block', fontSize: 9, color: T.textDim, fontFamily: T.mono,
+  textTransform: 'uppercase', marginBottom: 3,
+}
+
+function primaryBtn(active: boolean, busy: boolean): CSSProperties {
+  return {
+    background: active ? T.accent : T.surfaceRaised,
+    color: active ? T.bg : T.textMuted,
+    border: 'none', borderRadius: 3, padding: '6px 12px',
+    fontFamily: T.mono, fontSize: 11, fontWeight: 600,
+    cursor: active && !busy ? 'pointer' : 'default',
+    opacity: busy ? 0.6 : 1,
+  }
+}
+
+const tinyBtn: CSSProperties = {
+  background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
+  padding: '3px 9px', borderRadius: 2, fontFamily: T.mono, fontSize: 10, cursor: 'pointer',
+}
+
+const tinyDangerBtn: CSSProperties = {
+  ...tinyBtn, borderColor: T.danger, color: T.danger,
 }
