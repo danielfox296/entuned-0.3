@@ -366,6 +366,40 @@ export interface DryRunOutcomeTotal {
   poolStatus: PoolStatusValue
 }
 
+export interface LineageRowFull {
+  id: string
+  active: boolean
+  createdAt: string
+  icpId: string
+  icpName: string | null
+  outcome: { id: string; title: string; version: number }
+  hook: { id: string; text: string }
+  song: { id: string; r2Url: string; byteSize: number | string | null }
+}
+
+export interface LineageRowList {
+  total: number
+  limit: number
+  offset: number
+  rows: LineageRowFull[]
+}
+
+export interface FlaggedSong {
+  songId: string
+  r2Url: string | null
+  reportCount: number
+  lastReportedAt: string
+  reasons: Record<string, number>
+  storeCount: number
+  lineageRows: { id: string; active: boolean; hook: { id: string; text: string }; outcome: { id: string; title: string; version: number } }[]
+  activeLineageCount: number
+  anyActive: boolean
+}
+
+export interface FlaggedResponse {
+  songs: FlaggedSong[]
+}
+
 export interface ScheduleDryRun {
   store: { id: string; name: string; timezone: string }
   icp: { id: string; name: string }
@@ -606,6 +640,29 @@ export const api = {
     req<{ ok: true }>(`/admin/schedule-rows/${id}`, { method: 'DELETE' }, token),
   scheduleDryRun: (storeId: string, token: string) =>
     req<ScheduleDryRun>(`/admin/stores/${storeId}/schedule-dry-run`, {}, token),
+
+  // --- Catalogue ---
+
+  lineageRows: (
+    params: { icpId?: string; outcomeId?: string; hookId?: string; active?: 'all' | 'true' | 'false'; limit?: number; offset?: number },
+    token: string,
+  ) => {
+    const qs = new URLSearchParams()
+    if (params.icpId) qs.set('icpId', params.icpId)
+    if (params.outcomeId) qs.set('outcomeId', params.outcomeId)
+    if (params.hookId) qs.set('hookId', params.hookId)
+    if (params.active) qs.set('active', params.active)
+    if (params.limit) qs.set('limit', String(params.limit))
+    if (params.offset) qs.set('offset', String(params.offset))
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return req<LineageRowList>(`/admin/lineage-rows${q}`, {}, token)
+  },
+  setLineageRowActive: (id: string, active: boolean, token: string) =>
+    req<LineageRowFull>(`/admin/lineage-rows/${id}`, { method: 'PATCH', body: JSON.stringify({ active }) }, token),
+  flagged: (token: string) =>
+    req<FlaggedResponse>('/admin/flagged', {}, token),
+  retireFlagged: (songId: string, token: string) =>
+    req<{ retired: number }>(`/admin/flagged/${songId}/retire`, { method: 'POST' }, token),
 
   // --- Operator Seeding ---
 

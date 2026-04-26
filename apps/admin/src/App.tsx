@@ -15,6 +15,9 @@ import { OutcomeLibrary } from './panels/schedule/OutcomeLibrary.js'
 import { GoalEditor } from './panels/schedule/GoalEditor.js'
 import { DryRun } from './panels/schedule/DryRun.js'
 import { PoolDepth } from './panels/catalogue/PoolDepth.js'
+import { SongBrowser } from './panels/catalogue/SongBrowser.js'
+import { FlaggedReview } from './panels/catalogue/FlaggedReview.js'
+import { RetiredSongs } from './panels/catalogue/RetiredSongs.js'
 import { IntentQueue } from './panels/seeding/IntentQueue.js'
 
 // ── Surface groups (from admin-ui.md, priority order) ──────────
@@ -343,31 +346,32 @@ function ScheduleRouter({ cards }: { cards: string[] }) {
 
 // ── Catalogue router ───────────────────────────────────────────
 function CatalogueRouter({ cards }: { cards: string[] }) {
-  const [active, setActive] = useState<string>('Pool Depth')
+  const [active, setActive] = useState<string>('Song Browser')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
         {cards.map((c) => {
           const on = active === c
-          const ready = c === 'Pool Depth'
           return (
             <button
               key={c}
-              onClick={() => ready && setActive(c)}
-              disabled={!ready}
+              onClick={() => setActive(c)}
               style={{
                 background: 'transparent', border: 'none',
                 borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
-                color: on ? T.text : (ready ? T.textMuted : T.textDim),
-                padding: '8px 14px', cursor: ready ? 'pointer' : 'default',
+                color: on ? T.text : T.textMuted,
+                padding: '8px 14px', cursor: 'pointer',
                 fontFamily: T.sans, fontSize: 12, fontWeight: on ? 500 : 400,
                 marginBottom: -1,
               }}
-            >{c}{ready ? '' : ' (soon)'}</button>
+            >{c}</button>
           )
         })}
       </div>
       {active === 'Pool Depth' && <PoolDepth />}
+      {active === 'Song Browser' && <SongBrowser />}
+      {active === 'Flagged Review' && <FlaggedReview />}
+      {active === 'Retired Songs' && <RetiredSongs />}
     </div>
   )
 }

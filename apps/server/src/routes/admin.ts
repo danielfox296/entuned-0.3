@@ -696,6 +696,177 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
+  // ----- Song Catalogue (LineageRow CRUD-lite + flagged review) -----
+  // The LineageRow is the song-pool atom Hendrix reads. The catalogue group exposes
+  // operator-facing browse / retire / restore / flagged-report views over it.
+
+  app.get('/lineage-rows', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const q = req.query as any
+    const limit = Math.min(parseInt(q.limit ?? '50', 10) || 50, 200)
+    const offset = Math.max(parseInt(q.offset ?? '0', 10) || 0, 0)
+    const where: any = {}
+    if (q.icpId) where.icpId = q.icpId
+    if (q.outcomeId) where.outcomeId = q.outcomeId
+    if (q.hookId) where.hookId = q.hookId
+    if (q.active === 'true') where.active = true
+    else if (q.active === 'false') where.active = false
+    // active === 'all' or unset → no filter
+
+    const [rows, total] = await Promise.all([
+      prisma.lineageRow.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit,
+        include: {
+          song: { select: { id: true, r2Url: true, byteSize: true } },
+          hook: { select: { id: true, text: true } },
+          outcome: { select: { id: true, title: true, version: true } },
+        },
+      }),
+      prisma.lineageRow.count({ where }),
+    ])
+
+    // Resolve ICP names in one shot.
+    const icpIds = [...new Set(rows.map((r) => r.icpId))]
+    const icps = icpIds.length === 0 ? [] : await prisma.iCP.findMany({
+      where: { id: { in: icpIds } },
+      select: { id: true, name: true },
+    })
+    const icpById = new Map(icps.map((i) => [i.id, i.name]))
+
+    return {
+      total, limit, offset,
+      rows: rows.map((r) => ({
+        id: r.id,
+        active: r.active,
+        createdAt: r.createdAt.toISOString(),
+        icpId: r.icpId,
+        icpName: icpById.get(r.icpId) ?? null,
+        outcome: r.outcome,
+        hook: r.hook,
+        song: r.song,
+      })),
+    }
+  })
+
+  const LineageRowPatch = z.object({ active: z.boolean() })
+
+  app.patch('/lineage-rows/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = LineageRowPatch.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.lineageRow.update({
+        where: { id },
+        data: { active: parsed.data.active },
+        include: {
+          song: { select: { id: true, r2Url: true, byteSize: true } },
+          hook: { select: { id: true, text: true } },
+          outcome: { select: { id: true, title: true, version: true } },
+        },
+      })
+      return { ...row, createdAt: row.createdAt.toISOString() }
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
+    }
+  })
+
+  // Flagged Review — every song that has at least one song_report event aggregated
+  // by song, with counts per reason and the most recent report. The retire affordance
+  // on this panel deactivates every LineageRow that references the offending song.
+  app.get('/flagged', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+
+    const events = await prisma.audioEvent.findMany({
+      where: { eventType: 'song_report', songId: { not: null } },
+      select: { songId: true, reportReason: true, occurredAt: true, storeId: true },
+      orderBy: { occurredAt: 'desc' },
+    })
+    if (events.length === 0) return { songs: [] }
+
+    type Bucket = {
+      songId: string
+      reportCount: number
+      lastReportedAt: Date
+      reasons: Record<string, number>
+      storeIds: Set<string>
+    }
+    const bySong = new Map<string, Bucket>()
+    for (const e of events) {
+      if (!e.songId) continue
+      let b = bySong.get(e.songId)
+      if (!b) {
+        b = { songId: e.songId, reportCount: 0, lastReportedAt: e.occurredAt, reasons: {}, storeIds: new Set() }
+        bySong.set(e.songId, b)
+      }
+      b.reportCount++
+      if (e.reportReason) b.reasons[e.reportReason] = (b.reasons[e.reportReason] ?? 0) + 1
+      if (e.occurredAt > b.lastReportedAt) b.lastReportedAt = e.occurredAt
+      b.storeIds.add(e.storeId)
+    }
+
+    const songIds = [...bySong.keys()]
+    const [lineageRows, songs] = await Promise.all([
+      prisma.lineageRow.findMany({
+        where: { songId: { in: songIds } },
+        include: {
+          hook: { select: { id: true, text: true } },
+          outcome: { select: { id: true, title: true, version: true } },
+        },
+      }),
+      prisma.song.findMany({
+        where: { id: { in: songIds } },
+        select: { id: true, r2Url: true },
+      }),
+    ])
+    const songById = new Map(songs.map((s) => [s.id, s]))
+    const lineageBySong = new Map<string, typeof lineageRows>()
+    for (const lr of lineageRows) {
+      const list = lineageBySong.get(lr.songId) ?? []
+      list.push(lr)
+      lineageBySong.set(lr.songId, list)
+    }
+
+    const out = [...bySong.values()].map((b) => {
+      const lrs = lineageBySong.get(b.songId) ?? []
+      const activeCount = lrs.filter((lr) => lr.active).length
+      return {
+        songId: b.songId,
+        r2Url: songById.get(b.songId)?.r2Url ?? null,
+        reportCount: b.reportCount,
+        lastReportedAt: b.lastReportedAt.toISOString(),
+        reasons: b.reasons,
+        storeCount: b.storeIds.size,
+        lineageRows: lrs.map((lr) => ({
+          id: lr.id, active: lr.active, hook: lr.hook, outcome: lr.outcome,
+        })),
+        activeLineageCount: activeCount,
+        anyActive: activeCount > 0,
+      }
+    }).sort((a, b) => {
+      // Active-with-most-reports first; resolved (no active rows) sorted to bottom.
+      if (a.anyActive !== b.anyActive) return a.anyActive ? -1 : 1
+      return b.reportCount - a.reportCount
+    })
+
+    return { songs: out }
+  })
+
+  // Retire every LineageRow referencing a flagged song in one step. Append-only audio
+  // events are untouched — this just deactivates pool membership.
+  app.post('/flagged/:songId/retire', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const songId = (req.params as any).songId as string
+    const result = await prisma.lineageRow.updateMany({
+      where: { songId, active: true },
+      data: { active: false },
+    })
+    return { retired: result.count }
+  })
+
   // ----- Hooks (per-ICP queue) -----
 
   app.get('/icps/:id/hooks', async (req, reply) => {
