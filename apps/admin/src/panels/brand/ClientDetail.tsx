@@ -13,6 +13,9 @@ export function ClientDetail() {
   const [draft, setDraft] = useState<ClientUpdate | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [createBusy, setCreateBusy] = useState(false)
 
   const reloadList = async () => {
     const token = getToken(); if (!token) return
@@ -28,6 +31,20 @@ export function ClientDetail() {
       .then((c) => { setClient(c); setDraft({}) })
       .catch((e) => setErr(e.message))
   }, [clientId])
+
+  const create = async () => {
+    if (!newName.trim()) return
+    const token = getToken(); if (!token) return
+    setCreateBusy(true); setErr(null)
+    try {
+      const created = await api.createClient({ companyName: newName.trim() }, token)
+      await reloadList()
+      setClientId(created.id)
+      setCreating(false)
+      setNewName('')
+    } catch (e: any) { setErr(e.message) }
+    finally { setCreateBusy(false) }
+  }
 
   const dirty = draft && client && Object.entries(draft).some(([k, v]) => (client as any)[k] !== v)
 
@@ -54,7 +71,29 @@ export function ClientDetail() {
       </div>
 
       <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-        <ClientList list={list} clientId={clientId} onPick={setClientId} />
+        <div style={{ width: 240, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <ClientList list={list} clientId={clientId} onPick={(id) => { setClientId(id); setCreating(false) }} />
+          {creating ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <input
+                autoFocus
+                placeholder="company name"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') void create(); if (e.key === 'Escape') { setCreating(false); setNewName('') } }}
+                style={{ ...input, fontSize: 11 }}
+              />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => void create()} disabled={!newName.trim() || createBusy} style={primaryBtn(!!newName.trim(), createBusy)}>
+                  {createBusy ? 'creating…' : 'create'}
+                </button>
+                <button onClick={() => { setCreating(false); setNewName('') }} style={tinyBtn}>cancel</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setCreating(true)} style={tinyBtn}>+ new client</button>
+          )}
+        </div>
 
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}

@@ -344,6 +344,34 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
+  const ClientCreateBody = z.object({
+    companyName: z.string().min(1),
+  })
+
+  app.post('/clients', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = ClientCreateBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const row = await prisma.client.create({
+      data: { companyName: parsed.data.companyName },
+      include: { _count: { select: { stores: true, icps: true } } },
+    })
+    return reply.code(201).send({
+      id: row.id,
+      companyName: row.companyName,
+      contactName: row.contactName,
+      contactEmail: row.contactEmail,
+      contactPhone: row.contactPhone,
+      plan: row.plan,
+      posProvider: row.posProvider,
+      brandLyricGuidelines: row.brandLyricGuidelines,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+      storeCount: row._count.stores,
+      icpCount: row._count.icps,
+    })
+  })
+
   // ----- Store editor (create + update) -----
 
   const StoreCreateBody = z.object({

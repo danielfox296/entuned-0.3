@@ -592,6 +592,8 @@ export const api = {
     req<ClientFull>(`/admin/clients/${id}`, {}, token),
   updateClient: (id: string, body: ClientUpdate, token: string) =>
     req<ClientFull>(`/admin/clients/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+  createClient: (body: { companyName: string }, token: string) =>
+    req<ClientListRow>('/admin/clients', { method: 'POST', body: JSON.stringify(body) }, token),
   createStore: (body: StoreCreateBody, token: string) =>
     req<StoreSummary>('/admin/stores', { method: 'POST', body: JSON.stringify(body) }, token),
   updateStore: (id: string, body: StoreUpdateBody, token: string) =>
