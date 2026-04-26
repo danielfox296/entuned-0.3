@@ -163,6 +163,7 @@ model ICP {
   stores Store[]
   hooks  Hook[]
   referenceTracks ReferenceTrack[]
+  hookDrafterPrompt HookDrafterPrompt?
 
   @@index([clientId])
   @@map("icps")
@@ -318,6 +319,20 @@ model LyricEditPrompt {
   createdById String?  @map("created_by") @db.Uuid
 
   @@map("lyric_edit_prompts")
+}
+
+// ---------- Card 10 Hooks helper: HookDrafterPrompt (per-ICP, single row) ----------
+
+model HookDrafterPrompt {
+  id           String   @id @default(uuid()) @db.Uuid
+  icpId        String   @unique @map("icp_id") @db.Uuid
+  promptText   String   @map("prompt_text")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedById  String?  @map("updated_by") @db.Uuid
+
+  icp ICP @relation(fields: [icpId], references: [id], onDelete: Cascade)
+
+  @@map("hook_drafter_prompts")
 }
 
 // ---------- Card 14 Eno (OutcomePrependTemplate, EnoRun, Submission) ----------

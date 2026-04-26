@@ -163,32 +163,84 @@ function FilterBar({ filter, onFilter, hooks }: {
   )
 }
 
+type NewMode = 'closed' | 'single' | 'bulk' | 'draft'
+
 function NewHookForm({ icpId, outcomes, onCreated }: {
   icpId: string; outcomes: OutcomeRowFull[] | null; onCreated: () => void
 }) {
-  const [open, setOpen] = useState(false)
-  const [text, setText] = useState('')
+  const [mode, setMode] = useState<NewMode>('closed')
   const [outcomeId, setOutcomeId] = useState('')
   const [approveOnCreate, setApproveOnCreate] = useState(false)
-  const [busy, setBusy] = useState(false)
+  const [singleText, setSingleText] = useState('')
+  const [bulkText, setBulkText] = useState('')
+  const [draftN, setDraftN] = useState(8)
+  const [draftCandidates, setDraftCandidates] = useState<{ text: string; selected: boolean }[]>([])
+  const [busy, setBusy] = useState<'create' | 'bulk' | 'draft' | 'commit' | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
-  const reset = () => { setText(''); setOutcomeId(''); setApproveOnCreate(false); setErr(null) }
-  const valid = text.trim() && outcomeId
-
-  const create = async () => {
-    const token = getToken(); if (!token || !valid) return
-    setBusy(true); setErr(null)
-    try {
-      await api.createHook(icpId, { text, outcomeId, approve: approveOnCreate }, token)
-      reset(); setOpen(false); onCreated()
-    } catch (e: any) { setErr(e.message) }
-    finally { setBusy(false) }
+  const reset = () => {
+    setMode('closed')
+    setOutcomeId('')
+    setApproveOnCreate(false)
+    setSingleText('')
+    setBulkText('')
+    setDraftCandidates([])
+    setErr(null)
   }
 
-  if (!open) {
+  const createSingle = async () => {
+    const token = getToken(); if (!token || !singleText.trim() || !outcomeId) return
+    setBusy('create'); setErr(null)
+    try {
+      await api.createHook(icpId, { text: singleText, outcomeId, approve: approveOnCreate }, token)
+      reset(); onCreated()
+    } catch (e: any) { setErr(e.message) }
+    finally { setBusy(null) }
+  }
+
+  const createBulk = async () => {
+    const token = getToken(); if (!token) return
+    const lines = bulkText.split('\n').map((l) => l.trim()).filter(Boolean)
+    if (lines.length === 0 || !outcomeId) { setErr('paste at least one line and pick an outcome'); return }
+    setBusy('bulk'); setErr(null)
+    try {
+      const result = await api.bulkCreateHooks(icpId, { outcomeId, texts: lines, approve: approveOnCreate }, token)
+      reset(); onCreated()
+      alert(`created ${result.created} hook${result.created === 1 ? '' : 's'}`)
+    } catch (e: any) { setErr(e.message) }
+    finally { setBusy(null) }
+  }
+
+  const runDrafter = async () => {
+    const token = getToken(); if (!token || !outcomeId) return
+    setBusy('draft'); setErr(null); setDraftCandidates([])
+    try {
+      const result = await api.draftHooks(icpId, { outcomeId, n: draftN }, token)
+      setDraftCandidates(result.hooks.map((text) => ({ text, selected: true })))
+    } catch (e: any) { setErr(e.message) }
+    finally { setBusy(null) }
+  }
+
+  const commitDrafts = async () => {
+    const token = getToken(); if (!token || !outcomeId) return
+    const picks = draftCandidates.filter((c) => c.selected).map((c) => c.text)
+    if (picks.length === 0) { setErr('select at least one candidate'); return }
+    setBusy('commit'); setErr(null)
+    try {
+      const result = await api.bulkCreateHooks(icpId, { outcomeId, texts: picks, approve: approveOnCreate }, token)
+      reset(); onCreated()
+      alert(`created ${result.created} hook${result.created === 1 ? '' : 's'}`)
+    } catch (e: any) { setErr(e.message) }
+    finally { setBusy(null) }
+  }
+
+  if (mode === 'closed') {
     return (
-      <button onClick={() => setOpen(true)} style={primaryBtn(true, false)}>+ new hook</button>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button onClick={() => setMode('single')} style={primaryBtn(true, false)}>+ new hook</button>
+        <button onClick={() => setMode('bulk')} style={ghostBtn}>bulk paste</button>
+        <button onClick={() => setMode('draft')} style={ghostBtn}>draft with AI</button>
+      </div>
     )
   }
 
@@ -197,6 +249,25 @@ function NewHookForm({ icpId, outcomes, onCreated }: {
       background: T.accentGlow, border: `1px solid ${T.accentMuted}`,
       borderRadius: 4, padding: 14, display: 'flex', flexDirection: 'column', gap: 10,
     }}>
+      <div style={{ display: 'flex', gap: 4 }}>
+        {(['single', 'bulk', 'draft'] as const).map((m) => {
+          const on = mode === m
+          return (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              style={{
+                background: on ? T.surfaceRaised : 'transparent',
+                border: `1px solid ${on ? T.accent : T.border}`,
+                color: on ? T.accent : T.textMuted,
+                padding: '5px 12px', borderRadius: 4,
+                fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
+              }}
+            >{m}</button>
+          )
+        })}
+      </div>
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <label style={labelStyle}>outcome</label>
         <select value={outcomeId} onChange={(e) => setOutcomeId(e.target.value)} style={inputStyle}>
@@ -206,27 +277,162 @@ function NewHookForm({ icpId, outcomes, onCreated }: {
           ))}
         </select>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <label style={labelStyle}>hook text</label>
-        <textarea
-          rows={3}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="hook"
-          style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
-        />
-      </div>
+
+      {mode === 'single' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={labelStyle}>hook text</label>
+          <textarea
+            rows={3}
+            value={singleText}
+            onChange={(e) => setSingleText(e.target.value)}
+            placeholder="hook"
+            style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
+          />
+        </div>
+      )}
+
+      {mode === 'bulk' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={labelStyle}>hook lines (one per line)</label>
+          <textarea
+            rows={10}
+            value={bulkText}
+            onChange={(e) => setBulkText(e.target.value)}
+            placeholder={'hook one\nhook two\nhook three'}
+            style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
+          />
+          <span style={{ fontSize: 10, fontFamily: T.mono, color: T.textDim }}>
+            {bulkText.split('\n').map((l) => l.trim()).filter(Boolean).length} non-empty line(s)
+          </span>
+        </div>
+      )}
+
+      {mode === 'draft' && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={labelStyle}>n</label>
+            <input
+              type="number" min={1} max={20} value={draftN}
+              onChange={(e) => setDraftN(parseInt(e.target.value, 10) || 1)}
+              style={{ ...inputStyle, width: 80 }}
+            />
+            <button onClick={runDrafter} disabled={busy !== null || !outcomeId} style={primaryBtn(!!outcomeId, busy === 'draft')}>
+              {busy === 'draft' ? 'drafting…' : 'draft hooks'}
+            </button>
+          </div>
+          {draftCandidates.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, fontFamily: T.mono, color: T.textMuted }}>
+                  {draftCandidates.filter((c) => c.selected).length}/{draftCandidates.length} selected
+                </span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => setDraftCandidates(draftCandidates.map((c) => ({ ...c, selected: true })))} style={ghostBtn}>all</button>
+                  <button onClick={() => setDraftCandidates(draftCandidates.map((c) => ({ ...c, selected: false })))} style={ghostBtn}>none</button>
+                </div>
+              </div>
+              {draftCandidates.map((c, i) => (
+                <label key={i} style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 8px',
+                  background: c.selected ? T.surfaceRaised : 'transparent',
+                  border: `1px solid ${c.selected ? T.accentMuted : T.border}`,
+                  borderRadius: 3, cursor: 'pointer',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={c.selected}
+                    onChange={(e) => setDraftCandidates(draftCandidates.map((x, j) => j === i ? { ...x, selected: e.target.checked } : x))}
+                    style={{ marginTop: 3 }}
+                  />
+                  <input
+                    value={c.text}
+                    onChange={(e) => setDraftCandidates(draftCandidates.map((x, j) => j === i ? { ...x, text: e.target.value } : x))}
+                    style={{ ...inputStyle, flex: 1 }}
+                  />
+                </label>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontFamily: T.mono, color: T.textMuted, cursor: 'pointer' }}>
         <input type="checkbox" checked={approveOnCreate} onChange={(e) => setApproveOnCreate(e.target.checked)} />
         approve immediately (skip draft step)
       </label>
+
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <button onClick={create} disabled={busy || !valid} style={primaryBtn(!!valid, busy)}>
-          {busy ? 'creating…' : approveOnCreate ? 'create approved' : 'create draft'}
-        </button>
-        <button onClick={() => { reset(); setOpen(false) }} disabled={busy} style={ghostBtn}>cancel</button>
+        {mode === 'single' && (
+          <button onClick={createSingle} disabled={busy !== null || !singleText.trim() || !outcomeId} style={primaryBtn(!!singleText.trim() && !!outcomeId, busy === 'create')}>
+            {busy === 'create' ? 'creating…' : approveOnCreate ? 'create approved' : 'create draft'}
+          </button>
+        )}
+        {mode === 'bulk' && (
+          <button onClick={createBulk} disabled={busy !== null} style={primaryBtn(true, busy === 'bulk')}>
+            {busy === 'bulk' ? 'creating…' : `create ${approveOnCreate ? 'approved' : 'drafts'}`}
+          </button>
+        )}
+        {mode === 'draft' && draftCandidates.length > 0 && (
+          <button onClick={commitDrafts} disabled={busy !== null} style={primaryBtn(true, busy === 'commit')}>
+            {busy === 'commit' ? 'creating…' : `create selected ${approveOnCreate ? '(approved)' : '(drafts)'}`}
+          </button>
+        )}
+        <button onClick={reset} disabled={busy !== null} style={ghostBtn}>cancel</button>
         {err && <span style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</span>}
       </div>
+
+      {mode === 'draft' && <DrafterPromptEditor icpId={icpId} />}
+    </div>
+  )
+}
+
+function DrafterPromptEditor({ icpId }: { icpId: string }) {
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
+  const [original, setOriginal] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
+
+  const load = async () => {
+    const token = getToken(); if (!token) return
+    try {
+      const r = await api.hookDrafterPrompt(icpId, token)
+      setText(r.promptText); setOriginal(r.promptText); setLoaded(true)
+    } catch (e: any) { setErr(e.message) }
+  }
+
+  const save = async () => {
+    const token = getToken(); if (!token) return
+    setBusy(true); setErr(null)
+    try {
+      await api.saveHookDrafterPrompt(icpId, text, token)
+      setOriginal(text)
+    } catch (e: any) { setErr(e.message) }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.borderSubtle}` }}>
+      <button onClick={() => { if (!open && !loaded) load(); setOpen(!open) }} style={ghostBtn}>
+        {open ? '▾ drafter prompt' : '▸ drafter prompt'}
+      </button>
+      {open && loaded && (
+        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <textarea
+            rows={10}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={save} disabled={busy || text === original} style={primaryBtn(text !== original, busy)}>
+              {busy ? 'saving…' : 'save prompt'}
+            </button>
+            {err && <span style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</span>}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

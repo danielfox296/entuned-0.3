@@ -23,6 +23,7 @@ import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 import { runEno } from '../lib/eno/eno.js'
 import { downloadAndUploadFromUrl } from '../lib/r2.js'
+import { draftHooks, getOrSeedDrafterPrompt } from '../lib/hooks/drafter.js'
 
 interface AuthedOp {
   operatorId: string
@@ -464,6 +465,80 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     text: z.string().min(1),
     outcomeId: z.string().uuid(),
     approve: z.boolean().optional(),
+  })
+
+  // ----- Hook Drafter (per-ICP prompt + LLM run) -----
+
+  app.get('/icps/:id/hook-drafter-prompt', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const icpId = (req.params as any).id as string
+    const row = await getOrSeedDrafterPrompt(icpId)
+    return row
+  })
+
+  const HookDrafterPromptBody = z.object({ promptText: z.string().min(1) })
+
+  app.put('/icps/:id/hook-drafter-prompt', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const icpId = (req.params as any).id as string
+    const parsed = HookDrafterPromptBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const row = await prisma.hookDrafterPrompt.upsert({
+      where: { icpId },
+      create: { icpId, promptText: parsed.data.promptText, updatedById: op.operatorId },
+      update: { promptText: parsed.data.promptText, updatedById: op.operatorId },
+    })
+    return row
+  })
+
+  const DraftHooksBody = z.object({
+    outcomeId: z.string().uuid(),
+    n: z.number().int().min(1).max(20),
+  })
+
+  app.post('/icps/:id/hook-drafter/run', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const icpId = (req.params as any).id as string
+    const parsed = DraftHooksBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const result = await draftHooks({ icpId, outcomeId: parsed.data.outcomeId, n: parsed.data.n })
+      return { hooks: result.hooks }
+    } catch (e: any) {
+      return reply.code(502).send({ error: 'drafter_failed', message: e.message ?? 'unknown' })
+    }
+  })
+
+  // Bulk create hooks: same outcome, many text lines.
+  const HookBulkBody = z.object({
+    outcomeId: z.string().uuid(),
+    texts: z.array(z.string().min(1)).min(1).max(100),
+    approve: z.boolean().optional(),
+  })
+
+  app.post('/icps/:id/hooks/bulk', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const icpId = (req.params as any).id as string
+    const parsed = HookBulkBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const now = new Date()
+      const data = parsed.data.texts.map((text) => ({
+        icpId,
+        outcomeId: parsed.data.outcomeId,
+        text,
+        status: parsed.data.approve ? 'approved' : 'draft',
+        approvedAt: parsed.data.approve ? now : null,
+        approvedById: parsed.data.approve ? op.operatorId : null,
+      }))
+      const result = await prisma.hook.createMany({ data, skipDuplicates: false })
+      return { created: result.count }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+        return reply.code(404).send({ error: 'icp_or_outcome_not_found' })
+      }
+      throw e
+    }
   })
 
   app.post('/icps/:id/hooks', async (req, reply) => {

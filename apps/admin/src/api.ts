@@ -444,6 +444,14 @@ export const api = {
     req<HookRowFull>(`/admin/hooks/${id}/approve`, { method: 'POST' }, token),
   deleteHook: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/hooks/${id}`, { method: 'DELETE' }, token),
+  bulkCreateHooks: (icpId: string, body: { outcomeId: string; texts: string[]; approve?: boolean }, token: string) =>
+    req<{ created: number }>(`/admin/icps/${icpId}/hooks/bulk`, { method: 'POST', body: JSON.stringify(body) }, token),
+  hookDrafterPrompt: (icpId: string, token: string) =>
+    req<{ id: string; icpId: string; promptText: string }>(`/admin/icps/${icpId}/hook-drafter-prompt`, {}, token),
+  saveHookDrafterPrompt: (icpId: string, promptText: string, token: string) =>
+    req<{ id: string; icpId: string; promptText: string }>(`/admin/icps/${icpId}/hook-drafter-prompt`, { method: 'PUT', body: JSON.stringify({ promptText }) }, token),
+  draftHooks: (icpId: string, body: { outcomeId: string; n: number }, token: string) =>
+    req<{ hooks: string[] }>(`/admin/icps/${icpId}/hook-drafter/run`, { method: 'POST', body: JSON.stringify(body) }, token),
 
   // --- Playback ---
 
