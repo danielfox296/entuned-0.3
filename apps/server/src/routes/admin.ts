@@ -1083,6 +1083,175 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
+  // ----- Schedule Dry Run (project 7-day resolution; surface gaps + thin pools) -----
+  // Walks the weekly schedule store-locally Mon..Sun, fills gaps with the store default
+  // outcome (or marks them as 'gap' if no default is set), then joins per-(icp × outcome)
+  // active LineageRow counts so operators can see which pools their schedule actually
+  // depends on. Pure projection — does not touch override or current time.
+
+  app.get('/stores/:id/schedule-dry-run', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const storeId = (req.params as any).id as string
+
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
+      include: {
+        icp: { select: { id: true, name: true } },
+        defaultOutcome: { select: { id: true, title: true, version: true, supersededAt: true } },
+      },
+    })
+    if (!store) return reply.code(404).send({ error: 'store_not_found' })
+
+    const rows = await prisma.scheduleRow.findMany({
+      where: { storeId },
+      include: { outcome: { select: { id: true, title: true, version: true, supersededAt: true } } },
+      orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+    })
+
+    const DAY_SEC = 86400
+    const dayLabels = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    const fmtHHMM = (sec: number) => {
+      const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60)
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+    }
+
+    const def = store.defaultOutcome ?? null
+    const usedOutcomes = new Map<string, { id: string; title: string; version: number; superseded: boolean }>()
+    if (def) usedOutcomes.set(def.id, { id: def.id, title: def.title, version: def.version, superseded: !!def.supersededAt })
+
+    type Period = {
+      startSec: number; endSec: number
+      startHHMM: string; endHHMM: string
+      source: 'schedule' | 'default' | 'gap'
+      outcomeId: string | null
+      outcomeTitle: string | null
+      outcomeVersion: number | null
+      outcomeSuperseded: boolean
+      durationMin: number
+      overlap: boolean
+    }
+
+    const days = [1, 2, 3, 4, 5, 6, 7].map((dow) => {
+      const dayRows = rows
+        .filter((r) => r.dayOfWeek === dow)
+        .map((r) => ({
+          startSec: r.startTime.getUTCHours() * 3600 + r.startTime.getUTCMinutes() * 60,
+          endSec: r.endTime.getUTCHours() * 3600 + r.endTime.getUTCMinutes() * 60,
+          outcome: r.outcome,
+        }))
+        .sort((a, b) => a.startSec - b.startSec)
+
+      const periods: Period[] = []
+      let cursor = 0
+      let prevEnd = 0
+
+      const pushGap = (from: number, to: number) => {
+        if (to <= from) return
+        if (def) {
+          periods.push({
+            startSec: from, endSec: to,
+            startHHMM: fmtHHMM(from), endHHMM: fmtHHMM(to),
+            source: 'default',
+            outcomeId: def.id, outcomeTitle: def.title, outcomeVersion: def.version,
+            outcomeSuperseded: !!def.supersededAt,
+            durationMin: Math.round((to - from) / 60),
+            overlap: false,
+          })
+        } else {
+          periods.push({
+            startSec: from, endSec: to,
+            startHHMM: fmtHHMM(from), endHHMM: fmtHHMM(to),
+            source: 'gap',
+            outcomeId: null, outcomeTitle: null, outcomeVersion: null,
+            outcomeSuperseded: false,
+            durationMin: Math.round((to - from) / 60),
+            overlap: false,
+          })
+        }
+      }
+
+      for (const r of dayRows) {
+        const overlap = r.startSec < prevEnd
+        if (r.startSec > cursor) pushGap(cursor, r.startSec)
+        const start = Math.max(cursor, r.startSec)
+        const end = Math.max(start, r.endSec)
+        usedOutcomes.set(r.outcome.id, {
+          id: r.outcome.id, title: r.outcome.title, version: r.outcome.version,
+          superseded: !!r.outcome.supersededAt,
+        })
+        periods.push({
+          startSec: start, endSec: end,
+          startHHMM: fmtHHMM(start), endHHMM: fmtHHMM(end),
+          source: 'schedule',
+          outcomeId: r.outcome.id, outcomeTitle: r.outcome.title, outcomeVersion: r.outcome.version,
+          outcomeSuperseded: !!r.outcome.supersededAt,
+          durationMin: Math.round((end - start) / 60),
+          overlap,
+        })
+        cursor = Math.max(cursor, end)
+        prevEnd = Math.max(prevEnd, r.endSec)
+      }
+      if (cursor < DAY_SEC) pushGap(cursor, DAY_SEC)
+
+      return { dayOfWeek: dow, label: dayLabels[dow], periods }
+    })
+
+    // Pool depth join — only for outcomes actually used by this store's projection.
+    const outcomeIds = Array.from(usedOutcomes.keys())
+    const counts = outcomeIds.length === 0 ? [] : await prisma.lineageRow.groupBy({
+      by: ['outcomeId'],
+      where: { active: true, icpId: store.icpId, outcomeId: { in: outcomeIds } },
+      _count: { _all: true },
+    })
+    const countMap = new Map<string, number>()
+    for (const c of counts) countMap.set(c.outcomeId, c._count._all)
+    const thresholds = { critical: 5, thin: 15 }
+    const statusOf = (n: number) => (n < thresholds.critical ? 'critical' : n < thresholds.thin ? 'thin' : 'ok')
+
+    // Per-outcome totals.
+    const totalsByOutcome = new Map<string, { scheduledMin: number; defaultMin: number }>()
+    for (const day of days) {
+      for (const p of day.periods) {
+        if (!p.outcomeId) continue
+        const cur = totalsByOutcome.get(p.outcomeId) ?? { scheduledMin: 0, defaultMin: 0 }
+        if (p.source === 'schedule') cur.scheduledMin += p.durationMin
+        else if (p.source === 'default') cur.defaultMin += p.durationMin
+        totalsByOutcome.set(p.outcomeId, cur)
+      }
+    }
+
+    const byOutcome = Array.from(usedOutcomes.values()).map((o) => {
+      const t = totalsByOutcome.get(o.id) ?? { scheduledMin: 0, defaultMin: 0 }
+      const count = countMap.get(o.id) ?? 0
+      return {
+        outcomeId: o.id, outcomeTitle: o.title, outcomeVersion: o.version,
+        outcomeSuperseded: o.superseded,
+        scheduledMin: t.scheduledMin, defaultMin: t.defaultMin,
+        totalMin: t.scheduledMin + t.defaultMin,
+        poolCount: count, poolStatus: statusOf(count),
+      }
+    }).sort((a, b) => b.totalMin - a.totalMin)
+
+    let scheduledMin = 0, defaultMin = 0, gapMin = 0
+    for (const day of days) {
+      for (const p of day.periods) {
+        if (p.source === 'schedule') scheduledMin += p.durationMin
+        else if (p.source === 'default') defaultMin += p.durationMin
+        else gapMin += p.durationMin
+      }
+    }
+
+    return {
+      store: { id: store.id, name: store.name, timezone: store.timezone },
+      icp: { id: store.icp.id, name: store.icp.name },
+      defaultOutcome: def ? { id: def.id, title: def.title, version: def.version, superseded: !!def.supersededAt } : null,
+      thresholds,
+      days,
+      byOutcome,
+      totals: { scheduledMin, defaultMin, gapMin, totalMin: scheduledMin + defaultMin + gapMin },
+    }
+  })
+
   app.delete('/hooks/:id', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string

@@ -331,6 +331,51 @@ export type ScheduleRowInput = {
   outcomeId: string
 }
 
+export type DryRunSource = 'schedule' | 'default' | 'gap'
+export type PoolStatusValue = 'critical' | 'thin' | 'ok'
+
+export interface DryRunPeriod {
+  startSec: number
+  endSec: number
+  startHHMM: string
+  endHHMM: string
+  source: DryRunSource
+  outcomeId: string | null
+  outcomeTitle: string | null
+  outcomeVersion: number | null
+  outcomeSuperseded: boolean
+  durationMin: number
+  overlap: boolean
+}
+
+export interface DryRunDay {
+  dayOfWeek: number
+  label: string
+  periods: DryRunPeriod[]
+}
+
+export interface DryRunOutcomeTotal {
+  outcomeId: string
+  outcomeTitle: string
+  outcomeVersion: number
+  outcomeSuperseded: boolean
+  scheduledMin: number
+  defaultMin: number
+  totalMin: number
+  poolCount: number
+  poolStatus: PoolStatusValue
+}
+
+export interface ScheduleDryRun {
+  store: { id: string; name: string; timezone: string }
+  icp: { id: string; name: string }
+  defaultOutcome: { id: string; title: string; version: number; superseded: boolean } | null
+  thresholds: { critical: number; thin: number }
+  days: DryRunDay[]
+  byOutcome: DryRunOutcomeTotal[]
+  totals: { scheduledMin: number; defaultMin: number; gapMin: number; totalMin: number }
+}
+
 export interface OutcomeWithPool {
   outcomeId: string
   title: string
@@ -559,6 +604,8 @@ export const api = {
     req<ScheduleRow>(`/admin/schedule-rows/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   deleteScheduleRow: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/schedule-rows/${id}`, { method: 'DELETE' }, token),
+  scheduleDryRun: (storeId: string, token: string) =>
+    req<ScheduleDryRun>(`/admin/stores/${storeId}/schedule-dry-run`, {}, token),
 
   // --- Operator Seeding ---
 
