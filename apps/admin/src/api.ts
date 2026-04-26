@@ -113,6 +113,14 @@ export interface StyleTemplateRow {
   createdAt: string
 }
 
+export interface OutcomePrependTemplateRow {
+  id: string
+  version: number
+  templateText: string
+  notes: string | null
+  createdAt: string
+}
+
 export interface LyricPromptRow {
   id: string
   version: number
@@ -401,6 +409,10 @@ export const api = {
     req<{ latest: StyleTemplateRow | null; history: StyleTemplateRow[] }>('/admin/style-template', {}, token),
   saveStyleTemplate: (templateText: string, notes: string | undefined, token: string) =>
     req<StyleTemplateRow>('/admin/style-template', { method: 'POST', body: JSON.stringify({ templateText, notes }) }, token),
+  outcomePrependTemplate: (token: string) =>
+    req<{ latest: OutcomePrependTemplateRow | null; history: OutcomePrependTemplateRow[] }>('/admin/outcome-prepend-template', {}, token),
+  saveOutcomePrependTemplate: (templateText: string, notes: string | undefined, token: string) =>
+    req<OutcomePrependTemplateRow>('/admin/outcome-prepend-template', { method: 'POST', body: JSON.stringify({ templateText, notes }) }, token),
 
   lyricPrompts: (token: string) =>
     req<{ draft: { latest: LyricPromptRow | null; history: LyricPromptRow[] }; edit: { latest: LyricPromptRow | null; history: LyricPromptRow[] } }>('/admin/lyric-prompts', {}, token),

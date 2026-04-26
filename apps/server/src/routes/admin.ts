@@ -86,6 +86,8 @@ const FailureRuleBody = z.object({
 
 const StyleTemplatePostBody = z.object({ templateText: z.string().min(1), notes: z.string().optional() })
 
+const OutcomePrependPostBody = z.object({ templateText: z.string(), notes: z.string().optional() })
+
 const LyricPromptPostBody = z.object({ promptText: z.string().min(1), notes: z.string().optional() })
 
 export const adminRoutes: FastifyPluginAsync = async (app) => {
@@ -183,6 +185,26 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const max = await prisma.styleTemplate.aggregate({ _max: { version: true } })
     const next = (max._max.version ?? 0) + 1
     const row = await prisma.styleTemplate.create({
+      data: { version: next, templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, createdById: op.operatorId },
+    })
+    return row
+  })
+
+  // ----- OutcomePrependTemplate (Card 14 — currently a no-op by design) -----
+
+  app.get('/outcome-prepend-template', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const all = await prisma.outcomePrependTemplate.findMany({ orderBy: { version: 'desc' } })
+    return { latest: all[0] ?? null, history: all }
+  })
+
+  app.post('/outcome-prepend-template', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = OutcomePrependPostBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const max = await prisma.outcomePrependTemplate.aggregate({ _max: { version: true } })
+    const next = (max._max.version ?? 0) + 1
+    const row = await prisma.outcomePrependTemplate.create({
       data: { version: next, templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, createdById: op.operatorId },
     })
     return row

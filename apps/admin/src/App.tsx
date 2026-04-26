@@ -6,6 +6,7 @@ import { DecomposerRules } from './panels/engine/DecomposerRules.js'
 import { FailureRules } from './panels/engine/FailureRules.js'
 import { StyleTemplate } from './panels/engine/StyleTemplate.js'
 import { LyricPrompts } from './panels/engine/LyricPrompts.js'
+import { OutcomePrependTemplate } from './panels/engine/OutcomePrependTemplate.js'
 import { IcpEditor } from './panels/brand/IcpEditor.js'
 import { HookQueue } from './panels/brand/HookQueue.js'
 import { LiveStoreView } from './panels/playback/LiveStoreView.js'
@@ -33,7 +34,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Outcome Schedule', 'Goal Editor', 'Outcome Library', 'Dry Run'],
     description: 'Weekly outcome grids, goals, schedule preview' },
   { key: 'engine', label: 'Engine', short: 'Engine', icon: '⚙',
-    cards: ['Decomposer Rules', 'Failure Rules', 'Style Template', 'Lyric Prompts'],
+    cards: ['Decomposer Rules', 'Failure Rules', 'Style Template', 'Lyric Prompts', 'Outcome Prepend Template'],
     description: 'System-level prompts that drive decomposer, Mars, and Bernie' },
   { key: 'catalogue', label: 'Song Catalogue', short: 'Catalogue', icon: '♫',
     cards: ['Song Browser', 'Flagged Review', 'Retired Songs', 'Pool Depth'],
@@ -223,6 +224,7 @@ function EngineRouter({ cards }: { cards: string[] }) {
       {active === 'Failure Rules' && <FailureRules />}
       {active === 'Style Template' && <StyleTemplate />}
       {active === 'Lyric Prompts' && <LyricPrompts />}
+      {active === 'Outcome Prepend Template' && <OutcomePrependTemplate />}
     </div>
   )
 }
