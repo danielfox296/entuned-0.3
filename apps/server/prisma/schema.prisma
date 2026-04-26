@@ -132,6 +132,7 @@ model Store {
   defaultOutcome        Outcome?                @relation("StoreDefaultOutcome", fields: [defaultOutcomeId], references: [id])
   manualOverrideOutcome Outcome?                @relation("StoreOverrideOutcome", fields: [manualOverrideOutcomeId], references: [id])
   scheduleRows          ScheduleRow[]
+  goals                 Goal[]
   operatorAssignments   OperatorStoreAssignment[]
   audioEvents           AudioEvent[]
 
@@ -433,6 +434,7 @@ model Outcome {
   hooks            Hook[]
   lineageRows      LineageRow[]
   submissions      Submission[]
+  goals            Goal[]
 
   @@unique([outcomeKey, version])
   @@index([outcomeKey, version(sort: Desc)])
@@ -456,6 +458,32 @@ model ScheduleRow {
 
   @@index([storeId, dayOfWeek])
   @@map("schedule_rows")
+}
+
+// ---------- Goal (advisory — documents the "why" behind a schedule) ----------
+// MVP scope: per-store; pinned to one Outcome; free-text targetMetric (no measurability check
+// until a metric-source registry exists); no schedule-row link, no priority, no campaign tag.
+
+model Goal {
+  id           String   @id @default(uuid()) @db.Uuid
+  storeId      String   @map("store_id") @db.Uuid
+  outcomeId    String   @map("outcome_id") @db.Uuid
+  goalType     String   @map("goal_type")             // free text e.g. "dwell_lift"
+  targetMetric String   @map("target_metric")         // free text e.g. "avg_dwell_seconds"
+  direction    String                                  // "increase" | "decrease" | "maintain"
+  status       String   @default("active")            // "draft" | "active" | "paused" | "retired"
+  startAt      DateTime @map("start_at") @db.Timestamptz(6)
+  endAt        DateTime? @map("end_at") @db.Timestamptz(6)
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById  String?  @map("created_by") @db.Uuid
+
+  store   Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  outcome Outcome @relation(fields: [outcomeId], references: [id])
+
+  @@index([storeId, status])
+  @@map("goals")
 }
 
 // ---------- Card 10 Hooks (needed for LineageRow.hookId provenance) ----------

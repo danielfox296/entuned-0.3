@@ -113,6 +113,40 @@ export interface StyleTemplateRow {
   createdAt: string
 }
 
+export type GoalDirection = 'increase' | 'decrease' | 'maintain'
+export type GoalStatus = 'draft' | 'active' | 'paused' | 'retired'
+
+export interface GoalRow {
+  id: string
+  storeId: string
+  outcomeId: string
+  goalType: string
+  targetMetric: string
+  direction: GoalDirection
+  status: GoalStatus
+  startAt: string
+  endAt: string | null
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+  store: { id: string; name: string }
+  outcome: { id: string; title: string; version: number }
+}
+
+export interface GoalCreateBody {
+  storeId: string
+  outcomeId: string
+  goalType: string
+  targetMetric: string
+  direction: GoalDirection
+  status?: GoalStatus
+  startAt: string
+  endAt?: string | null
+  notes?: string | null
+}
+
+export type GoalUpdateBody = Partial<Omit<GoalCreateBody, 'storeId'>>
+
 export interface OutcomePrependTemplateRow {
   id: string
   version: number
@@ -452,6 +486,19 @@ export const api = {
     req<OutcomeRowFull>(`/admin/outcomes/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   supersedeOutcome: (id: string, token: string) =>
     req<OutcomeRowFull>(`/admin/outcomes/${id}/supersede`, { method: 'POST' }, token),
+  goals: (token: string, opts?: { storeId?: string; status?: GoalStatus }) => {
+    const qs = new URLSearchParams()
+    if (opts?.storeId) qs.set('storeId', opts.storeId)
+    if (opts?.status) qs.set('status', opts.status)
+    const suffix = qs.toString() ? `?${qs}` : ''
+    return req<GoalRow[]>(`/admin/goals${suffix}`, {}, token)
+  },
+  createGoal: (body: GoalCreateBody, token: string) =>
+    req<GoalRow>('/admin/goals', { method: 'POST', body: JSON.stringify(body) }, token),
+  updateGoal: (id: string, body: GoalUpdateBody, token: string) =>
+    req<GoalRow>(`/admin/goals/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+  deleteGoal: (id: string, token: string) =>
+    req<{ ok: true }>(`/admin/goals/${id}`, { method: 'DELETE' }, token),
   icpHooks: (icpId: string, token: string) =>
     req<HookRowFull[]>(`/admin/icps/${icpId}/hooks`, {}, token),
   createHook: (icpId: string, body: { text: string; outcomeId: string; approve?: boolean }, token: string) =>

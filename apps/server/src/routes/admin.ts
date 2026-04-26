@@ -542,6 +542,111 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return row
   })
 
+  // ----- Goals (advisory; per-store; documents the "why" behind a schedule) -----
+
+  const GoalCreateBody = z.object({
+    storeId: z.string().uuid(),
+    outcomeId: z.string().uuid(),
+    goalType: z.string().min(1),
+    targetMetric: z.string().min(1),
+    direction: z.enum(['increase', 'decrease', 'maintain']),
+    status: z.enum(['draft', 'active', 'paused', 'retired']).optional(),
+    startAt: z.string().datetime(),
+    endAt: z.string().datetime().nullable().optional(),
+    notes: z.string().nullable().optional(),
+  })
+
+  const GoalUpdateBody = GoalCreateBody.partial().omit({ storeId: true })
+
+  app.get('/goals', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const storeId = (req.query as any)?.storeId as string | undefined
+    const status = (req.query as any)?.status as string | undefined
+    const rows = await prisma.goal.findMany({
+      where: { ...(storeId ? { storeId } : {}), ...(status ? { status } : {}) },
+      orderBy: [{ status: 'asc' }, { startAt: 'desc' }],
+      include: {
+        store: { select: { id: true, name: true } },
+        outcome: { select: { id: true, title: true, version: true } },
+      },
+    })
+    return rows
+  })
+
+  app.post('/goals', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = GoalCreateBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.goal.create({
+        data: {
+          storeId: parsed.data.storeId,
+          outcomeId: parsed.data.outcomeId,
+          goalType: parsed.data.goalType,
+          targetMetric: parsed.data.targetMetric,
+          direction: parsed.data.direction,
+          status: parsed.data.status ?? 'active',
+          startAt: new Date(parsed.data.startAt),
+          endAt: parsed.data.endAt ? new Date(parsed.data.endAt) : null,
+          notes: parsed.data.notes ?? null,
+          createdById: op.operatorId,
+        },
+        include: {
+          store: { select: { id: true, name: true } },
+          outcome: { select: { id: true, title: true, version: true } },
+        },
+      })
+      return row
+    } catch (e: any) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+        return reply.code(404).send({ error: 'store_or_outcome_not_found' })
+      }
+      return reply.code(500).send({ error: 'create_failed', message: e.message ?? 'unknown' })
+    }
+  })
+
+  app.put('/goals/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = GoalUpdateBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const data: any = {}
+    if (parsed.data.outcomeId !== undefined) data.outcomeId = parsed.data.outcomeId
+    if (parsed.data.goalType !== undefined) data.goalType = parsed.data.goalType
+    if (parsed.data.targetMetric !== undefined) data.targetMetric = parsed.data.targetMetric
+    if (parsed.data.direction !== undefined) data.direction = parsed.data.direction
+    if (parsed.data.status !== undefined) data.status = parsed.data.status
+    if (parsed.data.startAt !== undefined) data.startAt = new Date(parsed.data.startAt)
+    if (parsed.data.endAt !== undefined) data.endAt = parsed.data.endAt ? new Date(parsed.data.endAt) : null
+    if (parsed.data.notes !== undefined) data.notes = parsed.data.notes
+    try {
+      const row = await prisma.goal.update({
+        where: { id },
+        data,
+        include: {
+          store: { select: { id: true, name: true } },
+          outcome: { select: { id: true, title: true, version: true } },
+        },
+      })
+      return row
+    } catch (e: any) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return reply.code(404).send({ error: 'not_found' })
+      return reply.code(500).send({ error: 'update_failed', message: e.message ?? 'unknown' })
+    }
+  })
+
+  app.delete('/goals/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    try {
+      await prisma.goal.delete({ where: { id } })
+      return { ok: true }
+    } catch (e: any) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return reply.code(404).send({ error: 'not_found' })
+      return reply.code(500).send({ error: 'delete_failed', message: e.message ?? 'unknown' })
+    }
+  })
+
   // ----- Hooks (per-ICP queue) -----
 
   app.get('/icps/:id/hooks', async (req, reply) => {

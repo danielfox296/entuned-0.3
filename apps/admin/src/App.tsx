@@ -12,6 +12,7 @@ import { HookQueue } from './panels/brand/HookQueue.js'
 import { LiveStoreView } from './panels/playback/LiveStoreView.js'
 import { OutcomeSchedule } from './panels/schedule/OutcomeSchedule.js'
 import { OutcomeLibrary } from './panels/schedule/OutcomeLibrary.js'
+import { GoalEditor } from './panels/schedule/GoalEditor.js'
 import { IntentQueue } from './panels/seeding/IntentQueue.js'
 
 // ── Surface groups (from admin-ui.md, priority order) ──────────
@@ -311,7 +312,7 @@ function ScheduleRouter({ cards }: { cards: string[] }) {
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
         {cards.map((c) => {
           const on = active === c
-          const ready = c === 'Outcome Schedule' || c === 'Outcome Library'
+          const ready = c === 'Outcome Schedule' || c === 'Outcome Library' || c === 'Goal Editor'
           return (
             <button
               key={c}
@@ -331,6 +332,7 @@ function ScheduleRouter({ cards }: { cards: string[] }) {
       </div>
       {active === 'Outcome Schedule' && <OutcomeSchedule />}
       {active === 'Outcome Library' && <OutcomeLibrary />}
+      {active === 'Goal Editor' && <GoalEditor />}
     </div>
   )
 }
