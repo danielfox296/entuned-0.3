@@ -1,22 +1,22 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
-import type { SubmissionDetail } from '../../api.js'
+import type { SongSeedDetail } from '../../api.js'
 import { T } from '../../tokens.js'
 
-export function IntentDetail({ submissionId, onClose }: { submissionId: string; onClose: () => void }) {
-  const [data, setData] = useState<SubmissionDetail | null>(null)
+export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose: () => void }) {
+  const [data, setData] = useState<SongSeedDetail | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [takes, setTakes] = useState<{ sourceUrl: string }[]>([{ sourceUrl: '' }])
 
   const load = async () => {
     const token = getToken(); if (!token) return
-    try { setData(await api.submissionDetail(submissionId, token)); setErr(null) }
+    try { setData(await api.songSeedDetail(songSeedId, token)); setErr(null) }
     catch (e: any) { setErr(e.message) }
   }
 
-  useEffect(() => { load() }, [submissionId])
+  useEffect(() => { load() }, [songSeedId])
 
   const action = async (label: string, fn: () => Promise<unknown>) => {
     if (!confirm(`${label}?`)) return
@@ -33,7 +33,7 @@ export function IntentDetail({ submissionId, onClose }: { submissionId: string; 
     if (!confirm(`Accept ${validTakes.length} take(s)? Server downloads each from its source URL, re-hosts on our R2 bucket, then creates Song(s) + LineageRow(s) and finalizes the hook.`)) return
     setBusy('accept'); setErr(null)
     try {
-      await api.acceptSubmission(submissionId, { takes: validTakes }, token)
+      await api.acceptSongSeed(songSeedId, { takes: validTakes }, token)
       await load()
     } catch (e: any) { setErr(e.message) }
     finally { setBusy(null) }
@@ -76,8 +76,8 @@ export function IntentDetail({ submissionId, onClose }: { submissionId: string; 
         <KV k="Outcome" v={`${data.outcome?.title ?? '—'} v${data.outcome?.version ?? '—'}`} />
         <KV k="Hook" v={data.hook.text} mono={false} />
         <KV k="Reference track" v={data.referenceTrack ? `${data.referenceTrack.artist} — ${data.referenceTrack.title}${data.referenceTrack.year ? ` (${data.referenceTrack.year})` : ''}` : '—'} />
-        <KV k="Eno run" v={`${data.enoRun?.id?.slice(0, 8)} · ${data.enoRun?.triggeredBy} · ${data.enoRun ? new Date(data.enoRun.startedAt).toLocaleString() : ''}`} />
-        <KV k="Provenance" v={`prepend v${data.outcomePrependTemplateVersion ?? '—'} · mars v${data.marsPromptVersion ?? '—'} · bernie draft v${data.bernieDraftPromptVersion ?? '—'}`} />
+        <KV k="Seed Batch" v={`${data.songSeedBatch?.id?.slice(0, 8)} · ${data.songSeedBatch?.triggeredBy} · ${data.songSeedBatch ? new Date(data.songSeedBatch.startedAt).toLocaleString() : ''}`} />
+        <KV k="Provenance" v={`prepend v${data.outcomeFactorPromptVersion ?? '—'} · mars v${data.styleTemplateVersion ?? '—'} · bernie draft v${data.lyricDraftPromptVersion ?? '—'}`} />
       </Section>
 
       <Section title="Suno prompt" subtitle="Paste these into Suno (style → Style; lyrics → Lyrics; vocal_gender → Persona/Gender; negative → Exclude Styles)">
@@ -86,9 +86,9 @@ export function IntentDetail({ submissionId, onClose }: { submissionId: string; 
         <CopyBlock label="Vocal gender" value={data.vocalGender ?? ''} onCopy={() => copyToClipboard(data.vocalGender ?? '')} short />
         <CopyBlock label="Title" value={data.title ?? ''} onCopy={() => copyToClipboard(data.title ?? '')} short />
         <CopyBlock label="Lyrics" value={data.lyrics ?? ''} onCopy={() => copyToClipboard(data.lyrics ?? '')} tall />
-        {data.firedFailureRuleIds.length > 0 && (
+        {data.firedExclusionRuleIds.length > 0 && (
           <div style={{ fontSize: 10, fontFamily: T.mono, color: T.textDim, marginTop: 8 }}>
-            fired {data.firedFailureRuleIds.length} failure rule(s)
+            fired {data.firedExclusionRuleIds.length} exclusion rule(s)
           </div>
         )}
       </Section>
@@ -97,19 +97,19 @@ export function IntentDetail({ submissionId, onClose }: { submissionId: string; 
         <Section title="Operator actions">
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {!data.claimedById && (
-              <button onClick={() => action('claim', () => api.claimSubmission(submissionId, getToken()!))} disabled={busy !== null} style={primaryBtn(true, busy === 'claim')}>
+              <button onClick={() => action('claim', () => api.claimSongSeed(songSeedId, getToken()!))} disabled={busy !== null} style={primaryBtn(true, busy === 'claim')}>
                 {busy === 'claim' ? '…' : 'claim'}
               </button>
             )}
             {isClaimedByMe && (
-              <button onClick={() => action('release', () => api.releaseSubmission(submissionId, getToken()!))} disabled={busy !== null} style={ghostBtn}>
+              <button onClick={() => action('release', () => api.releaseSongSeed(songSeedId, getToken()!))} disabled={busy !== null} style={ghostBtn}>
                 {busy === 'release' ? '…' : 'release'}
               </button>
             )}
-            <button onClick={() => action('skip (pre-Suno discard)', () => api.skipSubmission(submissionId, getToken()!))} disabled={busy !== null} style={ghostBtn}>
+            <button onClick={() => action('skip (pre-Suno discard)', () => api.skipSongSeed(songSeedId, getToken()!))} disabled={busy !== null} style={ghostBtn}>
               skip
             </button>
-            <button onClick={() => action('abandon (post-Suno give up)', () => api.abandonSubmission(submissionId, getToken()!))} disabled={busy !== null} style={dangerGhostBtn}>
+            <button onClick={() => action('abandon (post-Suno give up)', () => api.abandonSongSeed(songSeedId, getToken()!))} disabled={busy !== null} style={dangerGhostBtn}>
               abandon
             </button>
           </div>

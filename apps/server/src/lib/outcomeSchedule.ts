@@ -1,5 +1,5 @@
-// Card 8 OutcomeSchedule — resolution + override helpers.
-// Resolution order: live override > schedule row covering now (store-local) > store default.
+// Card 8 Dayparting — outcome resolution + outcome selection helpers.
+// Resolution order: operator selection > schedule slot covering now (store-local) > store default.
 
 import { prisma } from '../db.js'
 
@@ -7,8 +7,8 @@ const MIN_OVERRIDE_FLOOR_MS = 30 * 60 * 1000 // 30 minutes
 
 export interface ResolvedOutcome {
   outcomeId: string
-  source: 'override' | 'schedule' | 'default'
-  expiresAt?: Date // for override only
+  source: 'selection' | 'schedule' | 'default'
+  expiresAt?: Date // for selection only
 }
 
 /**
@@ -50,20 +50,20 @@ export async function resolveActiveOutcome(storeId: string, now: Date = new Date
 
   // 1. Live override?
   if (
-    store.manualOverrideOutcomeId &&
-    store.manualOverrideExpiresAt &&
-    now < store.manualOverrideExpiresAt
+    store.outcomeSelectionId &&
+    store.outcomeSelectionExpiresAt &&
+    now < store.outcomeSelectionExpiresAt
   ) {
     return {
-      outcomeId: store.manualOverrideOutcomeId,
-      source: 'override',
-      expiresAt: store.manualOverrideExpiresAt,
+      outcomeId: store.outcomeSelectionId,
+      source: 'selection',
+      expiresAt: store.outcomeSelectionExpiresAt,
     }
   }
 
   // 2. Schedule row covering now (store-local)?
   const { dow, secondsOfDay } = localParts(now, store.timezone)
-  const rows = await prisma.scheduleRow.findMany({
+  const rows = await prisma.scheduleSlot.findMany({
     where: { storeId, dayOfWeek: dow },
     orderBy: { startTime: 'asc' },
   })
@@ -88,7 +88,7 @@ export async function resolveActiveOutcome(storeId: string, now: Date = new Date
  * "Boundary" = the next start_time or end_time that comes after `now`, looking up to 7 days ahead.
  */
 async function nextPeriodBoundary(storeId: string, timezone: string, now: Date): Promise<Date> {
-  const allRows = await prisma.scheduleRow.findMany({ where: { storeId } })
+  const allRows = await prisma.scheduleSlot.findMany({ where: { storeId } })
   const { dow, secondsOfDay, localDate } = localParts(now, timezone)
   let minDelta = Infinity
 
@@ -127,8 +127,8 @@ export async function setOverride(storeId: string, outcomeId: string, now: Date 
   await prisma.store.update({
     where: { id: storeId },
     data: {
-      manualOverrideOutcomeId: outcomeId,
-      manualOverrideExpiresAt: expiresAt,
+      outcomeSelectionId: outcomeId,
+      outcomeSelectionExpiresAt: expiresAt,
     },
   })
   return { outcomeId, expiresAt }
@@ -137,6 +137,6 @@ export async function setOverride(storeId: string, outcomeId: string, now: Date 
 export async function clearOverride(storeId: string): Promise<void> {
   await prisma.store.update({
     where: { id: storeId },
-    data: { manualOverrideOutcomeId: null, manualOverrideExpiresAt: null },
+    data: { outcomeSelectionId: null, outcomeSelectionExpiresAt: null },
   })
 }

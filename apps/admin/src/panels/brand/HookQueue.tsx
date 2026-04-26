@@ -401,7 +401,7 @@ function DrafterPromptEditor({ icpId }: { icpId: string }) {
   const load = async () => {
     const token = getToken(); if (!token) return
     try {
-      const r = await api.hookDrafterPrompt(icpId, token)
+      const r = await api.hookWriterPrompt(icpId, token)
       setText(r.latest.promptText); setOriginal(r.latest.promptText)
       setVersion(r.latest.version); setHistory(r.history); setLoaded(true)
     } catch (e: any) { setErr(e.message) }
@@ -411,10 +411,10 @@ function DrafterPromptEditor({ icpId }: { icpId: string }) {
     const token = getToken(); if (!token) return
     setBusy(true); setErr(null)
     try {
-      const r = await api.saveHookDrafterPrompt(icpId, text, notes || null, token)
+      const r = await api.saveHookWriterPrompt(icpId, text, notes || null, token)
       setOriginal(text); setVersion(r.version); setNotes('')
       // Refresh history.
-      const re = await api.hookDrafterPrompt(icpId, token)
+      const re = await api.hookWriterPrompt(icpId, token)
       setHistory(re.history)
     } catch (e: any) { setErr(e.message) }
     finally { setBusy(false) }
@@ -515,7 +515,7 @@ function HookRow({ hook, onChanged }: { hook: HookRowFull; onChanged: () => void
         ? `${preview.warning}\n\nRetire anyway?`
         : `Retire this hook? Eno will stop picking it for new submissions. ${preview.activeLineageRows} existing LineageRow(s) keep playing.`
       if (!confirm(msg)) { setBusy(null); return }
-      await api.retireHook(hook.id, preview.inFlightSubmissions > 0, token)
+      await api.retireHook(hook.id, preview.inFlightSongSeeds > 0, token)
       onChanged()
     } catch (e: any) { setErr(e.message) }
     finally { setBusy(null) }

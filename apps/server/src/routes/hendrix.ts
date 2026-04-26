@@ -67,9 +67,9 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
     if (!op) return
     const { outcomeId, expiresAt } = await setOverride(parsed.data.store_id, parsed.data.outcome_id)
     // Log the override as an AudioEvent (Card 19 / Card 20 contract).
-    await prisma.audioEvent.create({
+    await prisma.playbackEvent.create({
       data: {
-        eventType: 'outcome_override',
+        eventType: 'outcome_selection',
         storeId: parsed.data.store_id,
         occurredAt: new Date(),
         operatorId: op.operatorId,
@@ -86,9 +86,9 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
     const op = await requireOperatorForStore(req, reply, parsed.data.store_id)
     if (!op) return
     await clearOverride(parsed.data.store_id)
-    await prisma.audioEvent.create({
+    await prisma.playbackEvent.create({
       data: {
-        eventType: 'outcome_override_cleared',
+        eventType: 'outcome_selection_cleared',
         storeId: parsed.data.store_id,
         occurredAt: new Date(),
         operatorId: op.operatorId,

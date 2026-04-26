@@ -17,7 +17,7 @@ export interface QueueItem {
 export interface HendrixResponse {
   storeId: string
   decidedAt: string
-  activeOutcome: { outcomeId: string; source: 'override' | 'schedule' | 'default'; expiresAt?: string } | null
+  activeOutcome: { outcomeId: string; source: 'selection' | 'schedule' | 'default'; expiresAt?: string } | null
   queue: QueueItem[]
   fallbackTier: FallbackTier
   reason: EmptyReason
@@ -61,7 +61,7 @@ async function applyFilters(
 
   const [recentSongPlays, recentHookPlays, todaySongPlays] = await Promise.all([
     applyNoRepeat
-      ? prisma.audioEvent.findMany({
+      ? prisma.playbackEvent.findMany({
           where: {
             storeId,
             songId: { in: songIds },
@@ -72,7 +72,7 @@ async function applyFilters(
         })
       : Promise.resolve([]),
     applySiblingSpacing
-      ? prisma.audioEvent.findMany({
+      ? prisma.playbackEvent.findMany({
           where: {
             storeId,
             hookId: { in: hookIds },
@@ -83,7 +83,7 @@ async function applyFilters(
         })
       : Promise.resolve([]),
     applyDailyCap
-      ? prisma.audioEvent.findMany({
+      ? prisma.playbackEvent.findMany({
           where: {
             storeId,
             songId: { in: songIds },
@@ -133,7 +133,7 @@ function storeLocalMidnight(now: Date, timezone: string): Date {
 async function rankByLeastPlayed(storeId: string, pool: PoolRow[]): Promise<PoolRow[]> {
   if (pool.length === 0) return pool
   const songIds = [...new Set(pool.map((r) => r.songId))]
-  const counts = await prisma.audioEvent.groupBy({
+  const counts = await prisma.playbackEvent.groupBy({
     by: ['songId'],
     where: {
       storeId,
@@ -183,7 +183,7 @@ export async function nextQueue(storeId: string, now: Date = new Date()): Promis
     return { storeId, decidedAt, activeOutcome: null, queue: [], fallbackTier: 'none', reason: 'no_pool' }
   }
 
-  const rules = (await prisma.rotationRules.findFirst()) ?? {
+  const rules = (await prisma.playbackRules.findFirst()) ?? {
     siblingSpacingMinutes: 240,
     noRepeatWindowMinutes: 45,
     dailyCap: 3,
@@ -241,6 +241,6 @@ export async function nextQueue(storeId: string, now: Date = new Date()): Promis
   }
 }
 
-function serializeOutcome(r: { outcomeId: string; source: 'override' | 'schedule' | 'default'; expiresAt?: Date }) {
+function serializeOutcome(r: { outcomeId: string; source: 'selection' | 'schedule' | 'default'; expiresAt?: Date }) {
   return { outcomeId: r.outcomeId, source: r.source, expiresAt: r.expiresAt?.toISOString() }
 }

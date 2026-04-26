@@ -43,7 +43,7 @@ export interface DecomposeInput {
   operatorNotes?: string
 }
 
-export interface DecompositionOutput {
+export interface StyleAnalysisOutput {
   // v2-only grounding fields (will be empty string for v1 rules)
   verifiable_facts?: string
   // descriptive fields
@@ -73,7 +73,7 @@ async function buildEraContext(decade: string, genreSlug?: string): Promise<stri
     ? { decade, OR: [{ genreSlug }, { genreSlug: 'overview' }] }
     : { decade, genreSlug: 'overview' }
 
-  const rows = await prisma.eraReference.findMany({
+  const rows = await prisma.productionEra.findMany({
     where: { ...where, isActive: true },
     orderBy: [{ genreSlug: 'asc' }],
   })
@@ -99,7 +99,7 @@ async function buildEraContext(decade: string, genreSlug?: string): Promise<stri
 }
 
 export interface DecomposeResult {
-  output: DecompositionOutput
+  output: StyleAnalysisOutput
   rawText: string
   modelId: string
   rulesVersion: number
@@ -114,10 +114,10 @@ export async function decompose(input: DecomposeInput): Promise<DecomposeResult>
   const rulesVersionRequested = process.env.DECOMPOSER_RULES_VERSION
     ? parseInt(process.env.DECOMPOSER_RULES_VERSION, 10)
     : LATEST_RULES_VERSION
-  let rulesRow = await prisma.musicologicalRules.findUnique({ where: { version: rulesVersionRequested } })
+  let rulesRow = await prisma.styleAnalyzerInstructions.findUnique({ where: { version: rulesVersionRequested } })
   if (!rulesRow) {
     const text = RULES_BY_VERSION[rulesVersionRequested] ?? MUSICOLOGICAL_RULES_V1
-    rulesRow = await prisma.musicologicalRules.create({
+    rulesRow = await prisma.styleAnalyzerInstructions.create({
       data: { version: rulesVersionRequested, rulesText: text, notes: `Auto-seed v${rulesVersionRequested}` },
     })
   }
@@ -190,9 +190,9 @@ keys: ${requiredKeys}. No prose before or after the JSON. No markdown code fence
   const raw = textBlocks[textBlocks.length - 1].text as string
 
   const cleaned = extractJson(raw)
-  let parsed: DecompositionOutput
+  let parsed: StyleAnalysisOutput
   try {
-    parsed = JSON.parse(cleaned) as DecompositionOutput
+    parsed = JSON.parse(cleaned) as StyleAnalysisOutput
     validate(parsed)
   } catch (e) {
     console.error('--- raw model output (validation/parse failed) ---')
@@ -239,8 +239,8 @@ function extractJson(s: string): string {
   throw new Error('Unbalanced JSON object in model output')
 }
 
-function validate(o: any): asserts o is DecompositionOutput {
-  const required: (keyof DecompositionOutput)[] = [
+function validate(o: any): asserts o is StyleAnalysisOutput {
+  const required: (keyof StyleAnalysisOutput)[] = [
     'vibe_pitch',
     'era_production_signature',
     'instrumentation_palette',

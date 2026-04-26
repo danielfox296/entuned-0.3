@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
-import type { SubmissionListRow, StoreSummary, OutcomeRowFull, EnoRunResult, SubmissionStatus } from '../../api.js'
+import type { SongSeedRow, StoreSummary, OutcomeRowFull, SeedBuilderResult, SongSeedStatus } from '../../api.js'
 import { T } from '../../tokens.js'
-import { IntentDetail } from './IntentDetail.js'
+import { SongSeed } from './SongSeed.js'
 
-const FILTERS: { key: string; label: string; status?: SubmissionStatus; claimedBy?: string }[] = [
+const FILTERS: { key: string; label: string; status?: SongSeedStatus; claimedBy?: string }[] = [
   { key: 'pending', label: 'pending', status: 'queued', claimedBy: 'unclaimed' },
   { key: 'mine', label: 'in progress (mine)', status: 'queued', claimedBy: 'me' },
   { key: 'all_queued', label: 'all queued', status: 'queued' },
@@ -15,17 +15,17 @@ const FILTERS: { key: string; label: string; status?: SubmissionStatus; claimedB
   { key: 'failed', label: 'failed', status: 'failed' },
 ]
 
-export function IntentQueue() {
+export function SongSeedQueue() {
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
   const [storeId, setStoreId] = useState<string | null>(null)
   const [icpId, setIcpId] = useState<string | null>(null)
   const [filter, setFilter] = useState<string>('pending')
-  const [submissions, setSubmissions] = useState<SubmissionListRow[] | null>(null)
+  const [songSeeds, setSubmissions] = useState<SongSeedRow[] | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
-  const [runResult, setRunResult] = useState<EnoRunResult | null>(null)
+  const [runResult, setRunResult] = useState<SeedBuilderResult | null>(null)
   const [runOutcome, setRunOutcome] = useState<string>('')
   const [runN, setRunN] = useState(1)
 
@@ -46,7 +46,7 @@ export function IntentQueue() {
     const token = getToken(); if (!token) return
     const f = FILTERS.find((x) => x.key === filter)
     try {
-      setSubmissions(await api.submissions(token, {
+      setSubmissions(await api.songSeeds(token, {
         icpId, status: f?.status, claimedBy: f?.claimedBy, limit: 100,
       }))
       setErr(null)
@@ -57,10 +57,10 @@ export function IntentQueue() {
 
   const launch = async () => {
     const token = getToken(); if (!token || !icpId || !runOutcome) return
-    if (!confirm(`Run Eno: generate ${runN} submission(s) for this ICP + outcome? Calls Anthropic and persists Submissions.`)) return
+    if (!confirm(`Run Seed Builder: generate ${runN} song seed(s) for this ICP + outcome? Calls Anthropic and persists Song Seeds.`)) return
     setRunning(true); setRunResult(null); setErr(null)
     try {
-      const result = await api.runEno({ icpId, outcomeId: runOutcome, n: runN }, token)
+      const result = await api.runSeedBuilder({ icpId, outcomeId: runOutcome, n: runN }, token)
       setRunResult(result)
       reload()
     } catch (e: any) { setErr(e.message) }
@@ -68,22 +68,22 @@ export function IntentQueue() {
   }
 
   if (openId) {
-    return <IntentDetail submissionId={openId} onClose={() => { setOpenId(null); reload() }} />
+    return <SongSeed songSeedId={openId} onClose={() => { setOpenId(null); reload() }} />
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
-        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Intent Queue</div>
+        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Song Seed Queue</div>
         <div style={{ fontSize: 11, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Generate Submissions, claim them, paste prompts into Suno, seed accepted takes.
+          Generate Song Seeds, claim them, paste prompts into Suno, seed accepted takes.
         </div>
       </div>
 
       <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
 
       {icpId && (
-        <Section title="Run Eno" subtitle="Generate new submissions for this ICP + outcome">
+        <Section title="Run Seed Builder" subtitle="Generate new songSeeds for this ICP + outcome">
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <select value={runOutcome} onChange={(e) => setRunOutcome(e.target.value)} style={inputStyle}>
               <option value="" disabled>— pick outcome —</option>
@@ -131,17 +131,17 @@ export function IntentQueue() {
             <button onClick={reload} style={ghostBtn}>refresh</button>
           </div>
 
-          {!submissions && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
+          {!songSeeds && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
 
-          {submissions && submissions.length === 0 && (
+          {songSeeds && songSeeds.length === 0 && (
             <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 12, padding: '12px 0' }}>
-              no submissions match
+              no songSeeds match
             </div>
           )}
 
-          {submissions && submissions.length > 0 && (
+          {songSeeds && songSeeds.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {submissions.map((s) => <SubmissionRow key={s.id} sub={s} onOpen={() => setOpenId(s.id)} />)}
+              {songSeeds.map((s) => <SubmissionRow key={s.id} sub={s} onOpen={() => setOpenId(s.id)} />)}
             </div>
           )}
         </>
@@ -171,7 +171,7 @@ function StorePicker({ stores, storeId, onPick }: {
   )
 }
 
-function SubmissionRow({ sub, onOpen }: { sub: SubmissionListRow; onOpen: () => void }) {
+function SubmissionRow({ sub, onOpen }: { sub: SongSeedRow; onOpen: () => void }) {
   const statusColor = statusColorOf(sub.status)
   return (
     <div
@@ -199,7 +199,7 @@ function SubmissionRow({ sub, onOpen }: { sub: SubmissionListRow; onOpen: () => 
   )
 }
 
-function statusColorOf(s: SubmissionStatus): string {
+function statusColorOf(s: SongSeedStatus): string {
   switch (s) {
     case 'queued': return T.warn
     case 'accepted': return T.success

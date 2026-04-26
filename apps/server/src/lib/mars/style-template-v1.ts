@@ -23,7 +23,7 @@
 //   - vocal_arrangement         (often overlaps vocal_character; dropped to save chars)
 //   - arrangement_shape, dynamic_curve (Bernie owns; encoded as [Section] markers)
 
-import type { Decomposition } from '@prisma/client'
+import type { StyleAnalysis } from '@prisma/client'
 import { stripForSuno } from './sanitize.js'
 import { capStyle } from './cap.js'
 
@@ -32,7 +32,7 @@ const FULL_CAP = 950
 
 export interface StyleAssemblyInput {
   decomposition: Pick<
-    Decomposition,
+    StyleAnalysis,
     | 'vibePitch'
     | 'eraProductionSignature'
     | 'instrumentationPalette'

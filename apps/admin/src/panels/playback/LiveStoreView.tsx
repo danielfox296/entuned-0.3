@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
-import type { StoreSummary, LiveStoreView as LiveStoreData, OutcomeWithPool, QueueEntry, AudioEventRow } from '../../api.js'
+import type { StoreSummary, LiveStoreView as LiveStoreData, OutcomeWithPool, QueueEntry, PlaybackEventRow } from '../../api.js'
 import { T } from '../../tokens.js'
 
 const REFRESH_MS = 10000
@@ -107,13 +107,13 @@ function StorePicker({ stores, storeId, onPick }: {
 
 function ActiveCard({ data, onChange }: { data: LiveStoreData; onChange: () => void }) {
   const a = data.active
-  const sourceColor = a?.source === 'override' ? T.warn : a?.source === 'schedule' ? T.success : T.textMuted
+  const sourceColor = a?.source === 'selection' ? T.warn : a?.source === 'schedule' ? T.success : T.textMuted
   const [busy, setBusy] = useState(false)
   const clear = async () => {
     const token = getToken(); if (!token) return
     if (!confirm('Clear the manual override and revert to schedule/default?')) return
     setBusy(true)
-    try { await api.clearOverride(data.store.id, token); onChange() }
+    try { await api.clearOutcomeSelection(data.store.id, token); onChange() }
     catch (e: any) { alert(e.message) }
     finally { setBusy(false) }
   }
@@ -133,7 +133,7 @@ function ActiveCard({ data, onChange }: { data: LiveStoreData; onChange: () => v
               expires {new Date(a.expiresAt).toLocaleString()}
             </span>
           )}
-          {a.source === 'override' && (
+          {a.source === 'selection' && (
             <button onClick={clear} disabled={busy} style={dangerGhostBtn}>
               {busy ? '…' : 'clear override'}
             </button>
@@ -181,7 +181,7 @@ function OverridePicker({ data, onChanged }: { data: LiveStoreData; onChanged: (
     if (oc.poolSize === 0 && !confirm(`"${oc.title}" has an empty pool for this store's ICP. Override anyway?`)) return
     if (!confirm(`Override the active outcome with "${oc.title}"? Lasts until the next schedule boundary (or 30 min minimum).`)) return
     setBusy(oc.outcomeId)
-    try { await api.setOverride(data.store.id, oc.outcomeId, token); onChanged() }
+    try { await api.setOutcomeSelection(data.store.id, oc.outcomeId, token); onChanged() }
     catch (e: any) { alert(e.message) }
     finally { setBusy(null) }
   }
@@ -221,7 +221,7 @@ function OverridePicker({ data, onChanged }: { data: LiveStoreData; onChanged: (
   )
 }
 
-function RecentEvents({ events }: { events: AudioEventRow[] }) {
+function RecentEvents({ events }: { events: PlaybackEventRow[] }) {
   return (
     <Section title="Recent events" subtitle={`last ${events.length}`}>
       {events.length === 0 ? (
@@ -235,7 +235,7 @@ function RecentEvents({ events }: { events: AudioEventRow[] }) {
   )
 }
 
-function EventRow({ event }: { event: AudioEventRow }) {
+function EventRow({ event }: { event: PlaybackEventRow }) {
   const t = new Date(event.occurredAt).toLocaleTimeString()
   const color = eventColor(event.eventType)
   const detail = eventDetail(event)
@@ -260,7 +260,7 @@ function eventColor(type: string): string {
   return T.text
 }
 
-function eventDetail(e: AudioEventRow): string {
+function eventDetail(e: PlaybackEventRow): string {
   const parts: string[] = []
   if (e.outcomeTitle) parts.push(e.outcomeTitle)
   if (e.reportReason) parts.push(`reason: ${e.reportReason}`)

@@ -1,8 +1,8 @@
-// FailureRule matcher — case-insensitive substring per Q2 (locked 2026-04-25).
-// Walks the failure_rules table, returns matched exclusions concatenated as negative_style,
-// plus the ids of rules that fired (for Submission.fired_failure_rule_ids provenance).
+// StyleExclusionRule matcher — case-insensitive substring per Q2 (locked 2026-04-25).
+// Walks the style_exclusion_rules table, returns matched exclusions concatenated as negative_style,
+// plus the ids of rules that fired (for SongSeed.fired_exclusion_rule_ids provenance).
 
-import type { Decomposition, FailureRule } from '@prisma/client'
+import type { StyleAnalysis, StyleExclusionRule } from '@prisma/client'
 import { prisma } from '../../db.js'
 
 const DECOMPOSITION_FIELD_KEYS = [
@@ -29,7 +29,7 @@ const SNAKE_TO_CAMEL: Record<string, (typeof DECOMPOSITION_FIELD_KEYS)[number]> 
   harmonic_and_groove: 'harmonicAndGroove',
 }
 
-function fieldValue(d: Decomposition, snakeName: string): string {
+function fieldValue(d: StyleAnalysis, snakeName: string): string {
   if (snakeName === '*') return ''
   const k = SNAKE_TO_CAMEL[snakeName]
   if (!k) return ''
@@ -47,23 +47,22 @@ export interface NegativeStyleResult {
   firedRuleIds: string[]
 }
 
-export async function buildNegativeStyle(decomposition: Decomposition): Promise<NegativeStyleResult> {
-  const rules: FailureRule[] = await prisma.failureRule.findMany()
+export async function buildNegativeStyle(styleAnalysis: StyleAnalysis): Promise<NegativeStyleResult> {
+  const rules: StyleExclusionRule[] = await prisma.styleExclusionRule.findMany()
   const fragments: string[] = []
   const firedRuleIds: string[] = []
 
   for (const rule of rules) {
-    // Override check: if the override field on the decomposition contains the override pattern, skip.
     if (rule.overrideField && rule.overridePattern) {
-      const overrideValue = fieldValue(decomposition, rule.overrideField)
+      const overrideValue = fieldValue(styleAnalysis, rule.overrideField)
       if (ciContains(overrideValue, rule.overridePattern)) continue
     }
 
     let fires = false
     if (rule.triggerField === '*') {
-      fires = true // unconditional
+      fires = true
     } else {
-      const fieldVal = fieldValue(decomposition, rule.triggerField)
+      const fieldVal = fieldValue(styleAnalysis, rule.triggerField)
       fires = ciContains(fieldVal, rule.triggerValue)
     }
 

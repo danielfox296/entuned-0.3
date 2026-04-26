@@ -56,8 +56,8 @@ export interface StoreRow {
   clientId: string
   icpId: string
   defaultOutcomeId: string | null
-  manualOverrideOutcomeId: string | null
-  manualOverrideExpiresAt: string | null
+  outcomeSelectionId: string | null
+  outcomeSelectionExpiresAt: string | null
   goLiveDate: string | null
 }
 
@@ -95,7 +95,7 @@ export interface MusicologicalRulesRow {
   createdAt: string
 }
 
-export interface FailureRuleRow {
+export interface StyleExclusionRuleRow {
   id: string
   triggerField: string
   triggerValue: string
@@ -133,41 +133,7 @@ export interface PoolDepthResponse {
   icps: PoolDepthIcp[]
 }
 
-export type GoalDirection = 'increase' | 'decrease' | 'maintain'
-export type GoalStatus = 'draft' | 'active' | 'paused' | 'retired'
-
-export interface GoalRow {
-  id: string
-  storeId: string
-  outcomeId: string
-  goalType: string
-  targetMetric: string
-  direction: GoalDirection
-  status: GoalStatus
-  startAt: string
-  endAt: string | null
-  notes: string | null
-  createdAt: string
-  updatedAt: string
-  store: { id: string; name: string }
-  outcome: { id: string; title: string; version: number }
-}
-
-export interface GoalCreateBody {
-  storeId: string
-  outcomeId: string
-  goalType: string
-  targetMetric: string
-  direction: GoalDirection
-  status?: GoalStatus
-  startAt: string
-  endAt?: string | null
-  notes?: string | null
-}
-
-export type GoalUpdateBody = Partial<Omit<GoalCreateBody, 'storeId'>>
-
-export interface OutcomePrependTemplateRow {
+export interface OutcomeFactorPromptRow {
   id: string
   version: number
   templateText: string
@@ -183,9 +149,9 @@ export interface LyricPromptRow {
   createdAt: string
 }
 
-// --- Brand: stores, ICPs, reference tracks, decompositions ---
+// --- Brand: stores, ICPs, reference tracks, style analyses ---
 
-export type Bucket = 'FormationEra' | 'Subculture' | 'Aspirational'
+export type TasteCategory = 'FormationEra' | 'Subculture' | 'Aspirational'
 
 export interface StoreSummary {
   id: string
@@ -213,10 +179,10 @@ export interface IcpRow {
   updatedAt: string
 }
 
-export interface DecompositionRow {
+export interface StyleAnalysisRow {
   id: string
   referenceTrackId: string
-  musicologicalRulesVersion: number
+  styleAnalyzerInstructionsVersion: number
   status: string
   verifiedAt: string | null
   verifiedById: string | null
@@ -237,14 +203,14 @@ export interface DecompositionRow {
 export interface ReferenceTrackRow {
   id: string
   icpId: string
-  bucket: Bucket
+  bucket: TasteCategory
   artist: string
   title: string
   year: number | null
   operatorNotes: string | null
   useCount: number
   createdAt: string
-  decomposition: DecompositionRow | null
+  styleAnalysis: StyleAnalysisRow | null
 }
 
 export interface StoreDetail {
@@ -254,7 +220,7 @@ export interface StoreDetail {
 }
 
 export interface NewReferenceTrack {
-  bucket: Bucket
+  bucket: TasteCategory
   artist: string
   title: string
   year?: number | null
@@ -326,18 +292,19 @@ export interface StoreUpdateBody {
   defaultOutcomeId?: string | null
   icpId?: string
 }
-// --- Operator Seeding (Submissions / EnoRuns) ---
 
-export type SubmissionStatus = 'assembling' | 'queued' | 'accepted' | 'abandoned' | 'skipped' | 'failed'
+// --- Song Creation ---
 
-export interface SubmissionListRow {
+export type SongSeedStatus = 'assembling' | 'queued' | 'accepted' | 'abandoned' | 'skipped' | 'failed'
+
+export interface SongSeedRow {
   id: string
-  enoRunId: string
+  songSeedBatchId: string
   icpId: string
   hookId: string
   outcomeId: string
   referenceTrackId: string | null
-  status: SubmissionStatus
+  status: SongSeedStatus
   style: string | null
   negativeStyle: string | null
   vocalGender: string | null
@@ -352,31 +319,31 @@ export interface SubmissionListRow {
   hook: { id: string; text: string }
   outcome: { id: string; title: string; version: number }
   referenceTrack: { id: string; artist: string; title: string } | null
-  enoRun: { id: string; startedAt: string; triggeredBy: string }
+  songSeedBatch: { id: string; startedAt: string; triggeredBy: string }
 }
 
-export interface SubmissionDetail extends SubmissionListRow {
+export interface SongSeedDetail extends SongSeedRow {
   stylePortionRaw: string | null
-  outcomePrependTemplateVersion: number | null
-  marsPromptVersion: number | null
-  bernieDraftPromptVersion: number | null
-  bernieEditPromptVersion: number | null
-  firedFailureRuleIds: string[]
+  outcomeFactorPromptVersion: number | null
+  styleTemplateVersion: number | null
+  lyricDraftPromptVersion: number | null
+  lyricEditPromptVersion: number | null
+  firedExclusionRuleIds: string[]
   outcome: any
   referenceTrack: any
-  enoRun: any
+  songSeedBatch: any
   lineageRows: any[]
 }
 
-export interface EnoRunResult {
-  enoRunId: string
+export interface SeedBuilderResult {
+  songSeedBatchId: string
   requestedN: number
   producedN: number
   reason: 'complete' | 'pool_exhausted' | 'precheck_failed'
   errors: string[]
 }
 
-export interface ScheduleRow {
+export interface ScheduleSlot {
   id: string
   storeId: string
   dayOfWeek: number
@@ -387,7 +354,7 @@ export interface ScheduleRow {
   outcomeVersion: number
 }
 
-export type ScheduleRowInput = {
+export type ScheduleSlotInput = {
   dayOfWeek: number
   startTime: string
   endTime: string
@@ -491,7 +458,7 @@ export interface QueueEntry {
   outcomeTitle: string | null
 }
 
-export interface AudioEventRow {
+export interface PlaybackEventRow {
   id: string
   eventType: string
   occurredAt: string
@@ -512,20 +479,20 @@ export interface LiveStoreView {
     timezone: string
     icpId: string
     defaultOutcomeId: string | null
-    manualOverrideOutcomeId: string | null
-    manualOverrideExpiresAt: string | null
+    outcomeSelectionId: string | null
+    outcomeSelectionExpiresAt: string | null
   }
   active: {
     outcomeId: string
     outcomeTitle: string | null
-    source: 'override' | 'schedule' | 'default'
+    source: 'selection' | 'schedule' | 'default'
     expiresAt: string | null
   } | null
   queue: QueueEntry[]
   fallbackTier: 'none' | 'daily_cap' | 'sibling_spacing' | 'no_repeat_window'
   reason: 'no_pool' | null
   outcomes: OutcomeWithPool[]
-  recentEvents: AudioEventRow[]
+  recentEvents: PlaybackEventRow[]
 }
 
 export interface OutcomeRowFull {
@@ -554,7 +521,7 @@ export interface HookRowFull {
   outcome: { id: string; title: string; version: number }
 }
 
-export type DecompositionUpdate = Partial<{
+export type StyleAnalysisUpdate = Partial<{
   status: 'draft' | 'verified'
   confidence: 'low' | 'medium' | 'high' | null
   vibePitch: string | null
@@ -569,10 +536,6 @@ export type DecompositionUpdate = Partial<{
 }>
 
 // --- API methods ---
-// health + auth reuse existing server routes.
-// Admin-specific data queries will need new server routes — stubbed here
-// with the endpoint shape so the admin app compiles and runs against /health
-// and /auth now, and we add data routes as we build panels.
 
 export const api = {
   // Auth (same as player)
@@ -585,30 +548,30 @@ export const api = {
   health: () =>
     req<HealthResponse>('/health'),
 
-  // --- Engine (decomposer rules, failure rules, style template, lyric prompts) ---
+  // --- Engine (decomposer rules, style exclusion rules, style template, lyric prompts) ---
 
   musicologicalRules: (token: string) =>
     req<{ latest: MusicologicalRulesRow | null; history: MusicologicalRulesRow[] }>('/admin/musicological-rules', {}, token),
   saveMusicologicalRules: (rulesText: string, notes: string | undefined, token: string) =>
     req<MusicologicalRulesRow>('/admin/musicological-rules', { method: 'POST', body: JSON.stringify({ rulesText, notes }) }, token),
 
-  failureRules: (token: string) =>
-    req<FailureRuleRow[]>('/admin/failure-rules', {}, token),
-  createFailureRule: (body: Omit<FailureRuleRow, 'id'>, token: string) =>
-    req<FailureRuleRow>('/admin/failure-rules', { method: 'POST', body: JSON.stringify(body) }, token),
-  updateFailureRule: (id: string, body: Omit<FailureRuleRow, 'id'>, token: string) =>
-    req<FailureRuleRow>(`/admin/failure-rules/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
-  deleteFailureRule: (id: string, token: string) =>
+  styleExclusionRules: (token: string) =>
+    req<StyleExclusionRuleRow[]>('/admin/failure-rules', {}, token),
+  createStyleExclusionRule: (body: Omit<StyleExclusionRuleRow, 'id'>, token: string) =>
+    req<StyleExclusionRuleRow>('/admin/failure-rules', { method: 'POST', body: JSON.stringify(body) }, token),
+  updateStyleExclusionRule: (id: string, body: Omit<StyleExclusionRuleRow, 'id'>, token: string) =>
+    req<StyleExclusionRuleRow>(`/admin/failure-rules/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+  deleteStyleExclusionRule: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/failure-rules/${id}`, { method: 'DELETE' }, token),
 
   styleTemplate: (token: string) =>
     req<{ latest: StyleTemplateRow | null; history: StyleTemplateRow[] }>('/admin/style-template', {}, token),
   saveStyleTemplate: (templateText: string, notes: string | undefined, token: string) =>
     req<StyleTemplateRow>('/admin/style-template', { method: 'POST', body: JSON.stringify({ templateText, notes }) }, token),
-  outcomePrependTemplate: (token: string) =>
-    req<{ latest: OutcomePrependTemplateRow | null; history: OutcomePrependTemplateRow[] }>('/admin/outcome-prepend-template', {}, token),
-  saveOutcomePrependTemplate: (templateText: string, notes: string | undefined, token: string) =>
-    req<OutcomePrependTemplateRow>('/admin/outcome-prepend-template', { method: 'POST', body: JSON.stringify({ templateText, notes }) }, token),
+  outcomeFactorPrompt: (token: string) =>
+    req<{ latest: OutcomeFactorPromptRow | null; history: OutcomeFactorPromptRow[] }>('/admin/outcome-prepend-template', {}, token),
+  saveOutcomeFactorPrompt: (templateText: string, notes: string | undefined, token: string) =>
+    req<OutcomeFactorPromptRow>('/admin/outcome-prepend-template', { method: 'POST', body: JSON.stringify({ templateText, notes }) }, token),
 
   lyricPrompts: (token: string) =>
     req<{ draft: { latest: LyricPromptRow | null; history: LyricPromptRow[] }; edit: { latest: LyricPromptRow | null; history: LyricPromptRow[] } }>('/admin/lyric-prompts', {}, token),
@@ -642,9 +605,9 @@ export const api = {
   deleteReferenceTrack: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/reference-tracks/${id}`, { method: 'DELETE' }, token),
   decomposeReferenceTrack: (id: string, force: boolean, token: string) =>
-    req<DecompositionRow>(`/admin/reference-tracks/${id}/decompose${force ? '?force=1' : ''}`, { method: 'POST' }, token),
-  updateDecomposition: (id: string, body: DecompositionUpdate, token: string) =>
-    req<DecompositionRow>(`/admin/decompositions/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+    req<StyleAnalysisRow>(`/admin/reference-tracks/${id}/decompose${force ? '?force=1' : ''}`, { method: 'POST' }, token),
+  updateStyleAnalysis: (id: string, body: StyleAnalysisUpdate, token: string) =>
+    req<StyleAnalysisRow>(`/admin/decompositions/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
 
   // --- Hooks ---
 
@@ -658,19 +621,6 @@ export const api = {
     req<OutcomeRowFull>(`/admin/outcomes/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   supersedeOutcome: (id: string, token: string) =>
     req<OutcomeRowFull>(`/admin/outcomes/${id}/supersede`, { method: 'POST' }, token),
-  goals: (token: string, opts?: { storeId?: string; status?: GoalStatus }) => {
-    const qs = new URLSearchParams()
-    if (opts?.storeId) qs.set('storeId', opts.storeId)
-    if (opts?.status) qs.set('status', opts.status)
-    const suffix = qs.toString() ? `?${qs}` : ''
-    return req<GoalRow[]>(`/admin/goals${suffix}`, {}, token)
-  },
-  createGoal: (body: GoalCreateBody, token: string) =>
-    req<GoalRow>('/admin/goals', { method: 'POST', body: JSON.stringify(body) }, token),
-  updateGoal: (id: string, body: GoalUpdateBody, token: string) =>
-    req<GoalRow>(`/admin/goals/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
-  deleteGoal: (id: string, token: string) =>
-    req<{ ok: true }>(`/admin/goals/${id}`, { method: 'DELETE' }, token),
   poolDepth: (token: string) =>
     req<PoolDepthResponse>('/admin/pool-depth', {}, token),
   icpHooks: (icpId: string, token: string) =>
@@ -685,38 +635,38 @@ export const api = {
     req<{ ok: true }>(`/admin/hooks/${id}`, { method: 'DELETE' }, token),
   bulkCreateHooks: (icpId: string, body: { outcomeId: string; texts: string[]; approve?: boolean }, token: string) =>
     req<{ created: number }>(`/admin/icps/${icpId}/hooks/bulk`, { method: 'POST', body: JSON.stringify(body) }, token),
-  hookDrafterPrompt: (icpId: string, token: string) =>
+  hookWriterPrompt: (icpId: string, token: string) =>
     req<{
       latest: { id: string; icpId: string; promptText: string; version: number; updatedAt: string }
       history: { id: string; icpId: string; version: number; promptText: string; notes: string | null; createdAt: string }[]
-    }>(`/admin/icps/${icpId}/hook-drafter-prompt`, {}, token),
-  saveHookDrafterPrompt: (icpId: string, promptText: string, notes: string | null, token: string) =>
-    req<{ id: string; icpId: string; promptText: string; version: number }>(`/admin/icps/${icpId}/hook-drafter-prompt`, { method: 'PUT', body: JSON.stringify({ promptText, notes }) }, token),
+    }>(`/admin/icps/${icpId}/hook-writer-prompt`, {}, token),
+  saveHookWriterPrompt: (icpId: string, promptText: string, notes: string | null, token: string) =>
+    req<{ id: string; icpId: string; promptText: string; version: number }>(`/admin/icps/${icpId}/hook-writer-prompt`, { method: 'PUT', body: JSON.stringify({ promptText, notes }) }, token),
   retireHookPreview: (id: string, token: string) =>
-    req<{ hookId: string; status: string; inFlightSubmissions: number; activeLineageRows: number; warning: string | null }>(`/admin/hooks/${id}/retire-preview`, {}, token),
+    req<{ hookId: string; status: string; inFlightSongSeeds: number; activeLineageRows: number; warning: string | null }>(`/admin/hooks/${id}/retire-preview`, {}, token),
   retireHook: (id: string, force: boolean, token: string) =>
     req<HookRowFull>(`/admin/hooks/${id}/retire`, { method: 'POST', body: JSON.stringify({ force }) }, token),
   draftHooks: (icpId: string, body: { outcomeId: string; n: number }, token: string) =>
-    req<{ hooks: string[] }>(`/admin/icps/${icpId}/hook-drafter/run`, { method: 'POST', body: JSON.stringify(body) }, token),
+    req<{ hooks: string[] }>(`/admin/icps/${icpId}/hook-writer/run`, { method: 'POST', body: JSON.stringify(body) }, token),
 
   // --- Playback ---
 
   liveStore: (id: string, token: string) =>
     req<LiveStoreView>(`/admin/stores/${id}/live`, {}, token),
-  setOverride: (id: string, outcomeId: string, token: string) =>
-    req<{ outcomeId: string; expiresAt: string }>(`/admin/stores/${id}/override`, { method: 'POST', body: JSON.stringify({ outcomeId }) }, token),
-  clearOverride: (id: string, token: string) =>
-    req<{ ok: true }>(`/admin/stores/${id}/override/clear`, { method: 'POST' }, token),
+  setOutcomeSelection: (id: string, outcomeId: string, token: string) =>
+    req<{ outcomeId: string; expiresAt: string }>(`/admin/stores/${id}/outcome-selection`, { method: 'POST', body: JSON.stringify({ outcomeId }) }, token),
+  clearOutcomeSelection: (id: string, token: string) =>
+    req<{ ok: true }>(`/admin/stores/${id}/outcome-selection/clear`, { method: 'POST' }, token),
 
   // --- Schedule ---
 
   schedule: (storeId: string, token: string) =>
-    req<ScheduleRow[]>(`/admin/stores/${storeId}/schedule`, {}, token),
-  createScheduleRow: (storeId: string, body: ScheduleRowInput, token: string) =>
-    req<ScheduleRow>(`/admin/stores/${storeId}/schedule`, { method: 'POST', body: JSON.stringify(body) }, token),
-  updateScheduleRow: (id: string, body: ScheduleRowInput, token: string) =>
-    req<ScheduleRow>(`/admin/schedule-rows/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
-  deleteScheduleRow: (id: string, token: string) =>
+    req<ScheduleSlot[]>(`/admin/stores/${storeId}/schedule`, {}, token),
+  createScheduleSlot: (storeId: string, body: ScheduleSlotInput, token: string) =>
+    req<ScheduleSlot>(`/admin/stores/${storeId}/schedule`, { method: 'POST', body: JSON.stringify(body) }, token),
+  updateScheduleSlot: (id: string, body: ScheduleSlotInput, token: string) =>
+    req<ScheduleSlot>(`/admin/schedule-rows/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+  deleteScheduleSlot: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/schedule-rows/${id}`, { method: 'DELETE' }, token),
   scheduleDryRun: (storeId: string, token: string) =>
     req<ScheduleDryRun>(`/admin/stores/${storeId}/schedule-dry-run`, {}, token),
@@ -744,29 +694,29 @@ export const api = {
   retireFlagged: (songId: string, token: string) =>
     req<{ retired: number }>(`/admin/flagged/${songId}/retire`, { method: 'POST' }, token),
 
-  // --- Operator Seeding ---
+  // --- Song Creation ---
 
-  submissions: (token: string, params: { icpId?: string; status?: string; claimedBy?: string; limit?: number } = {}) => {
+  songSeeds: (token: string, params: { icpId?: string; status?: string; claimedBy?: string; limit?: number } = {}) => {
     const qs = new URLSearchParams()
     if (params.icpId) qs.set('icpId', params.icpId)
     if (params.status) qs.set('status', params.status)
     if (params.claimedBy) qs.set('claimedBy', params.claimedBy)
     if (params.limit) qs.set('limit', String(params.limit))
     const q = qs.toString() ? `?${qs.toString()}` : ''
-    return req<SubmissionListRow[]>(`/admin/submissions${q}`, {}, token)
+    return req<SongSeedRow[]>(`/admin/song-seeds${q}`, {}, token)
   },
-  submissionDetail: (id: string, token: string) =>
-    req<SubmissionDetail>(`/admin/submissions/${id}`, {}, token),
-  runEno: (body: { icpId: string; outcomeId: string; n: number }, token: string) =>
-    req<EnoRunResult>('/admin/eno/run', { method: 'POST', body: JSON.stringify(body) }, token),
-  claimSubmission: (id: string, token: string) =>
-    req<SubmissionListRow>(`/admin/submissions/${id}/claim`, { method: 'POST' }, token),
-  releaseSubmission: (id: string, token: string) =>
-    req<SubmissionListRow>(`/admin/submissions/${id}/release`, { method: 'POST' }, token),
-  skipSubmission: (id: string, token: string) =>
-    req<SubmissionListRow>(`/admin/submissions/${id}/skip`, { method: 'POST' }, token),
-  abandonSubmission: (id: string, token: string) =>
-    req<SubmissionListRow>(`/admin/submissions/${id}/abandon`, { method: 'POST' }, token),
-  acceptSubmission: (id: string, body: { takes: { sourceUrl: string }[] }, token: string) =>
-    req<{ submission: SubmissionListRow; lineageRows: any[] }>(`/admin/submissions/${id}/accept`, { method: 'POST', body: JSON.stringify(body) }, token),
+  songSeedDetail: (id: string, token: string) =>
+    req<SongSeedDetail>(`/admin/song-seeds/${id}`, {}, token),
+  runSeedBuilder: (body: { icpId: string; outcomeId: string; n: number }, token: string) =>
+    req<SeedBuilderResult>('/admin/eno/run', { method: 'POST', body: JSON.stringify(body) }, token),
+  claimSongSeed: (id: string, token: string) =>
+    req<SongSeedRow>(`/admin/song-seeds/${id}/claim`, { method: 'POST' }, token),
+  releaseSongSeed: (id: string, token: string) =>
+    req<SongSeedRow>(`/admin/song-seeds/${id}/release`, { method: 'POST' }, token),
+  skipSongSeed: (id: string, token: string) =>
+    req<SongSeedRow>(`/admin/song-seeds/${id}/skip`, { method: 'POST' }, token),
+  abandonSongSeed: (id: string, token: string) =>
+    req<SongSeedRow>(`/admin/song-seeds/${id}/abandon`, { method: 'POST' }, token),
+  acceptSongSeed: (id: string, body: { takes: { sourceUrl: string }[] }, token: string) =>
+    req<{ songSeed: SongSeedRow; lineageRows: any[] }>(`/admin/song-seeds/${id}/accept`, { method: 'POST', body: JSON.stringify(body) }, token),
 }

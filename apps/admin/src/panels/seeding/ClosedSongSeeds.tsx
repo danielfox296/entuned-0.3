@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
-import type { SubmissionListRow, StoreSummary, SubmissionStatus } from '../../api.js'
+import type { SongSeedRow, StoreSummary, SongSeedStatus } from '../../api.js'
 import { T } from '../../tokens.js'
 
-const STATUS_FILTERS: { key: string; label: string; status: SubmissionStatus }[] = [
+const STATUS_FILTERS: { key: string; label: string; status: SongSeedStatus }[] = [
   { key: 'abandoned', label: 'abandoned', status: 'abandoned' },
   { key: 'skipped', label: 'skipped', status: 'skipped' },
   { key: 'failed', label: 'failed', status: 'failed' },
 ]
 
-export function AbandonedLog() {
+export function ClosedSongSeeds() {
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
   const [icpId, setIcpId] = useState<string>('')
-  const [status, setStatus] = useState<SubmissionStatus>('abandoned')
-  const [rows, setRows] = useState<SubmissionListRow[] | null>(null)
+  const [status, setStatus] = useState<SongSeedStatus>('abandoned')
+  const [rows, setRows] = useState<SongSeedRow[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -26,7 +26,7 @@ export function AbandonedLog() {
     const token = getToken(); if (!token) return
     setLoading(true); setErr(null)
     try {
-      const r = await api.submissions(token, { icpId: icpId || undefined, status, limit: 100 })
+      const r = await api.songSeeds(token, { icpId: icpId || undefined, status, limit: 100 })
       setRows(r)
     } catch (e: any) { setErr(e.message) }
     finally { setLoading(false) }
@@ -38,7 +38,7 @@ export function AbandonedLog() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
-        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Abandoned Log</div>
+        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Closed Song Seeds</div>
         <div style={{ fontSize: 11, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
           Submissions that didn't make it into the pool — operator-abandoned, skipped, or assembly-failed. Useful for spotting hook-pool drift or systematic Mars/Bernie failures.
         </div>
@@ -80,14 +80,14 @@ export function AbandonedLog() {
       {rows && (
         <>
           <div style={{ fontFamily: T.mono, fontSize: 11, color: T.textDim }}>
-            {rows.length} {status} submission{rows.length === 1 ? '' : 's'}
+            {rows.length} {status} song seed{rows.length === 1 ? '' : 's'}
           </div>
 
           <div style={{ border: `1px solid ${T.border}`, borderRadius: 4, overflow: 'hidden' }}>
             <Header />
             {rows.length === 0 && (
               <div style={{ padding: 24, textAlign: 'center', color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>
-                no {status} submissions match
+                no {status} song seeds match
               </div>
             )}
             {rows.map((r) => <Row key={r.id} row={r} />)}
@@ -117,7 +117,7 @@ function Header() {
   )
 }
 
-function Row({ row }: { row: SubmissionListRow }) {
+function Row({ row }: { row: SongSeedRow }) {
   const ts = row.terminalAt ?? row.updatedAt
   const date = new Date(ts)
   const fmt = date.toISOString().slice(0, 10) + ' ' + date.toISOString().slice(11, 16)

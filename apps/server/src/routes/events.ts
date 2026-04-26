@@ -49,7 +49,7 @@ export const eventsRoutes: FastifyPluginAsync = async (app) => {
       hookBySong = new Map(rows.map((r) => [r.songId, r.hookId]))
     }
 
-    const created = await prisma.audioEvent.createMany({
+    const created = await prisma.playbackEvent.createMany({
       data: events.map((e) => ({
         eventType: e.event_type as any,
         storeId: e.store_id,

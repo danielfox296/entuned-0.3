@@ -6,23 +6,22 @@ import { DecomposerRules } from './panels/engine/DecomposerRules.js'
 import { FailureRules } from './panels/engine/FailureRules.js'
 import { StyleTemplate } from './panels/engine/StyleTemplate.js'
 import { LyricPrompts } from './panels/engine/LyricPrompts.js'
-import { OutcomePrependTemplate } from './panels/engine/OutcomePrependTemplate.js'
+import { OutcomeFactorPrompt } from './panels/engine/OutcomeFactorPrompt.js'
 import { IcpEditor } from './panels/brand/IcpEditor.js'
 import { HookQueue } from './panels/brand/HookQueue.js'
 import { ClientDetail } from './panels/brand/ClientDetail.js'
 import { StoreEditor } from './panels/brand/StoreEditor.js'
-import { AbandonedLog } from './panels/seeding/AbandonedLog.js'
+import { ClosedSongSeeds } from './panels/seeding/ClosedSongSeeds.js'
 import { LiveStoreView } from './panels/playback/LiveStoreView.js'
 import { OutcomeSchedule } from './panels/schedule/OutcomeSchedule.js'
 import { OutcomeLibrary } from './panels/schedule/OutcomeLibrary.js'
-import { GoalEditor } from './panels/schedule/GoalEditor.js'
 import { DryRun } from './panels/schedule/DryRun.js'
 import { PoolDepth } from './panels/catalogue/PoolDepth.js'
 import { SongBrowser } from './panels/catalogue/SongBrowser.js'
 import { FlaggedReview } from './panels/catalogue/FlaggedReview.js'
 import { RetiredSongs } from './panels/catalogue/RetiredSongs.js'
-import { IntentQueue } from './panels/seeding/IntentQueue.js'
-import { IntentDetail } from './panels/seeding/IntentDetail.js'
+import { SongSeedQueue } from './panels/seeding/SongSeedQueue.js'
+import { SongSeed } from './panels/seeding/SongSeed.js'
 
 // ── Surface groups (from admin-ui.md, priority order) ──────────
 interface SurfaceGroup {
@@ -31,20 +30,20 @@ interface SurfaceGroup {
 }
 
 const GROUPS: SurfaceGroup[] = [
-  { key: 'seeding', label: 'Operator Seeding', short: 'Seeding', icon: '⏺',
-    cards: ['Intent Queue', 'Intent Detail', 'Abandoned Log'],
-    description: 'Claim intents, paste to Suno, seed or abandon takes' },
+  { key: 'seeding', label: 'Song Creation', short: 'Creation', icon: '⏺',
+    cards: ['Song Seed Queue', 'Song Seed', 'Closed Song Seeds'],
+    description: 'Claim song seeds, paste to Suno, accept or close takes' },
   { key: 'playback', label: 'Playback & Overrides', short: 'Playback', icon: '▶',
     cards: ['Live Store View', 'Mode Override', 'Interrupt Controls'],
     description: "What's playing now, override outcomes, skip/pause" },
   { key: 'brand', label: 'Client & Brand', short: 'Brand', icon: '◆',
     cards: ['Client Detail', 'ICP Editor', 'Hook Queue', 'Store Editor'],
     description: 'ICP profiles, hooks, reference tracks, store config' },
-  { key: 'schedule', label: 'Scheduling & Goals', short: 'Schedule', icon: '▦',
-    cards: ['Outcome Schedule', 'Goal Editor', 'Outcome Library', 'Dry Run'],
-    description: 'Weekly outcome grids, goals, schedule preview' },
+  { key: 'schedule', label: 'Scheduling', short: 'Schedule', icon: '▦',
+    cards: ['Outcome Schedule', 'Outcome Library', 'Dry Run'],
+    description: 'Weekly outcome grids, schedule preview' },
   { key: 'engine', label: 'Engine', short: 'Engine', icon: '⚙',
-    cards: ['Decomposer Rules', 'Failure Rules', 'Style Template', 'Lyric Prompts', 'Outcome Prepend Template'],
+    cards: ['Track Analyzer Rules', 'Style Exclusion Rules', 'Style Template', 'Lyric Prompts', 'Outcome Factor Prompt'],
     description: 'System-level prompts that drive decomposer, Mars, and Bernie' },
   { key: 'catalogue', label: 'Song Catalogue', short: 'Catalogue', icon: '♫',
     cards: ['Song Browser', 'Flagged Review', 'Retired Songs', 'Pool Depth'],
@@ -241,11 +240,11 @@ function EngineRouter({ cards }: { cards: string[] }) {
           )
         })}
       </div>
-      {active === 'Decomposer Rules' && <DecomposerRules />}
-      {active === 'Failure Rules' && <FailureRules />}
+      {active === 'Track Analyzer Rules' && <DecomposerRules />}
+      {active === 'Style Exclusion Rules' && <FailureRules />}
       {active === 'Style Template' && <StyleTemplate />}
       {active === 'Lyric Prompts' && <LyricPrompts />}
-      {active === 'Outcome Prepend Template' && <OutcomePrependTemplate />}
+      {active === 'Outcome Factor Prompt' && <OutcomeFactorPrompt />}
     </div>
   )
 }
@@ -322,7 +321,7 @@ function ScheduleRouter({ cards }: { cards: string[] }) {
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
         {cards.map((c) => {
           const on = active === c
-          const ready = c === 'Outcome Schedule' || c === 'Outcome Library' || c === 'Goal Editor' || c === 'Dry Run'
+          const ready = c === 'Outcome Schedule' || c === 'Outcome Library' || c === 'Dry Run'
           return (
             <button
               key={c}
@@ -342,7 +341,6 @@ function ScheduleRouter({ cards }: { cards: string[] }) {
       </div>
       {active === 'Outcome Schedule' && <OutcomeSchedule />}
       {active === 'Outcome Library' && <OutcomeLibrary />}
-      {active === 'Goal Editor' && <GoalEditor />}
       {active === 'Dry Run' && <DryRun />}
     </div>
   )
@@ -382,7 +380,7 @@ function CatalogueRouter({ cards }: { cards: string[] }) {
 
 // ── Seeding router ─────────────────────────────────────────────
 function SeedingRouter({ cards }: { cards: string[] }) {
-  const [active, setActive] = useState<string>('Intent Queue')
+  const [active, setActive] = useState<string>('Song Seed Queue')
   const [detailId, setDetailId] = useState<string>('')
   const [openId, setOpenId] = useState<string | null>(null)
   return (
@@ -393,7 +391,7 @@ function SeedingRouter({ cards }: { cards: string[] }) {
           return (
             <button
               key={c}
-              onClick={() => { setActive(c); if (c !== 'Intent Detail') setOpenId(null) }}
+              onClick={() => { setActive(c); if (c !== 'Song Seed') setOpenId(null) }}
               style={{
                 background: 'transparent', border: 'none',
                 borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
@@ -406,23 +404,23 @@ function SeedingRouter({ cards }: { cards: string[] }) {
           )
         })}
       </div>
-      {active === 'Intent Queue' && <IntentQueue />}
-      {active === 'Abandoned Log' && <AbandonedLog />}
-      {active === 'Intent Detail' && (
+      {active === 'Song Seed Queue' && <SongSeedQueue />}
+      {active === 'Closed Song Seeds' && <ClosedSongSeeds />}
+      {active === 'Song Seed' && (
         openId ? (
-          <IntentDetail submissionId={openId} onClose={() => setOpenId(null)} />
+          <SongSeed songSeedId={openId} onClose={() => setOpenId(null)} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 520 }}>
             <div style={{ fontFamily: T.sans, fontSize: 12, color: T.textMuted }}>
-              Per-submission drill-in. Normally reached by clicking a row in Intent Queue. Paste a submission ID to open it directly.
+              Per-song-seed drill-in. Normally reached by clicking a row in Song Seed Queue. Paste a song seed ID to open it directly.
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <input
                 value={detailId}
                 onChange={(e) => setDetailId(e.target.value)}
-                placeholder="submission id"
+                placeholder="song seed id"
                 style={{
-                  flex: 1, background: T.bgRaised, border: `1px solid ${T.borderSubtle}`,
+                  flex: 1, background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
                   color: T.text, padding: '8px 10px', fontFamily: T.mono, fontSize: 12,
                 }}
               />

@@ -23,7 +23,7 @@ import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 import { runEno } from '../lib/eno/eno.js'
 import { downloadAndUploadFromUrl } from '../lib/r2.js'
-import { draftHooks, getOrSeedDrafterPrompt } from '../lib/hooks/drafter.js'
+import { draftHooks, getOrSeedHookWriterPrompt } from '../lib/hooks/drafter.js'
 
 interface AuthedOp {
   operatorId: string
@@ -95,7 +95,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/musicological-rules', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
-    const all = await prisma.musicologicalRules.findMany({ orderBy: { version: 'desc' } })
+    const all = await prisma.styleAnalyzerInstructions.findMany({ orderBy: { version: 'desc' } })
     return { latest: all[0] ?? null, history: all }
   })
 
@@ -103,9 +103,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const parsed = RulesPostBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const max = await prisma.musicologicalRules.aggregate({ _max: { version: true } })
+    const max = await prisma.styleAnalyzerInstructions.aggregate({ _max: { version: true } })
     const next = (max._max.version ?? 0) + 1
-    const row = await prisma.musicologicalRules.create({
+    const row = await prisma.styleAnalyzerInstructions.create({
       data: { version: next, rulesText: parsed.data.rulesText, notes: parsed.data.notes ?? null, createdById: op.operatorId },
     })
     return row
@@ -115,7 +115,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/failure-rules', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
-    const rows = await prisma.failureRule.findMany({ orderBy: { triggerField: 'asc' } })
+    const rows = await prisma.styleExclusionRule.findMany({ orderBy: { triggerField: 'asc' } })
     return rows
   })
 
@@ -123,7 +123,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const parsed = FailureRuleBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const row = await prisma.failureRule.create({
+    const row = await prisma.styleExclusionRule.create({
       data: {
         triggerField: parsed.data.triggerField,
         triggerValue: parsed.data.triggerValue,
@@ -142,7 +142,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const parsed = FailureRuleBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     try {
-      const row = await prisma.failureRule.update({
+      const row = await prisma.styleExclusionRule.update({
         where: { id },
         data: {
           triggerField: parsed.data.triggerField,
@@ -163,7 +163,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     try {
-      await prisma.failureRule.delete({ where: { id } })
+      await prisma.styleExclusionRule.delete({ where: { id } })
       return { ok: true }
     } catch {
       return reply.code(404).send({ error: 'not_found' })
@@ -194,7 +194,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/outcome-prepend-template', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
-    const all = await prisma.outcomePrependTemplate.findMany({ orderBy: { version: 'desc' } })
+    const all = await prisma.outcomeFactorPrompt.findMany({ orderBy: { version: 'desc' } })
     return { latest: all[0] ?? null, history: all }
   })
 
@@ -202,9 +202,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const parsed = OutcomePrependPostBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const max = await prisma.outcomePrependTemplate.aggregate({ _max: { version: true } })
+    const max = await prisma.outcomeFactorPrompt.aggregate({ _max: { version: true } })
     const next = (max._max.version ?? 0) + 1
-    const row = await prisma.outcomePrependTemplate.create({
+    const row = await prisma.outcomeFactorPrompt.create({
       data: { version: next, templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, createdById: op.operatorId },
     })
     return row
@@ -447,7 +447,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       include: {
         referenceTracks: {
           orderBy: [{ bucket: 'asc' }, { artist: 'asc' }, { title: 'asc' }],
-          include: { decomposition: true },
+          include: { styleAnalysis: true },
         },
       },
     })
@@ -554,7 +554,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
-  // --- Decompose now: runs Claude with web search; upserts Decomposition row. ---
+  // --- Decompose now: runs Claude with web search; upserts StyleAnalysis row. ---
   // Always overwrites the existing draft; verified rows return 409 unless ?force=1.
   app.post('/reference-tracks/:id/decompose', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
@@ -562,11 +562,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const force = (req.query as any)?.force === '1'
     const ref = await prisma.referenceTrack.findUnique({
       where: { id },
-      include: { decomposition: true },
+      include: { styleAnalysis: true },
     })
     if (!ref) return reply.code(404).send({ error: 'not_found' })
-    if (ref.decomposition && ref.decomposition.status === 'verified' && !force) {
-      return reply.code(409).send({ error: 'verified_decomposition_exists', message: 'Pass ?force=1 to overwrite a verified decomposition.' })
+    if (ref.styleAnalysis && ref.styleAnalysis.status === 'verified' && !force) {
+      return reply.code(409).send({ error: 'verified_style_analysis_exists', message: 'Pass ?force=1 to overwrite a verified decomposition.' })
     }
     let result
     try {
@@ -580,7 +580,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(502).send({ error: 'decompose_failed', message: e.message ?? 'unknown' })
     }
     const data = {
-      musicologicalRulesVersion: result.rulesVersion,
+      styleAnalyzerInstructionsVersion: result.rulesVersion,
       status: 'draft',
       verifiedAt: null,
       verifiedById: null,
@@ -595,7 +595,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       vocalArrangement: result.output.vocal_arrangement,
       harmonicAndGroove: result.output.harmonic_and_groove,
     }
-    const row = await prisma.decomposition.upsert({
+    const row = await prisma.styleAnalysis.upsert({
       where: { referenceTrackId: id },
       create: { referenceTrackId: id, ...data },
       update: data,
@@ -603,7 +603,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return row
   })
 
-  // --- Hand-edit a Decomposition. status drives draft/verified lifecycle. ---
+  // --- Hand-edit a StyleAnalysis. status drives draft/verified lifecycle. ---
   const DecompositionUpdateBody = z.object({
     status: z.enum(['draft', 'verified']).optional(),
     confidence: z.enum(['low', 'medium', 'high']).nullable().optional(),
@@ -708,111 +708,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (existing.supersededAt) return existing
     const row = await prisma.outcome.update({ where: { id }, data: { supersededAt: new Date() } })
     return row
-  })
-
-  // ----- Goals (advisory; per-store; documents the "why" behind a schedule) -----
-
-  const GoalCreateBody = z.object({
-    storeId: z.string().uuid(),
-    outcomeId: z.string().uuid(),
-    goalType: z.string().min(1),
-    targetMetric: z.string().min(1),
-    direction: z.enum(['increase', 'decrease', 'maintain']),
-    status: z.enum(['draft', 'active', 'paused', 'retired']).optional(),
-    startAt: z.string().datetime(),
-    endAt: z.string().datetime().nullable().optional(),
-    notes: z.string().nullable().optional(),
-  })
-
-  const GoalUpdateBody = GoalCreateBody.partial().omit({ storeId: true })
-
-  app.get('/goals', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
-    const storeId = (req.query as any)?.storeId as string | undefined
-    const status = (req.query as any)?.status as string | undefined
-    const rows = await prisma.goal.findMany({
-      where: { ...(storeId ? { storeId } : {}), ...(status ? { status } : {}) },
-      orderBy: [{ status: 'asc' }, { startAt: 'desc' }],
-      include: {
-        store: { select: { id: true, name: true } },
-        outcome: { select: { id: true, title: true, version: true } },
-      },
-    })
-    return rows
-  })
-
-  app.post('/goals', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
-    const parsed = GoalCreateBody.safeParse(req.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    try {
-      const row = await prisma.goal.create({
-        data: {
-          storeId: parsed.data.storeId,
-          outcomeId: parsed.data.outcomeId,
-          goalType: parsed.data.goalType,
-          targetMetric: parsed.data.targetMetric,
-          direction: parsed.data.direction,
-          status: parsed.data.status ?? 'active',
-          startAt: new Date(parsed.data.startAt),
-          endAt: parsed.data.endAt ? new Date(parsed.data.endAt) : null,
-          notes: parsed.data.notes ?? null,
-          createdById: op.operatorId,
-        },
-        include: {
-          store: { select: { id: true, name: true } },
-          outcome: { select: { id: true, title: true, version: true } },
-        },
-      })
-      return row
-    } catch (e: any) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
-        return reply.code(404).send({ error: 'store_or_outcome_not_found' })
-      }
-      return reply.code(500).send({ error: 'create_failed', message: e.message ?? 'unknown' })
-    }
-  })
-
-  app.put('/goals/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
-    const id = (req.params as any).id as string
-    const parsed = GoalUpdateBody.safeParse(req.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const data: any = {}
-    if (parsed.data.outcomeId !== undefined) data.outcomeId = parsed.data.outcomeId
-    if (parsed.data.goalType !== undefined) data.goalType = parsed.data.goalType
-    if (parsed.data.targetMetric !== undefined) data.targetMetric = parsed.data.targetMetric
-    if (parsed.data.direction !== undefined) data.direction = parsed.data.direction
-    if (parsed.data.status !== undefined) data.status = parsed.data.status
-    if (parsed.data.startAt !== undefined) data.startAt = new Date(parsed.data.startAt)
-    if (parsed.data.endAt !== undefined) data.endAt = parsed.data.endAt ? new Date(parsed.data.endAt) : null
-    if (parsed.data.notes !== undefined) data.notes = parsed.data.notes
-    try {
-      const row = await prisma.goal.update({
-        where: { id },
-        data,
-        include: {
-          store: { select: { id: true, name: true } },
-          outcome: { select: { id: true, title: true, version: true } },
-        },
-      })
-      return row
-    } catch (e: any) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return reply.code(404).send({ error: 'not_found' })
-      return reply.code(500).send({ error: 'update_failed', message: e.message ?? 'unknown' })
-    }
-  })
-
-  app.delete('/goals/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
-    const id = (req.params as any).id as string
-    try {
-      await prisma.goal.delete({ where: { id } })
-      return { ok: true }
-    } catch (e: any) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') return reply.code(404).send({ error: 'not_found' })
-      return reply.code(500).send({ error: 'delete_failed', message: e.message ?? 'unknown' })
-    }
   })
 
   // ----- Pool Depth (per-(ICP, Outcome) active LineageRow counts) -----
@@ -948,7 +843,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   app.get('/flagged', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
 
-    const events = await prisma.audioEvent.findMany({
+    const events = await prisma.playbackEvent.findMany({
       where: { eventType: 'song_report', songId: { not: null } },
       select: { songId: true, reportReason: true, occurredAt: true, storeId: true },
       orderBy: { occurredAt: 'desc' },
@@ -1056,11 +951,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // ----- Hook Drafter (per-ICP prompt + LLM run) -----
 
-  app.get('/icps/:id/hook-drafter-prompt', async (req, reply) => {
+  app.get('/icps/:id/hook-writer-prompt', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const icpId = (req.params as any).id as string
-    const latest = await getOrSeedDrafterPrompt(icpId)
-    const history = await prisma.hookDrafterPromptVersion.findMany({
+    const latest = await getOrSeedHookWriterPrompt(icpId)
+    const history = await prisma.hookWriterPromptVersion.findMany({
       where: { icpId },
       orderBy: { version: 'desc' },
       take: 50,
@@ -1070,20 +965,20 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   const HookDrafterPromptBody = z.object({ promptText: z.string().min(1), notes: z.string().nullable().optional() })
 
-  app.put('/icps/:id/hook-drafter-prompt', async (req, reply) => {
+  app.put('/icps/:id/hook-writer-prompt', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const icpId = (req.params as any).id as string
     const parsed = HookDrafterPromptBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const result = await prisma.$transaction(async (tx) => {
-      const existing = await tx.hookDrafterPrompt.findUnique({ where: { icpId } })
+      const existing = await tx.hookWriterPrompt.findUnique({ where: { icpId } })
       const nextVersion = (existing?.version ?? 0) + 1
-      const updated = await tx.hookDrafterPrompt.upsert({
+      const updated = await tx.hookWriterPrompt.upsert({
         where: { icpId },
         create: { icpId, promptText: parsed.data.promptText, version: nextVersion, updatedById: op.operatorId },
         update: { promptText: parsed.data.promptText, version: nextVersion, updatedById: op.operatorId },
       })
-      await tx.hookDrafterPromptVersion.create({
+      await tx.hookWriterPromptVersion.create({
         data: {
           icpId, version: nextVersion,
           promptText: parsed.data.promptText,
@@ -1101,7 +996,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     n: z.number().int().min(1).max(20),
   })
 
-  app.post('/icps/:id/hook-drafter/run', async (req, reply) => {
+  app.post('/icps/:id/hook-writer/run', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const icpId = (req.params as any).id as string
     const parsed = DraftHooksBody.safeParse(req.body)
@@ -1217,7 +1112,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const id = (req.params as any).id as string
     const hook = await prisma.hook.findUnique({ where: { id } })
     if (!hook) return reply.code(404).send({ error: 'not_found' })
-    const inFlight = await prisma.submission.count({
+    const inFlight = await prisma.songSeed.count({
       where: { hookId: id, status: { in: ['assembling', 'queued'] } },
     })
     const lineageActive = await prisma.lineageRow.count({ where: { hookId: id, active: true } })
@@ -1226,7 +1121,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       inFlightSubmissions: inFlight,
       activeLineageRows: lineageActive,
       warning: inFlight > 0
-        ? `${inFlight} in-flight submission${inFlight === 1 ? '' : 's'} still reference this hook. Retiring will leave them dangling — they can still be accepted but no new ones will pick this hook.`
+        ? `${inFlight} in-flight song seed${inFlight === 1 ? '' : 's'} still reference this hook. Retiring will leave them dangling — they can still be accepted but no new ones will pick this hook.`
         : null,
     }
   })
@@ -1241,14 +1136,14 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const hook = await prisma.hook.findUnique({ where: { id } })
     if (!hook) return reply.code(404).send({ error: 'not_found' })
     if (hook.status === 'retired') return hook
-    const inFlight = await prisma.submission.count({
+    const inFlight = await prisma.songSeed.count({
       where: { hookId: id, status: { in: ['assembling', 'queued'] } },
     })
     if (inFlight > 0 && !parsed.data.force) {
       return reply.code(409).send({
-        error: 'in_flight_submissions',
+        error: 'in_flight_song_seeds',
         inFlightSubmissions: inFlight,
-        message: `${inFlight} in-flight submission(s) reference this hook. Pass force=true to retire anyway.`,
+        message: `${inFlight} in-flight song seed(s) reference this hook. Pass force=true to retire anyway.`,
       })
     }
     const row = await prisma.hook.update({
@@ -1277,7 +1172,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         where: { icpId: store.icpId, active: true },
         _count: { _all: true },
       }),
-      prisma.audioEvent.findMany({
+      prisma.playbackEvent.findMany({
         where: { storeId: id },
         orderBy: { occurredAt: 'desc' },
         take: 30,
@@ -1311,8 +1206,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         timezone: store.timezone,
         icpId: store.icpId,
         defaultOutcomeId: store.defaultOutcomeId,
-        manualOverrideOutcomeId: store.manualOverrideOutcomeId,
-        manualOverrideExpiresAt: store.manualOverrideExpiresAt,
+        outcomeSelectionId: store.outcomeSelectionId,
+        outcomeSelectionExpiresAt: store.outcomeSelectionExpiresAt,
       },
       active: hendrix.activeOutcome ? {
         outcomeId: hendrix.activeOutcome.outcomeId,
@@ -1348,16 +1243,16 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   const OverrideBody = z.object({ outcomeId: z.string().uuid() })
 
-  app.post('/stores/:id/override', async (req, reply) => {
+  app.post('/stores/:id/outcome-selection', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = OverrideBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     try {
       const { outcomeId, expiresAt } = await setOverride(id, parsed.data.outcomeId)
-      await prisma.audioEvent.create({
+      await prisma.playbackEvent.create({
         data: {
-          eventType: 'outcome_override',
+          eventType: 'outcome_selection',
           storeId: id,
           occurredAt: new Date(),
           operatorId: op.operatorId,
@@ -1370,14 +1265,14 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
-  app.post('/stores/:id/override/clear', async (req, reply) => {
+  app.post('/stores/:id/outcome-selection/clear', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     try {
       await clearOverride(id)
-      await prisma.audioEvent.create({
+      await prisma.playbackEvent.create({
         data: {
-          eventType: 'outcome_override_cleared',
+          eventType: 'outcome_selection_cleared',
           storeId: id,
           occurredAt: new Date(),
           operatorId: op.operatorId,
@@ -1394,7 +1289,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   app.get('/stores/:id/schedule', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
-    const rows = await prisma.scheduleRow.findMany({
+    const rows = await prisma.scheduleSlot.findMany({
       where: { storeId: id },
       orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
       include: { outcome: { select: { id: true, title: true, version: true } } },
@@ -1427,7 +1322,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: 'start_must_precede_end' })
     }
     try {
-      const row = await prisma.scheduleRow.create({
+      const row = await prisma.scheduleSlot.create({
         data: {
           storeId: id,
           dayOfWeek: parsed.data.dayOfWeek,
@@ -1459,7 +1354,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: 'start_must_precede_end' })
     }
     try {
-      const row = await prisma.scheduleRow.update({
+      const row = await prisma.scheduleSlot.update({
         where: { id },
         data: {
           dayOfWeek: parsed.data.dayOfWeek,
@@ -1483,7 +1378,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     try {
-      await prisma.scheduleRow.delete({ where: { id } })
+      await prisma.scheduleSlot.delete({ where: { id } })
       return { ok: true }
     } catch {
       return reply.code(404).send({ error: 'not_found' })
@@ -1509,7 +1404,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     })
     if (!store) return reply.code(404).send({ error: 'store_not_found' })
 
-    const rows = await prisma.scheduleRow.findMany({
+    const rows = await prisma.scheduleSlot.findMany({
       where: { storeId },
       include: { outcome: { select: { id: true, title: true, version: true, supersededAt: true } } },
       orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
@@ -1680,7 +1575,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     limit: z.coerce.number().int().min(1).max(200).optional(),
   })
 
-  app.get('/submissions', async (req, reply) => {
+  app.get('/song-seeds', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const parsed = SubmissionsListQuery.safeParse(req.query)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_query', details: parsed.error.flatten() })
@@ -1690,7 +1585,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (parsed.data.claimedBy === 'unclaimed') where.claimedById = null
     else if (parsed.data.claimedBy === 'me') where.claimedById = op.operatorId
     else if (parsed.data.claimedBy) where.claimedById = parsed.data.claimedBy
-    const rows = await prisma.submission.findMany({
+    const rows = await prisma.songSeed.findMany({
       where,
       orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
       take: parsed.data.limit ?? 100,
@@ -1698,22 +1593,22 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         hook: { select: { id: true, text: true } },
         outcome: { select: { id: true, title: true, version: true } },
         referenceTrack: { select: { id: true, artist: true, title: true } },
-        enoRun: { select: { id: true, startedAt: true, triggeredBy: true } },
+        songSeedBatch: { select: { id: true, startedAt: true, triggeredBy: true } },
       },
     })
     return rows
   })
 
-  app.get('/submissions/:id', async (req, reply) => {
+  app.get('/song-seeds/:id', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
-    const row = await prisma.submission.findUnique({
+    const row = await prisma.songSeed.findUnique({
       where: { id },
       include: {
         hook: { select: { id: true, text: true } },
         outcome: true,
-        referenceTrack: { include: { decomposition: true } },
-        enoRun: true,
+        referenceTrack: { include: { styleAnalysis: true } },
+        songSeedBatch: true,
         lineageRows: { include: { song: true } },
       },
     })
@@ -1745,52 +1640,52 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
-  app.post('/submissions/:id/claim', async (req, reply) => {
+  app.post('/song-seeds/:id/claim', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
-    const existing = await prisma.submission.findUnique({ where: { id } })
+    const existing = await prisma.songSeed.findUnique({ where: { id } })
     if (!existing) return reply.code(404).send({ error: 'not_found' })
-    if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued', message: `Submission is ${existing.status}` })
+    if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued', message: `SongSeed is ${existing.status}` })
     if (existing.claimedById && existing.claimedById !== op.operatorId) {
       return reply.code(409).send({ error: 'already_claimed' })
     }
-    const row = await prisma.submission.update({
+    const row = await prisma.songSeed.update({
       where: { id }, data: { claimedById: op.operatorId, claimedAt: new Date() },
     })
     return row
   })
 
-  app.post('/submissions/:id/release', async (req, reply) => {
+  app.post('/song-seeds/:id/release', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
-    const existing = await prisma.submission.findUnique({ where: { id } })
+    const existing = await prisma.songSeed.findUnique({ where: { id } })
     if (!existing) return reply.code(404).send({ error: 'not_found' })
     if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued' })
-    const row = await prisma.submission.update({
+    const row = await prisma.songSeed.update({
       where: { id }, data: { claimedById: null, claimedAt: null },
     })
     return row
   })
 
-  app.post('/submissions/:id/skip', async (req, reply) => {
+  app.post('/song-seeds/:id/skip', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
-    const existing = await prisma.submission.findUnique({ where: { id } })
+    const existing = await prisma.songSeed.findUnique({ where: { id } })
     if (!existing) return reply.code(404).send({ error: 'not_found' })
     if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued' })
-    const row = await prisma.submission.update({
+    const row = await prisma.songSeed.update({
       where: { id }, data: { status: 'skipped', terminalAt: new Date() },
     })
     return row
   })
 
-  app.post('/submissions/:id/abandon', async (req, reply) => {
+  app.post('/song-seeds/:id/abandon', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
-    const existing = await prisma.submission.findUnique({ where: { id } })
+    const existing = await prisma.songSeed.findUnique({ where: { id } })
     if (!existing) return reply.code(404).send({ error: 'not_found' })
     if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued' })
-    const row = await prisma.submission.update({
+    const row = await prisma.songSeed.update({
       where: { id }, data: { status: 'abandoned', terminalAt: new Date() },
     })
     return row
@@ -1806,15 +1701,15 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     })).min(1).max(2),
   })
 
-  app.post('/submissions/:id/accept', async (req, reply) => {
+  app.post('/song-seeds/:id/accept', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = AcceptBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
 
-    const existing = await prisma.submission.findUnique({ where: { id } })
+    const existing = await prisma.songSeed.findUnique({ where: { id } })
     if (!existing) return reply.code(404).send({ error: 'not_found' })
-    if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued', message: `Submission is ${existing.status}` })
+    if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued', message: `SongSeed is ${existing.status}` })
 
     // Step 1: download + reupload each take to R2 BEFORE opening the transaction.
     // R2 puts are external I/O — keeping them out of the DB transaction avoids
@@ -1823,7 +1718,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     try {
       for (let i = 0; i < parsed.data.takes.length; i++) {
         const take = parsed.data.takes[i]!
-        const key = `submissions/${id}/take-${i + 1}-${Date.now()}.mp3`
+        const key = `song-seeds/${id}/take-${i + 1}-${Date.now()}.mp3`
         const obj = await downloadAndUploadFromUrl(take.sourceUrl, key)
         uploaded.push(obj)
       }
@@ -1853,14 +1748,14 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
               icpId: existing.icpId,
               outcomeId: existing.outcomeId,
               hookId: existing.hookId,
-              submissionId: existing.id,
+              songSeedId: existing.id,
               active: true,
             },
           })
           lineage.push(row)
         }
         // Status flip — partial unique on (hook_id) WHERE status='accepted' enforces 1-per-hook.
-        const updated = await tx.submission.update({
+        const updated = await tx.songSeed.update({
           where: { id }, data: { status: 'accepted', terminalAt: new Date() },
         })
         if (existing.referenceTrackId) {
@@ -1869,12 +1764,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
             data: { useCount: { increment: 1 } },
           })
         }
-        return { submission: updated, lineageRows: lineage }
+        return { songSeed: updated, lineageRows: lineage }
       })
       return result
     } catch (e: any) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        return reply.code(409).send({ error: 'hook_already_accepted', message: 'Another submission for this hook has already been accepted.' })
+        return reply.code(409).send({ error: 'hook_already_accepted', message: 'Another song seed for this hook has already been accepted.' })
       }
       return reply.code(500).send({ error: 'accept_failed', message: e.message ?? 'unknown' })
     }
@@ -1894,7 +1789,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       data.verifiedById = null
     }
     try {
-      const row = await prisma.decomposition.update({ where: { id }, data })
+      const row = await prisma.styleAnalysis.update({ where: { id }, data })
       return row
     } catch {
       return reply.code(404).send({ error: 'not_found' })

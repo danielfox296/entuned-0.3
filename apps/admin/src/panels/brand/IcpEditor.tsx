@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type {
   StoreSummary, StoreDetail, IcpUpdate, NewReferenceTrack, ReferenceTrackRow,
-  DecompositionRow, DecompositionUpdate, Bucket,
+  StyleAnalysisRow, StyleAnalysisUpdate, TasteCategory,
 } from '../../api.js'
 import { T } from '../../tokens.js'
 
@@ -20,7 +20,7 @@ const ICP_FIELDS: { key: keyof IcpUpdate; label: string; rows: number }[] = [
   { key: 'turnOffs', label: 'turn-offs', rows: 3 },
 ]
 
-const BUCKETS: Bucket[] = ['FormationEra', 'Subculture', 'Aspirational']
+const BUCKETS: TasteCategory[] = ['FormationEra', 'Subculture', 'Aspirational']
 
 export function IcpEditor() {
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
@@ -185,7 +185,7 @@ function extractIcp(d: StoreDetail): IcpUpdate {
 
 function ReferenceTracks({ detail, onChanged }: { detail: StoreDetail; onChanged: () => void }) {
   const [adding, setAdding] = useState<NewReferenceTrack | null>(null)
-  const grouped: Record<Bucket, ReferenceTrackRow[]> = {
+  const grouped: Record<TasteCategory, ReferenceTrackRow[]> = {
     FormationEra: [], Subculture: [], Aspirational: [],
   }
   for (const r of detail.icp.referenceTracks) grouped[r.bucket].push(r)
@@ -250,7 +250,7 @@ function NewRefTrackRow({ icpId, draft, onChange, onCreated }: {
       borderRadius: 4, padding: 12, marginBottom: 14, display: 'grid',
       gridTemplateColumns: '140px 1fr 1fr 90px', gap: 8,
     }}>
-      <select value={draft.bucket} onChange={(e) => onChange({ ...draft, bucket: e.target.value as Bucket })} style={inputStyle}>
+      <select value={draft.bucket} onChange={(e) => onChange({ ...draft, bucket: e.target.value as TasteCategory })} style={inputStyle}>
         {BUCKETS.map((b) => <option key={b} value={b}>{b}</option>)}
       </select>
       <input value={draft.artist} placeholder="artist" onChange={(e) => onChange({ ...draft, artist: e.target.value })} style={inputStyle} />
@@ -322,7 +322,7 @@ function RefTrackRow({ track, onChanged }: { track: ReferenceTrackRow; onChanged
     } finally { setBusy(null) }
   }
 
-  const dec = track.decomposition
+  const dec = track.styleAnalysis
   const verified = dec?.status === 'verified'
 
   return (
@@ -395,7 +395,7 @@ function RefTrackRow({ track, onChanged }: { track: ReferenceTrackRow; onChanged
   )
 }
 
-function DecompositionBadge({ dec }: { dec: DecompositionRow | null }) {
+function DecompositionBadge({ dec }: { dec: StyleAnalysisRow | null }) {
   if (!dec) return <span style={{ fontSize: 10, fontFamily: T.mono, color: T.textDim }}>no decomp</span>
   const verified = dec.status === 'verified'
   const conf = dec.confidence
@@ -407,7 +407,7 @@ function DecompositionBadge({ dec }: { dec: DecompositionRow | null }) {
   )
 }
 
-const DECOMP_FIELDS: { key: keyof DecompositionUpdate; label: string }[] = [
+const DECOMP_FIELDS: { key: keyof StyleAnalysisUpdate; label: string }[] = [
   { key: 'vibePitch', label: 'vibe pitch' },
   { key: 'eraProductionSignature', label: 'era production signature' },
   { key: 'instrumentationPalette', label: 'instrumentation palette' },
@@ -419,14 +419,14 @@ const DECOMP_FIELDS: { key: keyof DecompositionUpdate; label: string }[] = [
   { key: 'harmonicAndGroove', label: 'harmonic & groove' },
 ]
 
-function DecompositionEditor({ dec, onChanged }: { dec: DecompositionRow; onChanged: () => void }) {
-  const [draft, setDraft] = useState<DecompositionUpdate>(() => extractDec(dec))
+function DecompositionEditor({ dec, onChanged }: { dec: StyleAnalysisRow; onChanged: () => void }) {
+  const [draft, setDraft] = useState<StyleAnalysisUpdate>(() => extractDec(dec))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => { setDraft(extractDec(dec)); setErr(null) }, [dec.id, dec.updatedAt])
 
-  const set = <K extends keyof DecompositionUpdate>(k: K, v: DecompositionUpdate[K]) => setDraft({ ...draft, [k]: v })
+  const set = <K extends keyof StyleAnalysisUpdate>(k: K, v: StyleAnalysisUpdate[K]) => setDraft({ ...draft, [k]: v })
   const dirty = JSON.stringify(draft) !== JSON.stringify(extractDec(dec))
 
   const persist = async (status?: 'draft' | 'verified') => {
@@ -434,7 +434,7 @@ function DecompositionEditor({ dec, onChanged }: { dec: DecompositionRow; onChan
     const body = status ? { ...draft, status } : draft
     setBusy(true); setErr(null)
     try {
-      await api.updateDecomposition(dec.id, body, token)
+      await api.updateStyleAnalysis(dec.id, body, token)
       onChanged()
     } catch (e: any) { setErr(e.message) }
     finally { setBusy(false) }
@@ -443,7 +443,7 @@ function DecompositionEditor({ dec, onChanged }: { dec: DecompositionRow; onChan
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ fontSize: 10, color: T.textDim, fontFamily: T.mono }}>
-        rules v{dec.musicologicalRulesVersion} · status {dec.status}
+        rules v{dec.styleAnalyzerInstructionsVersion} · status {dec.status}
         {dec.verifiedAt && ` · verified ${new Date(dec.verifiedAt).toLocaleString()}`}
       </div>
       <label style={{ fontSize: 10, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>confidence</label>
@@ -488,7 +488,7 @@ function DecompositionEditor({ dec, onChanged }: { dec: DecompositionRow; onChan
   )
 }
 
-function extractDec(d: DecompositionRow): DecompositionUpdate {
+function extractDec(d: StyleAnalysisRow): StyleAnalysisUpdate {
   return {
     confidence: (d.confidence as any) ?? null,
     vibePitch: d.vibePitch,

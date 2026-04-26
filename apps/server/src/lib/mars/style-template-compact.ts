@@ -10,13 +10,13 @@
 //   - standout_element  (often overlaps vibe_pitch and instrumentation lead)
 //   - harmonic_and_groove (often inferable from era + instrumentation)
 
-import type { Decomposition } from '@prisma/client'
+import type { StyleAnalysis } from '@prisma/client'
 import { stripForSuno } from './sanitize.js'
 import { capStyle } from './cap.js'
 
 export interface CompactInput {
   decomposition: Pick<
-    Decomposition,
+    StyleAnalysis,
     'vibePitch' | 'eraProductionSignature' | 'instrumentationPalette' | 'vocalCharacter'
   >
 }

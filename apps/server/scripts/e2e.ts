@@ -34,7 +34,6 @@ let testOutcomeId = ''
 let testHookId = ''
 let testRefTrackId = ''
 let testScheduleRowId = ''
-let testGoalId = ''
 
 function pass(name: string, detail?: string) {
   results.push({ name, ok: true, detail })
@@ -86,20 +85,19 @@ async function preflightCleanup() {
   })
   for (const c of stale) {
     for (const s of c.stores) {
-      await prisma.store.update({ where: { id: s.id }, data: { manualOverrideOutcomeId: null, manualOverrideExpiresAt: null, defaultOutcomeId: null } }).catch(() => {})
-      await prisma.scheduleRow.deleteMany({ where: { storeId: s.id } })
-      await prisma.goal.deleteMany({ where: { storeId: s.id } })
-      await prisma.audioEvent.deleteMany({ where: { storeId: s.id } })
+      await prisma.store.update({ where: { id: s.id }, data: { outcomeSelectionId: null, outcomeSelectionExpiresAt: null, defaultOutcomeId: null } }).catch(() => {})
+      await prisma.scheduleSlot.deleteMany({ where: { storeId: s.id } })
+      await prisma.playbackEvent.deleteMany({ where: { storeId: s.id } })
       await prisma.operatorStoreAssignment.deleteMany({ where: { storeId: s.id } })
       await prisma.store.delete({ where: { id: s.id } }).catch(() => {})
     }
     for (const i of c.icps) {
       await prisma.lineageRow.deleteMany({ where: { icpId: i.id } })
-      await prisma.submission.deleteMany({ where: { icpId: i.id } })
-      await prisma.enoRun.deleteMany({ where: { icpId: i.id } })
+      await prisma.songSeed.deleteMany({ where: { icpId: i.id } })
+      await prisma.songSeedBatch.deleteMany({ where: { icpId: i.id } })
       await prisma.hook.deleteMany({ where: { icpId: i.id } })
-      await prisma.hookDrafterPromptVersion.deleteMany({ where: { icpId: i.id } })
-      await prisma.hookDrafterPrompt.deleteMany({ where: { icpId: i.id } })
+      await prisma.hookWriterPromptVersion.deleteMany({ where: { icpId: i.id } })
+      await prisma.hookWriterPrompt.deleteMany({ where: { icpId: i.id } })
       await prisma.referenceTrack.deleteMany({ where: { icpId: i.id } })
       await prisma.iCP.delete({ where: { id: i.id } }).catch(() => {})
     }
@@ -109,8 +107,7 @@ async function preflightCleanup() {
   const staleOutcomes = await prisma.outcome.findMany({ where: { title: { startsWith: TEST_PREFIX } } })
   for (const o of staleOutcomes) {
     await prisma.lineageRow.deleteMany({ where: { outcomeId: o.id } })
-    await prisma.scheduleRow.deleteMany({ where: { outcomeId: o.id } })
-    await prisma.goal.deleteMany({ where: { outcomeId: o.id } })
+    await prisma.scheduleSlot.deleteMany({ where: { outcomeId: o.id } })
     await prisma.hook.deleteMany({ where: { outcomeId: o.id } })
     await prisma.outcome.delete({ where: { id: o.id } }).catch(() => {})
   }
@@ -124,28 +121,26 @@ async function preflightCleanup() {
 async function teardown() {
   // Order: leaf rows first, then parents.
   if (testStoreId) {
-    await prisma.store.update({ where: { id: testStoreId }, data: { manualOverrideOutcomeId: null, manualOverrideExpiresAt: null, defaultOutcomeId: null } }).catch(() => {})
-    await prisma.scheduleRow.deleteMany({ where: { storeId: testStoreId } })
-    await prisma.goal.deleteMany({ where: { storeId: testStoreId } })
-    await prisma.audioEvent.deleteMany({ where: { storeId: testStoreId } })
+    await prisma.store.update({ where: { id: testStoreId }, data: { outcomeSelectionId: null, outcomeSelectionExpiresAt: null, defaultOutcomeId: null } }).catch(() => {})
+    await prisma.scheduleSlot.deleteMany({ where: { storeId: testStoreId } })
+    await prisma.playbackEvent.deleteMany({ where: { storeId: testStoreId } })
     await prisma.operatorStoreAssignment.deleteMany({ where: { storeId: testStoreId } })
     await prisma.store.delete({ where: { id: testStoreId } }).catch(() => {})
   }
   if (testIcpId) {
     await prisma.lineageRow.deleteMany({ where: { icpId: testIcpId } })
-    await prisma.submission.deleteMany({ where: { icpId: testIcpId } })
-    await prisma.enoRun.deleteMany({ where: { icpId: testIcpId } })
+    await prisma.songSeed.deleteMany({ where: { icpId: testIcpId } })
+    await prisma.songSeedBatch.deleteMany({ where: { icpId: testIcpId } })
     await prisma.hook.deleteMany({ where: { icpId: testIcpId } })
-    await prisma.hookDrafterPromptVersion.deleteMany({ where: { icpId: testIcpId } })
-    await prisma.hookDrafterPrompt.deleteMany({ where: { icpId: testIcpId } })
+    await prisma.hookWriterPromptVersion.deleteMany({ where: { icpId: testIcpId } })
+    await prisma.hookWriterPrompt.deleteMany({ where: { icpId: testIcpId } })
     await prisma.referenceTrack.deleteMany({ where: { icpId: testIcpId } })
     await prisma.iCP.delete({ where: { id: testIcpId } }).catch(() => {})
   }
   if (testClientId) await prisma.client.delete({ where: { id: testClientId } }).catch(() => {})
   for (const id of testOutcomeIds) {
     await prisma.lineageRow.deleteMany({ where: { outcomeId: id } })
-    await prisma.scheduleRow.deleteMany({ where: { outcomeId: id } })
-    await prisma.goal.deleteMany({ where: { outcomeId: id } })
+    await prisma.scheduleSlot.deleteMany({ where: { outcomeId: id } })
     await prisma.hook.deleteMany({ where: { outcomeId: id } })
     await prisma.outcome.delete({ where: { id } }).catch(() => {})
   }
@@ -270,7 +265,7 @@ async function main() {
   })
 
   await step('hook drafter prompt — write v1', async () => {
-    const r = await api<any>('PUT', `/admin/icps/${testIcpId}/hook-drafter-prompt`, {
+    const r = await api<any>('PUT', `/admin/icps/${testIcpId}/hook-writer-prompt`, {
       promptText: 'E2E v1 prompt body.', notes: 'first version',
     })
     assert(r.version >= 1, 'no version returned')
@@ -278,14 +273,14 @@ async function main() {
   })
 
   await step('hook drafter prompt — write v2 (versioning increments)', async () => {
-    const r = await api<any>('PUT', `/admin/icps/${testIcpId}/hook-drafter-prompt`, {
+    const r = await api<any>('PUT', `/admin/icps/${testIcpId}/hook-writer-prompt`, {
       promptText: 'E2E v2 prompt body.', notes: 'reworded opener',
     })
     assert(r.version >= 2, `expected v2+, got v${r.version}`)
   })
 
   await step('hook drafter prompt — GET returns latest + history (≥2)', async () => {
-    const r = await api<any>('GET', `/admin/icps/${testIcpId}/hook-drafter-prompt`)
+    const r = await api<any>('GET', `/admin/icps/${testIcpId}/hook-writer-prompt`)
     assert(r.latest, 'no latest')
     assert(Array.isArray(r.history) && r.history.length >= 2, `expected ≥2 history, got ${r.history?.length}`)
     return `latest v${r.latest.version} · ${r.history.length} versions in history`
@@ -349,27 +344,13 @@ async function main() {
     return `cell count=${cell.count} status=${cell.status}`
   })
 
-  await step('POST /admin/goals (advisory)', async () => {
-    const g = await api<any>('POST', '/admin/goals', {
-      storeId: testStoreId, outcomeId: testOutcomeId,
-      goalType: 'dwell_lift', targetMetric: 'avg_dwell_seconds', direction: 'increase',
-      startAt: new Date().toISOString(),
-      notes: 'e2e advisory goal',
-    })
-    testGoalId = g.id
+  await step('POST /admin/stores/:id/outcome-selection (set)', async () => {
+    const r = await api<any>('POST', `/admin/stores/${testStoreId}/outcome-selection`, { outcomeId: testOutcomeId })
+    assert(r.outcomeId === testOutcomeId, 'outcome selection mismatch')
   })
 
-  await step('PUT /admin/goals/:id (status → paused)', async () => {
-    await api('PUT', `/admin/goals/${testGoalId}`, { status: 'paused' })
-  })
-
-  await step('POST /admin/stores/:id/override (set)', async () => {
-    const r = await api<any>('POST', `/admin/stores/${testStoreId}/override`, { outcomeId: testOutcomeId })
-    assert(r.outcomeId === testOutcomeId, 'override outcome mismatch')
-  })
-
-  await step('POST /admin/stores/:id/override/clear', async () => {
-    await api('POST', `/admin/stores/${testStoreId}/override/clear`)
+  await step('POST /admin/stores/:id/outcome-selection/clear', async () => {
+    await api('POST', `/admin/stores/${testStoreId}/outcome-selection/clear`)
   })
 
   await step('GET /admin/stores/:id/live (resolves active outcome)', async () => {
@@ -391,8 +372,8 @@ async function main() {
     return `${r.songs.length} flagged`
   })
 
-  await step('GET /admin/submissions?status=abandoned (Abandoned Log feed)', async () => {
-    const r = await api<any>('GET', `/admin/submissions?status=abandoned&limit=5`)
+  await step('GET /admin/song-seeds?status=abandoned (Closed Song Seeds feed)', async () => {
+    const r = await api<any>('GET', `/admin/song-seeds?status=abandoned&limit=5`)
     assert(Array.isArray(r), 'expected array')
   })
 
@@ -420,11 +401,6 @@ async function main() {
   await step('DELETE /admin/schedule-rows/:id', async () => {
     await api('DELETE', `/admin/schedule-rows/${testScheduleRowId}`)
     testScheduleRowId = ''
-  })
-
-  await step('DELETE /admin/goals/:id', async () => {
-    await api('DELETE', `/admin/goals/${testGoalId}`)
-    testGoalId = ''
   })
 
   await step('DELETE /admin/reference-tracks/:id', async () => {

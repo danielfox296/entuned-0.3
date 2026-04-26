@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
-import type { OutcomePrependTemplateRow } from '../../api.js'
+import type { OutcomeFactorPromptRow } from '../../api.js'
 import { T } from '../../tokens.js'
 import { Header, History } from './DecomposerRules.js'
 
-export function OutcomePrependTemplate() {
-  const [latest, setLatest] = useState<OutcomePrependTemplateRow | null>(null)
-  const [history, setHistory] = useState<OutcomePrependTemplateRow[]>([])
+export function OutcomeFactorPrompt() {
+  const [latest, setLatest] = useState<OutcomeFactorPromptRow | null>(null)
+  const [history, setHistory] = useState<OutcomeFactorPromptRow[]>([])
   const [text, setText] = useState('')
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
@@ -17,7 +17,7 @@ export function OutcomePrependTemplate() {
     const token = getToken()
     if (!token) return
     try {
-      const r = await api.outcomePrependTemplate(token)
+      const r = await api.outcomeFactorPrompt(token)
       setLatest(r.latest)
       setHistory(r.history)
       setText(r.latest?.templateText ?? '')
@@ -36,7 +36,7 @@ export function OutcomePrependTemplate() {
     if (!token) return
     setBusy(true); setErr(null)
     try {
-      await api.saveOutcomePrependTemplate(text, notes || undefined, token)
+      await api.saveOutcomeFactorPrompt(text, notes || undefined, token)
       await load()
     } catch (e: any) {
       setErr(e.message ?? 'save failed')
@@ -50,8 +50,8 @@ export function OutcomePrependTemplate() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Header
-        title="Outcome Prepend Template"
-        subtitle="Prepended to Mars style portion. Empty = no-op (locked policy: outcome physiology lives on Suno params, not in style). Tokens: {tempo_bpm}, {mode}, {dynamics}, {instrumentation}."
+        title="Outcome Factor Prompt"
+        subtitle="Prepended to Style Builder style portion. Empty = no-op (locked policy: outcome physiology lives on Suno params, not in style). Tokens: {tempo_bpm}, {mode}, {dynamics}, {instrumentation}."
         version={latest?.version}
         createdAt={latest?.createdAt}
       />

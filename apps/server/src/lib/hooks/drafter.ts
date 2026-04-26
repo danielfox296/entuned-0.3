@@ -8,7 +8,7 @@ import { prisma } from '../../db.js'
 
 const MODEL = process.env.HOOK_DRAFTER_MODEL ?? 'claude-sonnet-4-5'
 
-export const HOOK_DRAFTER_PROMPT_SEED = `
+export const HOOK_WRITER_PROMPT_SEED = `
 You write hook lines for a brand's in-store music. A hook becomes the chorus of the
 song; lyrics are written around it later by a separate process.
 
@@ -26,11 +26,11 @@ Each string is one hook. Do not number them. Do not repeat any hook from the
 existing-hooks list.
 `.trim()
 
-export async function getOrSeedDrafterPrompt(icpId: string): Promise<{ id: string; icpId: string; promptText: string }> {
-  const existing = await prisma.hookDrafterPrompt.findUnique({ where: { icpId } })
+export async function getOrSeedHookWriterPrompt(icpId: string): Promise<{ id: string; icpId: string; promptText: string }> {
+  const existing = await prisma.hookWriterPrompt.findUnique({ where: { icpId } })
   if (existing) return existing
-  return prisma.hookDrafterPrompt.create({
-    data: { icpId, promptText: HOOK_DRAFTER_PROMPT_SEED },
+  return prisma.hookWriterPrompt.create({
+    data: { icpId, promptText: HOOK_WRITER_PROMPT_SEED },
   })
 }
 
@@ -52,7 +52,7 @@ export async function draftHooks(opts: {
   const [icp, outcome, prompt] = await Promise.all([
     prisma.iCP.findUniqueOrThrow({ where: { id: opts.icpId }, include: { client: true } }),
     prisma.outcome.findUniqueOrThrow({ where: { id: opts.outcomeId } }),
-    getOrSeedDrafterPrompt(opts.icpId),
+    getOrSeedHookWriterPrompt(opts.icpId),
   ])
 
   const existingHooks = await prisma.hook.findMany({

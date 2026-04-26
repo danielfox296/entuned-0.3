@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
-import type { StoreSummary, ScheduleRow, ScheduleRowInput, OutcomeRowFull } from '../../api.js'
+import type { StoreSummary, ScheduleSlot, ScheduleSlotInput, OutcomeRowFull } from '../../api.js'
 import { T } from '../../tokens.js'
 
 const DAYS: { dow: number; label: string; short: string }[] = [
@@ -17,7 +17,7 @@ const DAYS: { dow: number; label: string; short: string }[] = [
 export function OutcomeSchedule() {
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
   const [storeId, setStoreId] = useState<string | null>(null)
-  const [rows, setRows] = useState<ScheduleRow[] | null>(null)
+  const [rows, setRows] = useState<ScheduleSlot[] | null>(null)
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
   const [adding, setAdding] = useState<{ dayOfWeek: number; startTime: string; endTime: string; outcomeId: string } | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -42,7 +42,7 @@ export function OutcomeSchedule() {
     catch (e: any) { setErr(e.message) }
   }
 
-  const grouped: Record<number, ScheduleRow[]> = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [] }
+  const grouped: Record<number, ScheduleSlot[]> = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [] }
   for (const r of rows ?? []) grouped[r.dayOfWeek]?.push(r)
 
   return (
@@ -75,7 +75,7 @@ export function OutcomeSchedule() {
               onSubmit={async () => {
                 const token = getToken(); if (!token) return
                 try {
-                  await api.createScheduleRow(storeId!, adding, token)
+                  await api.createScheduleSlot(storeId!, adding, token)
                   setAdding(null); reload()
                 } catch (e: any) { setErr(e.message) }
               }}
@@ -121,7 +121,7 @@ function StorePicker({ stores, storeId, onPick }: {
 
 function DayColumn({ day, rows, outcomes, onChanged }: {
   day: { dow: number; label: string; short: string }
-  rows: ScheduleRow[]
+  rows: ScheduleSlot[]
   outcomes: OutcomeRowFull[] | null
   onChanged: () => void
 }) {
@@ -150,9 +150,9 @@ function DayColumn({ day, rows, outcomes, onChanged }: {
 }
 
 function RowItem({ row, outcomes, onChanged }: {
-  row: ScheduleRow; outcomes: OutcomeRowFull[] | null; onChanged: () => void
+  row: ScheduleSlot; outcomes: OutcomeRowFull[] | null; onChanged: () => void
 }) {
-  const [editing, setEditing] = useState<ScheduleRowInput | null>(null)
+  const [editing, setEditing] = useState<ScheduleSlotInput | null>(null)
   const [busy, setBusy] = useState<'save' | 'delete' | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
@@ -164,7 +164,7 @@ function RowItem({ row, outcomes, onChanged }: {
   const save = async () => {
     const token = getToken(); if (!token || !editing) return
     setBusy('save'); setErr(null)
-    try { await api.updateScheduleRow(row.id, editing, token); setEditing(null); onChanged() }
+    try { await api.updateScheduleSlot(row.id, editing, token); setEditing(null); onChanged() }
     catch (e: any) { setErr(e.message) }
     finally { setBusy(null) }
   }
@@ -173,7 +173,7 @@ function RowItem({ row, outcomes, onChanged }: {
     const token = getToken(); if (!token) return
     if (!confirm(`Delete ${row.outcomeTitle} ${row.startTime}–${row.endTime}?`)) return
     setBusy('delete')
-    try { await api.deleteScheduleRow(row.id, token); onChanged() }
+    try { await api.deleteScheduleSlot(row.id, token); onChanged() }
     catch (e: any) { setErr(e.message); setBusy(null) }
   }
 
@@ -215,15 +215,15 @@ function RowItem({ row, outcomes, onChanged }: {
 }
 
 function RowForm({ draft, outcomes, onChange, onSubmit, onCancel, submitLabel, compact }: {
-  draft: ScheduleRowInput
+  draft: ScheduleSlotInput
   outcomes: OutcomeRowFull[] | null
-  onChange: (d: ScheduleRowInput) => void
+  onChange: (d: ScheduleSlotInput) => void
   onSubmit: () => void
   onCancel?: () => void
   submitLabel: string
   compact?: boolean
 }) {
-  const set = <K extends keyof ScheduleRowInput>(k: K, v: ScheduleRowInput[K]) => onChange({ ...draft, [k]: v })
+  const set = <K extends keyof ScheduleSlotInput>(k: K, v: ScheduleSlotInput[K]) => onChange({ ...draft, [k]: v })
   const valid = draft.outcomeId && draft.startTime < draft.endTime
 
   return (

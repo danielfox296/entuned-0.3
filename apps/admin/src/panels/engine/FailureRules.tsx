@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
-import type { FailureRuleRow } from '../../api.js'
+import type { StyleExclusionRuleRow } from '../../api.js'
 import { T } from '../../tokens.js'
 import { Header } from './DecomposerRules.js'
 
-type Draft = Omit<FailureRuleRow, 'id'>
+type Draft = Omit<StyleExclusionRuleRow, 'id'>
 
 const EMPTY: Draft = {
   triggerField: '*', triggerValue: '', exclude: '',
@@ -13,7 +13,7 @@ const EMPTY: Draft = {
 }
 
 export function FailureRules() {
-  const [rows, setRows] = useState<FailureRuleRow[]>([])
+  const [rows, setRows] = useState<StyleExclusionRuleRow[]>([])
   const [editing, setEditing] = useState<Record<string, Draft>>({})
   const [adding, setAdding] = useState<Draft | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -24,7 +24,7 @@ export function FailureRules() {
     const token = getToken()
     if (!token) return
     try {
-      const r = await api.failureRules(token)
+      const r = await api.styleExclusionRules(token)
       setRows(r)
       setEditing({})
     } catch (e: any) {
@@ -36,7 +36,7 @@ export function FailureRules() {
 
   useEffect(() => { load() }, [])
 
-  const startEdit = (r: FailureRuleRow) => {
+  const startEdit = (r: StyleExclusionRuleRow) => {
     const { id, ...rest } = r
     setEditing({ ...editing, [id]: rest })
   }
@@ -51,7 +51,7 @@ export function FailureRules() {
     if (!token || !draft) return
     setBusy(id); setErr(null)
     try {
-      await api.updateFailureRule(id, normalize(draft), token)
+      await api.updateStyleExclusionRule(id, normalize(draft), token)
       await load()
     } catch (e: any) {
       setErr(e.message ?? 'save failed')
@@ -66,7 +66,7 @@ export function FailureRules() {
     if (!confirm('Delete this rule?')) return
     setBusy(id); setErr(null)
     try {
-      await api.deleteFailureRule(id, token)
+      await api.deleteStyleExclusionRule(id, token)
       await load()
     } catch (e: any) {
       setErr(e.message ?? 'delete failed')
@@ -80,7 +80,7 @@ export function FailureRules() {
     if (!token || !adding) return
     setBusy('__new__'); setErr(null)
     try {
-      await api.createFailureRule(normalize(adding), token)
+      await api.createStyleExclusionRule(normalize(adding), token)
       setAdding(null)
       await load()
     } catch (e: any) {
@@ -195,7 +195,7 @@ function HeaderRow() {
 }
 
 function DisplayRow({ row, onEdit, onDelete, busy }: {
-  row: FailureRuleRow; onEdit: () => void; onDelete: () => void; busy: boolean
+  row: StyleExclusionRuleRow; onEdit: () => void; onDelete: () => void; busy: boolean
 }) {
   return (
     <div style={{
