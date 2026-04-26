@@ -22,6 +22,7 @@ import { SongBrowser } from './panels/catalogue/SongBrowser.js'
 import { FlaggedReview } from './panels/catalogue/FlaggedReview.js'
 import { RetiredSongs } from './panels/catalogue/RetiredSongs.js'
 import { IntentQueue } from './panels/seeding/IntentQueue.js'
+import { IntentDetail } from './panels/seeding/IntentDetail.js'
 
 // ── Surface groups (from admin-ui.md, priority order) ──────────
 interface SurfaceGroup {
@@ -382,32 +383,63 @@ function CatalogueRouter({ cards }: { cards: string[] }) {
 // ── Seeding router ─────────────────────────────────────────────
 function SeedingRouter({ cards }: { cards: string[] }) {
   const [active, setActive] = useState<string>('Intent Queue')
+  const [detailId, setDetailId] = useState<string>('')
+  const [openId, setOpenId] = useState<string | null>(null)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
         {cards.map((c) => {
           const on = active === c
-          // Intent Detail is reached by clicking a row in Intent Queue, not as a top-level tab.
-          const ready = c === 'Intent Queue' || c === 'Abandoned Log'
           return (
             <button
               key={c}
-              onClick={() => ready && setActive(c)}
-              disabled={!ready}
+              onClick={() => { setActive(c); if (c !== 'Intent Detail') setOpenId(null) }}
               style={{
                 background: 'transparent', border: 'none',
                 borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
-                color: on ? T.text : (ready ? T.textMuted : T.textDim),
-                padding: '8px 14px', cursor: ready ? 'pointer' : 'default',
+                color: on ? T.text : T.textMuted,
+                padding: '8px 14px', cursor: 'pointer',
                 fontFamily: T.sans, fontSize: 12, fontWeight: on ? 500 : 400,
                 marginBottom: -1,
               }}
-            >{c}{ready ? '' : ' (drill-in)'}</button>
+            >{c}</button>
           )
         })}
       </div>
       {active === 'Intent Queue' && <IntentQueue />}
       {active === 'Abandoned Log' && <AbandonedLog />}
+      {active === 'Intent Detail' && (
+        openId ? (
+          <IntentDetail submissionId={openId} onClose={() => setOpenId(null)} />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 520 }}>
+            <div style={{ fontFamily: T.sans, fontSize: 12, color: T.textMuted }}>
+              Per-submission drill-in. Normally reached by clicking a row in Intent Queue. Paste a submission ID to open it directly.
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                value={detailId}
+                onChange={(e) => setDetailId(e.target.value)}
+                placeholder="submission id"
+                style={{
+                  flex: 1, background: T.bgRaised, border: `1px solid ${T.borderSubtle}`,
+                  color: T.text, padding: '8px 10px', fontFamily: T.mono, fontSize: 12,
+                }}
+              />
+              <button
+                onClick={() => { if (detailId.trim()) setOpenId(detailId.trim()) }}
+                disabled={!detailId.trim()}
+                style={{
+                  background: T.accent, border: 'none', color: T.bg,
+                  padding: '8px 14px', fontFamily: T.sans, fontSize: 12, fontWeight: 500,
+                  cursor: detailId.trim() ? 'pointer' : 'default',
+                  opacity: detailId.trim() ? 1 : 0.4,
+                }}
+              >Open</button>
+            </div>
+          </div>
+        )
+      )}
     </div>
   )
 }
