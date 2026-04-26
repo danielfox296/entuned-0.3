@@ -113,6 +113,26 @@ export interface StyleTemplateRow {
   createdAt: string
 }
 
+export type PoolStatus = 'critical' | 'thin' | 'ok'
+
+export interface PoolDepthCell {
+  outcome: { id: string; title: string; version: number }
+  count: number
+  status: PoolStatus
+}
+
+export interface PoolDepthIcp {
+  id: string
+  name: string
+  stores: { id: string; name: string }[]
+  outcomes: PoolDepthCell[]
+}
+
+export interface PoolDepthResponse {
+  thresholds: { critical: number; thin: number }
+  icps: PoolDepthIcp[]
+}
+
 export type GoalDirection = 'increase' | 'decrease' | 'maintain'
 export type GoalStatus = 'draft' | 'active' | 'paused' | 'retired'
 
@@ -499,6 +519,8 @@ export const api = {
     req<GoalRow>(`/admin/goals/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   deleteGoal: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/goals/${id}`, { method: 'DELETE' }, token),
+  poolDepth: (token: string) =>
+    req<PoolDepthResponse>('/admin/pool-depth', {}, token),
   icpHooks: (icpId: string, token: string) =>
     req<HookRowFull[]>(`/admin/icps/${icpId}/hooks`, {}, token),
   createHook: (icpId: string, body: { text: string; outcomeId: string; approve?: boolean }, token: string) =>

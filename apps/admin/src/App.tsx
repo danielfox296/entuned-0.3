@@ -13,6 +13,7 @@ import { LiveStoreView } from './panels/playback/LiveStoreView.js'
 import { OutcomeSchedule } from './panels/schedule/OutcomeSchedule.js'
 import { OutcomeLibrary } from './panels/schedule/OutcomeLibrary.js'
 import { GoalEditor } from './panels/schedule/GoalEditor.js'
+import { PoolDepth } from './panels/catalogue/PoolDepth.js'
 import { IntentQueue } from './panels/seeding/IntentQueue.js'
 
 // ── Surface groups (from admin-ui.md, priority order) ──────────
@@ -167,7 +168,8 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
          group.key === 'brand' ? <BrandRouter cards={group.cards} /> :
          group.key === 'playback' ? <PlaybackRouter cards={group.cards} /> :
          group.key === 'schedule' ? <ScheduleRouter cards={group.cards} /> :
-         group.key === 'seeding' ? <SeedingRouter cards={group.cards} /> : (
+         group.key === 'seeding' ? <SeedingRouter cards={group.cards} /> :
+         group.key === 'catalogue' ? <CatalogueRouter cards={group.cards} /> : (
         <>
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12,
@@ -333,6 +335,37 @@ function ScheduleRouter({ cards }: { cards: string[] }) {
       {active === 'Outcome Schedule' && <OutcomeSchedule />}
       {active === 'Outcome Library' && <OutcomeLibrary />}
       {active === 'Goal Editor' && <GoalEditor />}
+    </div>
+  )
+}
+
+// ── Catalogue router ───────────────────────────────────────────
+function CatalogueRouter({ cards }: { cards: string[] }) {
+  const [active, setActive] = useState<string>('Pool Depth')
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
+        {cards.map((c) => {
+          const on = active === c
+          const ready = c === 'Pool Depth'
+          return (
+            <button
+              key={c}
+              onClick={() => ready && setActive(c)}
+              disabled={!ready}
+              style={{
+                background: 'transparent', border: 'none',
+                borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
+                color: on ? T.text : (ready ? T.textMuted : T.textDim),
+                padding: '8px 14px', cursor: ready ? 'pointer' : 'default',
+                fontFamily: T.sans, fontSize: 12, fontWeight: on ? 500 : 400,
+                marginBottom: -1,
+              }}
+            >{c}{ready ? '' : ' (soon)'}</button>
+          )
+        })}
+      </div>
+      {active === 'Pool Depth' && <PoolDepth />}
     </div>
   )
 }

@@ -647,6 +647,55 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
+  // ----- Pool Depth (per-(ICP, Outcome) active LineageRow counts) -----
+  // Hendrix's hot path picks LineageRows by (icpId, outcomeId, active=true). When that pool runs
+  // thin, playback variety degrades; when it hits zero, Hendrix has nothing to play for that
+  // (store-ICP × scheduled-outcome) combination. This dashboard surfaces that risk.
+
+  app.get('/pool-depth', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+
+    const [icps, activeOutcomes, counts] = await Promise.all([
+      prisma.iCP.findMany({
+        select: {
+          id: true, name: true,
+          stores: { select: { id: true, name: true } },
+        },
+        orderBy: { name: 'asc' },
+      }),
+      prisma.outcome.findMany({
+        where: { supersededAt: null },
+        select: { id: true, title: true, version: true },
+        orderBy: [{ title: 'asc' }, { version: 'desc' }],
+      }),
+      prisma.lineageRow.groupBy({
+        by: ['icpId', 'outcomeId'],
+        where: { active: true },
+        _count: { _all: true },
+      }),
+    ])
+
+    const countMap = new Map<string, number>()
+    for (const c of counts) countMap.set(`${c.icpId}::${c.outcomeId}`, c._count._all)
+
+    return {
+      thresholds: { critical: 5, thin: 15 },
+      icps: icps.map((icp) => ({
+        id: icp.id,
+        name: icp.name,
+        stores: icp.stores,
+        outcomes: activeOutcomes.map((o) => {
+          const count = countMap.get(`${icp.id}::${o.id}`) ?? 0
+          return {
+            outcome: o,
+            count,
+            status: count < 5 ? 'critical' : count < 15 ? 'thin' : 'ok',
+          }
+        }),
+      })),
+    }
+  })
+
   // ----- Hooks (per-ICP queue) -----
 
   app.get('/icps/:id/hooks', async (req, reply) => {
