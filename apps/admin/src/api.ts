@@ -263,6 +263,69 @@ export interface NewReferenceTrack {
 
 export type IcpUpdate = Partial<Omit<IcpRow, 'id' | 'clientId' | 'createdAt' | 'updatedAt'>>
 export type RefTrackUpdate = Partial<NewReferenceTrack>
+
+export type ClientPlan = 'mvp_pilot' | 'trial' | 'paid_pilot' | 'production' | 'paused' | 'inactive'
+
+export interface ClientListRow {
+  id: string
+  companyName: string
+  contactName: string | null
+  contactEmail: string | null
+  contactPhone: string | null
+  plan: ClientPlan
+  posProvider: string | null
+  brandLyricGuidelines: string | null
+  createdAt: string
+  updatedAt: string
+  storeCount: number
+  icpCount: number
+}
+
+export interface ClientFull {
+  id: string
+  companyName: string
+  contactName: string | null
+  contactEmail: string | null
+  contactPhone: string | null
+  plan: ClientPlan
+  posProvider: string | null
+  brandLyricGuidelines: string | null
+  createdAt: string
+  updatedAt: string
+  stores: {
+    id: string; name: string; timezone: string; goLiveDate: string | null
+    icp: { id: string; name: string }
+    defaultOutcome: { id: string; title: string; version: number } | null
+  }[]
+  icps: { id: string; name: string; hookCount: number; referenceTrackCount: number; storeCount: number }[]
+}
+
+export type ClientUpdate = Partial<{
+  companyName: string
+  contactName: string | null
+  contactEmail: string | null
+  contactPhone: string | null
+  plan: ClientPlan
+  posProvider: string | null
+  brandLyricGuidelines: string | null
+}>
+
+export interface StoreCreateBody {
+  clientId: string
+  icpId: string
+  name: string
+  timezone: string
+  goLiveDate?: string | null
+  defaultOutcomeId?: string | null
+}
+
+export interface StoreUpdateBody {
+  name?: string
+  timezone?: string
+  goLiveDate?: string | null
+  defaultOutcomeId?: string | null
+  icpId?: string
+}
 // --- Operator Seeding (Submissions / EnoRuns) ---
 
 export type SubmissionStatus = 'assembling' | 'queued' | 'accepted' | 'abandoned' | 'skipped' | 'failed'
@@ -483,7 +546,7 @@ export interface HookRowFull {
   icpId: string
   outcomeId: string
   text: string
-  status: 'draft' | 'approved'
+  status: 'draft' | 'approved' | 'retired'
   approvedAt: string | null
   approvedById: string | null
   createdAt: string
@@ -560,6 +623,16 @@ export const api = {
     req<StoreSummary[]>('/admin/stores', {}, token),
   storeDetail: (id: string, token: string) =>
     req<StoreDetail>(`/admin/stores/${id}`, {}, token),
+  clients: (token: string) =>
+    req<ClientListRow[]>('/admin/clients', {}, token),
+  clientDetail: (id: string, token: string) =>
+    req<ClientFull>(`/admin/clients/${id}`, {}, token),
+  updateClient: (id: string, body: ClientUpdate, token: string) =>
+    req<ClientFull>(`/admin/clients/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+  createStore: (body: StoreCreateBody, token: string) =>
+    req<StoreSummary>('/admin/stores', { method: 'POST', body: JSON.stringify(body) }, token),
+  updateStore: (id: string, body: StoreUpdateBody, token: string) =>
+    req<StoreSummary & { goLiveDate: string | null; defaultOutcomeId: string | null }>(`/admin/stores/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   updateIcp: (id: string, body: IcpUpdate, token: string) =>
     req<IcpRow>(`/admin/icps/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   createReferenceTrack: (icpId: string, body: NewReferenceTrack, token: string) =>
@@ -613,9 +686,16 @@ export const api = {
   bulkCreateHooks: (icpId: string, body: { outcomeId: string; texts: string[]; approve?: boolean }, token: string) =>
     req<{ created: number }>(`/admin/icps/${icpId}/hooks/bulk`, { method: 'POST', body: JSON.stringify(body) }, token),
   hookDrafterPrompt: (icpId: string, token: string) =>
-    req<{ id: string; icpId: string; promptText: string }>(`/admin/icps/${icpId}/hook-drafter-prompt`, {}, token),
-  saveHookDrafterPrompt: (icpId: string, promptText: string, token: string) =>
-    req<{ id: string; icpId: string; promptText: string }>(`/admin/icps/${icpId}/hook-drafter-prompt`, { method: 'PUT', body: JSON.stringify({ promptText }) }, token),
+    req<{
+      latest: { id: string; icpId: string; promptText: string; version: number; updatedAt: string }
+      history: { id: string; icpId: string; version: number; promptText: string; notes: string | null; createdAt: string }[]
+    }>(`/admin/icps/${icpId}/hook-drafter-prompt`, {}, token),
+  saveHookDrafterPrompt: (icpId: string, promptText: string, notes: string | null, token: string) =>
+    req<{ id: string; icpId: string; promptText: string; version: number }>(`/admin/icps/${icpId}/hook-drafter-prompt`, { method: 'PUT', body: JSON.stringify({ promptText, notes }) }, token),
+  retireHookPreview: (id: string, token: string) =>
+    req<{ hookId: string; status: string; inFlightSubmissions: number; activeLineageRows: number; warning: string | null }>(`/admin/hooks/${id}/retire-preview`, {}, token),
+  retireHook: (id: string, force: boolean, token: string) =>
+    req<HookRowFull>(`/admin/hooks/${id}/retire`, { method: 'POST', body: JSON.stringify({ force }) }, token),
   draftHooks: (icpId: string, body: { outcomeId: string; n: number }, token: string) =>
     req<{ hooks: string[] }>(`/admin/icps/${icpId}/hook-drafter/run`, { method: 'POST', body: JSON.stringify(body) }, token),
 

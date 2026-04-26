@@ -328,12 +328,29 @@ model HookDrafterPrompt {
   id           String   @id @default(uuid()) @db.Uuid
   icpId        String   @unique @map("icp_id") @db.Uuid
   promptText   String   @map("prompt_text")
+  version      Int      @default(1)
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   updatedById  String?  @map("updated_by") @db.Uuid
 
   icp ICP @relation(fields: [icpId], references: [id], onDelete: Cascade)
 
   @@map("hook_drafter_prompts")
+}
+
+// Append-only version history for HookDrafterPrompt — every PUT writes a row here,
+// and the live HookDrafterPrompt row holds the latest snapshot for fast reads.
+model HookDrafterPromptVersion {
+  id           String   @id @default(uuid()) @db.Uuid
+  icpId        String   @map("icp_id") @db.Uuid
+  version      Int
+  promptText   String   @map("prompt_text")
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById  String?  @map("created_by") @db.Uuid
+
+  @@unique([icpId, version])
+  @@index([icpId, version(sort: Desc)])
+  @@map("hook_drafter_prompt_versions")
 }
 
 // ---------- Card 14 Eno (OutcomePrependTemplate, EnoRun, Submission) ----------

@@ -9,6 +9,9 @@ import { LyricPrompts } from './panels/engine/LyricPrompts.js'
 import { OutcomePrependTemplate } from './panels/engine/OutcomePrependTemplate.js'
 import { IcpEditor } from './panels/brand/IcpEditor.js'
 import { HookQueue } from './panels/brand/HookQueue.js'
+import { ClientDetail } from './panels/brand/ClientDetail.js'
+import { StoreEditor } from './panels/brand/StoreEditor.js'
+import { AbandonedLog } from './panels/seeding/AbandonedLog.js'
 import { LiveStoreView } from './panels/playback/LiveStoreView.js'
 import { OutcomeSchedule } from './panels/schedule/OutcomeSchedule.js'
 import { OutcomeLibrary } from './panels/schedule/OutcomeLibrary.js'
@@ -248,33 +251,33 @@ function EngineRouter({ cards }: { cards: string[] }) {
 
 // ── Brand router ───────────────────────────────────────────────
 function BrandRouter({ cards }: { cards: string[] }) {
-  const [active, setActive] = useState<string>('ICP Editor')
+  const [active, setActive] = useState<string>('Client Detail')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
         {cards.map((c) => {
           const on = active === c
-          const ready = c === 'ICP Editor' || c === 'Hook Queue'
           return (
             <button
               key={c}
-              onClick={() => ready && setActive(c)}
-              disabled={!ready}
+              onClick={() => setActive(c)}
               style={{
                 background: 'transparent',
                 border: 'none',
                 borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
-                color: on ? T.text : (ready ? T.textMuted : T.textDim),
-                padding: '8px 14px', cursor: ready ? 'pointer' : 'default',
+                color: on ? T.text : T.textMuted,
+                padding: '8px 14px', cursor: 'pointer',
                 fontFamily: T.sans, fontSize: 12, fontWeight: on ? 500 : 400,
                 marginBottom: -1,
               }}
-            >{c}{ready ? '' : ' (soon)'}</button>
+            >{c}</button>
           )
         })}
       </div>
+      {active === 'Client Detail' && <ClientDetail />}
       {active === 'ICP Editor' && <IcpEditor />}
       {active === 'Hook Queue' && <HookQueue />}
+      {active === 'Store Editor' && <StoreEditor />}
     </div>
   )
 }
@@ -287,11 +290,11 @@ function PlaybackRouter({ cards }: { cards: string[] }) {
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
         {cards.map((c) => {
           const on = active === c
-          const ready = c === 'Live Store View' || c === 'Mode Override'
+          const ready = c === 'Live Store View' || c === 'Mode Override' || c === 'Interrupt Controls'
           return (
             <button
               key={c}
-              onClick={() => ready && setActive(c === 'Mode Override' ? 'Live Store View' : c)}
+              onClick={() => ready && setActive((c === 'Mode Override' || c === 'Interrupt Controls') ? 'Live Store View' : c)}
               disabled={!ready}
               style={{
                 background: 'transparent', border: 'none',
@@ -385,7 +388,7 @@ function SeedingRouter({ cards }: { cards: string[] }) {
         {cards.map((c) => {
           const on = active === c
           // Intent Detail is reached by clicking a row in Intent Queue, not as a top-level tab.
-          const ready = c === 'Intent Queue'
+          const ready = c === 'Intent Queue' || c === 'Abandoned Log'
           return (
             <button
               key={c}
@@ -404,6 +407,7 @@ function SeedingRouter({ cards }: { cards: string[] }) {
         })}
       </div>
       {active === 'Intent Queue' && <IntentQueue />}
+      {active === 'Abandoned Log' && <AbandonedLog />}
     </div>
   )
 }

@@ -390,6 +390,10 @@ function DrafterPromptEditor({ icpId }: { icpId: string }) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const [original, setOriginal] = useState('')
+  const [version, setVersion] = useState<number>(1)
+  const [history, setHistory] = useState<{ id: string; version: number; promptText: string; notes: string | null; createdAt: string }[]>([])
+  const [notes, setNotes] = useState('')
+  const [showHistory, setShowHistory] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
@@ -398,7 +402,8 @@ function DrafterPromptEditor({ icpId }: { icpId: string }) {
     const token = getToken(); if (!token) return
     try {
       const r = await api.hookDrafterPrompt(icpId, token)
-      setText(r.promptText); setOriginal(r.promptText); setLoaded(true)
+      setText(r.latest.promptText); setOriginal(r.latest.promptText)
+      setVersion(r.latest.version); setHistory(r.history); setLoaded(true)
     } catch (e: any) { setErr(e.message) }
   }
 
@@ -406,8 +411,11 @@ function DrafterPromptEditor({ icpId }: { icpId: string }) {
     const token = getToken(); if (!token) return
     setBusy(true); setErr(null)
     try {
-      await api.saveHookDrafterPrompt(icpId, text, token)
-      setOriginal(text)
+      const r = await api.saveHookDrafterPrompt(icpId, text, notes || null, token)
+      setOriginal(text); setVersion(r.version); setNotes('')
+      // Refresh history.
+      const re = await api.hookDrafterPrompt(icpId, token)
+      setHistory(re.history)
     } catch (e: any) { setErr(e.message) }
     finally { setBusy(false) }
   }
@@ -415,7 +423,7 @@ function DrafterPromptEditor({ icpId }: { icpId: string }) {
   return (
     <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.borderSubtle}` }}>
       <button onClick={() => { if (!open && !loaded) load(); setOpen(!open) }} style={ghostBtn}>
-        {open ? '▾ drafter prompt' : '▸ drafter prompt'}
+        {open ? '▾ drafter prompt' : '▸ drafter prompt'}{loaded && <span style={{ color: T.accentMuted, marginLeft: 6 }}>v{version}</span>}
       </button>
       {open && loaded && (
         <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -425,12 +433,44 @@ function DrafterPromptEditor({ icpId }: { icpId: string }) {
             onChange={(e) => setText(e.target.value)}
             style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
           />
-          <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            placeholder="version notes (optional — what changed and why)"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            style={inputStyle}
+          />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button onClick={save} disabled={busy || text === original} style={primaryBtn(text !== original, busy)}>
-              {busy ? 'saving…' : 'save prompt'}
+              {busy ? 'saving…' : `save as v${version + 1}`}
+            </button>
+            <button onClick={() => setShowHistory(!showHistory)} style={ghostBtn}>
+              {showHistory ? '▾ history' : `▸ history (${history.length})`}
             </button>
             {err && <span style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</span>}
           </div>
+          {showHistory && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+              {history.map((h) => (
+                <div key={h.id} style={{
+                  border: `1px solid ${T.borderSubtle}`, borderRadius: 3,
+                  background: T.surfaceRaised, padding: 8,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                    <span style={{ fontFamily: T.mono, fontSize: 10, color: T.accent }}>v{h.version}</span>
+                    <span style={{ fontFamily: T.mono, fontSize: 9, color: T.textDim }}>
+                      {new Date(h.createdAt).toISOString().slice(0, 16).replace('T', ' ')}
+                    </span>
+                    {h.notes && <span style={{ fontFamily: T.sans, fontSize: 11, color: T.textMuted }}>{h.notes}</span>}
+                    <button
+                      onClick={() => setText(h.promptText)}
+                      style={{ ...ghostBtn, marginLeft: 'auto', fontSize: 9 }}
+                    >load into editor</button>
+                  </div>
+                </div>
+              ))}
+              {history.length === 0 && <div style={{ fontFamily: T.mono, fontSize: 10, color: T.textDim }}>no history yet</div>}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -461,9 +501,25 @@ function OutcomeGroup({ outcome, hooks, onChanged }: {
 function HookRow({ hook, onChanged }: { hook: HookRowFull; onChanged: () => void }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(hook.text)
-  const [busy, setBusy] = useState<'save' | 'approve' | 'delete' | null>(null)
+  const [busy, setBusy] = useState<'save' | 'approve' | 'delete' | 'retire' | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const approved = hook.status === 'approved'
+  const retired = hook.status === 'retired'
+
+  const retire = async () => {
+    const token = getToken(); if (!token) return
+    setBusy('retire'); setErr(null)
+    try {
+      const preview = await api.retireHookPreview(hook.id, token)
+      const msg = preview.warning
+        ? `${preview.warning}\n\nRetire anyway?`
+        : `Retire this hook? Eno will stop picking it for new submissions. ${preview.activeLineageRows} existing LineageRow(s) keep playing.`
+      if (!confirm(msg)) { setBusy(null); return }
+      await api.retireHook(hook.id, preview.inFlightSubmissions > 0, token)
+      onChanged()
+    } catch (e: any) { setErr(e.message) }
+    finally { setBusy(null) }
+  }
 
   useEffect(() => { setDraft(hook.text); setErr(null) }, [hook.text])
 
@@ -496,13 +552,14 @@ function HookRow({ hook, onChanged }: { hook: HookRowFull; onChanged: () => void
 
   return (
     <div style={{
-      background: approved ? T.surface : T.surfaceRaised,
-      border: `1px solid ${approved ? T.borderSubtle : T.border}`,
+      background: retired ? T.surface : approved ? T.surface : T.surfaceRaised,
+      border: `1px solid ${retired ? T.borderSubtle : approved ? T.borderSubtle : T.border}`,
       borderRadius: 4, padding: 12,
+      opacity: retired ? 0.6 : 1,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          {editing && !approved ? (
+          {editing && !approved && !retired ? (
             <textarea
               rows={3}
               value={draft}
@@ -514,16 +571,17 @@ function HookRow({ hook, onChanged }: { hook: HookRowFull; onChanged: () => void
             <div style={{
               fontFamily: T.sans, fontSize: 13, color: T.text,
               lineHeight: 1.55, whiteSpace: 'pre-wrap',
+              textDecoration: retired ? 'line-through' : 'none',
             }}>{hook.text}</div>
           )}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
           <span style={{
             fontSize: 10, fontFamily: T.mono,
-            color: approved ? T.success : T.accentMuted,
-            border: `1px solid ${approved ? T.success : T.accentMuted}`,
+            color: retired ? T.textDim : approved ? T.success : T.accentMuted,
+            border: `1px solid ${retired ? T.textDim : approved ? T.success : T.accentMuted}`,
             borderRadius: 3, padding: '2px 8px',
-          }}>{approved ? '✓ approved' : 'draft'}</span>
+          }}>{retired ? 'retired' : approved ? '✓ approved' : 'draft'}</span>
           <span style={{ fontSize: 10, fontFamily: T.mono, color: T.textDim }}>
             {approved && hook.approvedAt
               ? `approved ${new Date(hook.approvedAt).toLocaleDateString()}`
@@ -531,7 +589,7 @@ function HookRow({ hook, onChanged }: { hook: HookRowFull; onChanged: () => void
           </span>
         </div>
       </div>
-      {!approved && (
+      {!retired && !approved && (
         <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
           {editing ? (
             <>
@@ -549,6 +607,14 @@ function HookRow({ hook, onChanged }: { hook: HookRowFull; onChanged: () => void
               <button onClick={remove} disabled={busy === 'delete'} style={dangerGhostBtn}>delete</button>
             </>
           )}
+          {err && <span style={{ fontSize: 11, color: T.danger, fontFamily: T.mono, alignSelf: 'center' }}>{err}</span>}
+        </div>
+      )}
+      {!retired && approved && (
+        <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+          <button onClick={retire} disabled={busy === 'retire'} style={dangerGhostBtn}>
+            {busy === 'retire' ? '…' : 'retire'}
+          </button>
           {err && <span style={{ fontSize: 11, color: T.danger, fontFamily: T.mono, alignSelf: 'center' }}>{err}</span>}
         </div>
       )}

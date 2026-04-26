@@ -9,7 +9,7 @@
 
 import { prisma } from '../../db.js'
 import { marsAssemble } from '../mars/mars.js'
-import { generateLyrics } from '../proto-bernie/lyrics.js'
+import { generateLyrics } from '../bernie/bernie.js'
 
 export const PREPEND_TEMPLATE_SEED = '' // empty by default; see header note.
 
@@ -129,16 +129,13 @@ async function createSubmission(enoRunId: string, icpId: string, outcomeId: stri
     const prepend = await getOrSeedPrependTemplate()
     const finalStyle = applyPrepend(mars.style, outcome, prepend.templateText)
 
-    // Bernie lyrics.
+    // Bernie lyrics (two-pass: draft → edit). Bernie returns the active prompt
+    // versions it actually used, so provenance is exact even mid-edit.
     const client = await prisma.client.findUnique({ where: { id: (await prisma.iCP.findUniqueOrThrow({ where: { id: icpId } })).clientId } })
     const lyrics = await generateLyrics({
       hookText: hook.text,
       brandLyricGuidelines: client?.brandLyricGuidelines ?? null,
     })
-
-    // Provenance: prompt versions.
-    const draftPromptVersion = (await prisma.lyricDraftPrompt.findFirst({ orderBy: { version: 'desc' } }))?.version ?? null
-    const editPromptVersion = (await prisma.lyricEditPrompt.findFirst({ orderBy: { version: 'desc' } }))?.version ?? null
 
     await prisma.submission.update({
       where: { id: submission.id },
@@ -152,8 +149,8 @@ async function createSubmission(enoRunId: string, icpId: string, outcomeId: stri
         title: lyrics.title,
         outcomePrependTemplateVersion: prepend.version,
         marsPromptVersion: mars.styleTemplateVersion,
-        bernieDraftPromptVersion: draftPromptVersion,
-        bernieEditPromptVersion: editPromptVersion,
+        bernieDraftPromptVersion: lyrics.draftPromptVersion,
+        bernieEditPromptVersion: lyrics.editPromptVersion,
         firedFailureRuleIds: mars.firedFailureRuleIds,
       },
     })

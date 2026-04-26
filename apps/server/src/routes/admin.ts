@@ -250,6 +250,174 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // ----- Brand: Stores / ICPs / ReferenceTracks / Decompositions -----
 
+  // ----- Clients (Card 3 Duke) -----
+
+  app.get('/clients', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const rows = await prisma.client.findMany({
+      orderBy: { companyName: 'asc' },
+      include: {
+        _count: { select: { stores: true, icps: true } },
+      },
+    })
+    return rows.map((c) => ({
+      id: c.id,
+      companyName: c.companyName,
+      contactName: c.contactName,
+      contactEmail: c.contactEmail,
+      contactPhone: c.contactPhone,
+      plan: c.plan,
+      posProvider: c.posProvider,
+      brandLyricGuidelines: c.brandLyricGuidelines,
+      createdAt: c.createdAt.toISOString(),
+      updatedAt: c.updatedAt.toISOString(),
+      storeCount: c._count.stores,
+      icpCount: c._count.icps,
+    }))
+  })
+
+  app.get('/clients/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const client = await prisma.client.findUnique({
+      where: { id },
+      include: {
+        stores: {
+          orderBy: { name: 'asc' },
+          include: {
+            icp: { select: { id: true, name: true } },
+            defaultOutcome: { select: { id: true, title: true, version: true } },
+          },
+        },
+        icps: { orderBy: { name: 'asc' }, select: { id: true, name: true, _count: { select: { hooks: true, referenceTracks: true, stores: true } } } },
+      },
+    })
+    if (!client) return reply.code(404).send({ error: 'not_found' })
+    return {
+      id: client.id,
+      companyName: client.companyName,
+      contactName: client.contactName,
+      contactEmail: client.contactEmail,
+      contactPhone: client.contactPhone,
+      plan: client.plan,
+      posProvider: client.posProvider,
+      brandLyricGuidelines: client.brandLyricGuidelines,
+      createdAt: client.createdAt.toISOString(),
+      updatedAt: client.updatedAt.toISOString(),
+      stores: client.stores.map((s) => ({
+        id: s.id,
+        name: s.name,
+        timezone: s.timezone,
+        goLiveDate: s.goLiveDate ? s.goLiveDate.toISOString().slice(0, 10) : null,
+        icp: s.icp,
+        defaultOutcome: s.defaultOutcome,
+      })),
+      icps: client.icps.map((i) => ({
+        id: i.id, name: i.name,
+        hookCount: i._count.hooks,
+        referenceTrackCount: i._count.referenceTracks,
+        storeCount: i._count.stores,
+      })),
+    }
+  })
+
+  const ClientUpdateBody = z.object({
+    companyName: z.string().min(1).optional(),
+    contactName: z.string().nullable().optional(),
+    contactEmail: z.string().email().nullable().optional(),
+    contactPhone: z.string().nullable().optional(),
+    plan: z.enum(['mvp_pilot', 'trial', 'paid_pilot', 'production', 'paused', 'inactive']).optional(),
+    posProvider: z.string().nullable().optional(),
+    brandLyricGuidelines: z.string().nullable().optional(),
+  })
+
+  app.put('/clients/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = ClientUpdateBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.client.update({ where: { id }, data: parsed.data as any })
+      return row
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
+    }
+  })
+
+  // ----- Store editor (create + update) -----
+
+  const StoreCreateBody = z.object({
+    clientId: z.string().uuid(),
+    icpId: z.string().uuid(),
+    name: z.string().min(1),
+    timezone: z.string().min(1),
+    goLiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    defaultOutcomeId: z.string().uuid().nullable().optional(),
+  })
+
+  app.post('/stores', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = StoreCreateBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.store.create({
+        data: {
+          clientId: parsed.data.clientId,
+          icpId: parsed.data.icpId,
+          name: parsed.data.name,
+          timezone: parsed.data.timezone,
+          goLiveDate: parsed.data.goLiveDate ? new Date(parsed.data.goLiveDate) : null,
+          defaultOutcomeId: parsed.data.defaultOutcomeId ?? null,
+        },
+        include: { client: { select: { companyName: true } } },
+      })
+      return {
+        id: row.id, name: row.name, timezone: row.timezone,
+        clientId: row.clientId, clientName: row.client.companyName,
+        icpId: row.icpId,
+      }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+        return reply.code(404).send({ error: 'client_or_icp_or_outcome_not_found' })
+      }
+      throw e
+    }
+  })
+
+  const StoreUpdateBody = z.object({
+    name: z.string().min(1).optional(),
+    timezone: z.string().min(1).optional(),
+    goLiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    defaultOutcomeId: z.string().uuid().nullable().optional(),
+    icpId: z.string().uuid().optional(),
+  })
+
+  app.put('/stores/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = StoreUpdateBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const data: any = { ...parsed.data }
+    if (parsed.data.goLiveDate !== undefined) {
+      data.goLiveDate = parsed.data.goLiveDate ? new Date(parsed.data.goLiveDate) : null
+    }
+    try {
+      const row = await prisma.store.update({
+        where: { id }, data,
+        include: { client: { select: { companyName: true } } },
+      })
+      return {
+        id: row.id, name: row.name, timezone: row.timezone,
+        clientId: row.clientId, clientName: row.client.companyName,
+        icpId: row.icpId,
+        goLiveDate: row.goLiveDate ? row.goLiveDate.toISOString().slice(0, 10) : null,
+        defaultOutcomeId: row.defaultOutcomeId,
+      }
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
+    }
+  })
+
   app.get('/stores', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.store.findMany({
@@ -891,23 +1059,41 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   app.get('/icps/:id/hook-drafter-prompt', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const icpId = (req.params as any).id as string
-    const row = await getOrSeedDrafterPrompt(icpId)
-    return row
+    const latest = await getOrSeedDrafterPrompt(icpId)
+    const history = await prisma.hookDrafterPromptVersion.findMany({
+      where: { icpId },
+      orderBy: { version: 'desc' },
+      take: 50,
+    })
+    return { latest, history }
   })
 
-  const HookDrafterPromptBody = z.object({ promptText: z.string().min(1) })
+  const HookDrafterPromptBody = z.object({ promptText: z.string().min(1), notes: z.string().nullable().optional() })
 
   app.put('/icps/:id/hook-drafter-prompt', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const icpId = (req.params as any).id as string
     const parsed = HookDrafterPromptBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const row = await prisma.hookDrafterPrompt.upsert({
-      where: { icpId },
-      create: { icpId, promptText: parsed.data.promptText, updatedById: op.operatorId },
-      update: { promptText: parsed.data.promptText, updatedById: op.operatorId },
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.hookDrafterPrompt.findUnique({ where: { icpId } })
+      const nextVersion = (existing?.version ?? 0) + 1
+      const updated = await tx.hookDrafterPrompt.upsert({
+        where: { icpId },
+        create: { icpId, promptText: parsed.data.promptText, version: nextVersion, updatedById: op.operatorId },
+        update: { promptText: parsed.data.promptText, version: nextVersion, updatedById: op.operatorId },
+      })
+      await tx.hookDrafterPromptVersion.create({
+        data: {
+          icpId, version: nextVersion,
+          promptText: parsed.data.promptText,
+          notes: parsed.data.notes ?? null,
+          createdById: op.operatorId,
+        },
+      })
+      return updated
     })
-    return row
+    return result
   })
 
   const DraftHooksBody = z.object({
@@ -1014,9 +1200,59 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const existing = await prisma.hook.findUnique({ where: { id } })
     if (!existing) return reply.code(404).send({ error: 'not_found' })
     if (existing.status === 'approved') return existing
+    if (existing.status === 'retired') return reply.code(409).send({ error: 'retired_hook_cannot_be_approved' })
     const row = await prisma.hook.update({
       where: { id },
       data: { status: 'approved', approvedAt: new Date(), approvedById: op.operatorId },
+      include: { outcome: { select: { id: true, title: true, version: true } } },
+    })
+    return row
+  })
+
+  // Hook retirement — preview returns the in-flight Submission count so the operator
+  // sees what will be left dangling. POST /retire applies it (skip in-flight check
+  // with ?force=true if the operator has decided that's fine).
+  app.get('/hooks/:id/retire-preview', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const hook = await prisma.hook.findUnique({ where: { id } })
+    if (!hook) return reply.code(404).send({ error: 'not_found' })
+    const inFlight = await prisma.submission.count({
+      where: { hookId: id, status: { in: ['assembling', 'queued'] } },
+    })
+    const lineageActive = await prisma.lineageRow.count({ where: { hookId: id, active: true } })
+    return {
+      hookId: id, status: hook.status,
+      inFlightSubmissions: inFlight,
+      activeLineageRows: lineageActive,
+      warning: inFlight > 0
+        ? `${inFlight} in-flight submission${inFlight === 1 ? '' : 's'} still reference this hook. Retiring will leave them dangling — they can still be accepted but no new ones will pick this hook.`
+        : null,
+    }
+  })
+
+  const RetireBody = z.object({ force: z.boolean().optional() })
+
+  app.post('/hooks/:id/retire', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = RetireBody.safeParse(req.body ?? {})
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
+    const hook = await prisma.hook.findUnique({ where: { id } })
+    if (!hook) return reply.code(404).send({ error: 'not_found' })
+    if (hook.status === 'retired') return hook
+    const inFlight = await prisma.submission.count({
+      where: { hookId: id, status: { in: ['assembling', 'queued'] } },
+    })
+    if (inFlight > 0 && !parsed.data.force) {
+      return reply.code(409).send({
+        error: 'in_flight_submissions',
+        inFlightSubmissions: inFlight,
+        message: `${inFlight} in-flight submission(s) reference this hook. Pass force=true to retire anyway.`,
+      })
+    }
+    const row = await prisma.hook.update({
+      where: { id }, data: { status: 'retired' },
       include: { outcome: { select: { id: true, title: true, version: true } } },
     })
     return row

@@ -1,0 +1,124 @@
+// Real Bernie (Card 13) — two-pass lyric generator.
+//   Pass 1 (draft): writes a first draft around the hook using LyricDraftPrompt as system.
+//   Pass 2 (edit):  rewrites the draft for brand voice + playability using LyricEditPrompt.
+// Both prompts are DB-backed; `getOrSeed*` cold-starts v1 from the seed text in
+// proto-bernie/lyrics.ts so the migration window is invisible. The Submission row
+// captures both prompt versions for full provenance.
+
+import Anthropic from '@anthropic-ai/sdk'
+import { prisma } from '../../db.js'
+import { DRAFT_PROMPT_SEED, EDIT_PROMPT_SEED } from '../proto-bernie/lyrics.js'
+
+const MODEL = process.env.LYRICIST_MODEL ?? 'claude-sonnet-4-5'
+
+export interface BernieInput {
+  hookText: string
+  brandLyricGuidelines?: string | null
+}
+
+export interface BernieOutput {
+  title: string
+  lyrics: string
+  draft: { title: string; lyrics: string }
+  draftPromptVersion: number
+  editPromptVersion: number
+}
+
+async function getOrSeedDraftPrompt(): Promise<{ version: number; promptText: string }> {
+  const row = await prisma.lyricDraftPrompt.findFirst({ orderBy: { version: 'desc' } })
+  if (row) return { version: row.version, promptText: row.promptText }
+  const seeded = await prisma.lyricDraftPrompt.create({
+    data: { version: 1, promptText: DRAFT_PROMPT_SEED, notes: 'Auto-seeded v1' },
+  })
+  return { version: seeded.version, promptText: seeded.promptText }
+}
+
+async function getOrSeedEditPrompt(): Promise<{ version: number; promptText: string }> {
+  const row = await prisma.lyricEditPrompt.findFirst({ orderBy: { version: 'desc' } })
+  if (row) return { version: row.version, promptText: row.promptText }
+  const seeded = await prisma.lyricEditPrompt.create({
+    data: { version: 1, promptText: EDIT_PROMPT_SEED, notes: 'Auto-seeded v1' },
+  })
+  return { version: seeded.version, promptText: seeded.promptText }
+}
+
+function parseLyricJson(text: string): { title: string; lyrics: string } {
+  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+  const start = cleaned.indexOf('{')
+  if (start < 0) throw new Error('No JSON in lyricist output')
+  const parsed = JSON.parse(cleaned.slice(start)) as { title?: string; lyrics?: string }
+  if (!parsed.title || !parsed.lyrics) throw new Error('Lyricist output missing title or lyrics')
+  return { title: parsed.title, lyrics: parsed.lyrics }
+}
+
+export async function generateLyrics(input: BernieInput): Promise<BernieOutput> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
+  const client = new Anthropic({ apiKey })
+
+  const [draftPrompt, editPrompt] = await Promise.all([
+    getOrSeedDraftPrompt(),
+    getOrSeedEditPrompt(),
+  ])
+
+  // Pass 1 — draft
+  const draftUserMessage = `Hook (becomes the chorus, used verbatim):
+"${input.hookText}"
+
+${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n` : ''}
+Write the lyrics now. Output the JSON only.`
+
+  const draftResponse = await client.messages.create({
+    model: MODEL,
+    max_tokens: 2000,
+    system: [{ type: 'text', text: draftPrompt.promptText, cache_control: { type: 'ephemeral' } }],
+    messages: [{ role: 'user', content: draftUserMessage }],
+  })
+  const draftBlock = draftResponse.content.find((b: any) => b.type === 'text') as any
+  if (!draftBlock?.text) throw new Error('Bernie draft pass returned no text')
+  const draft = parseLyricJson(draftBlock.text)
+
+  // Pass 2 — edit
+  const editUserMessage = `Hook (must remain verbatim in every chorus instance):
+"${input.hookText}"
+
+${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n` : ''}
+Draft to polish:
+
+Title: ${draft.title}
+
+${draft.lyrics}
+
+Polish the lyrics per the editor instructions. Preserve the hook verbatim. Output the JSON only.`
+
+  const editResponse = await client.messages.create({
+    model: MODEL,
+    max_tokens: 2000,
+    system: [{ type: 'text', text: editPrompt.promptText, cache_control: { type: 'ephemeral' } }],
+    messages: [{ role: 'user', content: editUserMessage }],
+  })
+  const editBlock = editResponse.content.find((b: any) => b.type === 'text') as any
+  if (!editBlock?.text) throw new Error('Bernie edit pass returned no text')
+  const final = parseLyricJson(editBlock.text)
+
+  // Hook preservation invariant: the polished output must still contain the hook verbatim.
+  if (!final.lyrics.includes(input.hookText)) {
+    // Fall back to the draft if the editor lost the hook. This is rare but the alternative
+    // is shipping lyrics without the hook line, which violates the chorus contract.
+    return {
+      title: draft.title,
+      lyrics: draft.lyrics,
+      draft,
+      draftPromptVersion: draftPrompt.version,
+      editPromptVersion: editPrompt.version,
+    }
+  }
+
+  return {
+    title: final.title,
+    lyrics: final.lyrics,
+    draft,
+    draftPromptVersion: draftPrompt.version,
+    editPromptVersion: editPrompt.version,
+  }
+}
