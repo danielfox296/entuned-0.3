@@ -12,7 +12,7 @@ export interface QueueItem {
 
 export interface ActiveOutcome {
   outcomeId: string
-  source: 'override' | 'schedule' | 'default'
+  source: 'selection' | 'schedule' | 'default'
   expiresAt?: string
 }
 
@@ -45,7 +45,7 @@ export interface MeResponse {
 
 export type AudioEventType =
   | 'song_start' | 'song_complete' | 'song_skip' | 'song_report' | 'song_love'
-  | 'outcome_override' | 'outcome_override_cleared' | 'playback_starved'
+  | 'outcome_selection' | 'outcome_selection_cleared' | 'playback_starved'
   | 'operator_login' | 'operator_logout'
 
 export interface OutgoingEvent {
@@ -79,13 +79,13 @@ export const api = {
     req<NextResponse>(`/hendrix/next?store_id=${encodeURIComponent(storeId)}`),
   outcomes: (storeId: string) =>
     req<OutcomeOption[]>(`/hendrix/outcomes?store_id=${encodeURIComponent(storeId)}`),
-  override: (storeId: string, outcomeId: string, token: string) =>
-    req<{ outcomeId: string; expiresAt: string }>('/hendrix/override', {
+  outcomeSelection: (storeId: string, outcomeId: string, token: string) =>
+    req<{ outcomeId: string; expiresAt: string }>('/hendrix/outcome-selection', {
       method: 'POST',
       body: JSON.stringify({ store_id: storeId, outcome_id: outcomeId }),
     }, token),
-  clearOverride: (storeId: string, token: string) =>
-    req<{ ok: true }>('/hendrix/override/clear', {
+  clearOutcomeSelection: (storeId: string, token: string) =>
+    req<{ ok: true }>('/hendrix/outcome-selection/clear', {
       method: 'POST',
       body: JSON.stringify({ store_id: storeId }),
     }, token),

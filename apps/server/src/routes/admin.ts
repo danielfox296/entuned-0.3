@@ -3,10 +3,10 @@
 // Surface:
 //   GET    /admin/musicological-rules            — latest + history
 //   POST   /admin/musicological-rules            — new versioned row { rulesText, notes? }
-//   GET    /admin/failure-rules                  — full table
-//   POST   /admin/failure-rules                  — create one
-//   PUT    /admin/failure-rules/:id              — update one
-//   DELETE /admin/failure-rules/:id              — delete one
+//   GET    /admin/style-exclusion-rules                  — full table
+//   POST   /admin/style-exclusion-rules                  — create one
+//   PUT    /admin/style-exclusion-rules/:id              — update one
+//   DELETE /admin/style-exclusion-rules/:id              — delete one
 //   GET    /admin/style-template                 — latest + history (text-only; logic is code)
 //   POST   /admin/style-template                 — new versioned row { templateText, notes? }
 //   GET    /admin/lyric-prompts                  — { draft: { latest, history }, edit: { latest, history } }
@@ -75,7 +75,7 @@ function hhmmToSec(s: string): number {
 // Schemas
 const RulesPostBody = z.object({ rulesText: z.string().min(1), notes: z.string().optional() })
 
-const FailureRuleBody = z.object({
+const StyleExclusionRuleBody = z.object({
   triggerField: z.string().min(1),
   triggerValue: z.string(),
   exclude: z.string().min(1),
@@ -113,15 +113,15 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // ----- FailureRules -----
 
-  app.get('/failure-rules', async (req, reply) => {
+  app.get('/style-exclusion-rules', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.styleExclusionRule.findMany({ orderBy: { triggerField: 'asc' } })
     return rows
   })
 
-  app.post('/failure-rules', async (req, reply) => {
+  app.post('/style-exclusion-rules', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
-    const parsed = FailureRuleBody.safeParse(req.body)
+    const parsed = StyleExclusionRuleBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const row = await prisma.styleExclusionRule.create({
       data: {
@@ -136,10 +136,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return row
   })
 
-  app.put('/failure-rules/:id', async (req, reply) => {
+  app.put('/style-exclusion-rules/:id', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
-    const parsed = FailureRuleBody.safeParse(req.body)
+    const parsed = StyleExclusionRuleBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     try {
       const row = await prisma.styleExclusionRule.update({
@@ -159,7 +159,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
-  app.delete('/failure-rules/:id', async (req, reply) => {
+  app.delete('/style-exclusion-rules/:id', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     try {
@@ -190,15 +190,15 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return row
   })
 
-  // ----- OutcomePrependTemplate (Card 14 — currently a no-op by design) -----
+  // ----- OutcomeFactorPrompt (Card 14 — currently a no-op by design) -----
 
-  app.get('/outcome-prepend-template', async (req, reply) => {
+  app.get('/outcome-factor-prompt', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const all = await prisma.outcomeFactorPrompt.findMany({ orderBy: { version: 'desc' } })
     return { latest: all[0] ?? null, history: all }
   })
 
-  app.post('/outcome-prepend-template', async (req, reply) => {
+  app.post('/outcome-factor-prompt', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const parsed = OutcomePrependPostBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -963,12 +963,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return { latest, history }
   })
 
-  const HookDrafterPromptBody = z.object({ promptText: z.string().min(1), notes: z.string().nullable().optional() })
+  const HookWriterPromptBody = z.object({ promptText: z.string().min(1), notes: z.string().nullable().optional() })
 
   app.put('/icps/:id/hook-writer-prompt', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const icpId = (req.params as any).id as string
-    const parsed = HookDrafterPromptBody.safeParse(req.body)
+    const parsed = HookWriterPromptBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const result = await prisma.$transaction(async (tx) => {
       const existing = await tx.hookWriterPrompt.findUnique({ where: { icpId } })
@@ -1118,7 +1118,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const lineageActive = await prisma.lineageRow.count({ where: { hookId: id, active: true } })
     return {
       hookId: id, status: hook.status,
-      inFlightSubmissions: inFlight,
+      inFlightSongSeeds: inFlight,
       activeLineageRows: lineageActive,
       warning: inFlight > 0
         ? `${inFlight} in-flight song seed${inFlight === 1 ? '' : 's'} still reference this hook. Retiring will leave them dangling — they can still be accepted but no new ones will pick this hook.`
@@ -1142,7 +1142,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (inFlight > 0 && !parsed.data.force) {
       return reply.code(409).send({
         error: 'in_flight_song_seeds',
-        inFlightSubmissions: inFlight,
+        inFlightSongSeeds: inFlight,
         message: `${inFlight} in-flight song seed(s) reference this hook. Pass force=true to retire anyway.`,
       })
     }
@@ -1568,7 +1568,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // ----- Operator Seeding (Card 16): Submissions + EnoRuns -----
 
-  const SubmissionsListQuery = z.object({
+  const SongSeedsListQuery = z.object({
     icpId: z.string().uuid().optional(),
     status: z.string().optional(),
     claimedBy: z.string().optional(), // 'me' | 'unclaimed' | uuid
@@ -1577,7 +1577,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/song-seeds', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
-    const parsed = SubmissionsListQuery.safeParse(req.query)
+    const parsed = SongSeedsListQuery.safeParse(req.query)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_query', details: parsed.error.flatten() })
     const where: any = {}
     if (parsed.data.icpId) where.icpId = parsed.data.icpId
@@ -1616,7 +1616,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return row
   })
 
-  const EnoRunBody = z.object({
+  const SeedBuilderRunBody = z.object({
     icpId: z.string().uuid(),
     outcomeId: z.string().uuid(),
     n: z.number().int().min(1).max(20),
@@ -1624,7 +1624,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/eno/run', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
-    const parsed = EnoRunBody.safeParse(req.body)
+    const parsed = SeedBuilderRunBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     try {
       const result = await runEno({

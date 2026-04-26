@@ -93,7 +93,7 @@ export function FailureRules() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Header
-        title="Failure Rules"
+        title="Style Exclusion Rules"
         subtitle="Sanitizer pass — substring triggers, optional override patterns; case-insensitive"
       />
 

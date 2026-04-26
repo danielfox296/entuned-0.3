@@ -288,9 +288,9 @@ async function main() {
 
   await step('GET /admin/hooks/:id/retire-preview', async () => {
     const r = await api<any>('GET', `/admin/hooks/${testHookId}/retire-preview`)
-    assert(typeof r.inFlightSubmissions === 'number', 'no inFlightSubmissions count')
+    assert(typeof r.inFlightSongSeeds === 'number', 'no inFlightSongSeeds count')
     assert(typeof r.activeLineageRows === 'number', 'no activeLineageRows count')
-    return `${r.inFlightSubmissions} in-flight, ${r.activeLineageRows} lineage rows`
+    return `${r.inFlightSongSeeds} in-flight, ${r.activeLineageRows} lineage rows`
   })
 
   await step('POST /admin/hooks/:id/retire', async () => {

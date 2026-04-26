@@ -227,7 +227,7 @@ function Player({ storeId, storeName, operator, token, onSwitchStore, onLogout }
     if (opt && opt.poolSize === 0 && !force) {
       if (!confirm('No songs available for this outcome. Playback will be silent. Continue?')) return
     }
-    await api.override(storeId, outcomeId, token)
+    await api.outcomeSelection(storeId, outcomeId, token)
     setShowPicker(false)
     // Drain current queue, refill immediately (per Card 19 frozen decision).
     setQueue([])
@@ -236,7 +236,7 @@ function Player({ storeId, storeName, operator, token, onSwitchStore, onLogout }
   }
 
   const doClearOverride = async () => {
-    await api.clearOverride(storeId, token)
+    await api.clearOutcomeSelection(storeId, token)
     setQueue([])
     await refill()
   }
@@ -283,8 +283,8 @@ function Player({ storeId, storeName, operator, token, onSwitchStore, onLogout }
           <button onClick={skip} style={buttonPrimaryStyle}>⏭ Skip</button>
         )}
         <button onClick={() => setShowPicker((s) => !s)} style={buttonGhostStyle}>Set outcome</button>
-        {activeOutcome?.source === 'override' && (
-          <button onClick={doClearOverride} style={buttonGhostStyle}>Clear override</button>
+        {activeOutcome?.source === 'selection' && (
+          <button onClick={doClearOverride} style={buttonGhostStyle}>Clear selection</button>
         )}
       </section>
 

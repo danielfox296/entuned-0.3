@@ -556,22 +556,22 @@ export const api = {
     req<MusicologicalRulesRow>('/admin/musicological-rules', { method: 'POST', body: JSON.stringify({ rulesText, notes }) }, token),
 
   styleExclusionRules: (token: string) =>
-    req<StyleExclusionRuleRow[]>('/admin/failure-rules', {}, token),
+    req<StyleExclusionRuleRow[]>('/admin/style-exclusion-rules', {}, token),
   createStyleExclusionRule: (body: Omit<StyleExclusionRuleRow, 'id'>, token: string) =>
-    req<StyleExclusionRuleRow>('/admin/failure-rules', { method: 'POST', body: JSON.stringify(body) }, token),
+    req<StyleExclusionRuleRow>('/admin/style-exclusion-rules', { method: 'POST', body: JSON.stringify(body) }, token),
   updateStyleExclusionRule: (id: string, body: Omit<StyleExclusionRuleRow, 'id'>, token: string) =>
-    req<StyleExclusionRuleRow>(`/admin/failure-rules/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+    req<StyleExclusionRuleRow>(`/admin/style-exclusion-rules/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   deleteStyleExclusionRule: (id: string, token: string) =>
-    req<{ ok: true }>(`/admin/failure-rules/${id}`, { method: 'DELETE' }, token),
+    req<{ ok: true }>(`/admin/style-exclusion-rules/${id}`, { method: 'DELETE' }, token),
 
   styleTemplate: (token: string) =>
     req<{ latest: StyleTemplateRow | null; history: StyleTemplateRow[] }>('/admin/style-template', {}, token),
   saveStyleTemplate: (templateText: string, notes: string | undefined, token: string) =>
     req<StyleTemplateRow>('/admin/style-template', { method: 'POST', body: JSON.stringify({ templateText, notes }) }, token),
   outcomeFactorPrompt: (token: string) =>
-    req<{ latest: OutcomeFactorPromptRow | null; history: OutcomeFactorPromptRow[] }>('/admin/outcome-prepend-template', {}, token),
+    req<{ latest: OutcomeFactorPromptRow | null; history: OutcomeFactorPromptRow[] }>('/admin/outcome-factor-prompt', {}, token),
   saveOutcomeFactorPrompt: (templateText: string, notes: string | undefined, token: string) =>
-    req<OutcomeFactorPromptRow>('/admin/outcome-prepend-template', { method: 'POST', body: JSON.stringify({ templateText, notes }) }, token),
+    req<OutcomeFactorPromptRow>('/admin/outcome-factor-prompt', { method: 'POST', body: JSON.stringify({ templateText, notes }) }, token),
 
   lyricPrompts: (token: string) =>
     req<{ draft: { latest: LyricPromptRow | null; history: LyricPromptRow[] }; edit: { latest: LyricPromptRow | null; history: LyricPromptRow[] } }>('/admin/lyric-prompts', {}, token),

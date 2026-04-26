@@ -11,7 +11,7 @@
 import type { StyleAnalysis, Outcome } from '@prisma/client'
 import { assembleStylePortion, getStyleTemplateVersion } from './style-template-v1.js'
 import { extractVocalGender, type VocalGender } from './vocal-gender.js'
-import { buildNegativeStyle } from './failure-rules.js'
+import { buildNegativeStyle } from './style-exclusion-rules.js'
 
 export interface MarsOutput {
   style: string

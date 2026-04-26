@@ -59,8 +59,8 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
     }))
   })
 
-  // POST /hendrix/override { store_id, outcome_id }
-  app.post('/override', async (req, reply) => {
+  // POST /hendrix/outcome-selection { store_id, outcome_id }
+  app.post('/outcome-selection', async (req, reply) => {
     const parsed = OverrideBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
     const op = await requireOperatorForStore(req, reply, parsed.data.store_id)
@@ -79,8 +79,8 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
     return { outcomeId, expiresAt: expiresAt.toISOString() }
   })
 
-  // POST /hendrix/override/clear { store_id }
-  app.post('/override/clear', async (req, reply) => {
+  // POST /hendrix/outcome-selection/clear { store_id }
+  app.post('/outcome-selection/clear', async (req, reply) => {
     const parsed = ClearBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
     const op = await requireOperatorForStore(req, reply, parsed.data.store_id)

@@ -141,7 +141,7 @@ export function SongSeedQueue() {
 
           {songSeeds && songSeeds.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {songSeeds.map((s) => <SubmissionRow key={s.id} sub={s} onOpen={() => setOpenId(s.id)} />)}
+              {songSeeds.map((s) => <SeedListRow key={s.id} sub={s} onOpen={() => setOpenId(s.id)} />)}
             </div>
           )}
         </>
@@ -171,7 +171,7 @@ function StorePicker({ stores, storeId, onPick }: {
   )
 }
 
-function SubmissionRow({ sub, onOpen }: { sub: SongSeedRow; onOpen: () => void }) {
+function SeedListRow({ sub, onOpen }: { sub: SongSeedRow; onOpen: () => void }) {
   const statusColor = statusColorOf(sub.status)
   return (
     <div

@@ -253,7 +253,7 @@ function EventRow({ event }: { event: PlaybackEventRow }) {
 }
 
 function eventColor(type: string): string {
-  if (type.startsWith('outcome_override')) return T.warn
+  if (type.startsWith('outcome_selection')) return T.warn
   if (type === 'song_skip' || type === 'song_report') return T.danger
   if (type === 'song_love' || type === 'song_complete') return T.success
   if (type === 'playback_starved') return T.danger
