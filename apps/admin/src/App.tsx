@@ -74,9 +74,9 @@ function StatusBar({ apiOk }: { apiOk: boolean }) {
 }
 
 // ── Sidebar ────────────────────────────────────────────────────
-function Sidebar({ active, onSelect, collapsed, onToggle, email }: {
+function Sidebar({ active, onSelect, collapsed, onToggle, email, onLogout }: {
   active: string; onSelect: (k: string) => void
-  collapsed: boolean; onToggle: () => void; email: string
+  collapsed: boolean; onToggle: () => void; email: string; onLogout: () => void
 }) {
   return (
     <div style={{
@@ -121,8 +121,18 @@ function Sidebar({ active, onSelect, collapsed, onToggle, email }: {
       </div>
 
       {!collapsed && (
-        <div style={{ padding: '12px 16px', borderTop: `1px solid ${T.borderSubtle}` }}>
-          <div style={{ fontSize: 10, color: T.textDim, fontFamily: T.sans }}>{email}</div>
+        <div style={{ padding: '12px 16px', borderTop: `1px solid ${T.borderSubtle}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <div style={{ fontSize: 10, color: T.textDim, fontFamily: T.sans, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email}</div>
+          <button
+            onClick={onLogout}
+            title="Sign out"
+            style={{
+              background: 'transparent', border: `1px solid ${T.border}`,
+              color: T.textMuted, padding: '3px 8px', borderRadius: 2,
+              fontFamily: T.mono, fontSize: 9, cursor: 'pointer', flexShrink: 0,
+              textTransform: 'uppercase', letterSpacing: 0.5,
+            }}
+          >sign out</button>
         </div>
       )}
     </div>
@@ -460,6 +470,12 @@ export function App() {
     setTokenState(t)
   }
 
+  const handleLogout = () => {
+    clearToken()
+    setTokenState(null)
+    setMe(null)
+  }
+
   if (!token || !me) {
     return <Login onLogin={handleLogin} />
   }
@@ -480,6 +496,7 @@ export function App() {
           collapsed={collapsed}
           onToggle={() => setCollapsed(!collapsed)}
           email={me.operator.email}
+          onLogout={handleLogout}
         />
         <PanelShell group={activeGroup} />
       </div>

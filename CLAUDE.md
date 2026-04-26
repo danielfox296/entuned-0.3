@@ -19,7 +19,7 @@ Production-seed for entune v0.3. Supersedes Mingus. Greenfield, no Mingus data m
 
 - **Push after edits.** Daniel runs everything live.
 - **Schema changes:** update `../entune v0.3/schema/` first (the SSOT), then mirror into `apps/server/prisma/schema.prisma`, then `prisma migrate`.
-- **Railway deploy:** server only. `cd apps/server && railway up --path-as-root .` (mirror Mingus's monorepo deploy lesson — without `--path-as-root` Railway uploads the whole repo).
+- **Railway deploy:** server only. `railway up` from the **monorepo root** (`entuned-0.3/`). The Railway service has Root Directory=`apps/server` set in the dashboard, so the upload must contain that path. Do NOT use `--path-as-root` — that flag conflicts with the dashboard's Root Directory setting and breaks the build.
 - **No Mingus features.** All new music-system work goes here, not in `../mingus/`.
 
 ## Phase 0 scope
