@@ -80,7 +80,7 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
           fontSize: 10, fontFamily: T.mono,
           color: statusColorOf(data.status),
           border: `1px solid ${statusColorOf(data.status)}`, borderRadius: 3, padding: '2px 8px',
-        }}>{data.status}</span>
+        }}>{data.status}{data.claimedById ? ' · claimed' : ''}</span>
       </div>
 
       {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}

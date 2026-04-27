@@ -215,7 +215,7 @@ export interface ReferenceTrackRow {
 }
 
 export interface StoreDetail {
-  store: { id: string; name: string; timezone: string; clientId: string; clientName: string }
+  store: { id: string; name: string; timezone: string; clientId: string; clientName: string; goLiveDate: string | null; defaultOutcomeId: string | null }
   icp: (IcpRow & { referenceTracks: ReferenceTrackRow[] }) | null
   sharedWith: { id: string; name: string; clientName: string }[]
 }

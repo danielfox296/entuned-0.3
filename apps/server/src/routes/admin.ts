@@ -483,6 +483,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         timezone: store.timezone,
         clientId: store.client.id,
         clientName: store.client.companyName,
+        goLiveDate: store.goLiveDate ? store.goLiveDate.toISOString().slice(0, 10) : null,
+        defaultOutcomeId: store.defaultOutcomeId,
       },
       icp,
       sharedWith: [],

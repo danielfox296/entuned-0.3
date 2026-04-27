@@ -39,13 +39,12 @@ export function StoreEditor() {
     const token = getToken(); if (!token) return
     setDetail(null); setDraft(null); setErr(null)
     api.storeDetail(storeId, token).then(async (d) => {
-      const live = await api.liveStore(storeId, token).catch(() => null)
       setDetail({
         id: d.store.id, name: d.store.name, timezone: d.store.timezone,
         clientId: d.store.clientId, clientName: d.store.clientName,
         icp: d.icp ? { id: d.icp.id, name: d.icp.name } : null,
-        goLiveDate: null,
-        defaultOutcomeId: live?.store.defaultOutcomeId ?? null,
+        goLiveDate: d.store.goLiveDate,
+        defaultOutcomeId: d.store.defaultOutcomeId,
       })
       setDraft({})
     }).catch((e) => setErr(e.message))
@@ -91,7 +90,7 @@ export function StoreEditor() {
         <button
           onClick={() => {
             setStoreId(null)
-            setCreating({ clientId: clients?.[0]?.id ?? '', name: '', timezone: 'America/Denver' })
+            setCreating({ clientId: detail?.clientId ?? clients?.[0]?.id ?? '', name: '', timezone: 'America/Denver' })
           }}
           style={primaryBtn(true, false)}
         >+ new location</button>
