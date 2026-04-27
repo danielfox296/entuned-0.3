@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/api.ts","./src/main.tsx","./src/vite-env.d.ts"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/api.ts","./src/main.tsx","./src/vite-env.d.ts","./src/audio/crossfade-player.ts","./src/components/circlebutton.tsx","./src/components/darkhalo.tsx","./src/components/outcomemodal.tsx","./src/components/progressbar.tsx","./src/components/reportmodal.tsx","./src/lib/storage.ts","./src/screens/loginscreen.tsx","./src/screens/playerscreen.tsx"],"version":"5.9.3"}

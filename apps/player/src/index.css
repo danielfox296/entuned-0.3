@@ -1,0 +1,68 @@
+:root {
+  --bg: #0a0a0a;
+  --bg-elev: #161616;
+  --fg: #d4e1e5;
+  --fg-dim: rgba(212, 225, 229, 0.55);
+  --fg-disabled: rgba(212, 225, 229, 0.25);
+  --accent: rgba(94, 162, 182, 0.95);
+  --border: rgba(212, 225, 229, 0.12);
+  --radius: 12px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 1.5;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: rgba(212, 225, 229, 0.04);
+  padding: 0.6em 1em;
+  border-radius: var(--radius);
+  transition: background 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+
+button:hover:not(:disabled) {
+  background: rgba(212, 225, 229, 0.08);
+  border-color: rgba(212, 225, 229, 0.2);
+}
+
+button:disabled {
+  color: var(--fg-disabled);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+input {
+  font: inherit;
+  color: inherit;
+  background: rgba(212, 225, 229, 0.04);
+  border: 1px solid var(--border);
+  padding: 0.8em 1em;
+  border-radius: var(--radius);
+  width: 100%;
+}
+
+input:focus {
+  outline: none;
+  border-color: rgba(212, 225, 229, 0.3);
+}
+
+a { color: var(--accent); }
