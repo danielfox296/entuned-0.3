@@ -142,7 +142,7 @@ function Player({ storeId, storeName, operator, token, onSwitchStore, onLogout }
 
   const refill = useCallback(async () => {
     try {
-      const r = await api.next(storeId)
+      const r = await api.next(storeId, token)
       setActiveOutcome(r.activeOutcome)
       setReason(r.reason)
       setFallbackTier(r.fallbackTier)
@@ -219,7 +219,7 @@ function Player({ storeId, storeName, operator, token, onSwitchStore, onLogout }
 
   // Outcome picker data — load once and on override changes.
   useEffect(() => {
-    api.outcomes(storeId).then(setOutcomes).catch(console.error)
+    api.outcomes(storeId, token).then(setOutcomes).catch(console.error)
   }, [storeId, activeOutcome?.outcomeId])
 
   const doOverride = async (outcomeId: string, force: boolean) => {

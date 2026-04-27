@@ -33,6 +33,8 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
   app.get('/next', async (req, reply) => {
     const parsed = NextQuery.safeParse(req.query)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_query', details: parsed.error.flatten() })
+    const op = await requireOperatorForStore(req, reply, parsed.data.store_id)
+    if (!op) return
     return nextQueue(parsed.data.store_id)
   })
 
@@ -41,6 +43,8 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
   app.get('/outcomes', async (req, reply) => {
     const parsed = NextQuery.safeParse(req.query)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_query' })
+    const op = await requireOperatorForStore(req, reply, parsed.data.store_id)
+    if (!op) return
     const store = await prisma.store.findUnique({
       where: { id: parsed.data.store_id },
       include: { icp: { select: { id: true } } },
