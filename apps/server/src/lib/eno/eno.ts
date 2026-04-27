@@ -1,17 +1,14 @@
 // Card 14 Eno (Seed Builder) — orchestrates batch generation of SongSeeds.
 // One SongSeed = one assembled Suno-ready Final Song Prompt: hook + ref track + Style Builder output + Lyric Writer output.
 //
-// Per Card 14 spec, OutcomeFactorPrompt prepends Outcome fields onto the style portion.
-// Locked 2026-04-25 (Daniel's Suno reality check): Song Outcome Specs stay OUT of the style portion
-// entirely; tempo/mode/dynamics live on Suno's separate params. The OutcomeFactorPrompt row is
-// preserved for provenance but seeded as an empty template so the prepend is a no-op. Admin can flip
-// this on if the policy ever changes.
+// OutcomeFactorPrompt prepends Outcome fields onto the style portion per Card 14 spec.
+// Default template prepends BPM and mode. Edit via admin /engine/outcome-factor-prompt.
 
 import { prisma } from '../../db.js'
 import { marsAssemble } from '../mars/mars.js'
 import { generateLyrics } from '../bernie/bernie.js'
 
-export const OUTCOME_FACTOR_PROMPT_SEED = '' // empty by default; see header note.
+export const OUTCOME_FACTOR_PROMPT_SEED = '{tempo_bpm}bpm, {mode}' // prepended to style string; tokens: {tempo_bpm} {mode} {dynamics} {instrumentation}
 
 export async function getOrSeedOutcomeFactorPrompt(): Promise<{ id: string; version: number; templateText: string }> {
   const row = await prisma.outcomeFactorPrompt.findFirst({ orderBy: { version: 'desc' } })
@@ -162,7 +159,7 @@ async function pickAvailableHook(icpId: string, outcomeId: string): Promise<{ id
       id: true, text: true,
       songSeeds: { select: { status: true } },
     },
-    orderBy: { createdAt: 'asc' },
+    orderBy: [{ useCount: 'asc' }, { createdAt: 'asc' }],
   })
   for (const h of hooks) {
     const blocking = h.songSeeds.some((s) => s.status === 'assembling' || s.status === 'queued' || s.status === 'accepted')

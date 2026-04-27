@@ -465,8 +465,18 @@ function DecompositionEditor({ dec, onChanged }: { dec: StyleAnalysisRow; onChan
     finally { setBusy(false) }
   }
 
+  const isVerified = dec.status === 'verified'
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {isVerified && (
+        <div style={{
+          background: '#3d2a00', border: '1px solid #7a5500', borderRadius: 4,
+          padding: '8px 12px', fontFamily: T.mono, fontSize: 11, color: '#f5c842',
+        }}>
+          ⚠ This decomposition is verified. Edits will revert it to draft — re-verify when done.
+        </div>
+      )}
       <div style={{ fontSize: 10, color: T.textDim, fontFamily: T.mono }}>
         rules v{dec.styleAnalyzerInstructionsVersion} · status {dec.status}
         {dec.verifiedAt && ` · verified ${new Date(dec.verifiedAt).toLocaleString()}`}

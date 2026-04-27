@@ -47,13 +47,14 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
     if (!op) return
     const store = await prisma.store.findUnique({
       where: { id: parsed.data.store_id },
-      include: { icp: { select: { id: true } } },
+      include: { icps: { select: { id: true } } },
     })
     if (!store) return reply.code(404).send({ error: 'store_not_found' })
+    const icpIds = store.icps.map((i) => i.id)
     const outcomes = await prisma.outcome.findMany({ where: { supersededAt: null } })
-    const counts = await prisma.lineageRow.groupBy({
+    const counts = icpIds.length === 0 ? [] : await prisma.lineageRow.groupBy({
       by: ['outcomeId'],
-      where: { icpId: store.icp?.id ?? '', active: true },
+      where: { icpId: { in: icpIds }, active: true },
       _count: { _all: true },
     })
     const countMap = new Map(counts.map((c) => [c.outcomeId, c._count._all]))

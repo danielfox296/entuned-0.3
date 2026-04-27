@@ -298,7 +298,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         stores: {
           orderBy: { name: 'asc' },
           include: {
-            icp: { select: { id: true, name: true } },
+            icps: { select: { id: true, name: true } },
             defaultOutcome: { select: { id: true, title: true, version: true } },
           },
         },
@@ -322,7 +322,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         name: s.name,
         timezone: s.timezone,
         goLiveDate: s.goLiveDate ? s.goLiveDate.toISOString().slice(0, 10) : null,
-        icp: s.icp,
+        icps: s.icps.map((i) => ({ id: i.id, name: i.name })),
         defaultOutcome: s.defaultOutcome,
       })),
       icps: client.icps.map((i) => ({
@@ -408,12 +408,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           goLiveDate: parsed.data.goLiveDate ? new Date(parsed.data.goLiveDate) : null,
           defaultOutcomeId: parsed.data.defaultOutcomeId ?? null,
         },
-        include: { client: { select: { companyName: true } }, icp: { select: { id: true, name: true } } },
+        include: { client: { select: { companyName: true } }, icps: { select: { id: true, name: true } } },
       })
       return {
         id: row.id, name: row.name, timezone: row.timezone,
         clientId: row.clientId, clientName: row.client.companyName,
-        icp: row.icp ? { id: row.icp.id, name: row.icp.name } : null,
+        icps: row.icps.map((i) => ({ id: i.id, name: i.name })),
       }
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
@@ -442,12 +442,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     try {
       const row = await prisma.store.update({
         where: { id }, data,
-        include: { client: { select: { companyName: true } }, icp: { select: { id: true, name: true } } },
+        include: { client: { select: { companyName: true } }, icps: { select: { id: true, name: true } } },
       })
       return {
         id: row.id, name: row.name, timezone: row.timezone,
         clientId: row.clientId, clientName: row.client.companyName,
-        icp: row.icp ? { id: row.icp.id, name: row.icp.name } : null,
+        icps: row.icps.map((i) => ({ id: i.id, name: i.name })),
         goLiveDate: row.goLiveDate ? row.goLiveDate.toISOString().slice(0, 10) : null,
         defaultOutcomeId: row.defaultOutcomeId,
       }
@@ -460,7 +460,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.store.findMany({
       orderBy: [{ client: { companyName: 'asc' } }, { name: 'asc' }],
-      include: { client: { select: { companyName: true } }, icp: { select: { id: true, name: true } } },
+      include: { client: { select: { companyName: true } }, icps: { select: { id: true, name: true } } },
     })
     return rows.map((s) => ({
       id: s.id,
@@ -468,7 +468,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       timezone: s.timezone,
       clientId: s.clientId,
       clientName: s.client.companyName,
-      icp: s.icp ? { id: s.icp.id, name: s.icp.name } : null,
+      icps: s.icps.map((i) => ({ id: i.id, name: i.name })),
     }))
   })
 
@@ -480,7 +480,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       include: { client: { select: { id: true, companyName: true } } },
     })
     if (!store) return reply.code(404).send({ error: 'not_found' })
-    const icp = await prisma.iCP.findUnique({
+    const icps = await prisma.iCP.findMany({
       where: { storeId: id },
       include: {
         referenceTracks: {
@@ -499,7 +499,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         goLiveDate: store.goLiveDate ? store.goLiveDate.toISOString().slice(0, 10) : null,
         defaultOutcomeId: store.defaultOutcomeId,
       },
-      icp,
+      icps,
       sharedWith: [],
     }
   })
@@ -517,8 +517,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const store = await prisma.store.findUnique({ where: { id: parsed.data.storeId } })
     if (!store) return reply.code(404).send({ error: 'store_not_found' })
-    const existing = await prisma.iCP.findUnique({ where: { storeId: parsed.data.storeId } })
-    if (existing) return reply.code(409).send({ error: 'icp_already_exists', message: 'This location already has an ICP.' })
     try {
       const row = await prisma.iCP.create({
         data: { storeId: parsed.data.storeId, clientId: store.clientId, name: parsed.data.name },
@@ -1232,16 +1230,17 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const id = (req.params as any).id as string
     const store = await prisma.store.findUnique({
       where: { id },
-      include: { client: { select: { companyName: true } }, icp: { select: { id: true } } },
+      include: { client: { select: { companyName: true } }, icps: { select: { id: true } } },
     })
     if (!store) return reply.code(404).send({ error: 'not_found' })
+    const icpIds = store.icps.map((i) => i.id)
 
     const [hendrix, outcomes, lineageCounts, events] = await Promise.all([
       nextQueue(id),
       prisma.outcome.findMany({ where: { supersededAt: null }, orderBy: { title: 'asc' } }),
-      prisma.lineageRow.groupBy({
+      icpIds.length === 0 ? Promise.resolve([]) : prisma.lineageRow.groupBy({
         by: ['outcomeId'],
-        where: { icpId: store.icp?.id ?? '', active: true },
+        where: { icpId: { in: icpIds }, active: true },
         _count: { _all: true },
       }),
       prisma.playbackEvent.findMany({
@@ -1276,7 +1275,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         name: store.name,
         clientName: store.client.companyName,
         timezone: store.timezone,
-        icpId: store.icp?.id ?? null,
+        icpIds: icpIds,
         defaultOutcomeId: store.defaultOutcomeId,
         outcomeSelectionId: store.outcomeSelectionId,
         outcomeSelectionExpiresAt: store.outcomeSelectionExpiresAt,
@@ -1393,6 +1392,13 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (hhmmToSec(parsed.data.startTime) >= hhmmToSec(parsed.data.endTime)) {
       return reply.code(400).send({ error: 'start_must_precede_end' })
     }
+    const newStart = hhmmToSec(parsed.data.startTime)
+    const newEnd = hhmmToSec(parsed.data.endTime)
+    const existing = await prisma.scheduleSlot.findMany({ where: { storeId: id, dayOfWeek: parsed.data.dayOfWeek } })
+    const clash = existing.find((s) => newStart < hhmmToSec(timeToHHMM(s.endTime)) && hhmmToSec(timeToHHMM(s.startTime)) < newEnd)
+    if (clash) {
+      return reply.code(409).send({ error: 'schedule_overlap', message: `Overlaps with existing slot ${timeToHHMM(clash.startTime)}–${timeToHHMM(clash.endTime)}` })
+    }
     try {
       const row = await prisma.scheduleSlot.create({
         data: {
@@ -1424,6 +1430,17 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     if (hhmmToSec(parsed.data.startTime) >= hhmmToSec(parsed.data.endTime)) {
       return reply.code(400).send({ error: 'start_must_precede_end' })
+    }
+    const current = await prisma.scheduleSlot.findUnique({ where: { id } })
+    if (!current) return reply.code(404).send({ error: 'not_found' })
+    const updStart = hhmmToSec(parsed.data.startTime)
+    const updEnd = hhmmToSec(parsed.data.endTime)
+    const siblings = await prisma.scheduleSlot.findMany({
+      where: { storeId: current.storeId, dayOfWeek: parsed.data.dayOfWeek, id: { not: id } },
+    })
+    const clash = siblings.find((s) => updStart < hhmmToSec(timeToHHMM(s.endTime)) && hhmmToSec(timeToHHMM(s.startTime)) < updEnd)
+    if (clash) {
+      return reply.code(409).send({ error: 'schedule_overlap', message: `Overlaps with existing slot ${timeToHHMM(clash.startTime)}–${timeToHHMM(clash.endTime)}` })
     }
     try {
       const row = await prisma.scheduleSlot.update({
@@ -1470,11 +1487,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const store = await prisma.store.findUnique({
       where: { id: storeId },
       include: {
-        icp: { select: { id: true, name: true } },
+        icps: { select: { id: true, name: true } },
         defaultOutcome: { select: { id: true, title: true, version: true, supersededAt: true } },
       },
     })
     if (!store) return reply.code(404).send({ error: 'store_not_found' })
+    const dryRunIcpIds = store.icps.map((i) => i.id)
 
     const rows = await prisma.scheduleSlot.findMany({
       where: { storeId },
@@ -1572,9 +1590,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
     // Pool depth join — only for outcomes actually used by this store's projection.
     const outcomeIds = Array.from(usedOutcomes.keys())
-    const counts = outcomeIds.length === 0 ? [] : await prisma.lineageRow.groupBy({
+    const counts = outcomeIds.length === 0 || dryRunIcpIds.length === 0 ? [] : await prisma.lineageRow.groupBy({
       by: ['outcomeId'],
-      where: { active: true, icpId: store.icp?.id ?? '', outcomeId: { in: outcomeIds } },
+      where: { active: true, icpId: { in: dryRunIcpIds }, outcomeId: { in: outcomeIds } },
       _count: { _all: true },
     })
     const countMap = new Map<string, number>()
@@ -1617,7 +1635,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
     return {
       store: { id: store.id, name: store.name, timezone: store.timezone },
-      icp: store.icp ? { id: store.icp.id, name: store.icp.name } : null,
+      icps: store.icps.map((i) => ({ id: i.id, name: i.name })),
       defaultOutcome: def ? { id: def.id, title: def.title, version: def.version, superseded: !!def.supersededAt } : null,
       thresholds,
       days,
@@ -1798,7 +1816,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(502).send({ error: 'r2_upload_failed', message: e.message ?? 'unknown' })
     }
 
-    // Step 2: persist (Songs + LineageRows + Submission flip + useCount bump) in one transaction.
+    // Step 2: persist (Songs + LineageRows + Submission flip + useCount bumps) in one transaction.
+    const outcome = await prisma.outcome.findUnique({ where: { id: existing.outcomeId }, select: { version: true } })
     try {
       const result = await prisma.$transaction(async (tx) => {
         const lineage: any[] = []
@@ -1819,6 +1838,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
               r2Url: obj.url,
               icpId: existing.icpId,
               outcomeId: existing.outcomeId,
+              outcomeVersion: outcome?.version ?? null,
               hookId: existing.hookId,
               songSeedId: existing.id,
               active: true,
@@ -1836,6 +1856,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
             data: { useCount: { increment: 1 } },
           })
         }
+        await tx.hook.update({
+          where: { id: existing.hookId },
+          data: { useCount: { increment: 1 } },
+        })
         return { songSeed: updated, lineageRows: lineage }
       })
       return result
@@ -1852,6 +1876,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const id = (req.params as any).id as string
     const parsed = DecompositionUpdateBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const existing = await prisma.styleAnalysis.findUnique({ where: { id }, select: { verifiedAt: true, status: true } })
+    const wasVerified = !!existing?.verifiedAt && existing.status === 'verified'
     const data: any = { ...parsed.data }
     if (parsed.data.status === 'verified') {
       data.verifiedAt = new Date()
@@ -1862,7 +1888,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
     try {
       const row = await prisma.styleAnalysis.update({ where: { id }, data })
-      return row
+      const warning = wasVerified && row.status !== 'verified'
+        ? 'Edited a previously verified decomposition. Re-verify when ready.'
+        : undefined
+      return { ...row, _warning: warning }
     } catch {
       return reply.code(404).send({ error: 'not_found' })
     }

@@ -51,7 +51,7 @@ export function OutcomeFactorPrompt() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Header
         title="Outcome Factor Prompt"
-        subtitle="Prepended to Style Builder style portion. Empty = no-op (locked policy: outcome physiology lives on Suno params, not in style). Tokens: {tempo_bpm}, {mode}, {dynamics}, {instrumentation}."
+        subtitle="Prepended to the style string before Suno submission. Default: '{tempo_bpm}bpm, {mode}'. Available tokens: {tempo_bpm}, {mode}, {dynamics}, {instrumentation}."
         version={latest?.version}
         createdAt={latest?.createdAt}
       />
@@ -64,7 +64,7 @@ export function OutcomeFactorPrompt() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             spellCheck={false}
-            placeholder="(empty = no prepend; flip on by adding e.g. 'tempo {tempo_bpm} bpm, {mode}, {dynamics}, {instrumentation}.')"
+            placeholder="{tempo_bpm}bpm, {mode}"
             style={{
               minHeight: 220, background: T.surface, border: `1px solid ${T.border}`,
               color: T.text, fontFamily: T.mono, fontSize: 12, padding: 14,

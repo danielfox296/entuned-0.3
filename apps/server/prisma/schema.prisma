@@ -124,7 +124,7 @@ model Store {
   updatedAt                 DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   client              Client                    @relation(fields: [clientId], references: [id])
-  icp                 ICP?                      @relation("LocationIcp")
+  icps                ICP[]                     @relation("LocationIcp")
   defaultOutcome      Outcome?                  @relation("StoreDefaultOutcome", fields: [defaultOutcomeId], references: [id])
   outcomeSelection    Outcome?                  @relation("StoreOutcomeSelection", fields: [outcomeSelectionId], references: [id])
   scheduleSlots       ScheduleSlot[]
@@ -140,7 +140,7 @@ model Store {
 model ICP {
   id                 String    @id @default(uuid()) @db.Uuid
   clientId           String    @map("client_id") @db.Uuid
-  storeId            String    @unique @map("store_id") @db.Uuid
+  storeId            String    @map("store_id") @db.Uuid
   name               String
   ageRange           String?   @map("age_range")
   location           String?
@@ -156,6 +156,8 @@ model ICP {
 
   client           Client            @relation(fields: [clientId], references: [id])
   store            Store             @relation("LocationIcp", fields: [storeId], references: [id])
+
+  @@index([storeId])
   hooks            Hook[]
   referenceTracks  ReferenceTrack[]
   hookWriterPrompt HookWriterPrompt?
@@ -472,6 +474,7 @@ model Hook {
   outcomeId    String    @map("outcome_id") @db.Uuid
   text         String
   status       String    @default("draft")
+  useCount     Int       @default(0) @map("use_count") // incremented each time this hook seeds an accepted song
   approvedAt   DateTime? @map("approved_at") @db.Timestamptz(6)
   approvedById String?   @map("approved_by") @db.Uuid
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -506,15 +509,16 @@ model Song {
 // ---------- Card 16 LineageRow (song pool Hendrix reads) ----------
 
 model LineageRow {
-  id         String   @id @default(uuid()) @db.Uuid
-  songId     String   @map("song_id") @db.Uuid
-  r2Url      String   @map("r2_url")
-  icpId      String   @map("icp_id") @db.Uuid
-  outcomeId  String   @map("outcome_id") @db.Uuid
-  hookId     String   @map("hook_id") @db.Uuid
-  songSeedId String?  @map("song_seed_id") @db.Uuid
-  active     Boolean  @default(true)
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id             String   @id @default(uuid()) @db.Uuid
+  songId         String   @map("song_id") @db.Uuid
+  r2Url          String   @map("r2_url")
+  icpId          String   @map("icp_id") @db.Uuid
+  outcomeId      String   @map("outcome_id") @db.Uuid
+  outcomeVersion Int?     @map("outcome_version") // scope stamp — required for Kraftwerk baseline isolation
+  hookId         String   @map("hook_id") @db.Uuid
+  songSeedId     String?  @map("song_seed_id") @db.Uuid
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   song     Song      @relation(fields: [songId], references: [id])
   outcome  Outcome   @relation(fields: [outcomeId], references: [id])

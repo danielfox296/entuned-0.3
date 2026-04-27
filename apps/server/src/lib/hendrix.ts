@@ -130,9 +130,11 @@ function storeLocalMidnight(now: Date, timezone: string): Date {
   return new Date(candidate.getTime() - offsetMs)
 }
 
-// familiarity='familiar'  → most-played first (songs the store already knows create exit pressure)
-// familiarity='unfamiliar' | null → least-played first (novel tracks extend dwell + distort time)
-async function rankByPlayCount(storeId: string, pool: PoolRow[], familiarity: string | null): Promise<PoolRow[]> {
+// Always least-played first, tiebreak least-recently-played.
+// "familiarity" in the Outcome field refers to cultural familiarity (a song the customer
+// has heard throughout their life), not store play count. All AI-generated songs are
+// culturally unfamiliar by definition, so a familiarity-based sort flip is not applicable.
+async function rankByPlayCount(storeId: string, pool: PoolRow[]): Promise<PoolRow[]> {
   if (pool.length === 0) return pool
   const songIds = [...new Set(pool.map((r) => r.songId))]
   const counts = await prisma.playbackEvent.groupBy({
@@ -142,12 +144,11 @@ async function rankByPlayCount(storeId: string, pool: PoolRow[], familiarity: st
     _max: { occurredAt: true },
   })
   const stats = new Map(counts.map((c) => [c.songId!, { n: c._count._all, last: c._max.occurredAt?.getTime() ?? 0 }]))
-  const dir = familiarity === 'familiar' ? -1 : 1 // -1 flips to most-played first
   return [...pool].sort((a, b) => {
     const sa = stats.get(a.songId) ?? { n: 0, last: 0 }
     const sb = stats.get(b.songId) ?? { n: 0, last: 0 }
-    if (sa.n !== sb.n) return dir * (sa.n - sb.n)
-    return dir * (sa.last - sb.last)
+    if (sa.n !== sb.n) return sa.n - sb.n
+    return sa.last - sb.last
   })
 }
 
@@ -167,7 +168,7 @@ export async function nextQueue(storeId: string, now: Date = new Date()): Promis
   const decidedAt = now.toISOString()
   const store = await prisma.store.findUnique({
     where: { id: storeId },
-    include: { icp: { select: { id: true } } },
+    include: { icps: { select: { id: true } } },
   })
   if (!store) {
     return {
@@ -191,10 +192,12 @@ export async function nextQueue(storeId: string, now: Date = new Date()): Promis
     dailyCap: 3,
   }
 
-  if (!store.icp) {
+  if (store.icps.length === 0) {
     return { storeId, decidedAt, activeOutcome: serializeOutcome(resolved), queue: [], fallbackTier: 'none', reason: 'no_pool' }
   }
-  const unfilteredPool = dedupeBySong(await fetchPool(store.icp.id, resolved.outcomeId))
+  // Merge song pools across all ICPs assigned to this store.
+  const poolsByIcp = await Promise.all(store.icps.map((icp) => fetchPool(icp.id, resolved.outcomeId)))
+  const unfilteredPool = dedupeBySong(poolsByIcp.flat())
   if (unfilteredPool.length === 0) {
     return {
       storeId,
@@ -205,12 +208,6 @@ export async function nextQueue(storeId: string, now: Date = new Date()): Promis
       reason: 'no_pool',
     }
   }
-
-  const outcomeRecord = await prisma.outcome.findUnique({
-    where: { id: resolved.outcomeId },
-    select: { familiarity: true },
-  })
-  const familiarity = outcomeRecord?.familiarity ?? null
 
   // Tiered fallback: try strict → relax daily_cap → relax sibling_spacing → relax no_repeat_window.
   const tiers: { tier: FallbackTier; cap: boolean; sib: boolean; rep: boolean }[] = [
@@ -223,7 +220,7 @@ export async function nextQueue(storeId: string, now: Date = new Date()): Promis
   for (const t of tiers) {
     const eligible = await applyFilters(storeId, unfilteredPool, t.cap, t.sib, t.rep, rules, now, store.timezone)
     if (eligible.length > 0) {
-      const ranked = await rankByPlayCount(storeId, eligible, familiarity)
+      const ranked = await rankByPlayCount(storeId, eligible)
       const queue = ranked.slice(0, 3).map((r) => ({
         songId: r.songId,
         audioUrl: r.r2Url,
