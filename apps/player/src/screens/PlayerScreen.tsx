@@ -528,34 +528,42 @@ export function PlayerScreen({ session, onLogout }: Props) {
           </CircleButton>
         </DarkHalo>
 
-        {currentItem ? (
-          <div style={{ display: "flex", gap: 56, justifyContent: "center", alignItems: "center" }}>
-            <button
-              type="button"
-              onClick={handleLove}
-              aria-label="Love this track"
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 8, lineHeight: 0 }}
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24">
-                {lovedIds.has(currentItem.songId) ? (
-                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#e05a3a" />
-                ) : (
-                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="none" stroke="rgba(212,225,229,0.35)" strokeWidth="1.5" />
-                )}
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowReportModal(true)}
-              aria-label="Report this track"
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 8, lineHeight: 0 }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M4 21V4h11l1 2h4v11h-5l-1-2H6v6z" stroke="rgba(212,225,229,0.35)" strokeWidth="1.5" strokeLinejoin="round" />
-              </svg>
-            </button>
-          </div>
-        ) : null}
+        {(() => {
+          const idle = !currentItem;
+          const loved = currentItem ? lovedIds.has(currentItem.songId) : false;
+          const heartStroke = idle ? "rgba(212,225,229,0.15)" : "rgba(212,225,229,0.35)";
+          const flagStroke = idle ? "rgba(212,225,229,0.15)" : "rgba(212,225,229,0.35)";
+          return (
+            <div style={{ display: "flex", gap: 56, justifyContent: "center", alignItems: "center" }}>
+              <button
+                type="button"
+                disabled={idle}
+                onClick={idle ? undefined : handleLove}
+                aria-label="Love this track"
+                style={{ background: "none", border: "none", cursor: idle ? "not-allowed" : "pointer", padding: 8, lineHeight: 0, opacity: idle ? 0.55 : 1 }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24">
+                  {loved ? (
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#e05a3a" />
+                  ) : (
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="none" stroke={heartStroke} strokeWidth="1.5" />
+                  )}
+                </svg>
+              </button>
+              <button
+                type="button"
+                disabled={idle}
+                onClick={idle ? undefined : () => setShowReportModal(true)}
+                aria-label="Report this track"
+                style={{ background: "none", border: "none", cursor: idle ? "not-allowed" : "pointer", padding: 8, lineHeight: 0, opacity: idle ? 0.55 : 1 }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M4 21V4h11l1 2h4v11h-5l-1-2H6v6z" stroke={flagStroke} strokeWidth="1.5" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
+          );
+        })()}
       </div>
 
       <div style={{ display: "flex", justifyContent: "center", padding: "16px 24px 44px" }}>
