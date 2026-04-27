@@ -68,14 +68,14 @@ export function IcpEditor() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
         <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>ICP Editor</div>
-        <div style={{ fontSize: 11, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Per-location ICP. Edit psychographic fields, manage reference tracks, run the decomposer.
+        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
+          Per-store ICP. Edit psychographic fields, manage reference tracks, run the decomposer.
         </div>
       </div>
 
-      <LocationPicker stores={stores} storeId={storeId} onPick={(id) => { setStoreId(id); setCreating(false); setNewIcpName('') }} />
+      <StorePicker stores={stores} storeId={storeId} onPick={(id) => { setStoreId(id); setCreating(false); setNewIcpName('') }} />
 
-      {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
 
       {storeId && !detail && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
 
@@ -85,7 +85,7 @@ export function IcpEditor() {
           display: 'flex', flexDirection: 'column', gap: 12,
         }}>
           <div style={{ fontFamily: T.mono, fontSize: 12, color: T.textMuted }}>
-            This location has no ICP yet.
+            This store has no ICP yet.
           </div>
           {creating ? (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -103,7 +103,7 @@ export function IcpEditor() {
               <button onClick={() => { setCreating(false); setNewIcpName('') }} style={ghostBtn}>cancel</button>
             </div>
           ) : (
-            <button onClick={() => setCreating(true)} style={primaryBtn(true, false)}>+ create ICP for this location</button>
+            <button onClick={() => setCreating(true)} style={primaryBtn(true, false)}>+ create ICP for this store</button>
           )}
         </div>
       )}
@@ -118,16 +118,16 @@ export function IcpEditor() {
   )
 }
 
-function LocationPicker({ stores, storeId, onPick }: {
+function StorePicker({ stores, storeId, onPick }: {
   stores: StoreSummary[] | null
   storeId: string | null
   onPick: (id: string) => void
 }) {
   if (!stores) return <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>
-  if (stores.length === 0) return <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>no locations</div>
+  if (stores.length === 0) return <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>no stores</div>
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      <span style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono }}>location</span>
+      <span style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono }}>store</span>
       <select
         value={storeId ?? ''}
         onChange={(e) => onPick(e.target.value)}
@@ -137,7 +137,7 @@ function LocationPicker({ stores, storeId, onPick }: {
           outline: 'none', minWidth: 320,
         }}
       >
-        <option value="" disabled>— pick a location —</option>
+        <option value="" disabled>— pick a store —</option>
         {stores.map((s) => (
           <option key={s.id} value={s.id}>
             {s.clientName} — {s.name}
@@ -176,7 +176,7 @@ function IcpFields({ detail, onSaved }: { detail: DetailWithIcp; onSaved: () => 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         {ICP_FIELDS.map((f) => (
           <div key={String(f.key)} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 10, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>{f.label}</label>
+            <label style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>{f.label}</label>
             {f.rows === 1 ? (
               <input
                 value={(draft[f.key] as string | null) ?? ''}
@@ -200,7 +200,7 @@ function IcpFields({ detail, onSaved }: { detail: DetailWithIcp; onSaved: () => 
           disabled={busy || !dirty}
           style={primaryBtn(dirty, busy)}
         >{busy ? 'saving…' : 'save profile'}</button>
-        {err && <span style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</span>}
+        {err && <span style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</span>}
       </div>
     </Section>
   )
@@ -238,11 +238,11 @@ function ReferenceTracks({ detail, onChanged }: { detail: DetailWithIcp; onChang
       {BUCKETS.map((b) => (
         <div key={b} style={{ marginBottom: 18 }}>
           <div style={{
-            fontSize: 10, color: T.accentMuted, fontFamily: T.mono,
+            fontSize: 11, color: T.accentMuted, fontFamily: T.mono,
             textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6,
           }}>{b} ({grouped[b].length})</div>
           {grouped[b].length === 0 && (
-            <div style={{ color: T.textDim, fontSize: 11, fontFamily: T.mono, padding: '4px 0' }}>none</div>
+            <div style={{ color: T.textDim, fontSize: 12, fontFamily: T.mono, padding: '4px 0' }}>none</div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {grouped[b].map((r) => (
@@ -300,7 +300,7 @@ function NewRefTrackRow({ icpId, draft, onChange, onCreated }: {
         <button onClick={create} disabled={busy || !valid} style={primaryBtn(!!valid, busy)}>
           {busy ? 'creating…' : 'create'}
         </button>
-        {err && <span style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</span>}
+        {err && <span style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</span>}
       </div>
     </div>
   )
@@ -358,7 +358,7 @@ function RefTrackRow({ track, onChanged }: { track: ReferenceTrackRow; onChanged
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 60px auto auto', gap: 10, padding: '10px 12px', alignItems: 'center' }}>
         <span style={{ fontSize: 12, fontFamily: T.sans, color: T.text, fontWeight: 500 }}>{track.artist}</span>
         <span style={{ fontSize: 12, fontFamily: T.sans, color: T.textMuted, fontStyle: 'italic' }}>{track.title}</span>
-        <span style={{ fontSize: 11, fontFamily: T.mono, color: T.textDim }}>{track.year ?? ''}</span>
+        <span style={{ fontSize: 12, fontFamily: T.mono, color: T.textDim }}>{track.year ?? ''}</span>
         <DecompositionBadge dec={dec} />
         <div style={{ display: 'flex', gap: 6 }}>
           <button onClick={() => setExpanded(!expanded)} style={ghostBtn}>{expanded ? '▴' : '▾'}</button>
@@ -376,7 +376,7 @@ function RefTrackRow({ track, onChanged }: { track: ReferenceTrackRow; onChanged
         <div style={{ borderTop: `1px solid ${T.borderSubtle}`, padding: 14, background: T.bg }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label style={{ fontSize: 10, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>operator notes</label>
+              <label style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>operator notes</label>
               {!editing && (
                 <button onClick={() => setEditing(true)} style={ghostBtn}>edit</button>
               )}
@@ -399,7 +399,7 @@ function RefTrackRow({ track, onChanged }: { track: ReferenceTrackRow; onChanged
               </>
             ) : (
               <div style={{
-                fontFamily: T.mono, fontSize: 11, color: track.operatorNotes ? T.text : T.textDim,
+                fontFamily: T.mono, fontSize: 12, color: track.operatorNotes ? T.text : T.textDim,
                 padding: '6px 0', whiteSpace: 'pre-wrap', lineHeight: 1.5,
               }}>{track.operatorNotes ?? '(none)'}</div>
             )}
@@ -408,12 +408,12 @@ function RefTrackRow({ track, onChanged }: { track: ReferenceTrackRow; onChanged
           {dec ? (
             <DecompositionEditor dec={dec} onChanged={onChanged} />
           ) : (
-            <div style={{ fontSize: 11, fontFamily: T.mono, color: T.textDim }}>
+            <div style={{ fontSize: 12, fontFamily: T.mono, color: T.textDim }}>
               no decomposition yet — click "decompose" to run it
             </div>
           )}
 
-          {err && <div style={{ marginTop: 10, fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+          {err && <div style={{ marginTop: 10, fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
         </div>
       )}
     </div>
@@ -421,11 +421,11 @@ function RefTrackRow({ track, onChanged }: { track: ReferenceTrackRow; onChanged
 }
 
 function DecompositionBadge({ dec }: { dec: StyleAnalysisRow | null }) {
-  if (!dec) return <span style={{ fontSize: 10, fontFamily: T.mono, color: T.textDim }}>no decomp</span>
+  if (!dec) return <span style={{ fontSize: 11, fontFamily: T.mono, color: T.textDim }}>no decomp</span>
   const verified = dec.status === 'verified'
   const conf = dec.confidence
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontFamily: T.mono, fontSize: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontFamily: T.mono, fontSize: 11 }}>
       <span style={{ color: verified ? T.success : T.accentMuted }}>{verified ? '✓ verified' : 'draft'}</span>
       {conf && <span style={{ color: T.textDim }}>conf: {conf}</span>}
     </div>
@@ -472,16 +472,16 @@ function DecompositionEditor({ dec, onChanged }: { dec: StyleAnalysisRow; onChan
       {isVerified && (
         <div style={{
           background: '#3d2a00', border: '1px solid #7a5500', borderRadius: 4,
-          padding: '8px 12px', fontFamily: T.mono, fontSize: 11, color: '#f5c842',
+          padding: '8px 12px', fontFamily: T.mono, fontSize: 12, color: '#f5c842',
         }}>
           ⚠ This decomposition is verified. Edits will revert it to draft — re-verify when done.
         </div>
       )}
-      <div style={{ fontSize: 10, color: T.textDim, fontFamily: T.mono }}>
+      <div style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono }}>
         rules v{dec.styleAnalyzerInstructionsVersion} · status {dec.status}
         {dec.verifiedAt && ` · verified ${new Date(dec.verifiedAt).toLocaleString()}`}
       </div>
-      <label style={{ fontSize: 10, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>confidence</label>
+      <label style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>confidence</label>
       <select
         value={(draft.confidence as string) ?? ''}
         onChange={(e) => set('confidence', (e.target.value || null) as any)}
@@ -494,7 +494,7 @@ function DecompositionEditor({ dec, onChanged }: { dec: StyleAnalysisRow; onChan
       </select>
       {DECOMP_FIELDS.map((f) => (
         <div key={String(f.key)} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label style={{ fontSize: 10, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>{f.label}</label>
+          <label style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>{f.label}</label>
           <textarea
             rows={3}
             value={(draft[f.key] as string | null) ?? ''}
@@ -517,7 +517,7 @@ function DecompositionEditor({ dec, onChanged }: { dec: StyleAnalysisRow; onChan
             unverify
           </button>
         )}
-        {err && <span style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</span>}
+        {err && <span style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</span>}
       </div>
     </div>
   )
@@ -546,7 +546,7 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
     }}>
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 13, fontFamily: T.sans, fontWeight: 500, color: T.text }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 10, color: T.textDim, fontFamily: T.mono, marginTop: 3 }}>{subtitle}</div>}
+        {subtitle && <div style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono, marginTop: 3 }}>{subtitle}</div>}
       </div>
       {children}
     </div>
@@ -564,7 +564,7 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
     background: active ? T.accent : T.surfaceRaised,
     color: active ? T.bg : T.textMuted,
     border: 'none', borderRadius: 4, padding: '7px 14px',
-    fontFamily: T.mono, fontSize: 11, fontWeight: 600,
+    fontFamily: T.mono, fontSize: 12, fontWeight: 600,
     cursor: active && !busy ? 'pointer' : 'default',
     opacity: busy ? 0.6 : 1,
   }
@@ -572,7 +572,7 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
 
 const ghostBtn: CSSProperties = {
   background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-  padding: '4px 10px', borderRadius: 3, fontFamily: T.mono, fontSize: 10, cursor: 'pointer',
+  padding: '4px 10px', borderRadius: 3, fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
 }
 
 const dangerGhostBtn: CSSProperties = {

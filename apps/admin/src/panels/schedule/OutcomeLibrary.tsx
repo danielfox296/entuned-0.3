@@ -113,7 +113,7 @@ export function OutcomeLibrary() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
         <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Outcome Library</div>
-        <div style={{ fontSize: 11, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
           Browse, create, edit (copy-on-write versioned), and retire outcomes.
         </div>
       </div>
@@ -131,7 +131,7 @@ export function OutcomeLibrary() {
                   border: `1px solid ${on ? T.accent : T.border}`,
                   color: on ? T.accent : T.textMuted,
                   padding: '6px 14px', borderRadius: 4,
-                  fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
+                  fontFamily: T.mono, fontSize: 12, cursor: 'pointer',
                 }}
               >{f} ({counts[f]})</button>
             )
@@ -161,7 +161,7 @@ export function OutcomeLibrary() {
         />
       )}
 
-      {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
 
       {!rows && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
 
@@ -206,7 +206,7 @@ function HeaderRow() {
       display: 'grid', gridTemplateColumns: COLS, gap: 10,
       padding: '8px 12px', background: T.surface,
       borderBottom: `1px solid ${T.border}`,
-      fontFamily: T.mono, fontSize: 10, color: T.textDim, textTransform: 'uppercase',
+      fontFamily: T.mono, fontSize: 11, color: T.textDim, textTransform: 'uppercase',
     }}>
       <span>title</span>
       <span>v</span>
@@ -231,7 +231,7 @@ function DataRow({ row, onEdit, onSupersede, busy }: {
     <div style={{
       display: 'grid', gridTemplateColumns: COLS, gap: 10,
       padding: '10px 12px', borderBottom: `1px solid ${T.borderSubtle}`,
-      fontFamily: T.mono, fontSize: 11, alignItems: 'center',
+      fontFamily: T.mono, fontSize: 12, alignItems: 'center',
       opacity: superseded ? 0.6 : 1,
     }}>
       <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500 }}>{row.title}</span>
@@ -244,7 +244,7 @@ function DataRow({ row, onEdit, onSupersede, busy }: {
       <span style={cellTrunc}>{eraLabel}</span>
       <span style={{ color: row.lineageCount === 0 ? T.danger : T.text, textAlign: 'right' }}>{row.lineageCount}</span>
       <span style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
-        <span style={{ color: superseded ? T.textDim : T.success, fontSize: 10, marginRight: 4 }}>
+        <span style={{ color: superseded ? T.textDim : T.success, fontSize: 11, marginRight: 4 }}>
           {superseded ? 'superseded' : 'active'}
         </span>
         {!superseded && (
@@ -322,10 +322,10 @@ function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent,
       {intent === 'edit' && currentVersion != null && (
         <div style={{
           gridColumn: '1 / -1',
-          fontSize: 10, fontFamily: T.mono, color: T.warn,
+          fontSize: 11, fontFamily: T.mono, color: T.warn,
           padding: '4px 0',
         }}>
-          ⚠ Saves as v{currentVersion + 1}. v{currentVersion} stays referenced by existing hooks, schedule rows, and submissions — those won't auto-upgrade.
+          ⚠ Saves as v{currentVersion + 1}. v{currentVersion} stays referenced by existing hooks, schedule rows, and song seeds — those won't auto-upgrade.
         </div>
       )}
       <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 6 }}>
@@ -342,12 +342,12 @@ const cellTrunc: CSSProperties = {
 
 const inputStyle: CSSProperties = {
   background: T.surface, border: `1px solid ${T.border}`, color: T.text,
-  fontFamily: T.mono, fontSize: 11, padding: '6px 10px', borderRadius: 3, outline: 'none',
+  fontFamily: T.mono, fontSize: 12, padding: '6px 10px', borderRadius: 3, outline: 'none',
   width: '100%', boxSizing: 'border-box',
 }
 
 const labelStyle: CSSProperties = {
-  display: 'block', fontSize: 9, color: T.textDim, fontFamily: T.mono,
+  display: 'block', fontSize: 10, color: T.textDim, fontFamily: T.mono,
   textTransform: 'uppercase', marginBottom: 3,
 }
 
@@ -356,7 +356,7 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
     background: active ? T.accent : T.surfaceRaised,
     color: active ? T.bg : T.textMuted,
     border: 'none', borderRadius: 3, padding: '6px 12px',
-    fontFamily: T.mono, fontSize: 11, fontWeight: 600,
+    fontFamily: T.mono, fontSize: 12, fontWeight: 600,
     cursor: active && !busy ? 'pointer' : 'default',
     opacity: busy ? 0.6 : 1,
   }
@@ -364,7 +364,7 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
 
 const tinyBtn: CSSProperties = {
   background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-  padding: '3px 9px', borderRadius: 2, fontFamily: T.mono, fontSize: 10, cursor: 'pointer',
+  padding: '3px 9px', borderRadius: 2, fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
 }
 
 const tinyDangerBtn: CSSProperties = {

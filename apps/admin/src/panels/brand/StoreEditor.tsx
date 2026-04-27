@@ -79,24 +79,24 @@ export function StoreEditor() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
-        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Location Editor</div>
-        <div style={{ fontSize: 11, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Edit a location's name, timezone, default outcome, and go-live date. Create a new location under an existing client. Add an ICP in the ICP Editor tab.
+        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Store Editor</div>
+        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
+          Edit a store's name, timezone, default outcome, and go-live date. Create a new store under an existing client. Add an ICP in the ICP Editor tab.
         </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <LocationPicker stores={stores} storeId={storeId} onPick={(id) => { setStoreId(id); setCreating(null) }} />
+        <StorePicker stores={stores} storeId={storeId} onPick={(id) => { setStoreId(id); setCreating(null) }} />
         <button
           onClick={() => {
             setStoreId(null)
             setCreating({ clientId: detail?.clientId ?? clients?.[0]?.id ?? '', name: '', timezone: 'America/Denver' })
           }}
           style={primaryBtn(true, false)}
-        >+ new location</button>
+        >+ new store</button>
       </div>
 
-      {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
 
       {creating && (
         <CreateForm
@@ -114,7 +114,7 @@ export function StoreEditor() {
 
       {detail && draft && (
         <>
-          <Section title="location">
+          <Section title="store">
             <Field label="name">
               <input
                 value={draft.name ?? detail.name}
@@ -173,17 +173,17 @@ export function StoreEditor() {
   )
 }
 
-function LocationPicker({ stores, storeId, onPick }: { stores: StoreSummary[] | null; storeId: string | null; onPick: (id: string) => void }) {
+function StorePicker({ stores, storeId, onPick }: { stores: StoreSummary[] | null; storeId: string | null; onPick: (id: string) => void }) {
   if (!stores) return <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono }}>location</span>
+      <span style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono }}>store</span>
       <select
         value={storeId ?? ''}
         onChange={(e) => onPick(e.target.value)}
         style={{ ...input, width: 360 }}
       >
-        <option value="" disabled>— pick a location —</option>
+        <option value="" disabled>— pick a store —</option>
         {stores.map((s) => <option key={s.id} value={s.id}>{s.clientName} — {s.name}</option>)}
       </select>
     </div>
@@ -200,7 +200,7 @@ function CreateForm({ draft, clients, outcomes, onChange, onSubmit, onCancel, bu
   const valid = draft.clientId && draft.name && draft.timezone
 
   return (
-    <Section title="new location">
+    <Section title="new store">
       <Field label="client">
         <select value={draft.clientId} onChange={(e) => set('clientId', e.target.value)} style={input}>
           <option value="" disabled>— pick —</option>
@@ -230,7 +230,7 @@ function CreateForm({ draft, clients, outcomes, onChange, onSubmit, onCancel, bu
       </Field>
       <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8 }}>
         <button onClick={onSubmit} disabled={!valid || busy} style={primaryBtn(!!valid, busy)}>
-          {busy ? 'creating…' : 'create location'}
+          {busy ? 'creating…' : 'create store'}
         </button>
         <button onClick={onCancel} style={tinyBtn}>cancel</button>
       </div>
@@ -245,7 +245,7 @@ function Section({ title, children }: { title: string; children: any }) {
       background: T.surface, padding: 16,
       display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12,
     }}>
-      <div style={{ gridColumn: '1 / -1', fontFamily: T.mono, fontSize: 10, color: T.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+      <div style={{ gridColumn: '1 / -1', fontFamily: T.mono, fontSize: 11, color: T.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>
         {title}
       </div>
       {children}
@@ -256,7 +256,7 @@ function Section({ title, children }: { title: string; children: any }) {
 function Field({ label, full, children }: { label: string; full?: boolean; children: any }) {
   return (
     <div style={{ gridColumn: full ? '1 / -1' : 'auto' }}>
-      <label style={{ display: 'block', fontSize: 9, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase', marginBottom: 4 }}>
+      <label style={{ display: 'block', fontSize: 10, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase', marginBottom: 4 }}>
         {label}
       </label>
       {children}
@@ -275,7 +275,7 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
     background: active ? T.accent : T.surfaceRaised,
     color: active ? T.bg : T.textMuted,
     border: 'none', borderRadius: 3, padding: '8px 16px',
-    fontFamily: T.mono, fontSize: 11, fontWeight: 600,
+    fontFamily: T.mono, fontSize: 12, fontWeight: 600,
     cursor: active && !busy ? 'pointer' : 'default',
     opacity: busy ? 0.6 : 1,
   }
@@ -283,5 +283,5 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
 
 const tinyBtn: CSSProperties = {
   background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-  padding: '6px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 10, cursor: 'pointer',
+  padding: '6px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
 }

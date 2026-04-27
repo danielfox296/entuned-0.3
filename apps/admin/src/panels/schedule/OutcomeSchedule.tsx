@@ -49,14 +49,14 @@ export function OutcomeSchedule() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
         <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Outcome Schedule</div>
-        <div style={{ fontSize: 11, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
           Per-store weekly grid. Rows resolve in store-local time. Gaps fall back to default outcome.
         </div>
       </div>
 
       <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
 
-      {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
 
       {storeId && !rows && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
 
@@ -100,7 +100,7 @@ function StorePicker({ stores, storeId, onPick }: {
   if (!stores) return <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading stores…</div>
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      <span style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono }}>store</span>
+      <span style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono }}>store</span>
       <select
         value={storeId ?? ''}
         onChange={(e) => onPick(e.target.value)}
@@ -131,7 +131,7 @@ function DayColumn({ day, rows, outcomes, onChanged }: {
       borderRadius: 4, padding: 10, minHeight: 120,
     }}>
       <div style={{
-        fontSize: 10, color: T.accentMuted, fontFamily: T.mono,
+        fontSize: 11, color: T.accentMuted, fontFamily: T.mono,
         textTransform: 'uppercase', letterSpacing: '0.05em',
         marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${T.borderSubtle}`,
         display: 'flex', justifyContent: 'space-between',
@@ -140,7 +140,7 @@ function DayColumn({ day, rows, outcomes, onChanged }: {
         <span style={{ color: T.textDim }}>{rows.length}</span>
       </div>
       {rows.length === 0 && (
-        <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 10, padding: '4px 0' }}>—</div>
+        <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 11, padding: '4px 0' }}>—</div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {rows.map((r) => <RowItem key={r.id} row={r} outcomes={outcomes} onChanged={onChanged} />)}
@@ -188,7 +188,7 @@ function RowItem({ row, outcomes, onChanged }: {
           submitLabel={busy === 'save' ? '…' : 'save'}
           compact
         />
-        {err && <div style={{ fontSize: 10, color: T.danger, fontFamily: T.mono, marginTop: 4 }}>{err}</div>}
+        {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono, marginTop: 4 }}>{err}</div>}
       </div>
     )
   }
@@ -198,17 +198,17 @@ function RowItem({ row, outcomes, onChanged }: {
       background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
       borderRadius: 3, padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 4,
     }}>
-      <div style={{ fontFamily: T.mono, fontSize: 11, color: T.text }}>
+      <div style={{ fontFamily: T.mono, fontSize: 12, color: T.text }}>
         {row.startTime}–{row.endTime}
       </div>
-      <div style={{ fontFamily: T.sans, fontSize: 11, color: T.textMuted }}>
+      <div style={{ fontFamily: T.sans, fontSize: 12, color: T.textMuted }}>
         {row.outcomeTitle}
       </div>
       <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
         <button onClick={startEdit} disabled={busy === 'delete'} style={tinyBtn}>edit</button>
         <button onClick={remove} disabled={busy === 'delete'} style={tinyDangerBtn}>×</button>
       </div>
-      {err && <div style={{ fontSize: 10, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
     </div>
   )
 }
@@ -267,13 +267,13 @@ function RowForm({ draft, outcomes, onChange, onSubmit, onCancel, submitLabel, c
 
 const inputStyle: CSSProperties = {
   background: T.surface, border: `1px solid ${T.border}`, color: T.text,
-  fontFamily: T.mono, fontSize: 11, padding: '5px 8px', borderRadius: 3, outline: 'none',
+  fontFamily: T.mono, fontSize: 12, padding: '5px 8px', borderRadius: 3, outline: 'none',
   width: '100%', boxSizing: 'border-box',
 }
 
 const labelStyle: CSSProperties = {
   display: 'block',
-  fontSize: 9, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase',
+  fontSize: 10, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase',
   marginBottom: 3,
 }
 
@@ -282,7 +282,7 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
     background: active ? T.accent : T.surfaceRaised,
     color: active ? T.bg : T.textMuted,
     border: 'none', borderRadius: 3, padding: '6px 12px',
-    fontFamily: T.mono, fontSize: 11, fontWeight: 600,
+    fontFamily: T.mono, fontSize: 12, fontWeight: 600,
     cursor: active && !busy ? 'pointer' : 'default',
     opacity: busy ? 0.6 : 1,
   }
@@ -290,7 +290,7 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
 
 const tinyBtn: CSSProperties = {
   background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-  padding: '2px 8px', borderRadius: 2, fontFamily: T.mono, fontSize: 9, cursor: 'pointer',
+  padding: '2px 8px', borderRadius: 2, fontFamily: T.mono, fontSize: 10, cursor: 'pointer',
 }
 
 const tinyDangerBtn: CSSProperties = {

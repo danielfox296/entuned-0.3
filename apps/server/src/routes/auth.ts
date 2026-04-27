@@ -6,7 +6,14 @@ import { prisma } from '../db.js'
 const LoginBody = z.object({ email: z.string().email(), password: z.string().min(1) })
 
 export const authRoutes: FastifyPluginAsync = async (app) => {
-  app.post('/login', async (req, reply) => {
+  app.post('/login', {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '15 minutes',
+      },
+    },
+  }, async (req, reply) => {
     const parsed = LoginBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
     const result = await login(parsed.data.email, parsed.data.password)

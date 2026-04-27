@@ -24,12 +24,12 @@ export function FlaggedReview() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
         <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Flagged Review</div>
-        <div style={{ fontSize: 11, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
           Songs reported via the player. Reasons + counts come from <span style={{ fontFamily: T.mono }}>song_report</span> AudioEvents. Retiring a song deactivates every LineageRow that points at it.
         </div>
       </div>
 
-      {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
       {loading && !songs && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
 
       {songs && songs.length === 0 && (
@@ -52,7 +52,7 @@ export function FlaggedReview() {
 function Section({ title, songs, onChanged, muted }: { title: string; songs: FlaggedSong[]; onChanged: () => void; muted?: boolean }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ fontFamily: T.mono, fontSize: 10, color: T.textDim, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+      <div style={{ fontFamily: T.mono, fontSize: 11, color: T.textDim, textTransform: 'uppercase', letterSpacing: 0.5 }}>
         {title}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -105,14 +105,14 @@ function Card({ song, onChanged, muted }: { song: FlaggedSong; onChanged: () => 
             background: playing ? T.accent : 'transparent',
             border: `1px solid ${T.accent}`, color: playing ? T.bg : T.accent,
             width: 28, height: 28, borderRadius: 14,
-            fontSize: 11, cursor: song.r2Url ? 'pointer' : 'default',
+            fontSize: 12, cursor: song.r2Url ? 'pointer' : 'default',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           }}>{playing ? '❚❚' : '▶'}</button>
           <div>
-            <div style={{ fontFamily: T.mono, fontSize: 11, color: T.text }}>
+            <div style={{ fontFamily: T.mono, fontSize: 12, color: T.text }}>
               song <span style={{ color: T.accentMuted }}>{song.songId.slice(0, 8)}</span>
             </div>
-            <div style={{ fontFamily: T.mono, fontSize: 10, color: T.textDim, marginTop: 2 }}>
+            <div style={{ fontFamily: T.mono, fontSize: 11, color: T.textDim, marginTop: 2 }}>
               last reported {lastStr} · {song.storeCount} store{song.storeCount === 1 ? '' : 's'}
             </div>
           </div>
@@ -120,17 +120,17 @@ function Card({ song, onChanged, muted }: { song: FlaggedSong; onChanged: () => 
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontFamily: T.mono, fontSize: 22, color: T.danger, fontWeight: 600, lineHeight: 1 }}>{song.reportCount}</div>
-            <div style={{ fontFamily: T.mono, fontSize: 9, color: T.textDim, textTransform: 'uppercase' }}>reports</div>
+            <div style={{ fontFamily: T.mono, fontSize: 10, color: T.textDim, textTransform: 'uppercase' }}>reports</div>
           </div>
           {song.anyActive ? (
             <button onClick={retire} disabled={busy} style={{
               background: T.danger, border: 'none', color: T.bg,
               padding: '8px 16px', borderRadius: 3,
-              fontFamily: T.mono, fontSize: 11, fontWeight: 600,
+              fontFamily: T.mono, fontSize: 12, fontWeight: 600,
               cursor: 'pointer', opacity: busy ? 0.6 : 1,
             }}>{busy ? '…' : `retire (${song.activeLineageCount})`}</button>
           ) : (
-            <span style={{ fontFamily: T.mono, fontSize: 10, color: T.textDim, textTransform: 'uppercase' }}>retired</span>
+            <span style={{ fontFamily: T.mono, fontSize: 11, color: T.textDim, textTransform: 'uppercase' }}>retired</span>
           )}
         </div>
       </div>
@@ -138,7 +138,7 @@ function Card({ song, onChanged, muted }: { song: FlaggedSong; onChanged: () => 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {reasons.map(([reason, n]) => (
           <span key={reason} style={{
-            fontFamily: T.mono, fontSize: 10, color: T.text,
+            fontFamily: T.mono, fontSize: 11, color: T.text,
             background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
             borderRadius: 3, padding: '3px 8px',
           }}>{reason} <span style={{ color: T.danger, fontWeight: 600, marginLeft: 4 }}>{n}</span></span>
@@ -146,11 +146,11 @@ function Card({ song, onChanged, muted }: { song: FlaggedSong; onChanged: () => 
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4, paddingTop: 8, borderTop: `1px solid ${T.borderSubtle}` }}>
-        <div style={{ fontFamily: T.mono, fontSize: 9, color: T.textDim, textTransform: 'uppercase' }}>
+        <div style={{ fontFamily: T.mono, fontSize: 10, color: T.textDim, textTransform: 'uppercase' }}>
           lineage rows ({song.lineageRows.length})
         </div>
         {song.lineageRows.map((lr) => (
-          <div key={lr.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: T.mono, fontSize: 10 }}>
+          <div key={lr.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: T.mono, fontSize: 11 }}>
             <span style={{ color: lr.active ? T.success : T.textDim, width: 60 }}>
               {lr.active ? 'ACTIVE' : 'retired'}
             </span>
@@ -160,7 +160,7 @@ function Card({ song, onChanged, muted }: { song: FlaggedSong; onChanged: () => 
         ))}
       </div>
 
-      {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
     </div>
   )
 }

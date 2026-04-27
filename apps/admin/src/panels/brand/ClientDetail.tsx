@@ -65,8 +65,8 @@ export function ClientDetail() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
         <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Client Detail</div>
-        <div style={{ fontSize: 11, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Edit company info, plan tier, POS provider, and brand lyric guidelines (Bernie's voice anchor). Create new locations in Location Editor.
+        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
+          Edit company info, plan tier, POS provider, and brand lyric guidelines (Bernie's voice anchor). Create new stores in Store Editor.
         </div>
       </div>
 
@@ -81,7 +81,7 @@ export function ClientDetail() {
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') void create(); if (e.key === 'Escape') { setCreating(false); setNewName('') } }}
-                style={{ ...input, fontSize: 11 }}
+                style={{ ...input, fontSize: 12 }}
               />
               <div style={{ display: 'flex', gap: 6 }}>
                 <button onClick={() => void create()} disabled={!newName.trim() || createBusy} style={primaryBtn(!!newName.trim(), createBusy)}>
@@ -96,7 +96,7 @@ export function ClientDetail() {
         </div>
 
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+          {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
           {!clientId && <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>← pick a client</div>}
           {clientId && !client && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
 
@@ -170,12 +170,12 @@ export function ClientDetail() {
                 </button>
                 {dirty && <button onClick={() => setDraft({})} style={tinyBtn}>discard</button>}
                 <span style={{ flex: 1 }} />
-                <span style={{ fontFamily: T.mono, fontSize: 10, color: T.textDim }}>
+                <span style={{ fontFamily: T.mono, fontSize: 11, color: T.textDim }}>
                   updated {new Date(client.updatedAt).toISOString().slice(0, 16).replace('T', ' ')}
                 </span>
               </div>
 
-              <Section title={`locations (${client.stores.length})`}>
+              <Section title={`stores (${client.stores.length})`}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, gridColumn: '1 / -1' }}>
                   {client.stores.map((s) => (
                     <div key={s.id} style={listRow}>
@@ -189,7 +189,7 @@ export function ClientDetail() {
                     </div>
                   ))}
                   {client.stores.length === 0 && (
-                    <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 11 }}>no locations yet — create one in Location Editor</div>
+                    <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>no stores yet — create one in Store Editor</div>
                   )}
                 </div>
               </Section>
@@ -199,13 +199,13 @@ export function ClientDetail() {
                   {client.icps.map((i) => (
                     <div key={i.id} style={listRow}>
                       <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500 }}>{i.name}</span>
-                      <span style={{ color: T.textMuted }}>{i.storeCount === 1 ? '1 location' : 'no location'}</span>
+                      <span style={{ color: T.textMuted }}>{i.storeCount === 1 ? '1 store' : 'no store'}</span>
                       <span style={{ color: T.textMuted }}>{i.hookCount} hook{i.hookCount === 1 ? '' : 's'}</span>
                       <span style={{ color: T.textMuted }}>{i.referenceTrackCount} ref track{i.referenceTrackCount === 1 ? '' : 's'}</span>
                     </div>
                   ))}
                   {client.icps.length === 0 && (
-                    <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 11 }}>no ICPs yet</div>
+                    <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>no ICPs yet</div>
                   )}
                 </div>
               </Section>
@@ -239,13 +239,13 @@ function ClientList({ list, clientId, onPick }: { list: ClientListRow[] | null; 
             display: 'flex', flexDirection: 'column', gap: 2,
           }}>
             <span>{c.companyName}</span>
-            <span style={{ fontFamily: T.mono, fontSize: 9, color: T.textDim }}>
+            <span style={{ fontFamily: T.mono, fontSize: 10, color: T.textDim }}>
               {c.plan} · {c.storeCount}s · {c.icpCount}i
             </span>
           </button>
         )
       })}
-      {list.length === 0 && <div style={{ padding: 16, color: T.textDim, fontFamily: T.mono, fontSize: 11 }}>no clients</div>}
+      {list.length === 0 && <div style={{ padding: 16, color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>no clients</div>}
     </div>
   )
 }
@@ -257,7 +257,7 @@ function Section({ title, children }: { title: string; children: any }) {
       background: T.surface, padding: 16,
       display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12,
     }}>
-      <div style={{ gridColumn: '1 / -1', fontFamily: T.mono, fontSize: 10, color: T.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+      <div style={{ gridColumn: '1 / -1', fontFamily: T.mono, fontSize: 11, color: T.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>
         {title}
       </div>
       {children}
@@ -268,7 +268,7 @@ function Section({ title, children }: { title: string; children: any }) {
 function Field({ label, full, children }: { label: string; full?: boolean; children: any }) {
   return (
     <div style={{ gridColumn: full ? '1 / -1' : 'auto' }}>
-      <label style={{ display: 'block', fontSize: 9, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase', marginBottom: 4 }}>
+      <label style={{ display: 'block', fontSize: 10, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase', marginBottom: 4 }}>
         {label}
       </label>
       {children}
@@ -286,7 +286,7 @@ const listRow: CSSProperties = {
   display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1.4fr 110px',
   gap: 10, padding: '8px 10px',
   background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
-  borderRadius: 3, fontFamily: T.mono, fontSize: 11,
+  borderRadius: 3, fontFamily: T.mono, fontSize: 12,
   alignItems: 'center',
 }
 
@@ -295,7 +295,7 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
     background: active ? T.accent : T.surfaceRaised,
     color: active ? T.bg : T.textMuted,
     border: 'none', borderRadius: 3, padding: '8px 16px',
-    fontFamily: T.mono, fontSize: 11, fontWeight: 600,
+    fontFamily: T.mono, fontSize: 12, fontWeight: 600,
     cursor: active && !busy ? 'pointer' : 'default',
     opacity: busy ? 0.6 : 1,
   }
@@ -303,5 +303,5 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
 
 const tinyBtn: CSSProperties = {
   background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-  padding: '6px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 10, cursor: 'pointer',
+  padding: '6px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
 }

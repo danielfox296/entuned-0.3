@@ -39,8 +39,8 @@ export function ClosedSongSeeds() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
         <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Closed Song Seeds</div>
-        <div style={{ fontSize: 11, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Submissions that didn't make it into the pool — operator-abandoned, skipped, or assembly-failed. Useful for spotting hook-pool drift or systematic Mars/Bernie failures.
+        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
+          Song seeds that didn't make it into the pool — operator-abandoned, skipped, or assembly-failed. Useful for spotting hook-pool drift or systematic Mars/Bernie failures.
         </div>
       </div>
 
@@ -54,32 +54,32 @@ export function ClosedSongSeeds() {
                 border: `1px solid ${on ? T.accent : T.border}`,
                 color: on ? T.accent : T.textMuted,
                 padding: '5px 12px', borderRadius: 4,
-                fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
+                fontFamily: T.mono, fontSize: 12, cursor: 'pointer',
               }}>{f.label}</button>
             )
           })}
         </div>
-        <span style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono }}>icp</span>
+        <span style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono }}>icp</span>
         <select value={icpId} onChange={(e) => setIcpId(e.target.value)} style={{
           background: T.surface, border: `1px solid ${T.border}`, color: T.text,
-          fontFamily: T.mono, fontSize: 11, padding: '5px 8px', borderRadius: 3, outline: 'none', minWidth: 220,
+          fontFamily: T.mono, fontSize: 12, padding: '5px 8px', borderRadius: 3, outline: 'none', minWidth: 220,
         }}>
           <option value="">all ICPs</option>
           {icps.map((i) => <option key={i.id} value={i.id}>{i.label}</option>)}
         </select>
         <button onClick={reload} disabled={loading} style={{
           background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-          padding: '5px 12px', borderRadius: 4, fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
+          padding: '5px 12px', borderRadius: 4, fontFamily: T.mono, fontSize: 12, cursor: 'pointer',
           marginLeft: 'auto',
         }}>refresh</button>
       </div>
 
-      {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
       {loading && !rows && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
 
       {rows && (
         <>
-          <div style={{ fontFamily: T.mono, fontSize: 11, color: T.textDim }}>
+          <div style={{ fontFamily: T.mono, fontSize: 12, color: T.textDim }}>
             {rows.length} {status} song seed{rows.length === 1 ? '' : 's'}
           </div>
 
@@ -106,7 +106,7 @@ function Header() {
       display: 'grid', gridTemplateColumns: COLS, gap: 10,
       padding: '8px 12px', background: T.surface,
       borderBottom: `1px solid ${T.border}`,
-      fontFamily: T.mono, fontSize: 10, color: T.textDim, textTransform: 'uppercase',
+      fontFamily: T.mono, fontSize: 11, color: T.textDim, textTransform: 'uppercase',
     }}>
       <span>terminal at</span>
       <span>hook</span>
@@ -125,9 +125,9 @@ function Row({ row }: { row: SongSeedRow }) {
     <div style={{
       display: 'grid', gridTemplateColumns: COLS, gap: 10,
       padding: '10px 12px', borderBottom: `1px solid ${T.borderSubtle}`,
-      fontFamily: T.mono, fontSize: 11, alignItems: 'center',
+      fontFamily: T.mono, fontSize: 12, alignItems: 'center',
     }}>
-      <span style={{ color: T.textMuted, fontSize: 10 }}>{fmt}</span>
+      <span style={{ color: T.textMuted, fontSize: 11 }}>{fmt}</span>
       <span style={trunc} title={row.hook?.text ?? ''}>{row.hook?.text ?? '—'}</span>
       <span style={{ color: T.textMuted, ...trunc }}>—</span>
       <span style={{ color: row.errorText ? T.danger : T.textDim, ...trunc }} title={row.errorText ?? ''}>

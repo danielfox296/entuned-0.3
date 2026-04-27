@@ -1,5 +1,6 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
+import rateLimit from '@fastify/rate-limit'
 import { healthRoutes } from './routes/health.js'
 import { hendrixRoutes } from './routes/hendrix.js'
 import { eventsRoutes } from './routes/events.js'
@@ -24,6 +25,7 @@ app.addHook('preSerialization', async (_req, _reply, payload) => {
 })
 
 await app.register(cors, { origin: true })
+await app.register(rateLimit, { global: false })
 await app.register(healthRoutes)
 await app.register(hendrixRoutes, { prefix: '/hendrix' })
 await app.register(eventsRoutes, { prefix: '/events' })

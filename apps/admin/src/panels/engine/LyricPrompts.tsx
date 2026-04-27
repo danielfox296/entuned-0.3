@@ -75,7 +75,7 @@ export function LyricPrompts() {
               border: `1px solid ${kind === k ? T.accent : T.border}`,
               color: kind === k ? T.accent : T.textMuted,
               padding: '6px 14px', borderRadius: 4,
-              fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
+              fontFamily: T.mono, fontSize: 12, cursor: 'pointer',
             }}
           >{k}</button>
         ))}
@@ -118,10 +118,10 @@ export function LyricPrompts() {
                 opacity: busy ? 0.6 : 1,
               }}
             >{busy ? 'saving…' : `save ${kind} as new version`}</button>
-            {current && <span style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono }}>
+            {current && <span style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono }}>
               current: v{current.version}
             </span>}
-            {err && <span style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</span>}
+            {err && <span style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</span>}
           </div>
 
           {history.length > 1 && (

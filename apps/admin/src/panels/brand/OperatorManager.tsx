@@ -49,12 +49,12 @@ export function OperatorManager() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
         <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Operator Manager</div>
-        <div style={{ fontSize: 11, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
           Create store-level operators and manage their credentials and store access.
         </div>
       </div>
 
-      {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
 
       <div style={{ display: 'flex', gap: 8 }}>
         <button onClick={() => { setSelected(null); setCreating(true) }} style={primaryBtn(true, false)}>+ new operator</button>
@@ -82,20 +82,20 @@ export function OperatorManager() {
 
       {operators && (
         <div style={{ border: `1px solid ${T.border}`, borderRadius: 4, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', background: T.surfaceRaised, padding: '6px 12px', fontSize: 9, fontFamily: T.mono, color: T.textDim, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', background: T.surfaceRaised, padding: '6px 12px', fontSize: 10, fontFamily: T.mono, color: T.textDim, textTransform: 'uppercase', letterSpacing: 0.5 }}>
             <span>Email</span><span>Stores</span><span>Status</span><span />
           </div>
           {operators.map((op) => (
             <div key={op.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', padding: '10px 12px', borderTop: `1px solid ${T.border}`, alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: 12, fontFamily: T.mono, color: T.text }}>{op.email}</div>
-                {op.displayName && <div style={{ fontSize: 10, fontFamily: T.sans, color: T.textMuted }}>{op.displayName}</div>}
-                {op.isAdmin && <div style={{ fontSize: 9, fontFamily: T.mono, color: T.accent }}>admin</div>}
+                {op.displayName && <div style={{ fontSize: 11, fontFamily: T.sans, color: T.textMuted }}>{op.displayName}</div>}
+                {op.isAdmin && <div style={{ fontSize: 10, fontFamily: T.mono, color: T.accent }}>admin</div>}
               </div>
-              <div style={{ fontSize: 11, fontFamily: T.mono, color: T.textMuted }}>
+              <div style={{ fontSize: 12, fontFamily: T.mono, color: T.textMuted }}>
                 {op.stores.length === 0 ? '—' : op.stores.map((s) => s.name).join(', ')}
               </div>
-              <div style={{ fontSize: 10, fontFamily: T.mono, color: op.disabledAt ? T.danger : T.success }}>
+              <div style={{ fontSize: 11, fontFamily: T.mono, color: op.disabledAt ? T.danger : T.success }}>
                 {op.disabledAt ? 'disabled' : 'active'}
               </div>
               <button onClick={() => { setCreating(false); setSelected(op) }} style={ghostBtn}>edit</button>
@@ -123,7 +123,7 @@ function CreateForm({ stores, onSubmit, onCancel, busy, err }: {
 
   return (
     <Section title="new operator">
-      {err && <div style={{ gridColumn: '1/-1', fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ gridColumn: '1/-1', fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
       <Field label="email"><input value={email} onChange={(e) => setEmail(e.target.value)} style={input} placeholder="operator@store.com" /></Field>
       <Field label="password"><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={input} placeholder="set initial password" /></Field>
       <Field label="display name (optional)"><input value={displayName} onChange={(e) => setDisplayName(e.target.value)} style={input} placeholder="e.g. Park Meadows" /></Field>
@@ -201,7 +201,7 @@ function StoreCheckboxes({ stores, selected, onChange }: {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px' }}>
       {stores.map((s) => (
-        <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontFamily: T.mono, color: T.text, cursor: 'pointer' }}>
+        <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontFamily: T.mono, color: T.text, cursor: 'pointer' }}>
           <input type="checkbox" checked={selected.includes(s.id)} onChange={() => toggle(s.id)} />
           {s.clientName} — {s.name}
         </label>
@@ -213,7 +213,7 @@ function StoreCheckboxes({ stores, selected, onChange }: {
 function Section({ title, children }: { title: string; children: any }) {
   return (
     <div style={{ border: `1px solid ${T.border}`, borderRadius: 4, background: T.surface, padding: 16, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-      <div style={{ gridColumn: '1/-1', fontFamily: T.mono, fontSize: 10, color: T.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>{title}</div>
+      <div style={{ gridColumn: '1/-1', fontFamily: T.mono, fontSize: 11, color: T.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>{title}</div>
       {children}
     </div>
   )
@@ -222,7 +222,7 @@ function Section({ title, children }: { title: string; children: any }) {
 function Field({ label, full, children }: { label: string; full?: boolean; children: any }) {
   return (
     <div style={{ gridColumn: full ? '1/-1' : 'auto' }}>
-      <label style={{ display: 'block', fontSize: 9, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase', marginBottom: 4 }}>{label}</label>
+      <label style={{ display: 'block', fontSize: 10, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase', marginBottom: 4 }}>{label}</label>
       {children}
     </div>
   )
@@ -239,7 +239,7 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
     background: active ? T.accent : T.surfaceRaised,
     color: active ? T.bg : T.textMuted,
     border: 'none', borderRadius: 3, padding: '8px 16px',
-    fontFamily: T.mono, fontSize: 11, fontWeight: 600,
+    fontFamily: T.mono, fontSize: 12, fontWeight: 600,
     cursor: active && !busy ? 'pointer' : 'default',
     opacity: busy ? 0.6 : 1,
   }
@@ -247,5 +247,5 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
 
 const ghostBtn: CSSProperties = {
   background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-  padding: '6px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 10, cursor: 'pointer',
+  padding: '6px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
 }

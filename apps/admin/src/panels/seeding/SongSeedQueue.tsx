@@ -21,7 +21,7 @@ export function SongSeedQueue() {
   const [storeId, setStoreId] = useState<string | null>(null)
   const [icpId, setIcpId] = useState<string | null>(null)
   const [filter, setFilter] = useState<string>('pending')
-  const [songSeeds, setSubmissions] = useState<SongSeedRow[] | null>(null)
+  const [songSeeds, setSongSeeds] = useState<SongSeedRow[] | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
@@ -42,11 +42,11 @@ export function SongSeedQueue() {
   }, [storeId, stores])
 
   const reload = async () => {
-    if (!icpId) { setSubmissions(null); return }
+    if (!icpId) { setSongSeeds(null); return }
     const token = getToken(); if (!token) return
     const f = FILTERS.find((x) => x.key === filter)
     try {
-      setSubmissions(await api.songSeeds(token, {
+      setSongSeeds(await api.songSeeds(token, {
         icpId, status: f?.status, claimedBy: f?.claimedBy, limit: 100,
       }))
       setErr(null)
@@ -74,7 +74,7 @@ export function SongSeedQueue() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
         <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Song Seed Queue</div>
-        <div style={{ fontSize: 11, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
           Generate Song Seeds, claim them, paste prompts into Suno, seed accepted takes.
         </div>
       </div>
@@ -94,7 +94,7 @@ export function SongSeedQueue() {
             </button>
           </div>
           {runResult && (
-            <div style={{ marginTop: 10, fontFamily: T.mono, fontSize: 11, color: T.textMuted }}>
+            <div style={{ marginTop: 10, fontFamily: T.mono, fontSize: 12, color: T.textMuted }}>
               produced {runResult.producedN}/{runResult.requestedN} · {runResult.reason}
               {runResult.errors.length > 0 && (
                 <div style={{ color: T.danger, marginTop: 4 }}>
@@ -106,7 +106,7 @@ export function SongSeedQueue() {
         </Section>
       )}
 
-      {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
 
       {icpId && (
         <>
@@ -122,7 +122,7 @@ export function SongSeedQueue() {
                     border: `1px solid ${on ? T.accent : T.border}`,
                     color: on ? T.accent : T.textMuted,
                     padding: '6px 12px', borderRadius: 4,
-                    fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
+                    fontFamily: T.mono, fontSize: 12, cursor: 'pointer',
                   }}
                 >{f.label}</button>
               )
@@ -155,7 +155,7 @@ function StorePicker({ stores, storeId, onPick }: {
   if (!stores) return <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading stores…</div>
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      <span style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono }}>store</span>
+      <span style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono }}>store</span>
       <select
         value={storeId ?? ''}
         onChange={(e) => onPick(e.target.value)}
@@ -182,16 +182,16 @@ function SeedListRow({ sub, onOpen }: { sub: SongSeedRow; onOpen: () => void }) 
       }}
     >
       <span style={{
-        fontSize: 10, fontFamily: T.mono, color: statusColor,
+        fontSize: 11, fontFamily: T.mono, color: statusColor,
         border: `1px solid ${statusColor}`, borderRadius: 3, padding: '2px 8px', textAlign: 'center',
       }}>{sub.status}{sub.claimedById ? ' · claimed' : ''}</span>
       <span style={{ fontSize: 12, fontFamily: T.sans, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {sub.title ?? sub.hook.text}
       </span>
-      <span style={{ fontSize: 10, fontFamily: T.mono, color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 11, fontFamily: T.mono, color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {sub.outcome.title} · {sub.referenceTrack ? `${sub.referenceTrack.artist} — ${sub.referenceTrack.title}` : 'no ref'}
       </span>
-      <span style={{ fontSize: 10, fontFamily: T.mono, color: T.textDim, textAlign: 'right' }}>
+      <span style={{ fontSize: 11, fontFamily: T.mono, color: T.textDim, textAlign: 'right' }}>
         {new Date(sub.createdAt).toLocaleString()}
       </span>
     </div>
@@ -214,7 +214,7 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
     <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 4, padding: 18 }}>
       <div style={{ marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontFamily: T.sans, fontWeight: 500, color: T.text }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 10, color: T.textDim, fontFamily: T.mono, marginTop: 3 }}>{subtitle}</div>}
+        {subtitle && <div style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono, marginTop: 3 }}>{subtitle}</div>}
       </div>
       {children}
     </div>
@@ -232,7 +232,7 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
     background: active ? T.accent : T.surfaceRaised,
     color: active ? T.bg : T.textMuted,
     border: 'none', borderRadius: 4, padding: '7px 14px',
-    fontFamily: T.mono, fontSize: 11, fontWeight: 600,
+    fontFamily: T.mono, fontSize: 12, fontWeight: 600,
     cursor: active && !busy ? 'pointer' : 'default',
     opacity: busy ? 0.6 : 1,
   }
@@ -240,5 +240,5 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
 
 const ghostBtn: CSSProperties = {
   background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-  padding: '5px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 10, cursor: 'pointer',
+  padding: '5px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
 }

@@ -38,8 +38,8 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Live Store View', 'Mode Override', 'Interrupt Controls'],
     description: "What's playing now, override outcomes, skip/pause" },
   { key: 'brand', label: 'Client & Brand', short: 'Brand', icon: '◆',
-    cards: ['Client Detail', 'ICP Editor', 'Hook Queue', 'Location Editor', 'Operator Manager'],
-    description: 'ICP profiles, hooks, reference tracks, location config' },
+    cards: ['Client Detail', 'ICP Editor', 'Hook Queue', 'Store Editor', 'Operator Manager'],
+    description: 'ICP profiles, hooks, reference tracks, store config' },
   { key: 'schedule', label: 'Scheduling', short: 'Schedule', icon: '▦',
     cards: ['Outcome Schedule', 'Outcome Library', 'Dry Run'],
     description: 'Weekly outcome grids, schedule preview' },
@@ -66,7 +66,7 @@ function StatusBar({ apiOk }: { apiOk: boolean }) {
     <div style={{
       height: 36, background: T.surface, borderBottom: `1px solid ${T.border}`,
       display: 'flex', alignItems: 'center', padding: '0 16px', gap: 20,
-      flexShrink: 0, fontFamily: T.sans, fontSize: 11,
+      flexShrink: 0, fontFamily: T.sans, fontSize: 12,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <div style={{
@@ -132,14 +132,14 @@ function Sidebar({ active, onSelect, collapsed, onToggle, email, onLogout }: {
 
       {!collapsed && (
         <div style={{ padding: '12px 16px', borderTop: `1px solid ${T.borderSubtle}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <div style={{ fontSize: 10, color: T.textDim, fontFamily: T.sans, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email}</div>
+          <div style={{ fontSize: 11, color: T.textDim, fontFamily: T.sans, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email}</div>
           <button
             onClick={onLogout}
             title="Sign out"
             style={{
               background: 'transparent', border: `1px solid ${T.border}`,
               color: T.textMuted, padding: '3px 8px', borderRadius: 2,
-              fontFamily: T.mono, fontSize: 9, cursor: 'pointer', flexShrink: 0,
+              fontFamily: T.mono, fontSize: 10, cursor: 'pointer', flexShrink: 0,
               textTransform: 'uppercase', letterSpacing: 0.5,
             }}
           >sign out</button>
@@ -161,7 +161,7 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
             color: T.text, margin: 0, letterSpacing: '-0.02em',
           }}>{group.label}</h1>
           {group.deferred && <span style={{
-            fontSize: 10, fontFamily: T.sans, color: T.textDim,
+            fontSize: 11, fontFamily: T.sans, color: T.textDim,
             background: T.surfaceRaised, padding: '2px 8px', borderRadius: 3,
             border: `1px solid ${T.borderSubtle}`,
           }}>deferred</span>}
@@ -191,7 +191,7 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
               <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text, marginBottom: 8 }}>
                 {card}
               </div>
-              <div style={{ fontSize: 11, fontFamily: T.sans, color: group.deferred ? T.textDim : T.accent }}>
+              <div style={{ fontSize: 12, fontFamily: T.sans, color: group.deferred ? T.textDim : T.accent }}>
                 {group.deferred ? 'post-mvp' : 'ready for build →'}
               </div>
             </div>
@@ -278,7 +278,7 @@ function BrandRouter({ cards }: { cards: string[] }) {
       {active === 'Client Detail' && <ClientDetail />}
       {active === 'ICP Editor' && <IcpEditor />}
       {active === 'Hook Queue' && <HookQueue />}
-      {active === 'Location Editor' && <StoreEditor />}
+      {active === 'Store Editor' && <StoreEditor />}
       {active === 'Operator Manager' && <OperatorManager />}
     </div>
   )

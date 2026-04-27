@@ -92,10 +92,10 @@ export function DecomposerRules() {
                 opacity: busy ? 0.6 : 1,
               }}
             >{busy ? 'saving…' : 'save as new version'}</button>
-            {latest && <span style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono }}>
+            {latest && <span style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono }}>
               current: v{latest.version}
             </span>}
-            {err && <span style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</span>}
+            {err && <span style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</span>}
           </div>
 
           {history.length > 1 && (
@@ -114,14 +114,14 @@ export function Header({ title, subtitle, version, createdAt }: {
     <div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
         <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>{title}</div>
-        {version != null && <span style={{ fontSize: 10, fontFamily: T.mono, color: T.accentMuted }}>
+        {version != null && <span style={{ fontSize: 11, fontFamily: T.mono, color: T.accentMuted }}>
           v{version}
         </span>}
-        {createdAt && <span style={{ fontSize: 10, fontFamily: T.mono, color: T.textDim }}>
+        {createdAt && <span style={{ fontSize: 11, fontFamily: T.mono, color: T.textDim }}>
           {new Date(createdAt).toLocaleString()}
         </span>}
       </div>
-      <div style={{ fontSize: 11, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
+      <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
         {subtitle}
       </div>
     </div>
@@ -131,13 +131,13 @@ export function Header({ title, subtitle, version, createdAt }: {
 export function History({ rows }: { rows: { id: string; version: number; createdAt: string; notes: string | null }[] }) {
   return (
     <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.borderSubtle}` }}>
-      <div style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono, marginBottom: 8 }}>
+      <div style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono, marginBottom: 8 }}>
         history ({rows.length})
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {rows.map((r) => (
           <div key={r.id} style={{
-            display: 'flex', gap: 12, fontSize: 11, fontFamily: T.mono,
+            display: 'flex', gap: 12, fontSize: 12, fontFamily: T.mono,
             color: T.textMuted, padding: '4px 0',
           }}>
             <span style={{ color: T.accentMuted, width: 40 }}>v{r.version}</span>

@@ -77,13 +77,13 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
           {data.title ?? data.hook.text}
         </span>
         <span style={{
-          fontSize: 10, fontFamily: T.mono,
+          fontSize: 11, fontFamily: T.mono,
           color: statusColorOf(data.status),
           border: `1px solid ${statusColorOf(data.status)}`, borderRadius: 3, padding: '2px 8px',
         }}>{data.status}{data.claimedById ? ' · claimed' : ''}</span>
       </div>
 
-      {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
 
       <Section title="Scope">
         <KV k="ICP" v={data.icpId.slice(0, 8)} />
@@ -101,7 +101,7 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
         <CopyBlock label="Title" value={data.title ?? ''} onCopy={() => copyToClipboard(data.title ?? '')} short />
         <CopyBlock label="Lyrics" value={data.lyrics ?? ''} onCopy={() => copyToClipboard(data.lyrics ?? '')} tall />
         {data.firedExclusionRuleIds.length > 0 && (
-          <div style={{ fontSize: 10, fontFamily: T.mono, color: T.textDim, marginTop: 8 }}>
+          <div style={{ fontSize: 11, fontFamily: T.mono, color: T.textDim, marginTop: 8 }}>
             fired {data.firedExclusionRuleIds.length} exclusion rule(s)
           </div>
         )}
@@ -147,7 +147,7 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
               {busy === 'accept' ? 'downloading + uploading…' : 'accept'}
             </button>
             {accepted && (
-              <span style={{ fontSize: 11, fontFamily: T.mono, color: T.success }}>
+              <span style={{ fontSize: 12, fontFamily: T.mono, color: T.success }}>
                 ✓ takes received — lineage rows created
               </span>
             )}
@@ -158,7 +158,7 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
       {data.lineageRows && data.lineageRows.length > 0 && (
         <Section title="Lineage rows">
           {data.lineageRows.map((r: any) => (
-            <div key={r.id} style={{ fontSize: 11, fontFamily: T.mono, color: T.textMuted, padding: '4px 0' }}>
+            <div key={r.id} style={{ fontSize: 12, fontFamily: T.mono, color: T.textMuted, padding: '4px 0' }}>
               {r.r2Url} {r.active ? '' : '(retired)'}
             </div>
           ))}
@@ -167,7 +167,7 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
 
       {data.errorText && (
         <Section title="Error">
-          <div style={{ fontSize: 11, fontFamily: T.mono, color: T.danger, whiteSpace: 'pre-wrap' }}>
+          <div style={{ fontSize: 12, fontFamily: T.mono, color: T.danger, whiteSpace: 'pre-wrap' }}>
             {data.errorText}
           </div>
         </Section>
@@ -182,7 +182,7 @@ function CopyBlock({ label, value, onCopy, short, tall }: {
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-        <label style={{ fontSize: 10, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>{label}</label>
+        <label style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>{label}</label>
         <button onClick={onCopy} style={ghostBtn}>copy</button>
       </div>
       <textarea
@@ -203,7 +203,7 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
     <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 4, padding: 18 }}>
       <div style={{ marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontFamily: T.sans, fontWeight: 500, color: T.text }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 10, color: T.textDim, fontFamily: T.mono, marginTop: 3 }}>{subtitle}</div>}
+        {subtitle && <div style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono, marginTop: 3 }}>{subtitle}</div>}
       </div>
       {children}
     </div>
@@ -212,8 +212,8 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
 
 function KV({ k, v, mono = true }: { k: string; v: string; mono?: boolean }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 10, padding: '4px 0', fontSize: 11 }}>
-      <span style={{ color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase', fontSize: 10 }}>{k}</span>
+    <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 10, padding: '4px 0', fontSize: 12 }}>
+      <span style={{ color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase', fontSize: 11 }}>{k}</span>
       <span style={{ color: T.text, fontFamily: mono ? T.mono : T.sans }}>{v}</span>
     </div>
   )
@@ -242,7 +242,7 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
     background: active ? T.accent : T.surfaceRaised,
     color: active ? T.bg : T.textMuted,
     border: 'none', borderRadius: 4, padding: '7px 14px',
-    fontFamily: T.mono, fontSize: 11, fontWeight: 600,
+    fontFamily: T.mono, fontSize: 12, fontWeight: 600,
     cursor: active && !busy ? 'pointer' : 'default',
     opacity: busy ? 0.6 : 1,
   }
@@ -250,7 +250,7 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
 
 const ghostBtn: CSSProperties = {
   background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-  padding: '5px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 10, cursor: 'pointer',
+  padding: '5px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
 }
 
 const dangerGhostBtn: CSSProperties = {

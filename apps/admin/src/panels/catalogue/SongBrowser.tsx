@@ -50,7 +50,7 @@ export function SongBrowser({ defaultActive = 'true' as ActiveFilter, headerLabe
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
         <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>{headerLabel}</div>
-        <div style={{ fontSize: 11, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>{headerHint}</div>
+        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>{headerHint}</div>
       </div>
 
       <Filters
@@ -59,12 +59,12 @@ export function SongBrowser({ defaultActive = 'true' as ActiveFilter, headerLabe
         onIcp={setIcpId} onOutcome={setOutcomeId} onActive={setActive}
       />
 
-      {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
       {loading && !data && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
 
       {data && (
         <>
-          <div style={{ fontFamily: T.mono, fontSize: 11, color: T.textDim }}>
+          <div style={{ fontFamily: T.mono, fontSize: 12, color: T.textDim }}>
             {data.total.toLocaleString()} row{data.total === 1 ? '' : 's'}
             {data.total > 0 && ` · showing ${data.offset + 1}–${Math.min(data.offset + data.rows.length, data.total)}`}
           </div>
@@ -84,7 +84,7 @@ export function SongBrowser({ defaultActive = 'true' as ActiveFilter, headerLabe
           {totalPages > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-end' }}>
               <button onClick={() => reload(page - 1)} disabled={page === 0 || loading} style={pageBtn}>← prev</button>
-              <span style={{ fontFamily: T.mono, fontSize: 11, color: T.textDim }}>page {page + 1} / {totalPages}</span>
+              <span style={{ fontFamily: T.mono, fontSize: 12, color: T.textDim }}>page {page + 1} / {totalPages}</span>
               <button onClick={() => reload(page + 1)} disabled={page >= totalPages - 1 || loading} style={pageBtn}>next →</button>
             </div>
           )}
@@ -113,7 +113,7 @@ function Filters({ icps, outcomes, icpId, outcomeId, active, onIcp, onOutcome, o
               border: `1px solid ${on ? T.accent : T.border}`,
               color: on ? T.accent : T.textMuted,
               padding: '5px 12px', borderRadius: 4,
-              fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
+              fontFamily: T.mono, fontSize: 12, cursor: 'pointer',
             }}>{label}</button>
           )
         })}
@@ -128,10 +128,10 @@ function FilterSelect({ label, value, onChange, options }: {
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <span style={{ fontSize: 10, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>{label}</span>
+      <span style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>{label}</span>
       <select value={value} onChange={(e) => onChange(e.target.value)} style={{
         background: T.surface, border: `1px solid ${T.border}`, color: T.text,
-        fontFamily: T.mono, fontSize: 11, padding: '5px 8px', borderRadius: 3, outline: 'none',
+        fontFamily: T.mono, fontSize: 12, padding: '5px 8px', borderRadius: 3, outline: 'none',
         minWidth: 160,
       }}>
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -148,7 +148,7 @@ function Header() {
       display: 'grid', gridTemplateColumns: COLS, gap: 10,
       padding: '8px 12px', background: T.surface,
       borderBottom: `1px solid ${T.border}`,
-      fontFamily: T.mono, fontSize: 10, color: T.textDim, textTransform: 'uppercase',
+      fontFamily: T.mono, fontSize: 11, color: T.textDim, textTransform: 'uppercase',
     }}>
       <span>icp</span>
       <span>outcome</span>
@@ -191,7 +191,7 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
     <div style={{
       display: 'grid', gridTemplateColumns: COLS, gap: 10,
       padding: '10px 12px', borderBottom: `1px solid ${T.borderSubtle}`,
-      fontFamily: T.mono, fontSize: 11, alignItems: 'center',
+      fontFamily: T.mono, fontSize: 12, alignItems: 'center',
       opacity: row.active ? 1 : 0.55,
     }}>
       <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500, ...trunc }}>{row.icpName ?? row.icpId.slice(0, 8)}</span>
@@ -201,17 +201,17 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
         <button onClick={play} style={playBtn(playing)} title={playing ? 'pause' : 'play'}>
           {playing ? '❚❚' : '▶'}
         </button>
-        <a href={row.song.r2Url} target="_blank" rel="noreferrer" style={{ color: T.accent, fontSize: 10, ...trunc }}>{row.song.id.slice(0, 8)}</a>
+        <a href={row.song.r2Url} target="_blank" rel="noreferrer" style={{ color: T.accent, fontSize: 11, ...trunc }}>{row.song.id.slice(0, 8)}</a>
       </span>
-      <span style={{ color: T.textDim, fontSize: 10 }}>{created}</span>
-      <span style={{ textAlign: 'right', color: row.active ? T.success : T.textDim, fontSize: 10, textTransform: 'uppercase' }}>
+      <span style={{ color: T.textDim, fontSize: 11 }}>{created}</span>
+      <span style={{ textAlign: 'right', color: row.active ? T.success : T.textDim, fontSize: 11, textTransform: 'uppercase' }}>
         {row.active ? 'active' : 'retired'}
       </span>
       <span style={{ textAlign: 'right' }}>
         <button onClick={toggle} disabled={busy} style={row.active ? dangerBtn : restoreBtn}>
           {busy ? '…' : (row.active ? 'retire' : 'restore')}
         </button>
-        {err && <div style={{ fontSize: 9, color: T.danger }}>{err}</div>}
+        {err && <div style={{ fontSize: 10, color: T.danger }}>{err}</div>}
       </span>
     </div>
   )
@@ -221,17 +221,17 @@ const trunc: any = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: '
 
 const pageBtn: any = {
   background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-  padding: '5px 12px', borderRadius: 4, fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
+  padding: '5px 12px', borderRadius: 4, fontFamily: T.mono, fontSize: 12, cursor: 'pointer',
 }
 
 const dangerBtn: any = {
   background: 'transparent', border: `1px solid ${T.danger}`, color: T.danger,
-  padding: '4px 10px', borderRadius: 3, fontFamily: T.mono, fontSize: 10, cursor: 'pointer',
+  padding: '4px 10px', borderRadius: 3, fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
 }
 
 const restoreBtn: any = {
   background: 'transparent', border: `1px solid ${T.accent}`, color: T.accent,
-  padding: '4px 10px', borderRadius: 3, fontFamily: T.mono, fontSize: 10, cursor: 'pointer',
+  padding: '4px 10px', borderRadius: 3, fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
 }
 
 function playBtn(playing: boolean): any {
@@ -240,7 +240,7 @@ function playBtn(playing: boolean): any {
     border: `1px solid ${T.accent}`,
     color: playing ? T.bg : T.accent,
     width: 22, height: 22, borderRadius: 11,
-    fontSize: 9, cursor: 'pointer', flexShrink: 0,
+    fontSize: 10, cursor: 'pointer', flexShrink: 0,
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
   }
 }

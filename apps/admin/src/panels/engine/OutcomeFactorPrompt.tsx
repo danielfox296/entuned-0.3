@@ -94,10 +94,10 @@ export function OutcomeFactorPrompt() {
                 opacity: busy ? 0.6 : 1,
               }}
             >{busy ? 'saving…' : 'save as new version'}</button>
-            {latest && <span style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono }}>
+            {latest && <span style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono }}>
               current: v{latest.version}
             </span>}
-            {err && <span style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</span>}
+            {err && <span style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</span>}
           </div>
 
           {history.length > 1 && (

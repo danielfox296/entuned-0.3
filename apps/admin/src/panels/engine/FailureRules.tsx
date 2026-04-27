@@ -103,13 +103,13 @@ export function FailureRules() {
             background: adding ? T.surfaceRaised : T.accent,
             color: adding ? T.text : T.bg,
             border: 'none', borderRadius: 4, padding: '7px 14px',
-            fontFamily: T.mono, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+            fontFamily: T.mono, fontSize: 12, fontWeight: 600, cursor: 'pointer',
           }}
         >{adding ? 'cancel' : '+ new rule'}</button>
-        <span style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono }}>
+        <span style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono }}>
           {rows.length} rule{rows.length === 1 ? '' : 's'}
         </span>
-        {err && <span style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</span>}
+        {err && <span style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</span>}
       </div>
 
       {!loaded && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
@@ -180,7 +180,7 @@ function HeaderRow() {
       display: 'grid', gridTemplateColumns: COLS, gap: 8,
       padding: '8px 12px', background: T.surface,
       borderBottom: `1px solid ${T.border}`,
-      fontFamily: T.mono, fontSize: 10, color: T.textDim, textTransform: 'uppercase',
+      fontFamily: T.mono, fontSize: 11, color: T.textDim, textTransform: 'uppercase',
     }}>
       <span>trigger field</span>
       <span>trigger value</span>
@@ -200,7 +200,7 @@ function DisplayRow({ row, onEdit, onDelete, busy }: {
     <div style={{
       display: 'grid', gridTemplateColumns: COLS, gap: 8,
       padding: '10px 12px', borderBottom: `1px solid ${T.borderSubtle}`,
-      fontFamily: T.mono, fontSize: 11, color: T.text, alignItems: 'center',
+      fontFamily: T.mono, fontSize: 12, color: T.text, alignItems: 'center',
     }}>
       <span style={{ color: row.triggerField === '*' ? T.accentMuted : T.text }}>{row.triggerField}</span>
       <span style={{ color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.triggerValue}</span>
@@ -249,7 +249,7 @@ function RuleRow({ draft, onChange, onSave, onCancel, busy, isNew }: {
 
 const inp: CSSProperties = {
   background: T.surface, border: `1px solid ${T.border}`, color: T.text,
-  fontFamily: T.mono, fontSize: 11, padding: '5px 8px', borderRadius: 3, outline: 'none',
+  fontFamily: T.mono, fontSize: 12, padding: '5px 8px', borderRadius: 3, outline: 'none',
   width: '100%', boxSizing: 'border-box',
 }
 
@@ -258,5 +258,5 @@ const btn = (danger: boolean): CSSProperties => ({
   border: `1px solid ${danger ? T.danger : T.border}`,
   color: danger ? T.danger : T.textMuted,
   padding: '4px 10px', borderRadius: 3,
-  fontFamily: T.mono, fontSize: 10, cursor: 'pointer',
+  fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
 })
