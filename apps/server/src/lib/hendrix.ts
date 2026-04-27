@@ -12,6 +12,8 @@ export interface QueueItem {
   audioUrl: string
   hookId: string
   outcomeId: string
+  title: string | null
+  hookText: string | null
 }
 
 export interface HendrixResponse {
@@ -221,11 +223,26 @@ export async function nextQueue(storeId: string, now: Date = new Date()): Promis
     const eligible = await applyFilters(storeId, unfilteredPool, t.cap, t.sib, t.rep, rules, now, store.timezone)
     if (eligible.length > 0) {
       const ranked = await rankByPlayCount(storeId, eligible)
-      const queue = ranked.slice(0, 3).map((r) => ({
+      const top = ranked.slice(0, 3)
+      // Hydrate display metadata: SongSeed.title (best), Hook.text (fallback).
+      const lineageIds = top.map((r) => r.id)
+      const hookIds = [...new Set(top.map((r) => r.hookId))]
+      const [lineageMeta, hookMeta] = await Promise.all([
+        prisma.lineageRow.findMany({
+          where: { id: { in: lineageIds } },
+          select: { id: true, songSeed: { select: { title: true } } },
+        }),
+        prisma.hook.findMany({ where: { id: { in: hookIds } }, select: { id: true, text: true } }),
+      ])
+      const titleByLineage = new Map(lineageMeta.map((m) => [m.id, m.songSeed?.title ?? null]))
+      const textByHook = new Map(hookMeta.map((h) => [h.id, h.text]))
+      const queue = top.map((r) => ({
         songId: r.songId,
         audioUrl: r.r2Url,
         hookId: r.hookId,
         outcomeId: r.outcomeId,
+        title: titleByLineage.get(r.id) ?? null,
+        hookText: textByHook.get(r.hookId) ?? null,
       }))
       return {
         storeId,

@@ -8,6 +8,8 @@ export interface QueueItem {
   audioUrl: string
   hookId: string
   outcomeId: string
+  title: string | null
+  hookText: string | null
 }
 
 export interface ActiveOutcome {
@@ -40,6 +42,9 @@ export interface AuthResponse {
 
 export interface MeResponse {
   operator: { id: string; email: string; displayName: string | null; isAdmin: boolean }
+  /** Single store for non-admin operators (login determines store). Null for admins. */
+  store: { id: string; name: string } | null
+  /** Cross-store list for admins; also a legacy fallback. */
   stores: { id: string; name: string }[]
 }
 

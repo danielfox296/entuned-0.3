@@ -24,9 +24,10 @@ function saveLoved(s: Set<string>) {
 }
 
 function trackLabel(item: QueueItem | null): string {
-  // GAP(server): /hendrix/next does not return track titles. Showing the
-  // audio file tail until the server includes title/metadata in QueueItem.
   if (!item) return "";
+  if (item.title) return item.title;
+  if (item.hookText) return item.hookText;
+  // Last-resort fallback if neither title nor hook text is hydrated.
   const tail = item.audioUrl.split("/").pop() ?? "";
   return tail.replace(/\.(mp3|wav|m4a|ogg)$/i, "").replace(/[_-]+/g, " ");
 }
@@ -215,7 +216,8 @@ export function PlayerScreen({ session, onLogout }: Props) {
     }
     try {
       await api.outcomeSelection(session.storeId, outcomeId, session.token);
-      emit("outcome_selection", null, { outcome_id: outcomeId });
+      // Server logs the outcome_selection PlaybackEvent itself (see hendrix.ts);
+      // do not double-emit from the client.
       setShowOutcomeModal(false);
       // Drain queue + reload next; if currently playing, let current finish into a refreshed pool.
       setQueue([]);
@@ -232,7 +234,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const handleClearOutcome = useCallback(async () => {
     try {
       await api.clearOutcomeSelection(session.storeId, session.token);
-      emit("outcome_selection_cleared");
+      // Server logs the outcome_selection_cleared PlaybackEvent itself.
       setShowOutcomeModal(false);
       setQueue([]);
       nextLoadedRef.current = null;

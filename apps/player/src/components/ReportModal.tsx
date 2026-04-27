@@ -1,18 +1,20 @@
+// Values must match the server's ReportReason enum exactly (display-cased
+// strings — see apps/server/prisma/schema.prisma and routes/events.ts).
 export type ReportReason =
-  | "off_brand"
-  | "boring"
-  | "awkward_lyrics"
-  | "too_slow"
-  | "too_intense"
-  | "audio_issues";
+  | "Not our Vibe"
+  | "Boring"
+  | "Awkward Lyrics"
+  | "Too Slow"
+  | "Too Intense"
+  | "Song Audio Issues";
 
 const REASONS: { label: string; value: ReportReason }[] = [
-  { label: "Not Our Vibe", value: "off_brand" },
-  { label: "Boring", value: "boring" },
-  { label: "Awkward Lyrics", value: "awkward_lyrics" },
-  { label: "Too Slow", value: "too_slow" },
-  { label: "Too Intense", value: "too_intense" },
-  { label: "Track Audio Issues", value: "audio_issues" },
+  { label: "Not Our Vibe", value: "Not our Vibe" },
+  { label: "Boring", value: "Boring" },
+  { label: "Awkward Lyrics", value: "Awkward Lyrics" },
+  { label: "Too Slow", value: "Too Slow" },
+  { label: "Too Intense", value: "Too Intense" },
+  { label: "Track Audio Issues", value: "Song Audio Issues" },
 ];
 
 type Props = {

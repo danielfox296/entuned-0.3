@@ -20,14 +20,14 @@ export function LoginScreen({ onAuthed }: Props) {
     try {
       const auth = await api.login(email.trim().toLowerCase(), password);
       const me = await api.me(auth.token);
-      if (me.stores.length === 0) {
+      // Non-admin operators: server returns a single `store`. Admins (who use
+      // this player only for testing) get the first of their `stores`.
+      const store = me.store ?? me.stores[0] ?? null;
+      if (!store) {
         setError("No store associated with this account.");
         setBusy(false);
         return;
       }
-      // Login determines store. If multiple are returned, take the first.
-      // TODO(server): /auth/me should return exactly one store per operator.
-      const store = me.stores[0]!;
       const session: Session = {
         token: auth.token,
         storeId: store.id,

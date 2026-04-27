@@ -54,8 +54,14 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     } else {
       stores = (op as any).storeAssignments.map((a: any) => ({ id: a.store.id, name: a.store.name }))
     }
+    // Per "login determines store": non-admin operators are 1:1 with a store.
+    // Return `store` (singular) so the player has a strict contract; keep
+    // `stores` for admin (cross-store views) and as legacy fallback during
+    // rollout.
+    const store = !op.isAdmin && stores.length > 0 ? stores[0] : null
     return {
       operator: { id: op.id, email: op.email, displayName: op.displayName, isAdmin: op.isAdmin },
+      store,
       stores,
     }
   })
