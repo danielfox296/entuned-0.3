@@ -45,13 +45,14 @@ export async function uploadBuffer(key: string, body: Buffer, contentType: strin
 
 /**
  * Download a remote file (e.g. a Suno CDN URL) and upload to R2 under the given key.
- * Content-type comes from the source response (or falls back to audio/mpeg).
+ * Always stores as audio/mpeg. Rejects HTML responses (expired CDN links return HTML).
  */
 export async function downloadAndUploadFromUrl(sourceUrl: string, key: string): Promise<UploadedObject> {
   const res = await fetch(sourceUrl)
   if (!res.ok) throw new Error(`download failed: ${res.status} ${res.statusText} for ${sourceUrl}`)
   const arrayBuffer = await res.arrayBuffer()
   const buf = Buffer.from(arrayBuffer)
-  const contentType = res.headers.get('content-type') ?? 'audio/mpeg'
-  return uploadBuffer(key, buf, contentType)
+  // Detect HTML magic bytes — expired Suno CDN links return an HTML page.
+  if (buf[0] === 0x3c) throw new Error('source URL returned HTML, not audio — the CDN link may have expired')
+  return uploadBuffer(key, buf, 'audio/mpeg')
 }
