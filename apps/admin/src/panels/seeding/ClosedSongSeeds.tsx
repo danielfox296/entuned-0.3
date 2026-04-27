@@ -53,7 +53,7 @@ export function ClosedSongSeeds() {
                 border: `1px solid ${on ? T.accent : T.border}`,
                 color: on ? T.accent : T.textMuted,
                 padding: '5px 12px', borderRadius: 4,
-                fontFamily: T.mono, fontSize: 12, cursor: 'pointer',
+                fontFamily: T.mono, fontSize: 14, cursor: 'pointer',
               }}>{f.label}</button>
             )
           })}
@@ -68,19 +68,19 @@ export function ClosedSongSeeds() {
         </span>
       </div>
 
-      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
-      {loading && !rows && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
+      {err && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {loading && !rows && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 14 }}>loading…</div>}
 
       {rows && (
         <>
-          <div style={{ fontFamily: T.mono, fontSize: 12, color: T.textDim }}>
+          <div style={{ fontFamily: T.mono, fontSize: 14, color: T.textDim }}>
             {rows.length} {status} song seed{rows.length === 1 ? '' : 's'}
           </div>
 
           <div style={{ border: `1px solid ${T.border}`, borderRadius: 4, overflow: 'hidden' }}>
             <Header />
             {rows.length === 0 && (
-              <div style={{ padding: 24, textAlign: 'center', color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>
+              <div style={{ padding: 24, textAlign: 'center', color: T.textDim, fontFamily: T.mono, fontSize: 14 }}>
                 no {status} song seeds match
               </div>
             )}
@@ -100,7 +100,7 @@ function Header() {
       display: 'grid', gridTemplateColumns: COLS, gap: 10,
       padding: '8px 12px', background: T.surface,
       borderBottom: `1px solid ${T.border}`,
-      fontFamily: T.mono, fontSize: 11, color: T.textDim, textTransform: 'uppercase',
+      fontFamily: T.mono, fontSize: 13, color: T.textDim, textTransform: 'uppercase',
     }}>
       <span>terminal at</span>
       <span>hook</span>
@@ -119,9 +119,9 @@ function Row({ row }: { row: SongSeedRow }) {
     <div style={{
       display: 'grid', gridTemplateColumns: COLS, gap: 10,
       padding: '10px 12px', borderBottom: `1px solid ${T.borderSubtle}`,
-      fontFamily: T.mono, fontSize: 12, alignItems: 'center',
+      fontFamily: T.mono, fontSize: 14, alignItems: 'center',
     }}>
-      <span style={{ color: T.textMuted, fontSize: 11 }}>{fmt}</span>
+      <span style={{ color: T.textMuted, fontSize: 13 }}>{fmt}</span>
       <span style={trunc} title={row.hook?.text ?? ''}>{row.hook?.text ?? '—'}</span>
       <span style={{ color: T.textMuted, ...trunc }}>—</span>
       <span style={{ color: row.errorText ? T.danger : T.textDim, ...trunc }} title={row.errorText ?? ''}>

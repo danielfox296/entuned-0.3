@@ -245,6 +245,6 @@ const listRow: CSSProperties = {
   display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1.4fr 110px',
   gap: 10, padding: '8px 10px',
   background: T.surfaceRaised, border: `1px solid rgba(106, 176, 187, 0.14)`,
-  borderRadius: 3, fontFamily: 'Inter, sans-serif', fontSize: 12,
+  borderRadius: 3, fontFamily: 'Inter, sans-serif', fontSize: 14,
   alignItems: 'center',
 }

@@ -56,16 +56,16 @@ export function HookQueue() {
 
       <UIStorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
 
-      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</div>}
 
-      {storeId && !detail && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
+      {storeId && !detail && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 14 }}>loading…</div>}
 
       {detail && (
         <>
           {detail.sharedWith.length > 0 && (
             <div style={{
               background: T.accentGlow, border: `1px solid ${T.accentMuted}`,
-              borderRadius: 4, padding: '10px 14px', fontFamily: T.mono, fontSize: 12, color: T.text,
+              borderRadius: 4, padding: '10px 14px', fontFamily: T.mono, fontSize: 14, color: T.text,
             }}>
               <span style={{ color: T.accent }}>shared ICP</span> — hooks are visible to{' '}
               {detail.sharedWith.map((s, i) => (
@@ -78,13 +78,13 @@ export function HookQueue() {
 
           <FilterBar filter={filter} onFilter={setFilter} hooks={hooks} />
 
-          {!hooks && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading hooks…</div>}
+          {!hooks && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 14 }}>loading hooks…</div>}
 
           {hooks && (
             <>
               {detail.icp && <NewHookForm icpId={detail.icp.id} outcomes={outcomes} onCreated={reloadHooks} />}
               {groupedKeys.length === 0 && (
-                <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 12, padding: '12px 0' }}>
+                <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 14, padding: '12px 0' }}>
                   no hooks{filter !== 'all' ? ` matching ${filter}` : ''}
                 </div>
               )}
@@ -125,7 +125,7 @@ function FilterBar({ filter, onFilter, hooks }: {
               border: `1px solid ${on ? T.accent : T.border}`,
               color: on ? T.accent : T.textMuted,
               padding: '6px 14px', borderRadius: 4,
-              fontFamily: T.mono, fontSize: 12, cursor: 'pointer',
+              fontFamily: T.mono, fontSize: 14, cursor: 'pointer',
             }}
           >{f} ({counts[f]})</button>
         )
@@ -232,7 +232,7 @@ function NewHookForm({ icpId, outcomes, onCreated }: {
                 border: `1px solid ${on ? T.accent : T.border}`,
                 color: on ? T.accent : T.textMuted,
                 padding: '5px 12px', borderRadius: 4,
-                fontFamily: T.mono, fontSize: 12, cursor: 'pointer',
+                fontFamily: T.mono, fontSize: 14, cursor: 'pointer',
               }}
             >{m}</button>
           )
@@ -272,7 +272,7 @@ function NewHookForm({ icpId, outcomes, onCreated }: {
             placeholder={'hook one\nhook two\nhook three'}
             style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
           />
-          <span style={{ fontSize: 11, fontFamily: T.mono, color: T.textDim }}>
+          <span style={{ fontSize: 13, fontFamily: T.mono, color: T.textDim }}>
             {bulkText.split('\n').map((l) => l.trim()).filter(Boolean).length} non-empty line(s)
           </span>
         </div>
@@ -294,7 +294,7 @@ function NewHookForm({ icpId, outcomes, onCreated }: {
           {draftCandidates.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, fontFamily: T.mono, color: T.textMuted }}>
+                <span style={{ fontSize: 14, fontFamily: T.mono, color: T.textMuted }}>
                   {draftCandidates.filter((c) => c.selected).length}/{draftCandidates.length} selected
                 </span>
                 <div style={{ display: 'flex', gap: 6 }}>
@@ -327,7 +327,7 @@ function NewHookForm({ icpId, outcomes, onCreated }: {
         </>
       )}
 
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontFamily: T.mono, color: T.textMuted, cursor: 'pointer' }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontFamily: T.mono, color: T.textMuted, cursor: 'pointer' }}>
         <input type="checkbox" checked={approveOnCreate} onChange={(e) => setApproveOnCreate(e.target.checked)} />
         approve immediately (skip draft step)
       </label>
@@ -349,7 +349,7 @@ function NewHookForm({ icpId, outcomes, onCreated }: {
           </button>
         )}
         <button onClick={reset} disabled={busy !== null} style={ghostBtn}>cancel</button>
-        {err && <span style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</span>}
+        {err && <span style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</span>}
       </div>
 
       {mode === 'draft' && <DrafterPromptEditor icpId={icpId} />}
@@ -417,7 +417,7 @@ function DrafterPromptEditor({ icpId }: { icpId: string }) {
             <button onClick={() => setShowHistory(!showHistory)} style={ghostBtn}>
               {showHistory ? '▾ history' : `▸ history (${history.length})`}
             </button>
-            {err && <span style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</span>}
+            {err && <span style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</span>}
           </div>
           {showHistory && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
@@ -427,19 +427,19 @@ function DrafterPromptEditor({ icpId }: { icpId: string }) {
                   background: T.surfaceRaised, padding: 8,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                    <span style={{ fontFamily: T.mono, fontSize: 11, color: T.accent }}>v{h.version}</span>
-                    <span style={{ fontFamily: T.mono, fontSize: 10, color: T.textDim }}>
+                    <span style={{ fontFamily: T.mono, fontSize: 13, color: T.accent }}>v{h.version}</span>
+                    <span style={{ fontFamily: T.mono, fontSize: 12, color: T.textDim }}>
                       {new Date(h.createdAt).toISOString().slice(0, 16).replace('T', ' ')}
                     </span>
-                    {h.notes && <span style={{ fontFamily: T.sans, fontSize: 12, color: T.textMuted }}>{h.notes}</span>}
+                    {h.notes && <span style={{ fontFamily: T.sans, fontSize: 14, color: T.textMuted }}>{h.notes}</span>}
                     <button
                       onClick={() => setText(h.promptText)}
-                      style={{ ...ghostBtn, marginLeft: 'auto', fontSize: 10 }}
+                      style={{ ...ghostBtn, marginLeft: 'auto', fontSize: 12 }}
                     >load into editor</button>
                   </div>
                 </div>
               ))}
-              {history.length === 0 && <div style={{ fontFamily: T.mono, fontSize: 11, color: T.textDim }}>no history yet</div>}
+              {history.length === 0 && <div style={{ fontFamily: T.mono, fontSize: 13, color: T.textDim }}>no history yet</div>}
             </div>
           )}
         </div>
@@ -456,7 +456,7 @@ function OutcomeGroup({ outcome, hooks, onChanged }: {
   return (
     <div>
       <div style={{
-        fontSize: 12, color: T.accentMuted, fontFamily: T.mono,
+        fontSize: 14, color: T.accentMuted, fontFamily: T.mono,
         textTransform: 'uppercase', letterSpacing: '0.05em',
         marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${T.borderSubtle}`,
       }}>
@@ -534,7 +534,7 @@ function HookRow({ hook, onChanged }: { hook: HookRowFull; onChanged: () => void
             />
           ) : (
             <div style={{
-              fontFamily: T.sans, fontSize: 13, color: T.text,
+              fontFamily: T.sans, fontSize: 15, color: T.text,
               lineHeight: 1.55, whiteSpace: 'pre-wrap',
               textDecoration: retired ? 'line-through' : 'none',
             }}>{hook.text}</div>
@@ -542,12 +542,12 @@ function HookRow({ hook, onChanged }: { hook: HookRowFull; onChanged: () => void
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
           <span style={{
-            fontSize: 11, fontFamily: T.mono,
+            fontSize: 13, fontFamily: T.mono,
             color: retired ? T.textDim : approved ? T.success : T.accentMuted,
             border: `1px solid ${retired ? T.textDim : approved ? T.success : T.accentMuted}`,
             borderRadius: 3, padding: '2px 8px',
           }}>{retired ? 'retired' : approved ? '✓ approved' : 'draft'}</span>
-          <span style={{ fontSize: 11, fontFamily: T.mono, color: T.textDim }}>
+          <span style={{ fontSize: 13, fontFamily: T.mono, color: T.textDim }}>
             {approved && hook.approvedAt
               ? `approved ${new Date(hook.approvedAt).toLocaleDateString()}`
               : `created ${new Date(hook.createdAt).toLocaleDateString()}`}
@@ -572,7 +572,7 @@ function HookRow({ hook, onChanged }: { hook: HookRowFull; onChanged: () => void
               <button onClick={remove} disabled={busy === 'delete'} style={dangerGhostBtn}>delete</button>
             </>
           )}
-          {err && <span style={{ fontSize: 12, color: T.danger, fontFamily: T.mono, alignSelf: 'center' }}>{err}</span>}
+          {err && <span style={{ fontSize: 14, color: T.danger, fontFamily: T.mono, alignSelf: 'center' }}>{err}</span>}
         </div>
       )}
       {!retired && approved && (
@@ -580,7 +580,7 @@ function HookRow({ hook, onChanged }: { hook: HookRowFull; onChanged: () => void
           <button onClick={retire} disabled={busy === 'retire'} style={dangerGhostBtn}>
             {busy === 'retire' ? '…' : 'retire'}
           </button>
-          {err && <span style={{ fontSize: 12, color: T.danger, fontFamily: T.mono, alignSelf: 'center' }}>{err}</span>}
+          {err && <span style={{ fontSize: 14, color: T.danger, fontFamily: T.mono, alignSelf: 'center' }}>{err}</span>}
         </div>
       )}
     </div>
@@ -589,12 +589,12 @@ function HookRow({ hook, onChanged }: { hook: HookRowFull; onChanged: () => void
 
 const inputStyle: CSSProperties = {
   background: T.surface, border: `1px solid ${T.border}`, color: T.text,
-  fontFamily: T.mono, fontSize: 12, padding: '7px 10px', borderRadius: 3, outline: 'none',
+  fontFamily: T.mono, fontSize: 14, padding: '7px 10px', borderRadius: 3, outline: 'none',
   width: '100%', boxSizing: 'border-box',
 }
 
 const labelStyle: CSSProperties = {
-  fontSize: 11, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase',
+  fontSize: 13, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase',
 }
 
 function primaryBtn(active: boolean, busy: boolean): CSSProperties {
@@ -602,7 +602,7 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
     background: active ? T.accent : T.surfaceRaised,
     color: active ? T.bg : T.textMuted,
     border: 'none', borderRadius: 4, padding: '7px 14px',
-    fontFamily: T.mono, fontSize: 12, fontWeight: 600,
+    fontFamily: T.mono, fontSize: 14, fontWeight: 600,
     cursor: active && !busy ? 'pointer' : 'default',
     opacity: busy ? 0.6 : 1,
   }
@@ -610,7 +610,7 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
 
 const ghostBtn: CSSProperties = {
   background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-  padding: '5px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
+  padding: '5px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 13, cursor: 'pointer',
 }
 
 const dangerGhostBtn: CSSProperties = {

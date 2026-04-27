@@ -93,7 +93,7 @@ export function SongSeedQueue() {
             </button>
           </div>
           {runResult && (
-            <div style={{ marginTop: 10, fontFamily: T.mono, fontSize: 12, color: T.textMuted }}>
+            <div style={{ marginTop: 10, fontFamily: T.mono, fontSize: 14, color: T.textMuted }}>
               produced {runResult.producedN}/{runResult.requestedN} · {runResult.reason}
               {runResult.errors.length > 0 && (
                 <div style={{ color: T.danger, marginTop: 4 }}>
@@ -105,7 +105,7 @@ export function SongSeedQueue() {
         </Section>
       )}
 
-      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</div>}
 
       {icpId && (
         <>
@@ -121,7 +121,7 @@ export function SongSeedQueue() {
                     border: `1px solid ${on ? T.accent : T.border}`,
                     color: on ? T.accent : T.textMuted,
                     padding: '6px 12px', borderRadius: 4,
-                    fontFamily: T.mono, fontSize: 12, cursor: 'pointer',
+                    fontFamily: T.mono, fontSize: 14, cursor: 'pointer',
                   }}
                 >{f.label}</button>
               )
@@ -129,10 +129,10 @@ export function SongSeedQueue() {
             <button onClick={reload} style={ghostBtn}>refresh</button>
           </div>
 
-          {!songSeeds && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
+          {!songSeeds && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 14 }}>loading…</div>}
 
           {songSeeds && songSeeds.length === 0 && (
-            <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 12, padding: '12px 0' }}>
+            <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 14, padding: '12px 0' }}>
               no songSeeds match
             </div>
           )}
@@ -160,16 +160,16 @@ function SeedListRow({ sub, onOpen }: { sub: SongSeedRow; onOpen: () => void }) 
       }}
     >
       <span style={{
-        fontSize: 11, fontFamily: T.mono, color: statusColor,
+        fontSize: 13, fontFamily: T.mono, color: statusColor,
         border: `1px solid ${statusColor}`, borderRadius: 3, padding: '2px 8px', textAlign: 'center',
       }}>{sub.status}{sub.claimedById ? ' · claimed' : ''}</span>
-      <span style={{ fontSize: 12, fontFamily: T.sans, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 14, fontFamily: T.sans, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {sub.title ?? sub.hook.text}
       </span>
-      <span style={{ fontSize: 11, fontFamily: T.mono, color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 13, fontFamily: T.mono, color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {sub.outcome.title} · {sub.referenceTrack ? `${sub.referenceTrack.artist} — ${sub.referenceTrack.title}` : 'no ref'}
       </span>
-      <span style={{ fontSize: 11, fontFamily: T.mono, color: T.textDim, textAlign: 'right' }}>
+      <span style={{ fontSize: 13, fontFamily: T.mono, color: T.textDim, textAlign: 'right' }}>
         {new Date(sub.createdAt).toLocaleString()}
       </span>
     </div>
@@ -191,8 +191,8 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
   return (
     <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 4, padding: 18 }}>
       <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 13, fontFamily: T.sans, fontWeight: 500, color: T.text }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono, marginTop: 3 }}>{subtitle}</div>}
+        <div style={{ fontSize: 15, fontFamily: T.sans, fontWeight: 500, color: T.text }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 13, color: T.textDim, fontFamily: T.mono, marginTop: 3 }}>{subtitle}</div>}
       </div>
       {children}
     </div>
@@ -201,7 +201,7 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
 
 const inputStyle: CSSProperties = {
   background: T.surface, border: `1px solid ${T.border}`, color: T.text,
-  fontFamily: T.mono, fontSize: 12, padding: '7px 10px', borderRadius: 4, outline: 'none',
+  fontFamily: T.mono, fontSize: 14, padding: '7px 10px', borderRadius: 4, outline: 'none',
   boxSizing: 'border-box',
 }
 
@@ -210,7 +210,7 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
     background: active ? T.accent : T.surfaceRaised,
     color: active ? T.bg : T.textMuted,
     border: 'none', borderRadius: 4, padding: '7px 14px',
-    fontFamily: T.mono, fontSize: 12, fontWeight: 600,
+    fontFamily: T.mono, fontSize: 14, fontWeight: 600,
     cursor: active && !busy ? 'pointer' : 'default',
     opacity: busy ? 0.6 : 1,
   }
@@ -218,5 +218,5 @@ function primaryBtn(active: boolean, busy: boolean): CSSProperties {
 
 const ghostBtn: CSSProperties = {
   background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-  padding: '5px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
+  padding: '5px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 13, cursor: 'pointer',
 }

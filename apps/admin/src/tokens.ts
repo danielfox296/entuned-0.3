@@ -2,28 +2,28 @@
 // Single source of truth for all inline styles across the admin shell and panels.
 
 export const T = {
-  // ── Surfaces ───────────────────────────────────────────────────
-  bg:            '#20201c',   // ink — warm near-black
-  surface:       '#252520',   // bg-alt — sidebar, status bar
-  surfaceRaised: '#282825',   // bg-card — cards, inputs
-  surfaceHover:  '#3d3b38',   // bg-stats — elevated band, hovered rows
-  inkDeep:       '#1a1a17',   // footer, deepest surface
+  // ── Surfaces (darks darkened ~20%) ─────────────────────────────
+  bg:            '#191916',   // ink — warm near-black
+  surface:       '#1d1d19',   // bg-alt — sidebar, status bar
+  surfaceRaised: '#20201d',   // bg-card — cards, inputs
+  surfaceHover:  '#302f2c',   // bg-stats — elevated band, hovered rows
+  inkDeep:       '#141412',   // footer, deepest surface
 
-  // ── Borders ────────────────────────────────────────────────────
-  border:        'rgba(106, 176, 187, 0.28)',   // primary divider (+20%)
-  borderSubtle:  'rgba(106, 176, 187, 0.14)',   // secondary / background divider (+20%)
+  // ── Borders (alpha bumped for contrast) ───────────────────────
+  border:        'rgba(150, 210, 220, 0.40)',   // primary divider
+  borderSubtle:  'rgba(150, 210, 220, 0.22)',   // secondary divider
 
-  // ── Text (ice palette) ─────────────────────────────────────────
-  text:          '#d4e1e5',                      // ice — primary
-  textMuted:     'rgba(212, 225, 229, 0.90)',    // secondary labels (+20%)
-  textDim:       'rgba(212, 225, 229, 0.70)',    // tertiary / faint (+20%)
-  textFaint:     'rgba(212, 225, 229, 0.50)',    // placeholder, disabled (+20%)
+  // ── Text (lights lightened ~20% toward white) ─────────────────
+  text:          '#eef4f6',                      // ice — primary
+  textMuted:     'rgba(238, 244, 246, 0.92)',    // secondary labels
+  textDim:       'rgba(238, 244, 246, 0.78)',    // tertiary / faint
+  textFaint:     'rgba(238, 244, 246, 0.60)',    // placeholder, disabled
 
-  // ── Accent (teal) ──────────────────────────────────────────────
-  accent:        '#6ab0bb',                      // primary brand accent
-  accentHover:   '#82c3cd',                      // hover / lift
-  accentMuted:   'rgba(106, 176, 187, 0.66)',    // readable teal label text + soft borders (+20%)
-  accentGlow:    'rgba(106, 176, 187, 0.12)',    // subtle bg tint / active row (+20%)
+  // ── Accent (teal — lightened) ──────────────────────────────────
+  accent:        '#88c0c9',                      // primary brand accent
+  accentHover:   '#9bcfd7',                      // hover / lift
+  accentMuted:   'rgba(136, 192, 201, 0.78)',    // readable teal label text
+  accentGlow:    'rgba(136, 192, 201, 0.16)',    // subtle bg tint / active row
 
   // ── Secondary accents ──────────────────────────────────────────
   gold:          '#e8b458',   // secondary — use sparingly

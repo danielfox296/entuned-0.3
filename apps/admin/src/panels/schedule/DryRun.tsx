@@ -67,15 +67,15 @@ export function DryRun() {
 
       <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
 
-      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
-      {loading && <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.mono }}>simulating…</div>}
+      {err && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {loading && <div style={{ fontSize: 14, color: T.textMuted, fontFamily: T.mono }}>simulating…</div>}
 
       {data && (
         <>
           <SummaryRow data={data} />
           {issues.length > 0 ? <Issues items={issues} /> : (
             <div style={{
-              fontSize: 12, fontFamily: T.mono, color: T.success,
+              fontSize: 14, fontFamily: T.mono, color: T.success,
               border: `1px solid ${T.success}`, borderRadius: 4,
               padding: '8px 12px', background: T.surface,
             }}>
@@ -111,10 +111,10 @@ function Chip({ label, value, pct, color }: { label: string; value: string; pct?
       border: `1px solid ${T.border}`, background: T.surface,
       minWidth: 120,
     }}>
-      <div style={{ fontFamily: T.mono, fontSize: 14, color, fontWeight: 600, lineHeight: 1.2 }}>
-        {value}{pct && <span style={{ color: T.textDim, fontSize: 11, marginLeft: 6 }}>{pct}</span>}
+      <div style={{ fontFamily: T.mono, fontSize: 16, color, fontWeight: 600, lineHeight: 1.2 }}>
+        {value}{pct && <span style={{ color: T.textDim, fontSize: 13, marginLeft: 6 }}>{pct}</span>}
       </div>
-      <div style={{ fontFamily: T.mono, fontSize: 10, color: T.textDim, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+      <div style={{ fontFamily: T.mono, fontSize: 12, color: T.textDim, textTransform: 'uppercase', letterSpacing: 0.5 }}>
         {label}
       </div>
     </div>
@@ -128,11 +128,11 @@ function Issues({ items }: { items: string[] }) {
       padding: '10px 14px', background: T.surface,
       display: 'flex', flexDirection: 'column', gap: 6,
     }}>
-      <div style={{ fontFamily: T.mono, fontSize: 11, color: T.warn, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+      <div style={{ fontFamily: T.mono, fontSize: 13, color: T.warn, textTransform: 'uppercase', letterSpacing: 0.5 }}>
         {items.length} issue{items.length === 1 ? '' : 's'}
       </div>
       {items.map((i, idx) => (
-        <div key={idx} style={{ fontFamily: T.sans, fontSize: 12, color: T.text, lineHeight: 1.5 }}>· {i}</div>
+        <div key={idx} style={{ fontFamily: T.sans, fontSize: 14, color: T.text, lineHeight: 1.5 }}>· {i}</div>
       ))}
     </div>
   )
@@ -148,7 +148,7 @@ function ByOutcomeTable({ data }: { data: ScheduleDryRun }) {
         display: 'grid', gridTemplateColumns: TBL_COLS, gap: 10,
         padding: '8px 12px', background: T.surface,
         borderBottom: `1px solid ${T.border}`,
-        fontFamily: T.mono, fontSize: 11, color: T.textDim, textTransform: 'uppercase',
+        fontFamily: T.mono, fontSize: 13, color: T.textDim, textTransform: 'uppercase',
       }}>
         <span>outcome</span>
         <span style={{ textAlign: 'right' }}>scheduled</span>
@@ -163,17 +163,17 @@ function ByOutcomeTable({ data }: { data: ScheduleDryRun }) {
           <div key={o.outcomeId} style={{
             display: 'grid', gridTemplateColumns: TBL_COLS, gap: 10,
             padding: '10px 12px', borderBottom: `1px solid ${T.borderSubtle}`,
-            fontFamily: T.mono, fontSize: 12, alignItems: 'center',
+            fontFamily: T.mono, fontSize: 14, alignItems: 'center',
           }}>
             <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500 }}>
               {o.outcomeTitle} <span style={{ color: T.accentMuted }}>v{o.outcomeVersion}</span>
-              {o.outcomeSuperseded && <span style={{ color: T.danger, fontFamily: T.mono, fontSize: 10, marginLeft: 6 }}>SUPERSEDED</span>}
+              {o.outcomeSuperseded && <span style={{ color: T.danger, fontFamily: T.mono, fontSize: 12, marginLeft: 6 }}>SUPERSEDED</span>}
             </span>
             <span style={{ textAlign: 'right', color: T.text }}>{fmtDur(o.scheduledMin)}</span>
             <span style={{ textAlign: 'right', color: T.textMuted }}>{fmtDur(o.defaultMin)}</span>
             <span style={{ textAlign: 'right', color: T.text, fontWeight: 600 }}>{fmtDur(o.totalMin)}</span>
             <span style={{ textAlign: 'right', color, fontWeight: 600 }}>{o.poolCount}</span>
-            <span style={{ textAlign: 'right', color, fontSize: 11, textTransform: 'uppercase' }}>{o.poolStatus}</span>
+            <span style={{ textAlign: 'right', color, fontSize: 13, textTransform: 'uppercase' }}>{o.poolStatus}</span>
           </div>
         )
       })}
@@ -190,7 +190,7 @@ function Timeline({ data }: { data: ScheduleDryRun }) {
       <div /> {/* spacer over hour rail */}
       {data.days.map((d) => (
         <div key={d.dayOfWeek} style={{
-          fontFamily: T.mono, fontSize: 11, color: T.textDim,
+          fontFamily: T.mono, fontSize: 13, color: T.textDim,
           textTransform: 'uppercase', letterSpacing: 0.5,
           textAlign: 'center', paddingBottom: 4,
         }}>{d.label}</div>
@@ -211,7 +211,7 @@ function HourRail() {
       <div key={h} style={{
         position: 'absolute', top: `${(h * 60 / DAY_MINUTES) * 100}%`,
         right: 4, transform: 'translateY(-50%)',
-        fontFamily: T.mono, fontSize: 10, color: T.textDim,
+        fontFamily: T.mono, fontSize: 12, color: T.textDim,
       }}>{String(h).padStart(2, '0')}:00</div>,
     )
   }
@@ -245,7 +245,7 @@ function DayColumn({ periods, palette }: { periods: DryRunPeriod[]; palette: Map
             top: `${top}%`, height: `${height}%`,
             background: fill, color,
             border, boxSizing: 'border-box',
-            fontFamily: T.mono, fontSize: 10,
+            fontFamily: T.mono, fontSize: 12,
             padding: '2px 4px',
             display: 'flex', flexDirection: 'column',
             justifyContent: 'flex-start',
@@ -258,7 +258,7 @@ function DayColumn({ periods, palette }: { periods: DryRunPeriod[]; palette: Map
                   {p.source === 'gap' ? 'GAP' : p.outcomeTitle}
                 </div>
                 {height > 8 && (
-                  <div style={{ opacity: 0.85, fontSize: 8 }}>
+                  <div style={{ opacity: 0.85, fontSize: 10 }}>
                     {p.startHHMM}–{p.endHHMM}
                   </div>
                 )}
@@ -267,7 +267,7 @@ function DayColumn({ periods, palette }: { periods: DryRunPeriod[]; palette: Map
             {p.overlap && (
               <div style={{
                 position: 'absolute', top: 1, right: 2,
-                fontSize: 8, color: T.danger, fontWeight: 700,
+                fontSize: 10, color: T.danger, fontWeight: 700,
               }}>!</div>
             )}
           </div>

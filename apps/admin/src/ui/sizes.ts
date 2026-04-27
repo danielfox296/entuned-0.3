@@ -1,10 +1,10 @@
 export const S = {
-  // Type scale (px)
-  label:    11,   // uppercase field labels, metadata
-  small:    12,   // body small, button text, helper text
-  body:     13,   // primary body
-  subhead:  14,   // sub-section titles
-  title:    18,   // panel title
+  // Type scale (px) — bumped ~15% for readability
+  label:    13,   // uppercase field labels, metadata
+  small:    14,   // body small, button text, helper text
+  body:     15,   // primary body
+  subhead:  16,   // sub-section titles
+  title:    21,   // panel title
 
   // Spacing scale (px)
   xs:  4,

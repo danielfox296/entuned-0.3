@@ -66,7 +66,7 @@ function StatusBar({ apiOk }: { apiOk: boolean }) {
     <div style={{
       height: 36, background: T.surface, borderBottom: `1px solid ${T.border}`,
       display: 'flex', alignItems: 'center', padding: '0 16px', gap: 20,
-      flexShrink: 0, fontFamily: T.sans, fontSize: 12,
+      flexShrink: 0, fontFamily: T.sans, fontSize: 14,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <div style={{
@@ -118,11 +118,11 @@ function Sidebar({ active, onSelect, collapsed, onToggle, email, onLogout }: {
               transition: 'all 0.15s ease', opacity: g.deferred ? 0.4 : 1,
             }}>
               <span style={{
-                fontSize: 14, width: 18, textAlign: 'center', flexShrink: 0,
+                fontSize: 16, width: 18, textAlign: 'center', flexShrink: 0,
                 color: on ? T.accent : T.textMuted,
               }}>{g.icon}</span>
               {!collapsed && <span style={{
-                fontSize: 13, fontFamily: T.sans, fontWeight: on ? 500 : 400,
+                fontSize: 15, fontFamily: T.sans, fontWeight: on ? 500 : 400,
                 color: on ? T.text : T.textMuted, whiteSpace: 'nowrap',
               }}>{g.short}</span>}
             </div>
@@ -132,14 +132,14 @@ function Sidebar({ active, onSelect, collapsed, onToggle, email, onLogout }: {
 
       {!collapsed && (
         <div style={{ padding: '12px 16px', borderTop: `1px solid ${T.borderSubtle}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <div style={{ fontSize: 11, color: T.textDim, fontFamily: T.sans, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email}</div>
+          <div style={{ fontSize: 13, color: T.textDim, fontFamily: T.sans, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email}</div>
           <button
             onClick={onLogout}
             title="Sign out"
             style={{
               background: 'transparent', border: `1px solid ${T.border}`,
               color: T.textMuted, padding: '3px 8px', borderRadius: 2,
-              fontFamily: T.mono, fontSize: 10, cursor: 'pointer', flexShrink: 0,
+              fontFamily: T.mono, fontSize: 12, cursor: 'pointer', flexShrink: 0,
               textTransform: 'uppercase', letterSpacing: 0.5,
             }}
           >sign out</button>
@@ -155,18 +155,18 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ padding: '20px 28px 16px', borderBottom: `1px solid ${T.borderSubtle}`, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-          <span style={{ fontSize: 13, color: T.accent }}>{group.icon}</span>
+          <span style={{ fontSize: 15, color: T.accent }}>{group.icon}</span>
           <h1 style={{
-            fontSize: 18, fontFamily: T.heading, fontWeight: 700,
+            fontSize: 21, fontFamily: T.heading, fontWeight: 700,
             color: T.text, margin: 0, letterSpacing: '-0.02em',
           }}>{group.label}</h1>
           {group.deferred && <span style={{
-            fontSize: 11, fontFamily: T.sans, color: T.textDim,
+            fontSize: 13, fontFamily: T.sans, color: T.textDim,
             background: T.surfaceRaised, padding: '2px 8px', borderRadius: 3,
             border: `1px solid ${T.borderSubtle}`,
           }}>deferred</span>}
         </div>
-        <p style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, margin: '6px 0 0' }}>
+        <p style={{ fontSize: 14, color: T.textMuted, fontFamily: T.sans, margin: '6px 0 0' }}>
           {group.description}
         </p>
       </div>
@@ -188,10 +188,10 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
               borderRadius: 6, padding: '20px 20px 16px',
               cursor: group.deferred ? 'default' : 'pointer',
             }}>
-              <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text, marginBottom: 8 }}>
+              <div style={{ fontSize: 16, fontFamily: T.sans, fontWeight: 500, color: T.text, marginBottom: 8 }}>
                 {card}
               </div>
-              <div style={{ fontSize: 12, fontFamily: T.sans, color: group.deferred ? T.textDim : T.accent }}>
+              <div style={{ fontSize: 14, fontFamily: T.sans, color: group.deferred ? T.textDim : T.accent }}>
                 {group.deferred ? 'post-mvp' : 'ready for build →'}
               </div>
             </div>
@@ -203,7 +203,7 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
             marginTop: 32, padding: 24, background: T.accentGlow,
             border: `1px dashed ${T.accentMuted}`, borderRadius: 6,
           }}>
-            <div style={{ fontSize: 13, fontFamily: T.sans, color: T.textMuted, lineHeight: 1.6 }}>
+            <div style={{ fontSize: 15, fontFamily: T.sans, color: T.textMuted, lineHeight: 1.6 }}>
               Panel ready for build. Each card above becomes a workflow component
               that slots into this space.
             </div>
@@ -234,7 +234,7 @@ function EngineRouter({ cards }: { cards: string[] }) {
                 borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
                 color: on ? T.text : T.textMuted,
                 padding: '8px 14px', cursor: 'pointer',
-                fontFamily: T.sans, fontSize: 12, fontWeight: on ? 500 : 400,
+                fontFamily: T.sans, fontSize: 14, fontWeight: on ? 500 : 400,
                 marginBottom: -1,
               }}
             >{c}</button>
@@ -268,7 +268,7 @@ function BrandRouter({ cards }: { cards: string[] }) {
                 borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
                 color: on ? T.text : T.textMuted,
                 padding: '8px 14px', cursor: 'pointer',
-                fontFamily: T.sans, fontSize: 12, fontWeight: on ? 500 : 400,
+                fontFamily: T.sans, fontSize: 14, fontWeight: on ? 500 : 400,
                 marginBottom: -1,
               }}
             >{c}</button>
@@ -303,7 +303,7 @@ function PlaybackRouter({ cards }: { cards: string[] }) {
                 borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
                 color: on ? T.text : (ready ? T.textMuted : T.textDim),
                 padding: '8px 14px', cursor: ready ? 'pointer' : 'default',
-                fontFamily: T.sans, fontSize: 12, fontWeight: on ? 500 : 400,
+                fontFamily: T.sans, fontSize: 14, fontWeight: on ? 500 : 400,
                 marginBottom: -1,
               }}
             >{c}{ready ? '' : ' (soon)'}</button>
@@ -334,7 +334,7 @@ function ScheduleRouter({ cards }: { cards: string[] }) {
                 borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
                 color: on ? T.text : (ready ? T.textMuted : T.textDim),
                 padding: '8px 14px', cursor: ready ? 'pointer' : 'default',
-                fontFamily: T.sans, fontSize: 12, fontWeight: on ? 500 : 400,
+                fontFamily: T.sans, fontSize: 14, fontWeight: on ? 500 : 400,
                 marginBottom: -1,
               }}
             >{c}{ready ? '' : ' (soon)'}</button>
@@ -365,7 +365,7 @@ function CatalogueRouter({ cards }: { cards: string[] }) {
                 borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
                 color: on ? T.text : T.textMuted,
                 padding: '8px 14px', cursor: 'pointer',
-                fontFamily: T.sans, fontSize: 12, fontWeight: on ? 500 : 400,
+                fontFamily: T.sans, fontSize: 14, fontWeight: on ? 500 : 400,
                 marginBottom: -1,
               }}
             >{c}</button>
@@ -399,7 +399,7 @@ function SeedingRouter({ cards }: { cards: string[] }) {
                 borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
                 color: on ? T.text : T.textMuted,
                 padding: '8px 14px', cursor: 'pointer',
-                fontFamily: T.sans, fontSize: 12, fontWeight: on ? 500 : 400,
+                fontFamily: T.sans, fontSize: 14, fontWeight: on ? 500 : 400,
                 marginBottom: -1,
               }}
             >{c}</button>
@@ -413,7 +413,7 @@ function SeedingRouter({ cards }: { cards: string[] }) {
           <SongSeed songSeedId={openId} onClose={() => setOpenId(null)} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 520 }}>
-            <div style={{ fontFamily: T.sans, fontSize: 12, color: T.textMuted }}>
+            <div style={{ fontFamily: T.sans, fontSize: 14, color: T.textMuted }}>
               Per-song-seed drill-in. Normally reached by clicking a row in Song Seed Queue. Paste a song seed ID to open it directly.
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -423,7 +423,7 @@ function SeedingRouter({ cards }: { cards: string[] }) {
                 placeholder="song seed id"
                 style={{
                   flex: 1, background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
-                  color: T.text, padding: '8px 10px', fontFamily: T.mono, fontSize: 12,
+                  color: T.text, padding: '8px 10px', fontFamily: T.mono, fontSize: 14,
                 }}
               />
               <button
@@ -431,7 +431,7 @@ function SeedingRouter({ cards }: { cards: string[] }) {
                 disabled={!detailId.trim()}
                 style={{
                   background: T.accent, border: 'none', color: T.bg,
-                  padding: '8px 14px', fontFamily: T.sans, fontSize: 12, fontWeight: 500,
+                  padding: '8px 14px', fontFamily: T.sans, fontSize: 14, fontWeight: 500,
                   cursor: detailId.trim() ? 'pointer' : 'default',
                   opacity: detailId.trim() ? 1 : 0.4,
                 }}
@@ -482,7 +482,7 @@ function Login({ onLogin }: { onLogin: (token: string) => void }) {
             style={{
               background: T.surfaceRaised, border: `1px solid ${T.border}`,
               borderRadius: 4, padding: '10px 12px', color: T.text,
-              fontFamily: T.sans, fontSize: 13, outline: 'none',
+              fontFamily: T.sans, fontSize: 15, outline: 'none',
             }}
           />
           <input
@@ -494,7 +494,7 @@ function Login({ onLogin }: { onLogin: (token: string) => void }) {
             style={{
               background: T.surfaceRaised, border: `1px solid ${T.border}`,
               borderRadius: 4, padding: '10px 12px', color: T.text,
-              fontFamily: T.sans, fontSize: 13, outline: 'none',
+              fontFamily: T.sans, fontSize: 15, outline: 'none',
             }}
           />
           <button
@@ -503,11 +503,11 @@ function Login({ onLogin }: { onLogin: (token: string) => void }) {
             style={{
               background: T.accent, color: T.bg, border: 'none',
               borderRadius: 4, padding: '10px 12px', fontFamily: T.sans,
-              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              fontSize: 15, fontWeight: 600, cursor: 'pointer',
               opacity: busy ? 0.6 : 1,
             }}
           >{busy ? 'signing in…' : 'sign in'}</button>
-          {error && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.sans }}>{error}</div>}
+          {error && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.sans }}>{error}</div>}
         </div>
       </div>
     </div>
