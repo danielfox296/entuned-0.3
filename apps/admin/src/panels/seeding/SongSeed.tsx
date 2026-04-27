@@ -137,7 +137,7 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
               <input
                 value={t.sourceUrl}
                 onChange={(e) => setTakes(takes.map((x, j) => j === i ? { sourceUrl: e.target.value } : x))}
-                placeholder={`take ${i + 1} — https://suno.com/song/... or https://cdn1.suno.ai/...mp3`}
+                placeholder={`take ${i + 1} — https://suno.com/s/... or https://suno.com/song/...`}
                 style={{ ...inputStyle, flex: 1 }}
               />
             </div>
