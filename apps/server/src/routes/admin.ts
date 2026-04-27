@@ -18,6 +18,7 @@ import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
 import { verify } from '../lib/auth.js'
+import bcrypt from 'bcryptjs'
 import { decompose } from '../lib/decomposer/decomposer.js'
 import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
@@ -1843,6 +1844,113 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       return row
     } catch {
       return reply.code(404).send({ error: 'not_found' })
+    }
+  })
+
+  // ── Operator management ──────────────────────────────────────────────────
+
+  // GET /admin/operators — list all operators with store assignments
+  app.get('/operators', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const rows = await prisma.operator.findMany({
+      orderBy: { email: 'asc' },
+      include: { storeAssignments: { include: { store: { select: { id: true, name: true } } } } },
+    })
+    return rows.map((r) => ({
+      id: r.id,
+      email: r.email,
+      displayName: r.displayName,
+      isAdmin: r.isAdmin,
+      disabledAt: r.disabledAt?.toISOString() ?? null,
+      stores: r.storeAssignments.map((a) => ({ id: a.store.id, name: a.store.name })),
+    }))
+  })
+
+  const OperatorCreateBody = z.object({
+    email: z.string().email(),
+    password: z.string().min(1),
+    displayName: z.string().nullable().optional(),
+    storeIds: z.array(z.string().uuid()).optional(),
+  })
+
+  // POST /admin/operators — create a new operator
+  app.post('/operators', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = OperatorCreateBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const passwordHash = await bcrypt.hash(parsed.data.password, 10)
+    try {
+      const created = await prisma.operator.create({
+        data: {
+          email: parsed.data.email,
+          passwordHash,
+          displayName: parsed.data.displayName ?? null,
+          isAdmin: false,
+          storeAssignments: parsed.data.storeIds?.length
+            ? { create: parsed.data.storeIds.map((storeId) => ({ storeId, assignedById: op.operatorId })) }
+            : undefined,
+        },
+        include: { storeAssignments: { include: { store: { select: { id: true, name: true } } } } },
+      })
+      return {
+        id: created.id, email: created.email, displayName: created.displayName,
+        isAdmin: created.isAdmin, disabledAt: null,
+        stores: created.storeAssignments.map((a) => ({ id: a.store.id, name: a.store.name })),
+      }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        return reply.code(409).send({ error: 'email_taken' })
+      }
+      throw e
+    }
+  })
+
+  const OperatorUpdateBody = z.object({
+    email: z.string().email().optional(),
+    password: z.string().min(1).optional(),
+    displayName: z.string().nullable().optional(),
+    storeIds: z.array(z.string().uuid()).optional(),
+    disabled: z.boolean().optional(),
+  })
+
+  // PUT /admin/operators/:id — update email, password, stores, or disabled state
+  app.put('/operators/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = OperatorUpdateBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const data: any = {}
+    if (parsed.data.email !== undefined) data.email = parsed.data.email
+    if (parsed.data.displayName !== undefined) data.displayName = parsed.data.displayName
+    if (parsed.data.password) data.passwordHash = await bcrypt.hash(parsed.data.password, 10)
+    if (parsed.data.disabled !== undefined) data.disabledAt = parsed.data.disabled ? new Date() : null
+    try {
+      const updated = await prisma.$transaction(async (tx) => {
+        if (parsed.data.storeIds !== undefined) {
+          await tx.operatorStoreAssignment.deleteMany({ where: { operatorId: id } })
+          if (parsed.data.storeIds.length > 0) {
+            await tx.operatorStoreAssignment.createMany({
+              data: parsed.data.storeIds.map((storeId) => ({ operatorId: id, storeId, assignedById: op.operatorId })),
+            })
+          }
+        }
+        return tx.operator.update({
+          where: { id },
+          data,
+          include: { storeAssignments: { include: { store: { select: { id: true, name: true } } } } },
+        })
+      })
+      return {
+        id: updated.id, email: updated.email, displayName: updated.displayName,
+        isAdmin: updated.isAdmin, disabledAt: updated.disabledAt?.toISOString() ?? null,
+        stores: updated.storeAssignments.map((a) => ({ id: a.store.id, name: a.store.name })),
+      }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError) {
+        if (e.code === 'P2002') return reply.code(409).send({ error: 'email_taken' })
+        if (e.code === 'P2025') return reply.code(404).send({ error: 'not_found' })
+      }
+      throw e
     }
   })
 }

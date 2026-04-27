@@ -11,6 +11,7 @@ import { IcpEditor } from './panels/brand/IcpEditor.js'
 import { HookQueue } from './panels/brand/HookQueue.js'
 import { ClientDetail } from './panels/brand/ClientDetail.js'
 import { StoreEditor } from './panels/brand/StoreEditor.js'
+import { OperatorManager } from './panels/brand/OperatorManager.js'
 import { ClosedSongSeeds } from './panels/seeding/ClosedSongSeeds.js'
 import { LiveStoreView } from './panels/playback/LiveStoreView.js'
 import { OutcomeSchedule } from './panels/schedule/OutcomeSchedule.js'
@@ -37,7 +38,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Live Store View', 'Mode Override', 'Interrupt Controls'],
     description: "What's playing now, override outcomes, skip/pause" },
   { key: 'brand', label: 'Client & Brand', short: 'Brand', icon: '◆',
-    cards: ['Client Detail', 'ICP Editor', 'Hook Queue', 'Location Editor'],
+    cards: ['Client Detail', 'ICP Editor', 'Hook Queue', 'Location Editor', 'Operator Manager'],
     description: 'ICP profiles, hooks, reference tracks, location config' },
   { key: 'schedule', label: 'Scheduling', short: 'Schedule', icon: '▦',
     cards: ['Outcome Schedule', 'Outcome Library', 'Dry Run'],
@@ -278,6 +279,7 @@ function BrandRouter({ cards }: { cards: string[] }) {
       {active === 'ICP Editor' && <IcpEditor />}
       {active === 'Hook Queue' && <HookQueue />}
       {active === 'Location Editor' && <StoreEditor />}
+      {active === 'Operator Manager' && <OperatorManager />}
     </div>
   )
 }

@@ -277,6 +277,30 @@ export type ClientUpdate = Partial<{
   brandLyricGuidelines: string | null
 }>
 
+export interface OperatorRow {
+  id: string
+  email: string
+  displayName: string | null
+  isAdmin: boolean
+  disabledAt: string | null
+  stores: { id: string; name: string }[]
+}
+
+export interface OperatorCreateBody {
+  email: string
+  password: string
+  displayName?: string | null
+  storeIds?: string[]
+}
+
+export interface OperatorUpdateBody {
+  email?: string
+  password?: string
+  displayName?: string | null
+  storeIds?: string[]
+  disabled?: boolean
+}
+
 export interface StoreCreateBody {
   clientId: string
   name: string
@@ -727,4 +751,12 @@ export const api = {
     req<SongSeedRow>(`/admin/song-seeds/${id}/abandon`, { method: 'POST' }, token),
   acceptSongSeed: (id: string, body: { takes: { sourceUrl: string }[] }, token: string) =>
     req<{ songSeed: SongSeedRow; lineageRows: any[] }>(`/admin/song-seeds/${id}/accept`, { method: 'POST', body: JSON.stringify(body) }, token),
+
+  // --- Operator management ---
+  operators: (token: string) =>
+    req<OperatorRow[]>('/admin/operators', {}, token),
+  createOperator: (body: OperatorCreateBody, token: string) =>
+    req<OperatorRow>('/admin/operators', { method: 'POST', body: JSON.stringify(body) }, token),
+  updateOperator: (id: string, body: OperatorUpdateBody, token: string) =>
+    req<OperatorRow>(`/admin/operators/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
 }
