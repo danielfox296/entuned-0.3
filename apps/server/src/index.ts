@@ -12,6 +12,15 @@ const app = Fastify({
       ? { target: 'pino-pretty', options: { translateTime: 'HH:MM:ss', ignore: 'pid,hostname' } }
       : undefined,
   },
+  // Prisma returns BigInt for byteSize; JSON.stringify can't handle it natively.
+  serializerOpts: {
+    bigint: true,
+  },
+})
+
+// Convert any BigInt values to Number before JSON serialization.
+app.addHook('preSerialization', async (_req, _reply, payload) => {
+  return JSON.parse(JSON.stringify(payload, (_k, v) => typeof v === 'bigint' ? Number(v) : v))
 })
 
 await app.register(cors, { origin: true })
