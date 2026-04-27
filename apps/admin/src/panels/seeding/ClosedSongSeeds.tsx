@@ -137,7 +137,9 @@ const trunc: any = { color: T.text, fontFamily: T.sans, overflow: 'hidden', text
 function uniqueIcps(stores: StoreSummary[]): { id: string; label: string }[] {
   const m = new Map<string, string>()
   for (const s of stores) {
-    if (s.icp && !m.has(s.icp.id)) m.set(s.icp.id, `${s.clientName} — ${s.name}`)
+    for (const icp of s.icps) {
+      if (!m.has(icp.id)) m.set(icp.id, `${s.clientName} — ${s.name} — ${icp.name}`)
+    }
   }
   return [...m.entries()].map(([id, label]) => ({ id, label }))
 }

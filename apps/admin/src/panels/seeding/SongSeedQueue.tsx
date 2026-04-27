@@ -36,10 +36,15 @@ export function SongSeedQueue() {
     api.outcomes(token).then(setOutcomes).catch((e) => setErr(e.message))
   }, [])
 
+  const currentStore = storeId && stores ? stores.find((x) => x.id === storeId) ?? null : null
+  const storeIcps = currentStore?.icps ?? []
+
   useEffect(() => {
     if (!storeId || !stores) { setIcpId(null); return }
     const s = stores.find((x) => x.id === storeId)
-    setIcpId(s?.icp?.id ?? null)
+    // Default to first ICP; if current selection is no longer present, reset.
+    if (!s || s.icps.length === 0) { setIcpId(null); return }
+    setIcpId((cur) => (cur && s.icps.some((i) => i.id === cur)) ? cur : s.icps[0]!.id)
   }, [storeId, stores])
 
   const reload = async () => {
@@ -79,6 +84,21 @@ export function SongSeedQueue() {
       />
 
       <UIStorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
+
+      {currentStore && storeIcps.length > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontFamily: T.mono, fontSize: 13, color: T.textDim, textTransform: 'uppercase' }}>ICP</span>
+          <select value={icpId ?? ''} onChange={(e) => setIcpId(e.target.value || null)} style={inputStyle}>
+            {storeIcps.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+          </select>
+        </div>
+      )}
+
+      {currentStore && storeIcps.length === 0 && (
+        <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 14 }}>
+          this store has no ICPs yet — create one in the ICP Editor first
+        </div>
+      )}
 
       {icpId && (
         <Section title="Run Seed Builder" subtitle="Generate new songSeeds for this ICP + outcome">

@@ -172,7 +172,13 @@ export function ClientDetail() {
                     <div key={s.id} style={listRow}>
                       <span style={{ color: T.text, fontWeight: 500 }}>{s.name}</span>
                       <span style={{ color: T.textMuted }}>{s.timezone}</span>
-                      <span style={{ color: s.icp ? T.textMuted : T.textDim }}>{s.icp ? s.icp.name : '(no ICP)'}</span>
+                      <span style={{ color: s.icps.length > 0 ? T.textMuted : T.textDim }}>
+                        {s.icps.length === 0
+                          ? '(no ICPs)'
+                          : s.icps.length === 1
+                            ? s.icps[0]!.name
+                            : `${s.icps.length} ICPs`}
+                      </span>
                       <span style={{ color: s.defaultOutcome ? T.text : T.textDim }}>
                         {s.defaultOutcome ? `default: ${s.defaultOutcome.title}` : 'no default'}
                       </span>

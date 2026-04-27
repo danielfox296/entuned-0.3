@@ -18,7 +18,7 @@ export function StoreEditor() {
   const [clients, setClients] = useState<ClientListRow[] | null>(null)
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
   const [storeId, setStoreId] = useState<string | null>(null)
-  const [detail, setDetail] = useState<{ id: string; name: string; timezone: string; clientId: string; clientName: string; icp: { id: string; name: string } | null; goLiveDate: string | null; defaultOutcomeId: string | null } | null>(null)
+  const [detail, setDetail] = useState<{ id: string; name: string; timezone: string; clientId: string; clientName: string; icps: { id: string; name: string }[]; goLiveDate: string | null; defaultOutcomeId: string | null } | null>(null)
   const [draft, setDraft] = useState<StoreUpdateBody | null>(null)
   const [creating, setCreating] = useState<StoreCreateBody | null>(null)
   const [busy, setBusy] = useState(false)
@@ -45,7 +45,7 @@ export function StoreEditor() {
       setDetail({
         id: d.store.id, name: d.store.name, timezone: d.store.timezone,
         clientId: d.store.clientId, clientName: d.store.clientName,
-        icp: d.icp ? { id: d.icp.id, name: d.icp.name } : null,
+        icps: d.icps.map((i) => ({ id: i.id, name: i.name })),
         goLiveDate: d.store.goLiveDate,
         defaultOutcomeId: d.store.defaultOutcomeId,
       })
@@ -61,7 +61,7 @@ export function StoreEditor() {
     setBusy(true); setErr(null)
     try {
       const updated = await api.updateStore(detail.id, draft, token)
-      setDetail((cur) => cur ? { ...cur, ...updated, icp: (updated as any).icp ?? cur.icp } : cur)
+      setDetail((cur) => cur ? { ...cur, ...updated, icps: (updated as any).icps ?? cur.icps } : cur)
       setDraft({})
       reloadAll()
     } catch (e: any) { setErr(e.message) }
@@ -152,7 +152,12 @@ export function StoreEditor() {
 
           <Section title="Read-only">
             <KV k="Client" v={detail.clientName} />
-            <KV k="ICP" v={detail.icp ? detail.icp.name : '(none — create in ICP Editor)'} />
+            <KV
+              k={`ICPs (${detail.icps.length})`}
+              v={detail.icps.length === 0
+                ? '(none yet — add in ICP Editor)'
+                : detail.icps.map((i) => i.name).join(', ')}
+            />
           </Section>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

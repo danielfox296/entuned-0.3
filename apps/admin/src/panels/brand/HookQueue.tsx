@@ -11,6 +11,7 @@ export function HookQueue() {
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
   const [storeId, setStoreId] = useState<string | null>(null)
   const [detail, setDetail] = useState<StoreDetail | null>(null)
+  const [icpId, setIcpId] = useState<string | null>(null)
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
   const [hooks, setHooks] = useState<HookRowFull[] | null>(null)
   const [filter, setFilter] = useState<StatusFilter>('all')
@@ -23,19 +24,26 @@ export function HookQueue() {
   }, [])
 
   useEffect(() => {
-    if (!storeId) { setDetail(null); setHooks(null); return }
+    if (!storeId) { setDetail(null); setIcpId(null); setHooks(null); return }
     const token = getToken(); if (!token) return
-    setDetail(null); setHooks(null)
+    setDetail(null); setIcpId(null); setHooks(null)
     api.storeDetail(storeId, token).then((d) => {
       setDetail(d)
-      return d.icp ? api.icpHooks(d.icp.id, token) : null
-    }).then((h) => h && setHooks(h)).catch((e) => setErr(e.message))
+      setIcpId(d.icps[0]?.id ?? null)
+    }).catch((e) => setErr(e.message))
   }, [storeId])
 
-  const reloadHooks = async () => {
-    if (!detail?.icp) return
+  useEffect(() => {
+    if (!icpId) { setHooks(null); return }
     const token = getToken(); if (!token) return
-    try { setHooks(await api.icpHooks(detail.icp.id, token)) }
+    setHooks(null)
+    api.icpHooks(icpId, token).then(setHooks).catch((e) => setErr(e.message))
+  }, [icpId])
+
+  const reloadHooks = async () => {
+    if (!icpId) return
+    const token = getToken(); if (!token) return
+    try { setHooks(await api.icpHooks(icpId, token)) }
     catch (e: any) { setErr(e.message) }
   }
 
@@ -56,11 +64,30 @@ export function HookQueue() {
 
       <UIStorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
 
+      {detail && detail.icps.length > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontFamily: T.mono, fontSize: 13, color: T.textDim, textTransform: 'uppercase' }}>ICP</span>
+          <select
+            value={icpId ?? ''}
+            onChange={(e) => setIcpId(e.target.value || null)}
+            style={inputStyle as any}
+          >
+            {detail.icps.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+          </select>
+        </div>
+      )}
+
       {err && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</div>}
 
       {storeId && !detail && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 14 }}>loading…</div>}
 
-      {detail && (
+      {detail && detail.icps.length === 0 && (
+        <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 14 }}>
+          this store has no ICPs yet — create one in the ICP Editor before authoring hooks
+        </div>
+      )}
+
+      {detail && icpId && (
         <>
           {detail.sharedWith.length > 0 && (
             <div style={{
@@ -82,7 +109,7 @@ export function HookQueue() {
 
           {hooks && (
             <>
-              {detail.icp && <NewHookForm icpId={detail.icp.id} outcomes={outcomes} onCreated={reloadHooks} />}
+              {icpId && <NewHookForm icpId={icpId} outcomes={outcomes} onCreated={reloadHooks} />}
               {groupedKeys.length === 0 && (
                 <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 14, padding: '12px 0' }}>
                   no hooks{filter !== 'all' ? ` matching ${filter}` : ''}

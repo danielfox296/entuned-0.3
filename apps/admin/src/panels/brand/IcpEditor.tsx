@@ -27,6 +27,7 @@ export function IcpEditor() {
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
   const [storeId, setStoreId] = useState<string | null>(null)
   const [detail, setDetail] = useState<StoreDetail | null>(null)
+  const [icpId, setIcpId] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [newIcpName, setNewIcpName] = useState('')
@@ -38,10 +39,13 @@ export function IcpEditor() {
   }, [])
 
   useEffect(() => {
-    if (!storeId) { setDetail(null); return }
+    if (!storeId) { setDetail(null); setIcpId(null); return }
     const token = getToken(); if (!token) return
-    setDetail(null)
-    api.storeDetail(storeId, token).then(setDetail).catch((e) => setErr(e.message))
+    setDetail(null); setIcpId(null)
+    api.storeDetail(storeId, token).then((d) => {
+      setDetail(d)
+      setIcpId(d.icps[0]?.id ?? null)
+    }).catch((e) => setErr(e.message))
   }, [storeId])
 
   const reloadDetail = async () => {
@@ -50,6 +54,8 @@ export function IcpEditor() {
     try {
       const d = await api.storeDetail(storeId, token)
       setDetail(d)
+      // Keep current selection if still present, else default to first ICP.
+      setIcpId((cur) => (cur && d.icps.some((i) => i.id === cur)) ? cur : (d.icps[0]?.id ?? null))
     } catch (e: any) { setErr(e.message) }
   }
 
@@ -58,18 +64,21 @@ export function IcpEditor() {
     const token = getToken(); if (!token) return
     setCreateBusy(true); setErr(null)
     try {
-      await api.createIcp({ storeId, name: newIcpName.trim() }, token)
+      const created = await api.createIcp({ storeId, name: newIcpName.trim() }, token)
       setCreating(false); setNewIcpName('')
       await reloadDetail()
+      setIcpId(created.id)
     } catch (e: any) { setErr(e.message) }
     finally { setCreateBusy(false) }
   }
+
+  const selectedIcp = detail && icpId ? detail.icps.find((i) => i.id === icpId) ?? null : null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
       <PanelHeader
         title="ICP Editor"
-        subtitle="Per-store ICP. Edit psychographic fields, manage reference tracks, run the decomposer."
+        subtitle="A store can have many ICPs. Pick one to edit psychographic fields, manage reference tracks, run the decomposer."
       />
 
       <UIStorePicker stores={stores} storeId={storeId} onPick={(id) => { setStoreId(id); setCreating(false); setNewIcpName('') }} />
@@ -78,69 +87,85 @@ export function IcpEditor() {
 
       {storeId && !detail && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 14 }}>loading…</div>}
 
-      {detail && !detail.icp && (
-        <div style={{
-          background: T.surface, border: `1px solid ${T.border}`, borderRadius: 4, padding: 20,
-          display: 'flex', flexDirection: 'column', gap: 12,
-        }}>
-          <div style={{ fontFamily: T.mono, fontSize: 14, color: T.textMuted }}>
-            This store has no ICP yet.
-          </div>
-          {creating ? (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      {detail && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: T.mono, fontSize: 13, color: T.textDim, textTransform: 'uppercase' }}>
+            ICPs ({detail.icps.length})
+          </span>
+          {detail.icps.length > 0 && (
+            <select
+              value={icpId ?? ''}
+              onChange={(e) => setIcpId(e.target.value || null)}
+              style={{ ...inputStyle, maxWidth: 320, width: 'auto' }}
+            >
+              {detail.icps.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+            </select>
+          )}
+          {!creating && (
+            <button onClick={() => setCreating(true)} style={primaryBtn(true, false)}>+ new ICP</button>
+          )}
+          {creating && (
+            <>
               <input
                 autoFocus
                 placeholder="ICP name"
                 value={newIcpName}
                 onChange={(e) => setNewIcpName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') void createIcp(); if (e.key === 'Escape') { setCreating(false); setNewIcpName('') } }}
-                style={{ ...inputStyle, maxWidth: 260 }}
+                style={{ ...inputStyle, maxWidth: 260, width: 'auto' }}
               />
               <button onClick={() => void createIcp()} disabled={!newIcpName.trim() || createBusy} style={primaryBtn(!!newIcpName.trim(), createBusy)}>
-                {createBusy ? 'creating…' : 'create ICP'}
+                {createBusy ? 'creating…' : 'create'}
               </button>
               <button onClick={() => { setCreating(false); setNewIcpName('') }} style={ghostBtn}>cancel</button>
-            </div>
-          ) : (
-            <button onClick={() => setCreating(true)} style={primaryBtn(true, false)}>+ create ICP for this store</button>
+            </>
           )}
         </div>
       )}
 
-      {detail && detail.icp && (
+      {detail && detail.icps.length === 0 && !creating && (
+        <div style={{
+          background: T.surface, border: `1px solid ${T.border}`, borderRadius: 4, padding: 20,
+          fontFamily: T.mono, fontSize: 14, color: T.textMuted,
+        }}>
+          This store has no ICPs yet. Click <strong>+ new ICP</strong> above to create the first one.
+        </div>
+      )}
+
+      {detail && selectedIcp && (
         <>
-          <IcpFields detail={detail as StoreDetail & { icp: NonNullable<StoreDetail['icp']> }} onSaved={reloadDetail} />
-          <ReferenceTracks detail={detail as StoreDetail & { icp: NonNullable<StoreDetail['icp']> }} onChanged={reloadDetail} />
+          <IcpFields detail={detail} icp={selectedIcp} onSaved={reloadDetail} />
+          <ReferenceTracks detail={detail} icp={selectedIcp} onChanged={reloadDetail} />
         </>
       )}
     </div>
   )
 }
 
-type DetailWithIcp = StoreDetail & { icp: NonNullable<StoreDetail['icp']> }
+type IcpWithRefs = StoreDetail['icps'][number]
 
-function IcpFields({ detail, onSaved }: { detail: DetailWithIcp; onSaved: () => void }) {
-  const [draft, setDraft] = useState<IcpUpdate>(() => extractIcp(detail))
+function IcpFields({ detail: _detail, icp, onSaved }: { detail: StoreDetail; icp: IcpWithRefs; onSaved: () => void }) {
+  const [draft, setDraft] = useState<IcpUpdate>(() => extractIcp(icp))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
-  useEffect(() => { setDraft(extractIcp(detail)); setErr(null) }, [detail.icp.id, detail.icp.updatedAt])
+  useEffect(() => { setDraft(extractIcp(icp)); setErr(null) }, [icp.id, icp.updatedAt])
 
   const set = <K extends keyof IcpUpdate>(k: K, v: IcpUpdate[K]) => setDraft({ ...draft, [k]: v })
-  const dirty = JSON.stringify(draft) !== JSON.stringify(extractIcp(detail))
+  const dirty = JSON.stringify(draft) !== JSON.stringify(extractIcp(icp))
 
   const save = async () => {
     const token = getToken(); if (!token) return
     setBusy(true); setErr(null)
     try {
-      await api.updateIcp(detail.icp.id, draft, token)
+      await api.updateIcp(icp.id, draft, token)
       onSaved()
     } catch (e: any) { setErr(e.message) }
     finally { setBusy(false) }
   }
 
   return (
-    <Section title="Psychographic profile" subtitle={`updated ${new Date(detail.icp.updatedAt).toLocaleString()}`}>
+    <Section title={`Psychographic profile — ${icp.name}`} subtitle={`updated ${new Date(icp.updatedAt).toLocaleString()}`}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         {ICP_FIELDS.map((f) => (
           <div key={String(f.key)} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -174,21 +199,21 @@ function IcpFields({ detail, onSaved }: { detail: DetailWithIcp; onSaved: () => 
   )
 }
 
-function extractIcp(d: DetailWithIcp): IcpUpdate {
+function extractIcp(icp: IcpWithRefs): IcpUpdate {
   const out: IcpUpdate = {}
-  for (const f of ICP_FIELDS) (out as any)[f.key] = (d.icp as any)[f.key] ?? null
+  for (const f of ICP_FIELDS) (out as any)[f.key] = (icp as any)[f.key] ?? null
   return out
 }
 
-function ReferenceTracks({ detail, onChanged }: { detail: DetailWithIcp; onChanged: () => void }) {
+function ReferenceTracks({ detail: _detail, icp, onChanged }: { detail: StoreDetail; icp: IcpWithRefs; onChanged: () => void }) {
   const [adding, setAdding] = useState<NewReferenceTrack | null>(null)
   const grouped: Record<TasteCategory, ReferenceTrackRow[]> = {
     FormationEra: [], Subculture: [], Aspirational: [],
   }
-  for (const r of detail.icp.referenceTracks) grouped[r.bucket].push(r)
+  for (const r of icp.referenceTracks) grouped[r.bucket].push(r)
 
   return (
-    <Section title="Reference tracks" subtitle={`${detail.icp.referenceTracks.length} total — bucket describes the ICP's relationship to the music`}>
+    <Section title={`Reference tracks — ${icp.name}`} subtitle={`${icp.referenceTracks.length} total — bucket describes the ICP's relationship to the music`}>
       <div style={{ marginBottom: 12 }}>
         <button
           onClick={() => setAdding(adding ? null : { bucket: 'FormationEra', artist: '', title: '', year: null, operatorNotes: null })}
@@ -197,7 +222,7 @@ function ReferenceTracks({ detail, onChanged }: { detail: DetailWithIcp; onChang
       </div>
       {adding && (
         <NewRefTrackRow
-          icpId={detail.icp.id}
+          icpId={icp.id}
           draft={adding}
           onChange={setAdding}
           onCreated={() => { setAdding(null); onChanged() }}

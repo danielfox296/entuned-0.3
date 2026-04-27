@@ -159,7 +159,7 @@ export interface StoreSummary {
   timezone: string
   clientId: string
   clientName: string
-  icp: { id: string; name: string } | null
+  icps: { id: string; name: string }[]
 }
 
 export interface IcpRow {
@@ -216,7 +216,7 @@ export interface ReferenceTrackRow {
 
 export interface StoreDetail {
   store: { id: string; name: string; timezone: string; clientId: string; clientName: string; goLiveDate: string | null; defaultOutcomeId: string | null }
-  icp: (IcpRow & { referenceTracks: ReferenceTrackRow[] }) | null
+  icps: (IcpRow & { referenceTracks: ReferenceTrackRow[] })[]
   sharedWith: { id: string; name: string; clientName: string }[]
 }
 
@@ -261,7 +261,7 @@ export interface ClientFull {
   updatedAt: string
   stores: {
     id: string; name: string; timezone: string; goLiveDate: string | null
-    icp: { id: string; name: string }
+    icps: { id: string; name: string }[]
     defaultOutcome: { id: string; title: string; version: number } | null
   }[]
   icps: { id: string; name: string; hookCount: number; referenceTrackCount: number; storeCount: number }[]
@@ -460,7 +460,7 @@ export interface FlaggedResponse {
 
 export interface ScheduleDryRun {
   store: { id: string; name: string; timezone: string }
-  icp: { id: string; name: string }
+  icps: { id: string; name: string }[]
   defaultOutcome: { id: string; title: string; version: number; superseded: boolean } | null
   thresholds: { critical: number; thin: number }
   days: DryRunDay[]

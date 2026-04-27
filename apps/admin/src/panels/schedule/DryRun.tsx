@@ -97,7 +97,11 @@ function SummaryRow({ data }: { data: ScheduleDryRun }) {
       <Chip label="default fill" value={fmtDur(data.totals.defaultMin)} pct={pct(data.totals.defaultMin, data.totals.totalMin)} color={T.textMuted} />
       <Chip label="gap" value={fmtDur(data.totals.gapMin)} pct={pct(data.totals.gapMin, data.totals.totalMin)} color={data.totals.gapMin > 0 ? T.danger : T.textDim} />
       <Chip label="default outcome" value={data.defaultOutcome?.title ?? '—'} color={data.defaultOutcome ? T.text : T.danger} />
-      <Chip label="ICP" value={data.icp.name} color={T.text} />
+      <Chip
+        label={`ICPs (${data.icps.length})`}
+        value={data.icps.length === 0 ? '—' : data.icps.map((i) => i.name).join(', ')}
+        color={data.icps.length > 0 ? T.text : T.textDim}
+      />
       <Chip label="timezone" value={data.store.timezone} color={T.textMuted} />
     </div>
   )
