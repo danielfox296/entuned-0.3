@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { api, getToken, setToken, clearToken } from './api.js'
 import type { MeResponse } from './api.js'
 import { T } from './tokens.js'
@@ -59,29 +59,6 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Alert Feed', 'Metric Source Registry'],
     description: 'Pool alerts, experiment gates, system health', deferred: true },
 ]
-
-// ── StatusBar ──────────────────────────────────────────────────
-function StatusBar({ apiOk }: { apiOk: boolean }) {
-  return (
-    <div style={{
-      height: 36, background: T.surface, borderBottom: `1px solid ${T.border}`,
-      display: 'flex', alignItems: 'center', padding: '0 16px', gap: 20,
-      flexShrink: 0, fontFamily: T.sans, fontSize: 14,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <div style={{
-          width: 6, height: 6, borderRadius: '50%',
-          background: apiOk ? T.success : T.danger,
-          boxShadow: apiOk ? `0 0 6px ${T.success}` : 'none',
-        }} />
-        <span style={{ color: T.textMuted }}>API</span>
-        <span style={{ color: T.text }}>{apiOk ? 'live' : 'down'}</span>
-      </div>
-      <div style={{ flex: 1 }} />
-      <span style={{ color: T.textDim }}>entuned v0.3 admin</span>
-    </div>
-  )
-}
 
 // ── Sidebar ────────────────────────────────────────────────────
 function Sidebar({ active, onSelect, collapsed, onToggle, email, onLogout }: {
@@ -520,7 +497,6 @@ export function App() {
   const [me, setMe] = useState<MeResponse | null>(null)
   const [active, setActive] = useState('seeding')
   const [collapsed, setCollapsed] = useState(false)
-  const [apiOk, setApiOk] = useState(false)
 
   // Verify token
   useEffect(() => {
@@ -530,17 +506,6 @@ export function App() {
       setTokenState(null)
     })
   }, [token])
-
-  // Health poll
-  const checkHealth = useCallback(() => {
-    api.health().then(() => setApiOk(true)).catch(() => setApiOk(false))
-  }, [])
-
-  useEffect(() => {
-    checkHealth()
-    const id = setInterval(checkHealth, 30000)
-    return () => clearInterval(id)
-  }, [checkHealth])
 
   const handleLogin = (t: string) => {
     setToken(t)
@@ -565,7 +530,6 @@ export function App() {
       flexDirection: 'column', background: T.bg,
       color: T.text, fontFamily: T.sans, overflow: 'hidden',
     }}>
-      <StatusBar apiOk={apiOk} />
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <Sidebar
           active={active}
