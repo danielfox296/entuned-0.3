@@ -328,7 +328,6 @@ function RefTrackRow({ track, onChanged }: { track: ReferenceTrackRow; onChanged
 
   const remove = async () => {
     const token = getToken(); if (!token) return
-    if (!confirm(`Delete "${track.artist} — ${track.title}"?`)) return
     setBusy('delete'); setErr(null)
     try {
       await api.deleteReferenceTrack(track.id, token)
@@ -338,9 +337,6 @@ function RefTrackRow({ track, onChanged }: { track: ReferenceTrackRow; onChanged
 
   const runDecompose = async (force = false) => {
     const token = getToken(); if (!token) return
-    if (!confirm(force
-      ? 'Overwrite the verified decomposition? This calls Anthropic with web search.'
-      : 'Run decomposer? This calls Anthropic with web search and overwrites the existing draft.')) return
     setBusy('decompose'); setErr(null)
     try {
       await api.decomposeReferenceTrack(track.id, force, token)

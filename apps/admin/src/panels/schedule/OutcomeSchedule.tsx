@@ -171,7 +171,6 @@ function RowItem({ row, outcomes, onChanged }: {
 
   const remove = async () => {
     const token = getToken(); if (!token) return
-    if (!confirm(`Delete ${row.outcomeTitle} ${row.startTime}–${row.endTime}?`)) return
     setBusy('delete')
     try { await api.deleteScheduleSlot(row.id, token); onChanged() }
     catch (e: any) { setErr(e.message); setBusy(null) }

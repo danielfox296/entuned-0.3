@@ -65,7 +65,6 @@ export function OutcomeLibrary() {
   const saveEdit = async () => {
     if (!editingId || !draft) return
     const token = getToken(); if (!token) return
-    if (!confirm(`Saves as v{N+1}; the current version stays referenced by existing hooks/schedule rows/submissions. Continue?`.replace('{N+1}', String((rows?.find((r) => r.id === editingId)?.version ?? 0) + 1)))) return
     setBusy('save'); setErr(null)
     try {
       await api.editOutcome(editingId, {
@@ -93,7 +92,6 @@ export function OutcomeLibrary() {
 
   const supersede = async (r: Row) => {
     const token = getToken(); if (!token) return
-    if (!confirm(`Retire "${r.title} v${r.version}"? It stays referenced by existing hooks/schedule rows/submissions but won't appear in pickers.`)) return
     setBusy(r.id)
     try { await api.supersedeOutcome(r.id, token); await reload() }
     catch (e: any) { setErr(e.message) }

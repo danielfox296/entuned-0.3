@@ -19,7 +19,6 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
   useEffect(() => { load() }, [songSeedId])
 
   const action = async (label: string, fn: () => Promise<unknown>) => {
-    if (!confirm(`${label}?`)) return
     setBusy(label); setErr(null)
     try { await fn(); await load() }
     catch (e: any) { setErr(e.message) }
@@ -30,7 +29,6 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
     const token = getToken(); if (!token) return
     const validTakes = takes.filter((t) => t.sourceUrl.trim())
     if (validTakes.length === 0) { alert('Add at least one source URL.'); return }
-    if (!confirm(`Accept ${validTakes.length} take(s)? Server downloads each from its source URL, re-hosts on our R2 bucket, then creates Song(s) + LineageRow(s) and finalizes the hook.`)) return
     setBusy('accept'); setErr(null)
     try {
       await api.acceptSongSeed(songSeedId, { takes: validTakes }, token)

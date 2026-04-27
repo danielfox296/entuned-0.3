@@ -63,7 +63,6 @@ export function FailureRules() {
   const remove = async (id: string) => {
     const token = getToken()
     if (!token) return
-    if (!confirm('Delete this rule?')) return
     setBusy(id); setErr(null)
     try {
       await api.deleteStyleExclusionRule(id, token)

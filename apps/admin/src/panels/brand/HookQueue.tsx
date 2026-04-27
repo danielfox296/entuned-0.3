@@ -514,7 +514,6 @@ function HookRow({ hook, onChanged }: { hook: HookRowFull; onChanged: () => void
       const msg = preview.warning
         ? `${preview.warning}\n\nRetire anyway?`
         : `Retire this hook? Eno will stop picking it for new submissions. ${preview.activeLineageRows} existing LineageRow(s) keep playing.`
-      if (!confirm(msg)) { setBusy(null); return }
       await api.retireHook(hook.id, preview.inFlightSongSeeds > 0, token)
       onChanged()
     } catch (e: any) { setErr(e.message) }
@@ -535,7 +534,6 @@ function HookRow({ hook, onChanged }: { hook: HookRowFull; onChanged: () => void
 
   const approve = async () => {
     const token = getToken(); if (!token) return
-    if (!confirm('Approve this hook? Approval locks the text — further edits require a new hook.')) return
     setBusy('approve'); setErr(null)
     try { await api.approveHook(hook.id, token); onChanged() }
     catch (e: any) { setErr(e.message) }
@@ -544,7 +542,6 @@ function HookRow({ hook, onChanged }: { hook: HookRowFull; onChanged: () => void
 
   const remove = async () => {
     const token = getToken(); if (!token) return
-    if (!confirm('Delete this draft hook?')) return
     setBusy('delete'); setErr(null)
     try { await api.deleteHook(hook.id, token); onChanged() }
     catch (e: any) { setErr(e.message); setBusy(null) }

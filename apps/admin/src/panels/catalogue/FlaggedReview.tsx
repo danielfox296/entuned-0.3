@@ -70,7 +70,6 @@ function Card({ song, onChanged, muted }: { song: FlaggedSong; onChanged: () => 
 
   const retire = async () => {
     const token = getToken(); if (!token) return
-    if (!confirm(`Retire ${song.activeLineageCount} active LineageRow${song.activeLineageCount === 1 ? '' : 's'} for this song?`)) return
     setBusy(true); setErr(null)
     try { await api.retireFlagged(song.songId, token); onChanged() }
     catch (e: any) { setErr(e.message) }

@@ -169,7 +169,6 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
 
   const toggle = async () => {
     const token = getToken(); if (!token) return
-    if (row.active && !confirm('Retire this LineageRow? Hendrix will stop picking it.')) return
     setBusy(true); setErr(null)
     try { await api.setLineageRowActive(row.id, !row.active, token); onChanged() }
     catch (e: any) { setErr(e.message) }

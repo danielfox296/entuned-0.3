@@ -57,7 +57,6 @@ export function SongSeedQueue() {
 
   const launch = async () => {
     const token = getToken(); if (!token || !icpId || !runOutcome) return
-    if (!confirm(`Run Seed Builder: generate ${runN} song seed(s) for this ICP + outcome? Calls Anthropic and persists Song Seeds.`)) return
     setRunning(true); setRunResult(null); setErr(null)
     try {
       const result = await api.runSeedBuilder({ icpId, outcomeId: runOutcome, n: runN }, token)

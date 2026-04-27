@@ -111,7 +111,6 @@ function ActiveCard({ data, onChange }: { data: LiveStoreData; onChange: () => v
   const [busy, setBusy] = useState(false)
   const clear = async () => {
     const token = getToken(); if (!token) return
-    if (!confirm('Clear the manual override and revert to schedule/default?')) return
     setBusy(true)
     try { await api.clearOutcomeSelection(data.store.id, token); onChange() }
     catch (e: any) { alert(e.message) }
@@ -178,8 +177,6 @@ function OverridePicker({ data, onChanged }: { data: LiveStoreData; onChanged: (
   const [busy, setBusy] = useState<string | null>(null)
   const apply = async (oc: OutcomeWithPool) => {
     const token = getToken(); if (!token) return
-    if (oc.poolSize === 0 && !confirm(`"${oc.title}" has an empty pool for this store's ICP. Override anyway?`)) return
-    if (!confirm(`Override the active outcome with "${oc.title}"? Lasts until the next schedule boundary (or 30 min minimum).`)) return
     setBusy(oc.outcomeId)
     try { await api.setOutcomeSelection(data.store.id, oc.outcomeId, token); onChanged() }
     catch (e: any) { alert(e.message) }
