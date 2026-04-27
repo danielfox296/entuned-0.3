@@ -38,6 +38,7 @@ export function SongSeedQueue() {
 
   const currentStore = storeId && stores ? stores.find((x) => x.id === storeId) ?? null : null
   const storeIcps = currentStore?.icps ?? []
+  const selectedIcp = icpId ? storeIcps.find((i) => i.id === icpId) ?? null : null
 
   useEffect(() => {
     if (!storeId || !stores) { setIcpId(null); return }
@@ -85,10 +86,10 @@ export function SongSeedQueue() {
 
       <UIStorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
 
-      {currentStore && storeIcps.length > 1 && (
+      {currentStore && storeIcps.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontFamily: T.mono, fontSize: 13, color: T.textDim, textTransform: 'uppercase' }}>ICP</span>
-          <select value={icpId ?? ''} onChange={(e) => setIcpId(e.target.value || null)} style={inputStyle}>
+          <select value={icpId ?? ''} onChange={(e) => setIcpId(e.target.value || null)} style={inputStyle} disabled={storeIcps.length === 1}>
             {storeIcps.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
         </div>
@@ -101,8 +102,15 @@ export function SongSeedQueue() {
       )}
 
       {icpId && (
-        <Section title="Run Seed Builder" subtitle="Generate new songSeeds for this ICP + outcome">
+        <Section title="Run Seed Builder" subtitle="Generates SongSeeds for the selected ICP and Outcome. Each seed is permanently bound to one ICP.">
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{
+              fontFamily: T.mono, fontSize: 13, color: T.accent,
+              border: `1px solid ${T.accentMuted}`, borderRadius: 3, padding: '6px 10px',
+            }}>
+              ICP: {selectedIcp?.name ?? icpId.slice(0, 8)}
+            </span>
+            <span style={{ color: T.textDim, fontFamily: T.mono }}>+</span>
             <select value={runOutcome} onChange={(e) => setRunOutcome(e.target.value)} style={inputStyle}>
               <option value="" disabled>— pick outcome —</option>
               {(outcomes ?? []).map((o) => <option key={o.id} value={o.id}>{o.title} (v{o.version})</option>)}

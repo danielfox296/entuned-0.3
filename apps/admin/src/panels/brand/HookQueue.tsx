@@ -64,13 +64,14 @@ export function HookQueue() {
 
       <UIStorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
 
-      {detail && detail.icps.length > 1 && (
+      {detail && detail.icps.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontFamily: T.mono, fontSize: 13, color: T.textDim, textTransform: 'uppercase' }}>ICP</span>
           <select
             value={icpId ?? ''}
             onChange={(e) => setIcpId(e.target.value || null)}
             style={inputStyle as any}
+            disabled={detail.icps.length === 1}
           >
             {detail.icps.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
