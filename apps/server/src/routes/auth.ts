@@ -43,16 +43,24 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     const op = await prisma.operator.findUnique({
       where: { id: payload.operatorId },
       include: payload.isAdmin ? undefined : {
-        storeAssignments: { include: { store: true } },
+        storeAssignments: { include: { store: { include: { client: { select: { companyName: true } } } } } },
       },
     })
     if (!op || op.disabledAt) return reply.code(401).send({ error: 'operator_disabled' })
 
-    let stores: { id: string; name: string }[]
+    type StoreOut = { id: string; name: string; clientName: string | null }
+    let stores: StoreOut[]
     if (op.isAdmin) {
-      stores = (await prisma.store.findMany({ select: { id: true, name: true } }))
+      const rows = await prisma.store.findMany({
+        select: { id: true, name: true, client: { select: { companyName: true } } },
+      })
+      stores = rows.map((s) => ({ id: s.id, name: s.name, clientName: s.client?.companyName ?? null }))
     } else {
-      stores = (op as any).storeAssignments.map((a: any) => ({ id: a.store.id, name: a.store.name }))
+      stores = (op as any).storeAssignments.map((a: any) => ({
+        id: a.store.id,
+        name: a.store.name,
+        clientName: a.store.client?.companyName ?? null,
+      }))
     }
     // Per "login determines store": non-admin operators are 1:1 with a store.
     // Return `store` (singular) so the player has a strict contract; keep

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type QueueItem, type ActiveOutcome, type OutcomeOption, type AudioEventType } from "../api.js";
 import { CrossfadePlayer } from "../audio/crossfade-player.js";
 import { CircleButton } from "../components/CircleButton.js";
@@ -7,6 +7,8 @@ import { ProgressBar } from "../components/ProgressBar.js";
 import { OutcomeModal } from "../components/OutcomeModal.js";
 import { ReportModal, type ReportReason } from "../components/ReportModal.js";
 import type { Session } from "../lib/storage.js";
+import logoUrl from "/entuned_logo.png";
+import touchIconUrl from "/apple-touch-icon.png";
 
 const PRELOAD_SECONDS_BEFORE_END = 8;
 const CROSSFADE_MS = 800;
@@ -377,7 +379,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
       title: trackLabel(currentItem) || "Untitled",
       artist: "Entuned",
       album: session.storeName,
-      artwork: [{ src: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+      artwork: [{ src: touchIconUrl, sizes: "180x180", type: "image/png" }],
     });
   }, [currentItem, session.storeName]);
 
@@ -397,12 +399,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
     return () => clearInterval(iv);
   }, [isPlaying]);
 
-  const currentOutcome = useMemo(
-    () => outcomes.find((o) => o.outcomeId === activeOutcome?.outcomeId) ?? null,
-    [outcomes, activeOutcome],
-  );
+  // activeOutcome.title comes hydrated from /hendrix/next; the outcomes list is
+  // only used by the picker modal.
+  const activeTitle = activeOutcome?.title ?? "—";
 
-  const headerName = session.displayName || session.email;
+  const headerLine = session.clientName
+    ? `${session.clientName}: ${session.storeName}`
+    : session.storeName;
 
   return (
     <div
@@ -418,18 +421,15 @@ export function PlayerScreen({ session, onLogout }: Props) {
     >
       <div style={{ position: "relative", zIndex: 1, display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "20px 28px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <img src="/entuned_logo.png" alt="Entuned" style={{ width: 146, opacity: 0.75 }} />
+          <img src={logoUrl} alt="Entuned" style={{ width: 146, opacity: 0.75 }} />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <div
             onClick={() => setShowLogoutConfirm((v) => !v)}
-            style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, cursor: "pointer", userSelect: "none" }}
+            style={{ display: "flex", alignItems: "center", cursor: "pointer", userSelect: "none" }}
           >
-            <span style={{ fontSize: 12, fontWeight: 500, letterSpacing: 2.5, color: "rgba(212,225,229,0.45)", textTransform: "uppercase" }}>
-              {headerName}
-            </span>
-            <span style={{ fontSize: 13, fontWeight: 300, letterSpacing: 0.5, color: "rgba(212,225,229,0.55)", textTransform: "uppercase" }}>
-              {session.storeName}
+            <span style={{ fontSize: 13, fontWeight: 300, letterSpacing: 1.5, color: "rgba(212,225,229,0.65)", textTransform: "uppercase" }}>
+              {headerLine}
             </span>
           </div>
           <div
@@ -568,7 +568,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
               Outcome
             </span>
             <span style={{ fontSize: 16, fontWeight: 500, letterSpacing: 2, color: "rgba(212,225,229,0.95)", textTransform: "uppercase" }}>
-              {currentOutcome?.title ?? activeOutcome?.outcomeId ?? "—"}
+              {activeTitle}
             </span>
           </div>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none">

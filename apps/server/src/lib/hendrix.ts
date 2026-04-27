@@ -19,7 +19,7 @@ export interface QueueItem {
 export interface HendrixResponse {
   storeId: string
   decidedAt: string
-  activeOutcome: { outcomeId: string; source: 'selection' | 'schedule' | 'default'; expiresAt?: string } | null
+  activeOutcome: { outcomeId: string; title: string; source: 'selection' | 'schedule' | 'default'; expiresAt?: string } | null
   queue: QueueItem[]
   fallbackTier: FallbackTier
   reason: EmptyReason
@@ -195,7 +195,7 @@ export async function nextQueue(storeId: string, now: Date = new Date()): Promis
   }
 
   if (store.icps.length === 0) {
-    return { storeId, decidedAt, activeOutcome: serializeOutcome(resolved), queue: [], fallbackTier: 'none', reason: 'no_pool' }
+    return { storeId, decidedAt, activeOutcome: await serializeOutcome(resolved), queue: [], fallbackTier: 'none', reason: 'no_pool' }
   }
   // Merge song pools across all ICPs assigned to this store.
   const poolsByIcp = await Promise.all(store.icps.map((icp) => fetchPool(icp.id, resolved.outcomeId)))
@@ -204,7 +204,7 @@ export async function nextQueue(storeId: string, now: Date = new Date()): Promis
     return {
       storeId,
       decidedAt,
-      activeOutcome: serializeOutcome(resolved),
+      activeOutcome: await serializeOutcome(resolved),
       queue: [],
       fallbackTier: 'none',
       reason: 'no_pool',
@@ -247,7 +247,7 @@ export async function nextQueue(storeId: string, now: Date = new Date()): Promis
       return {
         storeId,
         decidedAt,
-        activeOutcome: serializeOutcome(resolved),
+        activeOutcome: await serializeOutcome(resolved),
         queue,
         fallbackTier: t.tier,
         reason: null,
@@ -259,13 +259,14 @@ export async function nextQueue(storeId: string, now: Date = new Date()): Promis
   return {
     storeId,
     decidedAt,
-    activeOutcome: serializeOutcome(resolved),
+    activeOutcome: await serializeOutcome(resolved),
     queue: [],
     fallbackTier: 'no_repeat_window',
     reason: 'no_pool',
   }
 }
 
-function serializeOutcome(r: { outcomeId: string; source: 'selection' | 'schedule' | 'default'; expiresAt?: Date }) {
-  return { outcomeId: r.outcomeId, source: r.source, expiresAt: r.expiresAt?.toISOString() }
+async function serializeOutcome(r: { outcomeId: string; source: 'selection' | 'schedule' | 'default'; expiresAt?: Date }) {
+  const o = await prisma.outcome.findUnique({ where: { id: r.outcomeId }, select: { title: true } })
+  return { outcomeId: r.outcomeId, title: o?.title ?? r.outcomeId, source: r.source, expiresAt: r.expiresAt?.toISOString() }
 }

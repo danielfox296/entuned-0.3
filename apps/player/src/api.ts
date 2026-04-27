@@ -14,6 +14,7 @@ export interface QueueItem {
 
 export interface ActiveOutcome {
   outcomeId: string
+  title: string
   source: 'selection' | 'schedule' | 'default'
   expiresAt?: string
 }
@@ -43,9 +44,9 @@ export interface AuthResponse {
 export interface MeResponse {
   operator: { id: string; email: string; displayName: string | null; isAdmin: boolean }
   /** Single store for non-admin operators (login determines store). Null for admins. */
-  store: { id: string; name: string } | null
+  store: { id: string; name: string; clientName: string | null } | null
   /** Cross-store list for admins; also a legacy fallback. */
-  stores: { id: string; name: string }[]
+  stores: { id: string; name: string; clientName: string | null }[]
 }
 
 export type AudioEventType =

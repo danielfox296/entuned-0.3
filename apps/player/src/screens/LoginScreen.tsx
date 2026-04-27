@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../api.js";
 import { saveSession, type Session } from "../lib/storage.js";
+import logoUrl from "/entuned_logo.png";
 
 type Props = {
   onAuthed: (s: Session) => void;
@@ -32,6 +33,7 @@ export function LoginScreen({ onAuthed }: Props) {
         token: auth.token,
         storeId: store.id,
         storeName: store.name,
+        clientName: store.clientName ?? null,
         operatorId: me.operator.id,
         email: me.operator.email,
         displayName: me.operator.displayName,
@@ -59,7 +61,7 @@ export function LoginScreen({ onAuthed }: Props) {
     >
       <div style={{ maxWidth: 380, width: "100%", display: "flex", flexDirection: "column", gap: 24 }}>
         <header style={{ textAlign: "center", marginBottom: 12 }}>
-          <img src="/entuned_logo.png" alt="Entuned" style={{ width: 180, opacity: 0.9 }} />
+          <img src={logoUrl} alt="Entuned" style={{ width: 180, opacity: 0.9 }} />
         </header>
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <input

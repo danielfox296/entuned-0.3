@@ -4,6 +4,7 @@ export interface Session {
   token: string;
   storeId: string;
   storeName: string;
+  clientName: string | null;
   operatorId: string;
   email: string;
   displayName?: string | null;
