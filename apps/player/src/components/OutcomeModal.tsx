@@ -60,7 +60,8 @@ export function OutcomeModal({ outcomes, activeId, onSelect, onClear, onClose }:
               <button
                 key={o.outcomeId}
                 type="button"
-                onClick={() => { onSelect(o.outcomeId); }}
+                disabled={empty}
+                onClick={empty ? undefined : () => onSelect(o.outcomeId)}
                 style={{
                   width: "100%",
                   textAlign: "left",
@@ -69,8 +70,8 @@ export function OutcomeModal({ outcomes, activeId, onSelect, onClear, onClose }:
                   border: `1px solid ${active ? "rgba(94,162,182,0.55)" : "rgba(212,225,229,0.12)"}`,
                   background: active ? "rgba(94,162,182,0.16)" : "rgba(212,225,229,0.04)",
                   color: "rgba(212,225,229,0.9)",
-                  cursor: "pointer",
-                  opacity: empty ? 0.55 : 1,
+                  cursor: empty ? "not-allowed" : "pointer",
+                  opacity: empty ? 0.4 : 1,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",

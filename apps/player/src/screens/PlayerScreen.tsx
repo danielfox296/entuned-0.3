@@ -212,10 +212,8 @@ export function PlayerScreen({ session, onLogout }: Props) {
   }, [isPlaying, playFromQueue]);
 
   const handleSelectOutcome = useCallback(async (outcomeId: string) => {
-    const opt = outcomes.find((o) => o.outcomeId === outcomeId);
-    if (opt && opt.poolSize === 0) {
-      if (!confirm("No songs available for this outcome. Playback will be silent. Continue?")) return;
-    }
+    // Empty-pool outcomes are disabled in OutcomeModal, so we don't need a
+    // silent-playback confirmation here — the modal won't fire onSelect.
     try {
       await api.outcomeSelection(session.storeId, outcomeId, session.token);
       // Server logs the outcome_selection PlaybackEvent itself (see hendrix.ts);
