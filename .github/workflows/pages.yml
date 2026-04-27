@@ -1,11 +1,11 @@
-name: Deploy player + admin to GitHub Pages
+name: Deploy admin to GitHub Pages + push player to entuned-0.3-player
 
 on:
   push:
     branches: [main]
     paths:
-      - "apps/player/**"
       - "apps/admin/**"
+      - "apps/player/**"
       - "pnpm-lock.yaml"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
@@ -20,7 +20,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-admin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build admin
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        run: pnpm --filter admin build
+      - name: Stage dist
+        run: |
+          mkdir -p dist
+          cp -R apps/admin/dist/. dist/
+          echo "dash.entuned.co" > dist/CNAME
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy-admin:
+    needs: build-admin
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  # Build the player and push the static dist to danielfox296/entuned-0.3-player,
+  # whose Pages serves music.entuned.co. The PLAYER_DEPLOY_TOKEN secret must be a
+  # fine-grained PAT (or classic PAT) with contents:write on the player repo.
+  build-and-publish-player:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,28 +71,21 @@ jobs:
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
         run: pnpm --filter player build
-      - name: Build admin
-        env:
-          VITE_API_URL: ${{ vars.VITE_API_URL }}
-        run: pnpm --filter admin build
-      - name: Combine dist
+      - name: Stage player publish dir
         run: |
-          mkdir -p dist
-          cp -R apps/admin/dist/. dist/
-          mkdir -p dist/player
-          cp -R apps/player/dist/. dist/player/
-          echo "dash.entuned.co" > dist/CNAME
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+          mkdir -p publish
+          cp -R apps/player/dist/. publish/
+          echo "music.entuned.co" > publish/CNAME
+          touch publish/.nojekyll
+      - name: Push to entuned-0.3-player
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          personal_token: ${{ secrets.PLAYER_DEPLOY_TOKEN }}
+          external_repository: danielfox296/entuned-0.3-player
+          publish_branch: main
+          publish_dir: ./publish
+          # The dist replaces the entire repo content on each publish.
+          force_orphan: true
+          commit_message: "deploy player from entuned-0.3@${{ github.sha }}"
+          user_name: "github-actions[bot]"
+          user_email: "41898282+github-actions[bot]@users.noreply.github.com"
