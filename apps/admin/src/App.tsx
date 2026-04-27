@@ -1,4 +1,9 @@
 import { useEffect, useState } from 'react'
+import type { LucideIcon } from 'lucide-react'
+import {
+  Disc3, Play, Sparkles, CalendarDays, Settings, Music2,
+  FlaskConical, Lightbulb, Activity,
+} from 'lucide-react'
 import { api, getToken, setToken, clearToken } from './api.js'
 import type { MeResponse } from './api.js'
 import { T } from './tokens.js'
@@ -26,36 +31,36 @@ import { SongSeed } from './panels/seeding/SongSeed.js'
 
 // ── Surface groups (from admin-ui.md, priority order) ──────────
 interface SurfaceGroup {
-  key: string; label: string; short: string; icon: string
+  key: string; label: string; short: string; icon: LucideIcon
   cards: string[]; description: string; deferred?: boolean
 }
 
 const GROUPS: SurfaceGroup[] = [
-  { key: 'seeding', label: 'Song Creation', short: 'Creation', icon: '⏺',
+  { key: 'seeding', label: 'Song Creation', short: 'Creation', icon: Disc3,
     cards: ['Song Seed Queue', 'Song Seed', 'Closed Song Seeds'],
     description: 'Claim song seeds, paste to Suno, accept or close takes' },
-  { key: 'playback', label: 'Playback & Overrides', short: 'Playback', icon: '▶',
+  { key: 'playback', label: 'Playback & Overrides', short: 'Playback', icon: Play,
     cards: ['Live Store View', 'Mode Override', 'Interrupt Controls'],
     description: "What's playing now, override outcomes, skip/pause" },
-  { key: 'brand', label: 'Client & Brand', short: 'Brand', icon: '◆',
+  { key: 'brand', label: 'Client & Brand', short: 'Brand', icon: Sparkles,
     cards: ['Client Detail', 'ICP Editor', 'Hook Queue', 'Store Editor', 'Operator Manager'],
     description: 'ICP profiles, hooks, reference tracks, store config' },
-  { key: 'schedule', label: 'Scheduling', short: 'Schedule', icon: '▦',
+  { key: 'schedule', label: 'Scheduling', short: 'Schedule', icon: CalendarDays,
     cards: ['Outcome Schedule', 'Outcome Library', 'Dry Run'],
     description: 'Weekly outcome grids, schedule preview' },
-  { key: 'engine', label: 'Engine', short: 'Engine', icon: '⚙',
+  { key: 'engine', label: 'Engine', short: 'Engine', icon: Settings,
     cards: ['Track Analyzer Rules', 'Style Exclusion Rules', 'Style Template', 'Lyric Prompts', 'Outcome Factor Prompt'],
     description: 'System-level prompts that drive decomposer, Mars, and Bernie' },
-  { key: 'catalogue', label: 'Song Catalogue', short: 'Catalogue', icon: '♫',
+  { key: 'catalogue', label: 'Song Catalogue', short: 'Catalogue', icon: Music2,
     cards: ['Song Browser', 'Flagged Review', 'Retired Songs', 'Pool Depth'],
     description: 'Browse songs, review flags, monitor pool depth' },
-  { key: 'experiments', label: 'Experiments', short: 'Experiments', icon: '⬡',
+  { key: 'experiments', label: 'Experiments', short: 'Experiments', icon: FlaskConical,
     cards: ['Experiment Editor', 'Experiment Detail', 'Results'],
     description: 'A/B tests, arm pools, conclusions', deferred: true },
-  { key: 'hypothesis', label: 'Hypothesis Review', short: 'Hypotheses', icon: '△',
+  { key: 'hypothesis', label: 'Hypothesis Review', short: 'Hypotheses', icon: Lightbulb,
     cards: ['Hypothesis Queue', 'Hypothesis Detail', 'Promotion History'],
     description: 'Kraftwerk output review, promote or reject', deferred: true },
-  { key: 'monitoring', label: 'Monitoring & Alerts', short: 'Monitoring', icon: '◉',
+  { key: 'monitoring', label: 'Monitoring & Alerts', short: 'Monitoring', icon: Activity,
     cards: ['Alert Feed', 'Metric Source Registry'],
     description: 'Pool alerts, experiment gates, system health', deferred: true },
 ]
@@ -95,9 +100,12 @@ function Sidebar({ active, onSelect, collapsed, onToggle, email, onLogout }: {
               transition: 'all 0.15s ease', opacity: g.deferred ? 0.4 : 1,
             }}>
               <span style={{
-                fontSize: 16, width: 18, textAlign: 'center', flexShrink: 0,
+                width: 18, display: 'inline-flex', alignItems: 'center',
+                justifyContent: 'center', flexShrink: 0,
                 color: on ? T.accent : T.textMuted,
-              }}>{g.icon}</span>
+              }}>
+                <g.icon size={16} strokeWidth={1.75} />
+              </span>
               {!collapsed && <span style={{
                 fontSize: 15, fontFamily: T.sans, fontWeight: on ? 500 : 400,
                 color: on ? T.text : T.textMuted, whiteSpace: 'nowrap',
@@ -132,7 +140,9 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ padding: '20px 28px 16px', borderBottom: `1px solid ${T.borderSubtle}`, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-          <span style={{ fontSize: 15, color: T.accent }}>{group.icon}</span>
+          <span style={{ display: 'inline-flex', color: T.accent }}>
+            <group.icon size={18} strokeWidth={1.75} />
+          </span>
           <h1 style={{
             fontSize: 21, fontFamily: T.heading, fontWeight: 700,
             color: T.text, margin: 0, letterSpacing: '-0.02em',

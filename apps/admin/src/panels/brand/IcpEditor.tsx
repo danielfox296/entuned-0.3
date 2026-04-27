@@ -6,19 +6,27 @@ import type {
   StyleAnalysisRow, StyleAnalysisUpdate, TasteCategory,
 } from '../../api.js'
 import { T } from '../../tokens.js'
-import { PanelHeader, StorePicker as UIStorePicker, S } from '../../ui/index.js'
+import { PanelHeader, StorePicker as UIStorePicker, S, Pill, ConfirmDelete } from '../../ui/index.js'
 
-const ICP_FIELDS: { key: keyof IcpUpdate; label: string; rows: number }[] = [
-  { key: 'name', label: 'name', rows: 1 },
-  { key: 'ageRange', label: 'age range', rows: 1 },
-  { key: 'location', label: 'location', rows: 1 },
-  { key: 'politicalSpectrum', label: 'political spectrum', rows: 1 },
-  { key: 'openness', label: 'openness', rows: 2 },
-  { key: 'fears', label: 'fears', rows: 3 },
-  { key: 'values', label: 'values', rows: 3 },
-  { key: 'desires', label: 'desires', rows: 3 },
-  { key: 'unexpressedDesires', label: 'unexpressed desires', rows: 3 },
-  { key: 'turnOffs', label: 'turn-offs', rows: 3 },
+// Width per field (px). Compact for short scalars, prose for paragraphs.
+type FieldWidth = 'compact' | 'short' | 'prose'
+const W = {
+  compact: 240,   // single-word / short-phrase scalars
+  short:   320,   // medium scalars (name, location)
+  prose:   640,   // long-form paragraphs — readable column
+} as const
+
+const ICP_FIELDS: { key: keyof IcpUpdate; label: string; rows: number; width: FieldWidth }[] = [
+  { key: 'name', label: 'name', rows: 1, width: 'short' },
+  { key: 'ageRange', label: 'age range', rows: 1, width: 'compact' },
+  { key: 'location', label: 'location', rows: 1, width: 'short' },
+  { key: 'politicalSpectrum', label: 'political spectrum', rows: 1, width: 'compact' },
+  { key: 'openness', label: 'openness', rows: 2, width: 'prose' },
+  { key: 'fears', label: 'fears', rows: 3, width: 'prose' },
+  { key: 'values', label: 'values', rows: 3, width: 'prose' },
+  { key: 'desires', label: 'desires', rows: 3, width: 'prose' },
+  { key: 'unexpressedDesires', label: 'unexpressed desires', rows: 3, width: 'prose' },
+  { key: 'turnOffs', label: 'turn-offs', rows: 3, width: 'prose' },
 ]
 
 const BUCKETS: TasteCategory[] = ['FormationEra', 'Subculture', 'Aspirational']
@@ -166,9 +174,12 @@ function IcpFields({ detail: _detail, icp, onSaved }: { detail: StoreDetail; icp
 
   return (
     <Section title={`Psychographic profile — ${icp.name}`} subtitle={`updated ${new Date(icp.updatedAt).toLocaleString()}`}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
         {ICP_FIELDS.map((f) => (
-          <div key={String(f.key)} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div key={String(f.key)} style={{
+            display: 'flex', flexDirection: 'column', gap: 4,
+            width: '100%', maxWidth: W[f.width],
+          }}>
             <label style={{ fontSize: 13, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>{f.label}</label>
             {f.rows === 1 ? (
               <input
@@ -229,15 +240,19 @@ function ReferenceTracks({ detail: _detail, icp, onChanged }: { detail: StoreDet
         />
       )}
       {BUCKETS.map((b) => (
-        <div key={b} style={{ marginBottom: 18 }}>
+        <div key={b} style={{ marginBottom: 22 }}>
           <div style={{
-            fontSize: 13, color: T.accentMuted, fontFamily: T.mono,
-            textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6,
-          }}>{b} ({grouped[b].length})</div>
+            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8,
+          }}>
+            <Pill tone="muted" variant="soft" uppercase>{b}</Pill>
+            <span style={{ fontSize: 13, color: T.textDim, fontFamily: T.mono }}>
+              {grouped[b].length}
+            </span>
+          </div>
           {grouped[b].length === 0 && (
             <div style={{ color: T.textDim, fontSize: 14, fontFamily: T.mono, padding: '4px 0' }}>none</div>
           )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {grouped[b].map((r) => (
               <RefTrackRow key={r.id} track={r} onChanged={onChanged} />
             ))}
@@ -345,23 +360,29 @@ function RefTrackRow({ track, onChanged }: { track: ReferenceTrackRow; onChanged
 
   return (
     <div style={{
-      border: `1px solid ${T.borderSubtle}`, borderRadius: 4,
-      background: T.surface, overflow: 'hidden',
+      border: `1px solid ${expanded ? T.borderActive : T.borderSubtle}`, borderRadius: 4,
+      background: expanded ? T.surfaceRaised : T.surface, overflow: 'hidden',
+      transition: 'border-color 0.15s ease, background 0.15s ease',
     }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 60px auto auto', gap: 10, padding: '10px 12px', alignItems: 'center' }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(140px, 1fr) minmax(200px, 2fr) 60px auto auto',
+        gap: 12, padding: '12px 16px', alignItems: 'center',
+      }}>
         <span style={{ fontSize: 14, fontFamily: T.sans, color: T.text, fontWeight: 500 }}>{track.artist}</span>
         <span style={{ fontSize: 14, fontFamily: T.sans, color: T.textMuted, fontStyle: 'italic' }}>{track.title}</span>
         <span style={{ fontSize: 14, fontFamily: T.mono, color: T.textDim }}>{track.year ?? ''}</span>
         <DecompositionBadge dec={dec} />
         <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={() => setExpanded(!expanded)} style={ghostBtn}>{expanded ? '▴' : '▾'}</button>
           <button
             onClick={() => runDecompose(verified)}
             disabled={busy === 'decompose'}
             style={ghostBtn}
             title={verified ? 'overwrite verified decomposition' : 'run decomposer'}
-          >{busy === 'decompose' ? '…' : 'decompose'}</button>
-          <button onClick={remove} disabled={busy === 'delete'} style={dangerGhostBtn}>×</button>
+          >{busy === 'decompose' ? '…' : 'Decompose'}</button>
+          <button onClick={() => setExpanded(!expanded)} style={ghostBtn} title={expanded ? 'collapse' : 'expand'}>
+            {expanded ? 'Collapse' : 'Expand'}
+          </button>
         </div>
       </div>
 
@@ -407,6 +428,18 @@ function RefTrackRow({ track, onChanged }: { track: ReferenceTrackRow; onChanged
           )}
 
           {err && <div style={{ marginTop: 10, fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+
+          <div style={{
+            marginTop: 18, paddingTop: 14, borderTop: `1px solid ${T.borderSubtle}`,
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <ConfirmDelete
+              label="Delete reference track"
+              entity={`${track.artist} — ${track.title}`}
+              busy={busy === 'delete'}
+              onConfirm={remove}
+            />
+          </div>
         </div>
       )}
     </div>
@@ -414,13 +447,19 @@ function RefTrackRow({ track, onChanged }: { track: ReferenceTrackRow; onChanged
 }
 
 function DecompositionBadge({ dec }: { dec: StyleAnalysisRow | null }) {
-  if (!dec) return <span style={{ fontSize: 13, fontFamily: T.mono, color: T.textDim }}>no decomp</span>
+  if (!dec) return <Pill tone="dim" variant="soft" uppercase>no decomp</Pill>
   const verified = dec.status === 'verified'
   const conf = dec.confidence
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontFamily: T.mono, fontSize: 13 }}>
-      <span style={{ color: verified ? T.success : T.accentMuted }}>{verified ? '✓ verified' : 'draft'}</span>
-      {conf && <span style={{ color: T.textDim }}>conf: {conf}</span>}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+      <Pill tone={verified ? 'success' : 'muted'} variant="soft" uppercase>
+        {verified ? 'verified' : 'draft'}
+      </Pill>
+      {conf && (
+        <span style={{ fontSize: 11, fontFamily: T.mono, color: T.textDim, letterSpacing: '0.04em' }}>
+          conf · {conf}
+        </span>
+      )}
     </div>
   )
 }
@@ -568,6 +607,3 @@ const ghostBtn: CSSProperties = {
   padding: '4px 10px', borderRadius: 3, fontFamily: T.mono, fontSize: 13, cursor: 'pointer',
 }
 
-const dangerGhostBtn: CSSProperties = {
-  ...ghostBtn, borderColor: T.danger, color: T.danger,
-}

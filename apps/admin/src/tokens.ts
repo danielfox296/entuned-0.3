@@ -2,16 +2,17 @@
 // Single source of truth for all inline styles across the admin shell and panels.
 
 export const T = {
-  // ── Surfaces (darks darkened ~20%) ─────────────────────────────
+  // ── Surfaces (widened ramp — value-step hierarchy) ────────────
   bg:            '#191916',   // ink — warm near-black
-  surface:       '#1d1d19',   // bg-alt — sidebar, status bar
-  surfaceRaised: '#20201d',   // bg-card — cards, inputs
-  surfaceHover:  '#302f2c',   // bg-stats — elevated band, hovered rows
+  surface:       '#232320',   // bg-alt — sidebar, status bar
+  surfaceRaised: '#2a2a26',   // bg-card — cards, inputs
+  surfaceHover:  '#353530',   // bg-stats — elevated band, hovered rows
   inkDeep:       '#141412',   // footer, deepest surface
 
-  // ── Borders (alpha bumped for contrast) ───────────────────────
-  border:        'rgba(150, 210, 220, 0.40)',   // primary divider
-  borderSubtle:  'rgba(150, 210, 220, 0.22)',   // secondary divider
+  // ── Borders (softened — accent reserved for active states) ────
+  border:        'rgba(150, 210, 220, 0.20)',   // primary divider
+  borderSubtle:  'rgba(150, 210, 220, 0.10)',   // secondary divider
+  borderActive:  'rgba(150, 210, 220, 0.55)',   // focus / active divider
 
   // ── Text (lights lightened ~20% toward white) ─────────────────
   text:          '#eef4f6',                      // ice — primary
