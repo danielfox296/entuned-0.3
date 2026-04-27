@@ -38,7 +38,21 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
   }
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard?.writeText(text).catch(() => {})
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).catch(() => fallbackCopy(text))
+    } else {
+      fallbackCopy(text)
+    }
+  }
+
+  const fallbackCopy = (text: string) => {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.cssText = 'position:fixed;opacity:0'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
   }
 
   if (!data) {
