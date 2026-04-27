@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
-import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { ClientListRow, StoreSummary, OutcomeRowFull, StoreCreateBody, StoreUpdateBody } from '../../api.js'
 import { T } from '../../tokens.js'
+import {
+  Button, Input, Select, Section, Field, KV,
+  PanelHeader, StorePicker, S,
+} from '../../ui/index.js'
 
 const COMMON_TZ = [
   'America/Denver', 'America/Chicago', 'America/New_York', 'America/Los_Angeles',
@@ -77,26 +80,23 @@ export function StoreEditor() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Store Editor</div>
-        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Edit a store's name, timezone, default outcome, and go-live date. Create a new store under an existing client. Add an ICP in the ICP Editor tab.
-        </div>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
+      <PanelHeader
+        title="Store Editor"
+        subtitle="Edit a store's name, timezone, default outcome, and go-live date. Create a new store under an existing client. Add an ICP in the ICP Editor tab."
+      />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <StorePicker stores={stores} storeId={storeId} onPick={(id) => { setStoreId(id); setCreating(null) }} />
-        <button
+        <Button
           onClick={() => {
             setStoreId(null)
             setCreating({ clientId: detail?.clientId ?? clients?.[0]?.id ?? '', name: '', timezone: 'America/Denver' })
           }}
-          style={primaryBtn(true, false)}
-        >+ new store</button>
+        >+ new store</Button>
       </div>
 
-      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</div>}
 
       {creating && (
         <CreateForm
@@ -110,62 +110,56 @@ export function StoreEditor() {
         />
       )}
 
-      {storeId && !detail && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
+      {storeId && !detail && <div style={{ color: T.textMuted, fontFamily: T.sans, fontSize: S.small }}>loading…</div>}
 
       {detail && draft && (
         <>
-          <Section title="store">
+          <Section title="Store" columns={2}>
             <Field label="name">
-              <input
+              <Input
                 value={draft.name ?? detail.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                style={input}
               />
             </Field>
-            <Field label="client">
-              <input value={detail.clientName} disabled style={{ ...input, opacity: 0.6 }} />
-            </Field>
+
             <Field label="timezone">
-              <input
+              <Input
                 list="tz-list"
                 value={draft.timezone ?? detail.timezone}
                 onChange={(e) => setDraft({ ...draft, timezone: e.target.value })}
-                style={input}
               />
               <datalist id="tz-list">{COMMON_TZ.map((tz) => <option key={tz} value={tz} />)}</datalist>
             </Field>
-            <Field label="ICP">
-              <input
-                value={detail.icp ? detail.icp.name : '(none — create in ICP Editor)'}
-                disabled
-                style={{ ...input, opacity: 0.6 }}
-              />
-            </Field>
+
             <Field label="default outcome">
-              <select
+              <Select
                 value={draft.defaultOutcomeId ?? detail.defaultOutcomeId ?? ''}
                 onChange={(e) => setDraft({ ...draft, defaultOutcomeId: e.target.value || null })}
-                style={input}
               >
                 <option value="">— none —</option>
                 {(outcomes ?? []).map((o) => <option key={o.id} value={o.id}>{o.title} v{o.version}</option>)}
-              </select>
+              </Select>
             </Field>
+
             <Field label="go-live date">
-              <input
+              <Input
                 type="date"
                 value={draft.goLiveDate ?? detail.goLiveDate ?? ''}
                 onChange={(e) => setDraft({ ...draft, goLiveDate: e.target.value || null })}
-                style={input}
               />
             </Field>
           </Section>
 
+          <Section title="Read-only">
+            <KV k="Client" v={detail.clientName} />
+            <KV k="ICP" v={detail.icp ? detail.icp.name : '(none — create in ICP Editor)'} />
+          </Section>
+
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button onClick={save} disabled={!dirty || busy} style={primaryBtn(!!dirty, busy)}>
+            <Button onClick={save} disabled={!dirty} busy={busy}>
               {busy ? 'saving…' : (dirty ? 'save changes' : 'no changes')}
-            </button>
-            {dirty && <button onClick={() => setDraft({})} style={tinyBtn}>discard</button>}
+            </Button>
+            {dirty && <Button variant="tiny" onClick={() => setDraft({})}>discard</Button>}
           </div>
         </>
       )}
@@ -173,115 +167,59 @@ export function StoreEditor() {
   )
 }
 
-function StorePicker({ stores, storeId, onPick }: { stores: StoreSummary[] | null; storeId: string | null; onPick: (id: string) => void }) {
-  if (!stores) return <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono }}>store</span>
-      <select
-        value={storeId ?? ''}
-        onChange={(e) => onPick(e.target.value)}
-        style={{ ...input, width: 360 }}
-      >
-        <option value="" disabled>— pick a store —</option>
-        {stores.map((s) => <option key={s.id} value={s.id}>{s.clientName} — {s.name}</option>)}
-      </select>
-    </div>
-  )
-}
-
 function CreateForm({ draft, clients, outcomes, onChange, onSubmit, onCancel, busy }: {
-  draft: StoreCreateBody; clients: ClientListRow[]
+  draft: StoreCreateBody
+  clients: ClientListRow[]
   outcomes: OutcomeRowFull[]
   onChange: (d: StoreCreateBody) => void
-  onSubmit: () => void; onCancel: () => void; busy: boolean
+  onSubmit: () => void
+  onCancel: () => void
+  busy: boolean
 }) {
   const set = <K extends keyof StoreCreateBody>(k: K, v: StoreCreateBody[K]) => onChange({ ...draft, [k]: v })
   const valid = draft.clientId && draft.name && draft.timezone
 
   return (
-    <Section title="new store">
+    <Section title="New store" columns={2}>
       <Field label="client">
-        <select value={draft.clientId} onChange={(e) => set('clientId', e.target.value)} style={input}>
+        <Select value={draft.clientId} onChange={(e) => set('clientId', e.target.value)}>
           <option value="" disabled>— pick —</option>
           {clients.map((c) => <option key={c.id} value={c.id}>{c.companyName}</option>)}
-        </select>
+        </Select>
       </Field>
       <Field label="name">
-        <input value={draft.name} onChange={(e) => set('name', e.target.value)} style={input} />
+        <Input value={draft.name} onChange={(e) => set('name', e.target.value)} />
       </Field>
       <Field label="timezone">
-        <input
+        <Input
           list="tz-list-create"
           value={draft.timezone}
           onChange={(e) => set('timezone', e.target.value)}
-          style={input}
         />
         <datalist id="tz-list-create">{COMMON_TZ.map((tz) => <option key={tz} value={tz} />)}</datalist>
       </Field>
       <Field label="default outcome">
-        <select value={draft.defaultOutcomeId ?? ''} onChange={(e) => set('defaultOutcomeId', e.target.value || null)} style={input}>
+        <Select
+          value={draft.defaultOutcomeId ?? ''}
+          onChange={(e) => set('defaultOutcomeId', e.target.value || null)}
+        >
           <option value="">— none —</option>
           {outcomes.map((o) => <option key={o.id} value={o.id}>{o.title} v{o.version}</option>)}
-        </select>
+        </Select>
       </Field>
       <Field label="go-live date">
-        <input type="date" value={draft.goLiveDate ?? ''} onChange={(e) => set('goLiveDate', e.target.value || null)} style={input} />
+        <Input
+          type="date"
+          value={draft.goLiveDate ?? ''}
+          onChange={(e) => set('goLiveDate', e.target.value || null)}
+        />
       </Field>
       <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8 }}>
-        <button onClick={onSubmit} disabled={!valid || busy} style={primaryBtn(!!valid, busy)}>
+        <Button onClick={onSubmit} disabled={!valid} busy={busy}>
           {busy ? 'creating…' : 'create store'}
-        </button>
-        <button onClick={onCancel} style={tinyBtn}>cancel</button>
+        </Button>
+        <Button variant="tiny" onClick={onCancel}>cancel</Button>
       </div>
     </Section>
   )
-}
-
-function Section({ title, children }: { title: string; children: any }) {
-  return (
-    <div style={{
-      border: `1px solid ${T.border}`, borderRadius: 4,
-      background: T.surface, padding: 16,
-      display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12,
-    }}>
-      <div style={{ gridColumn: '1 / -1', fontFamily: T.mono, fontSize: 11, color: T.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {title}
-      </div>
-      {children}
-    </div>
-  )
-}
-
-function Field({ label, full, children }: { label: string; full?: boolean; children: any }) {
-  return (
-    <div style={{ gridColumn: full ? '1 / -1' : 'auto' }}>
-      <label style={{ display: 'block', fontSize: 10, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase', marginBottom: 4 }}>
-        {label}
-      </label>
-      {children}
-    </div>
-  )
-}
-
-const input: CSSProperties = {
-  background: T.surfaceRaised, border: `1px solid ${T.border}`, color: T.text,
-  fontFamily: T.mono, fontSize: 12, padding: '7px 10px', borderRadius: 3, outline: 'none',
-  width: '100%', boxSizing: 'border-box',
-}
-
-function primaryBtn(active: boolean, busy: boolean): CSSProperties {
-  return {
-    background: active ? T.accent : T.surfaceRaised,
-    color: active ? T.bg : T.textMuted,
-    border: 'none', borderRadius: 3, padding: '8px 16px',
-    fontFamily: T.mono, fontSize: 12, fontWeight: 600,
-    cursor: active && !busy ? 'pointer' : 'default',
-    opacity: busy ? 0.6 : 1,
-  }
-}
-
-const tinyBtn: CSSProperties = {
-  background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-  padding: '6px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
 }
