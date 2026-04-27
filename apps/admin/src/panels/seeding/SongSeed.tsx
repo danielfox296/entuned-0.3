@@ -8,7 +8,8 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
   const [data, setData] = useState<SongSeedDetail | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
-  const [takes, setTakes] = useState<{ sourceUrl: string }[]>([{ sourceUrl: '' }])
+  const [takes, setTakes] = useState<{ sourceUrl: string }[]>([{ sourceUrl: '' }, { sourceUrl: '' }])
+  const [accepted, setAccepted] = useState(false)
 
   const load = async () => {
     const token = getToken(); if (!token) return
@@ -28,10 +29,11 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
   const accept = async () => {
     const token = getToken(); if (!token) return
     const validTakes = takes.filter((t) => t.sourceUrl.trim())
-    if (validTakes.length === 0) { alert('Add at least one source URL.'); return }
-    setBusy('accept'); setErr(null)
+    if (validTakes.length === 0) { setErr('Add at least one source URL.'); return }
+    setBusy('accept'); setErr(null); setAccepted(false)
     try {
       await api.acceptSongSeed(songSeedId, { takes: validTakes }, token)
+      setAccepted(true)
       await load()
     } catch (e: any) { setErr(e.message) }
     finally { setBusy(null) }
@@ -135,21 +137,20 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
               <input
                 value={t.sourceUrl}
                 onChange={(e) => setTakes(takes.map((x, j) => j === i ? { sourceUrl: e.target.value } : x))}
-                placeholder="https://cdn1.suno.ai/...mp3"
+                placeholder={`take ${i + 1} — https://cdn1.suno.ai/...mp3`}
                 style={{ ...inputStyle, flex: 1 }}
               />
-              {takes.length > 1 && (
-                <button onClick={() => setTakes(takes.filter((_, j) => j !== i))} style={ghostBtn}>×</button>
-              )}
             </div>
           ))}
-          {takes.length < 2 && (
-            <button onClick={() => setTakes([...takes, { sourceUrl: '' }])} style={ghostBtn}>+ second take</button>
-          )}
-          <div style={{ marginTop: 10 }}>
+          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
             <button onClick={accept} disabled={busy !== null || takes.every((t) => !t.sourceUrl.trim())} style={primaryBtn(takes.some((t) => t.sourceUrl.trim()), busy === 'accept')}>
               {busy === 'accept' ? 'downloading + uploading…' : 'accept'}
             </button>
+            {accepted && (
+              <span style={{ fontSize: 11, fontFamily: T.mono, color: T.success }}>
+                ✓ takes received — lineage rows created
+              </span>
+            )}
           </div>
         </Section>
       )}
