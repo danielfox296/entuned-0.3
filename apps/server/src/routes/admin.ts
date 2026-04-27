@@ -520,7 +520,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       where: { storeId: id },
       include: {
         referenceTracks: {
-          orderBy: [{ bucket: 'asc' }, { artist: 'asc' }, { title: 'asc' }],
+          orderBy: [{ bucket: 'asc' }, { status: 'desc' }, { artist: 'asc' }, { title: 'asc' }],
           include: { styleAnalysis: true },
         },
       },
@@ -651,8 +651,24 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
+  // --- Approve a pending (suggested) reference track. Flips status to approved. ---
+  app.post('/reference-tracks/:id/approve', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    try {
+      const row = await prisma.referenceTrack.update({
+        where: { id },
+        data: { status: 'approved', approvedAt: new Date(), approvedById: op.operatorId },
+      })
+      return row
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
+    }
+  })
+
   // --- Decompose now: runs Claude with web search; upserts StyleAnalysis row. ---
   // Always overwrites the existing draft; verified rows return 409 unless ?force=1.
+  // Pending suggestions cannot be decomposed — approve first.
   app.post('/reference-tracks/:id/decompose', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
@@ -662,6 +678,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       include: { styleAnalysis: true },
     })
     if (!ref) return reply.code(404).send({ error: 'not_found' })
+    if (ref.status === 'pending') {
+      return reply.code(409).send({ error: 'pending_reference_track', message: 'Approve the suggestion before decomposing.' })
+    }
     if (ref.styleAnalysis && ref.styleAnalysis.status === 'verified' && !force) {
       return reply.code(409).send({ error: 'verified_style_analysis_exists', message: 'Pass ?force=1 to overwrite a verified decomposition.' })
     }

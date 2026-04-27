@@ -246,18 +246,17 @@ export function PlayerScreen({ session, onLogout }: Props) {
     }
   }, [session.storeId, session.token, emit, refill, refreshOutcomes]);
 
+  // Love is write-once: server has no song_unlove event today, so once a
+  // song is loved it stays loved (and shows as such on every device).
   const handleLove = useCallback(() => {
     const cur = currentRef.current;
     if (!cur) return;
+    if (lovedIds.has(cur.songId)) return;
     const next = new Set(lovedIds);
-    if (next.has(cur.songId)) {
-      next.delete(cur.songId);
-    } else {
-      next.add(cur.songId);
-      emit("song_love", cur);
-    }
+    next.add(cur.songId);
     setLovedIds(next);
     saveLoved(next);
+    emit("song_love", cur);
   }, [lovedIds, emit]);
 
   const handleReport = useCallback((reason: ReportReason) => {
@@ -295,6 +294,18 @@ export function PlayerScreen({ session, onLogout }: Props) {
     });
     void refill();
     void refreshOutcomes();
+    // Hydrate loved set from server (cross-device source of truth). Merge with
+    // any local writes so optimistic UI from this session survives.
+    api.loved(session.storeId, session.token).then((r) => {
+      setLovedIds((prev) => {
+        const merged = new Set(prev);
+        for (const id of r.songIds) merged.add(id);
+        saveLoved(merged);
+        return merged;
+      });
+    }).catch((e) => console.warn("[player] loved hydrate failed", e));
+    // Emit operator_login once per session-start.
+    emit("operator_login");
     return () => {
       if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
       playerRef.current?.stop();
@@ -400,6 +411,9 @@ export function PlayerScreen({ session, onLogout }: Props) {
   // activeOutcome.title comes hydrated from /hendrix/next; the outcomes list is
   // only used by the picker modal.
   const activeTitle = activeOutcome?.title ?? "—";
+  const expiresLabel = activeOutcome?.source === "selection" && activeOutcome.expiresAt
+    ? `Selected · until ${new Date(activeOutcome.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+    : null;
 
   const headerLine = session.clientName
     ? `${session.clientName}: ${session.storeName}`
@@ -441,7 +455,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
         <div style={{ position: "absolute", top: 70, right: 28, zIndex: 50 }}>
           <button
             type="button"
-            onClick={onLogout}
+            onClick={() => { emit("operator_logout"); onLogout(); }}
             style={{
               fontSize: 10,
               fontWeight: 400,
@@ -568,6 +582,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
             <span style={{ fontSize: 16, fontWeight: 500, letterSpacing: 2, color: "rgba(212,225,229,0.95)", textTransform: "uppercase" }}>
               {activeTitle}
             </span>
+            {expiresLabel ? (
+              <span style={{ fontSize: 9, fontWeight: 500, letterSpacing: 2, color: "rgba(240,153,123,0.75)", textTransform: "uppercase", marginTop: 2 }}>
+                {expiresLabel}
+              </span>
+            ) : null}
           </div>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
             <path d="M6 9l6 6 6-6" stroke="rgba(212,225,229,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />

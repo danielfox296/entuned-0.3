@@ -99,4 +99,6 @@ export const api = {
     const body = Array.isArray(event) ? { events: event } : event
     return req<{ accepted: number }>('/events', { method: 'POST', body: JSON.stringify(body) })
   },
+  loved: (storeId: string, token: string) =>
+    req<{ songIds: string[] }>(`/events/loved?store_id=${encodeURIComponent(storeId)}`, {}, token),
 }

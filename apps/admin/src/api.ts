@@ -157,19 +157,9 @@ export interface ReferenceTrackPromptRow {
   createdAt: string
 }
 
-export interface SuggestedRefTrack {
-  artist: string
-  title: string
-  year: number | null
-  rationale: string | null
-}
-
 export interface SuggestReferenceTracksResult {
-  FormationEra: SuggestedRefTrack[]
-  Subculture: SuggestedRefTrack[]
-  Aspirational: SuggestedRefTrack[]
+  createdCount: number
   promptVersion: number
-  rawText: string
 }
 
 // --- Brand: stores, ICPs, reference tracks, style analyses ---
@@ -224,6 +214,8 @@ export interface StyleAnalysisRow {
   updatedAt: string
 }
 
+export type ReferenceTrackStatus = 'pending' | 'approved'
+
 export interface ReferenceTrackRow {
   id: string
   icpId: string
@@ -232,6 +224,11 @@ export interface ReferenceTrackRow {
   title: string
   year: number | null
   operatorNotes: string | null
+  status: ReferenceTrackStatus
+  suggestedRationale: string | null
+  suggestedPromptVer: number | null
+  suggestedAt: string | null
+  approvedAt: string | null
   useCount: number
   createdAt: string
   styleAnalysis: StyleAnalysisRow | null
@@ -678,6 +675,8 @@ export const api = {
     req<{ ok: true }>(`/admin/reference-tracks/${id}`, { method: 'DELETE' }, token),
   decomposeReferenceTrack: (id: string, force: boolean, token: string) =>
     req<StyleAnalysisRow>(`/admin/reference-tracks/${id}/decompose${force ? '?force=1' : ''}`, { method: 'POST' }, token),
+  approveReferenceTrack: (id: string, token: string) =>
+    req<ReferenceTrackRow>(`/admin/reference-tracks/${id}/approve`, { method: 'POST' }, token),
   updateStyleAnalysis: (id: string, body: StyleAnalysisUpdate, token: string) =>
     req<StyleAnalysisRow>(`/admin/decompositions/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
 

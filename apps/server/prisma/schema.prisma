@@ -168,23 +168,35 @@ model ICP {
 
 // ---------- Card 4 ReferenceTrack ----------
 
+enum ReferenceTrackStatus {
+  pending
+  approved
+}
+
 model ReferenceTrack {
-  id            String        @id @default(uuid()) @db.Uuid
-  icpId         String        @map("icp_id") @db.Uuid
-  bucket        TasteCategory
-  artist        String
-  title         String
-  year          Int?
-  operatorNotes String?       @map("operator_notes")
-  verifiedById  String?       @map("verified_by") @db.Uuid
-  useCount      Int           @default(0) @map("use_count")
-  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                  String              @id @default(uuid()) @db.Uuid
+  icpId               String              @map("icp_id") @db.Uuid
+  bucket              TasteCategory
+  artist              String
+  title               String
+  year                Int?
+  operatorNotes       String?             @map("operator_notes")
+  status              ReferenceTrackStatus @default(approved)
+  suggestedRationale  String?             @map("suggested_rationale")
+  suggestedPromptVer  Int?                @map("suggested_prompt_version")
+  suggestedAt         DateTime?           @map("suggested_at") @db.Timestamptz(6)
+  approvedAt          DateTime?           @map("approved_at") @db.Timestamptz(6)
+  approvedById        String?             @map("approved_by") @db.Uuid
+  verifiedById        String?             @map("verified_by") @db.Uuid
+  useCount            Int                 @default(0) @map("use_count")
+  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
 
   icp           ICP            @relation(fields: [icpId], references: [id], onDelete: Cascade)
   styleAnalysis StyleAnalysis?
   songSeeds     SongSeed[]
 
   @@index([icpId, bucket])
+  @@index([icpId, status])
   @@map("reference_tracks")
 }
 

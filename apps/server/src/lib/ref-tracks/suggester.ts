@@ -2,8 +2,13 @@
 // The system prompt comes from ReferenceTrackPrompt.templateText (global,
 // editable in the admin Engine tab). The user message bundles the ICP's
 // psychographic profile. Output is grouped by bucket: FormationEra, Subculture,
-// Aspirational. Operator accepts suggestions into the ICP via the existing
-// createReferenceTrack route — this never writes to ReferenceTrack itself.
+// Aspirational.
+//
+// Persistence: suggestions are written as ReferenceTrack rows with
+// status='pending'. Operators approve via /admin/reference-tracks/:id/approve
+// or reject via DELETE. Pending rows are auto-excluded from the song-seeding
+// pipeline (eno.ts filters on styleAnalysis.isNot=null, and the decompose
+// route refuses pending rows).
 
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../db.js'
@@ -67,9 +72,7 @@ export type SuggestedRefTrack = {
 }
 
 export type SuggestReferenceTracksResult = {
-  FormationEra: SuggestedRefTrack[]
-  Subculture: SuggestedRefTrack[]
-  Aspirational: SuggestedRefTrack[]
+  createdCount: number
   promptVersion: number
   rawText: string
 }
@@ -148,10 +151,54 @@ Propose reference tracks for this ICP across all three buckets. Output JSON only
       .filter((r): r is SuggestedRefTrack => r !== null)
   }
 
-  return {
+  const grouped: Record<'FormationEra' | 'Subculture' | 'Aspirational', SuggestedRefTrack[]> = {
     FormationEra: norm(parsed.FormationEra),
     Subculture: norm(parsed.Subculture),
     Aspirational: norm(parsed.Aspirational),
+  }
+
+  // Dedup against existing tracks (by case-insensitive artist+title), then persist
+  // as pending ReferenceTrack rows so operators can navigate away without losing
+  // suggestions.
+  const existingKey = new Set(existing.map((e) => `${e.artist.toLowerCase()}::${e.title.toLowerCase()}`))
+  const now = new Date()
+  const rows: { icpId: string; bucket: 'FormationEra' | 'Subculture' | 'Aspirational'; artist: string; title: string; year: number | null; suggestedRationale: string | null; suggestedPromptVer: number; suggestedAt: Date }[] = []
+  for (const bucket of ['FormationEra', 'Subculture', 'Aspirational'] as const) {
+    for (const s of grouped[bucket]) {
+      const key = `${s.artist.toLowerCase()}::${s.title.toLowerCase()}`
+      if (existingKey.has(key)) continue
+      existingKey.add(key)
+      rows.push({
+        icpId: opts.icpId,
+        bucket,
+        artist: s.artist,
+        title: s.title,
+        year: s.year,
+        suggestedRationale: s.rationale,
+        suggestedPromptVer: prompt.version,
+        suggestedAt: now,
+      })
+    }
+  }
+
+  if (rows.length > 0) {
+    await prisma.referenceTrack.createMany({
+      data: rows.map((r) => ({
+        icpId: r.icpId,
+        bucket: r.bucket,
+        artist: r.artist,
+        title: r.title,
+        year: r.year,
+        status: 'pending',
+        suggestedRationale: r.suggestedRationale,
+        suggestedPromptVer: r.suggestedPromptVer,
+        suggestedAt: r.suggestedAt,
+      })),
+    })
+  }
+
+  return {
+    createdCount: rows.length,
     promptVersion: prompt.version,
     rawText: raw,
   }
