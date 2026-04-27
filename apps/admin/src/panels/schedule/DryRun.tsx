@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { ScheduleDryRun, DryRunPeriod, StoreSummary } from '../../api.js'
 import { T } from '../../tokens.js'
-import { PanelHeader, StorePicker, S } from '../../ui/index.js'
+import { PanelHeader, StorePicker, S, useStoreSelection } from '../../ui/index.js'
 
 const DAY_MINUTES = 24 * 60
 
 export function DryRun() {
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
-  const [storeId, setStoreId] = useState<string | null>(null)
+  const [storeId, setStoreId] = useStoreSelection()
   const [data, setData] = useState<ScheduleDryRun | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)

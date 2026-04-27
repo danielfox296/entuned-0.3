@@ -38,6 +38,7 @@ export function LoginScreen({ onAuthed }: Props) {
         email: me.operator.email,
         displayName: me.operator.displayName,
         isAdmin: me.operator.isAdmin,
+        availableStores: me.stores,
       };
       saveSession(session);
       onAuthed(session);

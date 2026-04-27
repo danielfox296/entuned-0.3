@@ -6,7 +6,7 @@ import { DarkHalo } from "../components/DarkHalo.js";
 import { ProgressBar } from "../components/ProgressBar.js";
 import { OutcomeModal } from "../components/OutcomeModal.js";
 import { ReportModal, type ReportReason } from "../components/ReportModal.js";
-import type { Session } from "../lib/storage.js";
+import { saveSession, type Session } from "../lib/storage.js";
 import logoUrl from "/entuned_logo.png";
 import touchIconUrl from "/apple-touch-icon.png";
 
@@ -452,7 +452,41 @@ export function PlayerScreen({ session, onLogout }: Props) {
       </div>
 
       {showLogoutConfirm ? (
-        <div style={{ position: "absolute", top: 70, right: 28, zIndex: 50 }}>
+        <div style={{ position: "absolute", top: 70, right: 28, zIndex: 50, display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
+          {(session.availableStores ?? []).filter((s) => s.id !== session.storeId).map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => {
+                emit("operator_logout");
+                const next: Session = {
+                  ...session,
+                  storeId: s.id,
+                  storeName: s.name,
+                  clientName: s.clientName ?? null,
+                };
+                saveSession(next);
+                // Full reload to reset queue/Howler state cleanly.
+                window.location.reload();
+              }}
+              style={{
+                fontSize: 10,
+                fontWeight: 400,
+                letterSpacing: 1.5,
+                color: "rgba(212,225,229,0.85)",
+                background: "rgba(212,225,229,0.04)",
+                border: "1px solid rgba(212,225,229,0.25)",
+                borderRadius: 12,
+                padding: "6px 16px",
+                textTransform: "uppercase",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+              title={`Switch to ${s.clientName ? s.clientName + ' — ' : ''}${s.name}`}
+            >
+              {s.clientName ? `${s.clientName} — ${s.name}` : s.name}
+            </button>
+          ))}
           <button
             type="button"
             onClick={() => { emit("operator_logout"); onLogout(); }}

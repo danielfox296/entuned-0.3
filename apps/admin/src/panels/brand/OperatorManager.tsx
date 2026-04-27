@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { OperatorRow, StoreSummary } from '../../api.js'
 import { T } from '../../tokens.js'
-import { Button, Input, Section, Field, PanelHeader, S } from '../../ui/index.js'
+import { Button, Input, Section, Field, PanelHeader, S, useToast } from '../../ui/index.js'
 
 export function OperatorManager() {
   const [operators, setOperators] = useState<OperatorRow[] | null>(null)
@@ -11,13 +11,14 @@ export function OperatorManager() {
   const [creating, setCreating] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const toast = useToast()
 
   const load = async () => {
     const token = getToken(); if (!token) return
     try {
       const [ops, sts] = await Promise.all([api.operators(token), api.stores(token)])
       setOperators(ops); setStores(sts)
-    } catch (e: any) { setErr(e.message) }
+    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'failed to load') }
   }
 
   useEffect(() => { void load() }, [])
@@ -30,7 +31,8 @@ export function OperatorManager() {
       const updated = await api.updateOperator(selected.id, body, token)
       setSelected(updated)
       await load()
-    } catch (e: any) { setErr(e.message) }
+      toast.success(`operator ${updated.email} saved`)
+    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'save failed') }
     finally { setBusy(false) }
   }
 
@@ -38,10 +40,11 @@ export function OperatorManager() {
     const token = getToken(); if (!token) return
     setBusy(true); setErr(null)
     try {
-      await api.createOperator(body, token)
+      const created = await api.createOperator(body, token)
       setCreating(false)
       await load()
-    } catch (e: any) { setErr(e.message) }
+      toast.success(`operator ${created.email} created`)
+    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'create failed') }
     finally { setBusy(false) }
   }
 
@@ -87,7 +90,9 @@ export function OperatorManager() {
                 {op.isAdmin && <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.accent }}>admin</div>}
               </div>
               <div style={{ fontSize: S.small, fontFamily: T.sans, color: T.textMuted }}>
-                {op.stores.length === 0 ? '—' : op.stores.map((s) => s.name).join(', ')}
+                {op.stores.length === 0
+                  ? '—'
+                  : op.stores.map((s) => (s.clientName ? `${s.clientName} — ${s.name}` : s.name)).join(', ')}
               </div>
               <div style={{ fontSize: S.label, fontFamily: T.sans, color: op.disabledAt ? T.danger : T.success }}>
                 {op.disabledAt ? 'disabled' : 'active'}

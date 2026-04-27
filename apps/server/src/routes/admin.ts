@@ -1959,7 +1959,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.operator.findMany({
       orderBy: { email: 'asc' },
-      include: { storeAssignments: { include: { store: { select: { id: true, name: true } } } } },
+      include: { storeAssignments: { include: { store: { select: { id: true, name: true, client: { select: { companyName: true } } } } } } },
     })
     return rows.map((r) => ({
       id: r.id,
@@ -1967,12 +1967,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       displayName: r.displayName,
       isAdmin: r.isAdmin,
       disabledAt: r.disabledAt?.toISOString() ?? null,
-      stores: r.storeAssignments.map((a) => ({ id: a.store.id, name: a.store.name })),
+      stores: r.storeAssignments.map((a) => ({ id: a.store.id, name: a.store.name, clientName: a.store.client?.companyName ?? null })),
     }))
   })
 
   const OperatorCreateBody = z.object({
-    email: z.string().email(),
+    email: z.string().email().transform((s) => s.trim().toLowerCase()),
     password: z.string().min(1),
     displayName: z.string().nullable().optional(),
     storeIds: z.array(z.string().uuid()).optional(),
@@ -1995,12 +1995,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
             ? { create: parsed.data.storeIds.map((storeId) => ({ storeId, assignedById: op.operatorId })) }
             : undefined,
         },
-        include: { storeAssignments: { include: { store: { select: { id: true, name: true } } } } },
+        include: { storeAssignments: { include: { store: { select: { id: true, name: true, client: { select: { companyName: true } } } } } } },
       })
       return {
         id: created.id, email: created.email, displayName: created.displayName,
         isAdmin: created.isAdmin, disabledAt: null,
-        stores: created.storeAssignments.map((a) => ({ id: a.store.id, name: a.store.name })),
+        stores: created.storeAssignments.map((a) => ({ id: a.store.id, name: a.store.name, clientName: a.store.client?.companyName ?? null })),
       }
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
@@ -2011,7 +2011,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   const OperatorUpdateBody = z.object({
-    email: z.string().email().optional(),
+    email: z.string().email().transform((s) => s.trim().toLowerCase()).optional(),
     password: z.string().min(1).optional(),
     displayName: z.string().nullable().optional(),
     storeIds: z.array(z.string().uuid()).optional(),
@@ -2042,13 +2042,13 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         return tx.operator.update({
           where: { id },
           data,
-          include: { storeAssignments: { include: { store: { select: { id: true, name: true } } } } },
+          include: { storeAssignments: { include: { store: { select: { id: true, name: true, client: { select: { companyName: true } } } } } } },
         })
       })
       return {
         id: updated.id, email: updated.email, displayName: updated.displayName,
         isAdmin: updated.isAdmin, disabledAt: updated.disabledAt?.toISOString() ?? null,
-        stores: updated.storeAssignments.map((a) => ({ id: a.store.id, name: a.store.name })),
+        stores: updated.storeAssignments.map((a) => ({ id: a.store.id, name: a.store.name, clientName: a.store.client?.companyName ?? null })),
       }
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError) {

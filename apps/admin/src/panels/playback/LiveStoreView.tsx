@@ -3,14 +3,14 @@ import { api, getToken } from '../../api.js'
 import type { StoreSummary, LiveStoreView as LiveStoreData, OutcomeWithPool, QueueEntry, PlaybackEventRow } from '../../api.js'
 import { T } from '../../tokens.js'
 import {
-  Button, Section, PanelHeader, StorePicker, Pill, S,
+  Button, Section, PanelHeader, StorePicker, Pill, S, useStoreSelection,
 } from '../../ui/index.js'
 
 const REFRESH_MS = 10000
 
 export function LiveStoreView() {
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
-  const [storeId, setStoreId] = useState<string | null>(null)
+  const [storeId, setStoreId] = useStoreSelection()
   const [data, setData] = useState<LiveStoreData | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(true)

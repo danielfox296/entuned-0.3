@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { SongSeedRow, StoreSummary, OutcomeRowFull, SeedBuilderResult, SongSeedStatus } from '../../api.js'
 import { T } from '../../tokens.js'
-import { PanelHeader, StorePicker as UIStorePicker, S } from '../../ui/index.js'
+import { PanelHeader, StorePicker as UIStorePicker, S, useStoreSelection } from '../../ui/index.js'
 import { SongSeed } from './SongSeed.js'
 
 const FILTERS: { key: string; label: string; status?: SongSeedStatus; claimedBy?: string }[] = [
@@ -19,7 +19,7 @@ const FILTERS: { key: string; label: string; status?: SongSeedStatus; claimedBy?
 export function SongSeedQueue() {
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
-  const [storeId, setStoreId] = useState<string | null>(null)
+  const [storeId, setStoreId] = useStoreSelection()
   const [icpId, setIcpId] = useState<string | null>(null)
   const [filter, setFilter] = useState<string>('pending')
   const [songSeeds, setSongSeeds] = useState<SongSeedRow[] | null>(null)

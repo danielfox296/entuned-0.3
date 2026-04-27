@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
-import type { SongSeedDetail } from '../../api.js'
+import type { SongSeedDetail, StyleExclusionRuleRow } from '../../api.js'
 import { T } from '../../tokens.js'
 import { Button, Input, Textarea, Section, KV, S } from '../../ui/index.js'
 
@@ -11,6 +11,8 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
   const [busy, setBusy] = useState<string | null>(null)
   const [takes, setTakes] = useState<{ sourceUrl: string }[]>([{ sourceUrl: '' }, { sourceUrl: '' }])
   const [accepted, setAccepted] = useState(false)
+  const [exclusionRules, setExclusionRules] = useState<StyleExclusionRuleRow[] | null>(null)
+  const [showFiredRules, setShowFiredRules] = useState(false)
 
   const load = async () => {
     const token = getToken(); if (!token) return
@@ -19,6 +21,10 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
   }
 
   useEffect(() => { load() }, [songSeedId])
+  useEffect(() => {
+    const token = getToken(); if (!token) return
+    api.styleExclusionRules(token).then(setExclusionRules).catch(() => { /* non-fatal */ })
+  }, [])
 
   const action = async (label: string, fn: () => Promise<unknown>) => {
     setBusy(label); setErr(null)
@@ -117,7 +123,37 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
         <CopyBlock label="Lyrics" value={data.lyrics ?? ''} onCopy={() => copyToClipboard(data.lyrics ?? '')} tall />
         {data.firedExclusionRuleIds.length > 0 && (
           <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.textDim, marginTop: 8 }}>
-            fired {data.firedExclusionRuleIds.length} exclusion rule(s)
+            <button
+              type="button"
+              onClick={() => setShowFiredRules((v) => !v)}
+              style={{
+                background: 'transparent', border: 'none', color: T.textDim,
+                fontFamily: T.sans, fontSize: S.label, cursor: 'pointer', padding: 0,
+                textDecoration: 'underline dotted', textUnderlineOffset: 3,
+              }}
+            >
+              {showFiredRules ? '▾' : '▸'} fired {data.firedExclusionRuleIds.length} exclusion rule(s)
+            </button>
+            {showFiredRules && (
+              <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 14 }}>
+                {data.firedExclusionRuleIds.map((rid) => {
+                  const rule = exclusionRules?.find((r) => r.id === rid)
+                  if (!rule) return (
+                    <div key={rid} style={{ fontFamily: T.mono, fontSize: 11, color: T.textDim }}>
+                      {rid} <span style={{ fontStyle: 'italic' }}>(rule no longer exists)</span>
+                    </div>
+                  )
+                  return (
+                    <div key={rid} style={{ fontFamily: T.mono, fontSize: 11, color: T.textMuted, lineHeight: 1.5 }}>
+                      <span style={{ color: T.accentMuted }}>{rule.triggerField}={rule.triggerValue}</span>
+                      <span style={{ color: T.textDim }}> → exclude </span>
+                      <span style={{ color: T.text }}>{rule.exclude}</span>
+                      {rule.note && <span style={{ color: T.textDim, fontStyle: 'italic' }}> · {rule.note}</span>}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
       </Section>

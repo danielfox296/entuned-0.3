@@ -44,7 +44,8 @@ export function verify(token: string): TokenPayload | null {
 }
 
 export async function login(email: string, password: string): Promise<{ token: string; operator: TokenPayload } | null> {
-  const op = await prisma.operator.findUnique({ where: { email } })
+  const normalized = email.trim().toLowerCase()
+  const op = await prisma.operator.findUnique({ where: { email: normalized } })
   if (!op || op.disabledAt) return null
   const ok = await bcrypt.compare(password, op.passwordHash)
   if (!ok) return null

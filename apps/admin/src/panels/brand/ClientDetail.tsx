@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { ClientListRow, ClientFull, ClientPlan, ClientUpdate } from '../../api.js'
 import { T } from '../../tokens.js'
-import { Button, Input, Select, Textarea, Section, Field, PanelHeader, S } from '../../ui/index.js'
+import { Button, Input, Select, Textarea, Section, Field, PanelHeader, S, useToast } from '../../ui/index.js'
 
 const PLANS: ClientPlan[] = ['mvp_pilot', 'trial', 'paid_pilot', 'production', 'paused', 'inactive']
 
@@ -17,6 +17,7 @@ export function ClientDetail() {
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [createBusy, setCreateBusy] = useState(false)
+  const toast = useToast()
 
   const reloadList = async () => {
     const token = getToken(); if (!token) return
@@ -43,7 +44,8 @@ export function ClientDetail() {
       setClientId(created.id)
       setCreating(false)
       setNewName('')
-    } catch (e: any) { setErr(e.message) }
+      toast.success(`client ${created.companyName} created`)
+    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'create failed') }
     finally { setCreateBusy(false) }
   }
 
@@ -58,7 +60,8 @@ export function ClientDetail() {
       setClient((cur) => cur ? { ...cur, ...updated } : cur)
       setDraft({})
       reloadList()
-    } catch (e: any) { setErr(e.message) }
+      toast.success(`${updated.companyName ?? client.companyName} saved`)
+    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'save failed') }
     finally { setBusy(false) }
   }
 

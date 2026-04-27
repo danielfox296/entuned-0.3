@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { StoreSummary, ScheduleSlot, ScheduleSlotInput, OutcomeRowFull } from '../../api.js'
 import { T } from '../../tokens.js'
-import { Button, Input, Select, PanelHeader, StorePicker, S } from '../../ui/index.js'
+import { Button, Input, Select, PanelHeader, StorePicker, S, useStoreSelection } from '../../ui/index.js'
 
 const DAYS: { dow: number; label: string; short: string }[] = [
   { dow: 1, label: 'Monday', short: 'Mon' },
@@ -17,10 +17,11 @@ const DAYS: { dow: number; label: string; short: string }[] = [
 
 export function OutcomeSchedule() {
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
-  const [storeId, setStoreId] = useState<string | null>(null)
+  const [storeId, setStoreId] = useStoreSelection()
   const [rows, setRows] = useState<ScheduleSlot[] | null>(null)
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
-  const [adding, setAdding] = useState<{ dayOfWeek: number; startTime: string; endTime: string; outcomeId: string } | null>(null)
+  const [adding, setAdding] = useState<{ daysOfWeek: number[]; startTime: string; endTime: string; outcomeId: string } | null>(null)
+  const [addBusy, setAddBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   const tz = stores?.find((s) => s.id === storeId)?.timezone ?? null
@@ -72,22 +73,31 @@ export function OutcomeSchedule() {
         <>
           <Button
             variant={adding ? 'ghost' : 'primary'}
-            onClick={() => setAdding(adding ? null : { dayOfWeek: 1, startTime: '09:00', endTime: '12:00', outcomeId: '' })}
+            onClick={() => setAdding(adding ? null : { daysOfWeek: [1], startTime: '09:00', endTime: '12:00', outcomeId: '' })}
           >{adding ? 'cancel' : '+ new row'}</Button>
 
           {adding && (
-            <RowForm
+            <MultiDayCreateForm
               draft={adding}
               outcomes={outcomes}
-              onChange={setAdding as any}
+              busy={addBusy}
+              onChange={setAdding}
               onSubmit={async () => {
-                const token = getToken(); if (!token) return
+                const token = getToken(); if (!token || adding.daysOfWeek.length === 0) return
+                setAddBusy(true)
                 try {
-                  await api.createScheduleSlot(storeId!, adding, token)
+                  for (const dow of adding.daysOfWeek) {
+                    await api.createScheduleSlot(storeId!, {
+                      dayOfWeek: dow,
+                      startTime: adding.startTime,
+                      endTime: adding.endTime,
+                      outcomeId: adding.outcomeId,
+                    }, token)
+                  }
                   setAdding(null); reload()
                 } catch (e: any) { setErr(e.message) }
+                finally { setAddBusy(false) }
               }}
-              submitLabel="create"
             />
           )}
 
@@ -243,6 +253,88 @@ function RowForm({ draft, outcomes, onChange, onSubmit, onCancel, submitLabel, c
       <div style={{ gridColumn: compact ? '1' : '1 / -1', display: 'flex', gap: 6 }}>
         <Button onClick={onSubmit} disabled={!valid}>{submitLabel}</Button>
         {onCancel && <Button variant="tiny" onClick={onCancel}>cancel</Button>}
+      </div>
+    </div>
+  )
+}
+
+function MultiDayCreateForm({ draft, outcomes, busy, onChange, onSubmit }: {
+  draft: { daysOfWeek: number[]; startTime: string; endTime: string; outcomeId: string }
+  outcomes: OutcomeRowFull[] | null
+  busy: boolean
+  onChange: (next: { daysOfWeek: number[]; startTime: string; endTime: string; outcomeId: string }) => void
+  onSubmit: () => void
+}) {
+  const toggleDay = (dow: number) => {
+    const has = draft.daysOfWeek.includes(dow)
+    onChange({ ...draft, daysOfWeek: has ? draft.daysOfWeek.filter((d) => d !== dow) : [...draft.daysOfWeek, dow].sort() })
+  }
+  const allDays = draft.daysOfWeek.length === 7
+  const valid = draft.daysOfWeek.length > 0 && !!draft.outcomeId && draft.startTime < draft.endTime
+
+  return (
+    <div style={{
+      background: T.accentGlow, border: `1px solid ${T.accentMuted}`,
+      borderRadius: S.r4, padding: 14, display: 'flex', flexDirection: 'column', gap: 12,
+    }}>
+      <div>
+        <label style={labelStyle}>days</label>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          {DAYS.map((d) => {
+            const on = draft.daysOfWeek.includes(d.dow)
+            return (
+              <button
+                key={d.dow}
+                type="button"
+                onClick={() => toggleDay(d.dow)}
+                style={{
+                  background: on ? T.accentMuted : T.surfaceRaised,
+                  border: `1px solid ${on ? T.accent : T.borderSubtle}`,
+                  color: on ? T.bg : T.text,
+                  fontFamily: T.sans, fontSize: S.label,
+                  padding: '4px 10px', borderRadius: S.r3, cursor: 'pointer',
+                  textTransform: 'uppercase', letterSpacing: '0.04em',
+                }}
+              >{d.short}</button>
+            )
+          })}
+          <button
+            type="button"
+            onClick={() => onChange({ ...draft, daysOfWeek: allDays ? [] : DAYS.map((d) => d.dow) })}
+            style={{
+              background: 'transparent', border: `1px solid ${T.borderSubtle}`,
+              color: T.textDim, fontFamily: T.sans, fontSize: S.label,
+              padding: '4px 10px', borderRadius: S.r3, cursor: 'pointer',
+              textTransform: 'uppercase', letterSpacing: '0.04em', marginLeft: 4,
+            }}
+          >{allDays ? 'none' : 'all'}</button>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        <div>
+          <label style={labelStyle}>start</label>
+          <Input type="time" value={draft.startTime} onChange={(e) => onChange({ ...draft, startTime: e.target.value })} />
+        </div>
+        <div>
+          <label style={labelStyle}>end</label>
+          <Input type="time" value={draft.endTime} onChange={(e) => onChange({ ...draft, endTime: e.target.value })} />
+        </div>
+        <div>
+          <label style={labelStyle}>outcome</label>
+          <Select value={draft.outcomeId} onChange={(e) => onChange({ ...draft, outcomeId: e.target.value })}>
+            <option value="" disabled>— pick —</option>
+            {(outcomes ?? []).map((o) => (
+              <option key={o.id} value={o.id}>{o.title} (v{o.version})</option>
+            ))}
+          </Select>
+        </div>
+      </div>
+      <div>
+        <Button onClick={onSubmit} disabled={!valid || busy}>
+          {busy
+            ? `creating ${draft.daysOfWeek.length} row${draft.daysOfWeek.length === 1 ? '' : 's'}…`
+            : `create ${draft.daysOfWeek.length} row${draft.daysOfWeek.length === 1 ? '' : 's'}`}
+        </Button>
       </div>
     </div>
   )

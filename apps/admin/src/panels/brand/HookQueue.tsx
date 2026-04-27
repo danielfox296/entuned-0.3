@@ -3,13 +3,13 @@ import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { StoreSummary, StoreDetail, OutcomeRowFull, HookRowFull } from '../../api.js'
 import { T } from '../../tokens.js'
-import { PanelHeader, StorePicker as UIStorePicker, S } from '../../ui/index.js'
+import { PanelHeader, StorePicker as UIStorePicker, S, useStoreSelection } from '../../ui/index.js'
 
 type StatusFilter = 'all' | 'draft' | 'approved'
 
 export function HookQueue() {
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
-  const [storeId, setStoreId] = useState<string | null>(null)
+  const [storeId, setStoreId] = useStoreSelection()
   const [detail, setDetail] = useState<StoreDetail | null>(null)
   const [icpId, setIcpId] = useState<string | null>(null)
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
@@ -164,6 +164,12 @@ function FilterBar({ filter, onFilter, hooks }: {
 
 type NewMode = 'closed' | 'single' | 'bulk' | 'draft'
 
+function formatElapsed(secs: number): string {
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
 function NewHookForm({ icpId, outcomes, onCreated }: {
   icpId: string; outcomes: OutcomeRowFull[] | null; onCreated: () => void
 }) {
@@ -176,6 +182,17 @@ function NewHookForm({ icpId, outcomes, onCreated }: {
   const [draftCandidates, setDraftCandidates] = useState<{ text: string; selected: boolean }[]>([])
   const [busy, setBusy] = useState<'create' | 'bulk' | 'draft' | 'commit' | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [draftElapsed, setDraftElapsed] = useState(0)
+
+  // While the drafter is running, count up so the operator can see progress —
+  // the call typically takes 60–180s, and a static "drafting…" label looks like a hang.
+  useEffect(() => {
+    if (busy !== 'draft') { setDraftElapsed(0); return }
+    const start = Date.now()
+    setDraftElapsed(0)
+    const id = setInterval(() => setDraftElapsed(Math.floor((Date.now() - start) / 1000)), 1000)
+    return () => clearInterval(id)
+  }, [busy])
 
   const reset = () => {
     setMode('closed')
@@ -316,8 +333,15 @@ function NewHookForm({ icpId, outcomes, onCreated }: {
               style={{ ...inputStyle, width: 80 }}
             />
             <button onClick={runDrafter} disabled={busy !== null || !outcomeId} style={primaryBtn(!!outcomeId, busy === 'draft')}>
-              {busy === 'draft' ? 'drafting…' : 'draft hooks'}
+              {busy === 'draft'
+                ? `drafting… ${formatElapsed(draftElapsed)}`
+                : 'draft hooks'}
             </button>
+            {busy === 'draft' && (
+              <span style={{ fontSize: 13, fontFamily: T.mono, color: T.textDim }}>
+                typically 1–3 min — Bernie writes voice notes, sonic anchor, then hooks
+              </span>
+            )}
           </div>
           {draftCandidates.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>

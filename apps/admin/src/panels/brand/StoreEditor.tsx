@@ -4,7 +4,7 @@ import type { ClientListRow, StoreSummary, OutcomeRowFull, StoreCreateBody, Stor
 import { T } from '../../tokens.js'
 import {
   Button, Input, Select, Section, Field, KV,
-  PanelHeader, StorePicker, S,
+  PanelHeader, StorePicker, S, useToast, useStoreSelection,
 } from '../../ui/index.js'
 
 const COMMON_TZ = [
@@ -17,12 +17,13 @@ export function StoreEditor() {
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
   const [clients, setClients] = useState<ClientListRow[] | null>(null)
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
-  const [storeId, setStoreId] = useState<string | null>(null)
+  const [storeId, setStoreId] = useStoreSelection()
   const [detail, setDetail] = useState<{ id: string; name: string; timezone: string; clientId: string; clientName: string; icps: { id: string; name: string }[]; goLiveDate: string | null; defaultOutcomeId: string | null } | null>(null)
   const [draft, setDraft] = useState<StoreUpdateBody | null>(null)
   const [creating, setCreating] = useState<StoreCreateBody | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const toast = useToast()
 
   const reloadAll = async () => {
     const token = getToken(); if (!token) return
@@ -64,7 +65,8 @@ export function StoreEditor() {
       setDetail((cur) => cur ? { ...cur, ...updated, icps: (updated as any).icps ?? cur.icps } : cur)
       setDraft({})
       reloadAll()
-    } catch (e: any) { setErr(e.message) }
+      toast.success(`${detail.name} saved`)
+    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'save failed') }
     finally { setBusy(false) }
   }
 
@@ -75,7 +77,8 @@ export function StoreEditor() {
     try {
       const created = await api.createStore(creating, token)
       setCreating(null); setStoreId(created.id); reloadAll()
-    } catch (e: any) { setErr(e.message) }
+      toast.success(`store ${created.name} created`)
+    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'create failed') }
     finally { setBusy(false) }
   }
 

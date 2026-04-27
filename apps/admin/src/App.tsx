@@ -7,6 +7,7 @@ import {
 import { api, getToken, setToken, clearToken } from './api.js'
 import type { MeResponse } from './api.js'
 import { T } from './tokens.js'
+import { ToastProvider } from './ui/index.js'
 import { DecomposerRules } from './panels/engine/DecomposerRules.js'
 import { FailureRules } from './panels/engine/FailureRules.js'
 import { StyleTemplate } from './panels/engine/StyleTemplate.js'
@@ -531,28 +532,34 @@ export function App() {
   }
 
   if (!token || !me) {
-    return <Login onLogin={handleLogin} />
+    return (
+      <ToastProvider>
+        <Login onLogin={handleLogin} />
+      </ToastProvider>
+    )
   }
 
   const activeGroup = GROUPS.find((g) => g.key === active)!
 
   return (
-    <div style={{
-      width: '100%', height: '100vh', display: 'flex',
-      flexDirection: 'column', background: T.bg,
-      color: T.text, fontFamily: T.sans, overflow: 'hidden',
-    }}>
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <Sidebar
-          active={active}
-          onSelect={setActive}
-          collapsed={collapsed}
-          onToggle={() => setCollapsed(!collapsed)}
-          email={me.operator.email}
-          onLogout={handleLogout}
-        />
-        <PanelShell group={activeGroup} />
+    <ToastProvider>
+      <div style={{
+        width: '100%', height: '100vh', display: 'flex',
+        flexDirection: 'column', background: T.bg,
+        color: T.text, fontFamily: T.sans, overflow: 'hidden',
+      }}>
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+          <Sidebar
+            active={active}
+            onSelect={setActive}
+            collapsed={collapsed}
+            onToggle={() => setCollapsed(!collapsed)}
+            email={me.operator.email}
+            onLogout={handleLogout}
+          />
+          <PanelShell group={activeGroup} />
+        </div>
       </div>
-    </div>
+    </ToastProvider>
   )
 }

@@ -9,6 +9,8 @@ export interface Session {
   email: string;
   displayName?: string | null;
   isAdmin: boolean;
+  /** All stores this operator can switch to. Length > 1 enables the in-app switcher. */
+  availableStores?: { id: string; name: string; clientName: string | null }[];
 }
 
 export function loadSession(): Session | null {

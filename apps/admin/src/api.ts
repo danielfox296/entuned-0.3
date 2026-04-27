@@ -303,7 +303,7 @@ export interface OperatorRow {
   displayName: string | null
   isAdmin: boolean
   disabledAt: string | null
-  stores: { id: string; name: string }[]
+  stores: { id: string; name: string; clientName?: string | null }[]
 }
 
 export interface OperatorCreateBody {
