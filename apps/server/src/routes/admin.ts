@@ -697,6 +697,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     mode: z.string().min(1),
     dynamics: z.string().nullable().optional(),
     instrumentation: z.string().nullable().optional(),
+    familiarity: z.string().nullable().optional(),
+    productionEra: z.string().nullable().optional(),
+    culturalCategoryPrime: z.string().nullable().optional(),
+    pleasureTarget: z.string().nullable().optional(),
   })
 
   app.post('/outcomes', async (req, reply) => {
@@ -712,6 +716,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         mode: parsed.data.mode,
         dynamics: parsed.data.dynamics ?? null,
         instrumentation: parsed.data.instrumentation ?? null,
+        familiarity: parsed.data.familiarity ?? null,
+        productionEra: parsed.data.productionEra ?? null,
+        culturalCategoryPrime: parsed.data.culturalCategoryPrime ?? null,
+        pleasureTarget: parsed.data.pleasureTarget ?? null,
         createdById: op.operatorId,
       },
     })
@@ -740,6 +748,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
             mode: parsed.data.mode,
             dynamics: parsed.data.dynamics ?? null,
             instrumentation: parsed.data.instrumentation ?? null,
+            familiarity: parsed.data.familiarity ?? null,
+            productionEra: parsed.data.productionEra ?? null,
+            culturalCategoryPrime: parsed.data.culturalCategoryPrime ?? null,
+            pleasureTarget: parsed.data.pleasureTarget ?? null,
             createdById: op.operatorId,
           },
         })

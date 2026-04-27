@@ -419,11 +419,16 @@ model Outcome {
   version         Int
   title           String
   // Song Outcome Specs
-  tempoBpm        Int       @map("tempo_bpm")
-  mode            String
-  dynamics        String?
-  instrumentation String?
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  tempoBpm              Int       @map("tempo_bpm")
+  mode                  String
+  dynamics              String?
+  instrumentation       String?
+  // Research-backed generation signals
+  familiarity           String?   @map("familiarity")
+  productionEra         String?   @map("production_era")
+  culturalCategoryPrime String?   @map("cultural_category_prime")
+  pleasureTarget        String?   @map("pleasure_target")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   createdById     String?   @map("created_by") @db.Uuid
   supersededAt    DateTime? @map("superseded_at") @db.Timestamptz(6)
 

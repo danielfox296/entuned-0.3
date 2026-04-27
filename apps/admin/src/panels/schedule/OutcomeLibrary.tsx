@@ -13,6 +13,10 @@ interface Draft {
   mode: string
   dynamics: string
   instrumentation: string
+  familiarity: string
+  productionEra: string
+  culturalCategoryPrime: string
+  pleasureTarget: string
 }
 
 const MODE_SUGGESTIONS = ['major', 'minor', 'dorian', 'mixolydian', 'lydian', 'phrygian', 'aeolian', 'modal_jazz', 'blues']
@@ -59,6 +63,10 @@ export function OutcomeLibrary() {
       mode: r.mode,
       dynamics: r.dynamics ?? '',
       instrumentation: r.instrumentation ?? '',
+      familiarity: r.familiarity ?? '',
+      productionEra: r.productionEra ?? '',
+      culturalCategoryPrime: r.culturalCategoryPrime ?? '',
+      pleasureTarget: r.pleasureTarget ?? '',
     })
   }
 
@@ -70,6 +78,8 @@ export function OutcomeLibrary() {
       await api.editOutcome(editingId, {
         title: draft.title, tempoBpm: draft.tempoBpm, mode: draft.mode,
         dynamics: draft.dynamics || null, instrumentation: draft.instrumentation || null,
+        familiarity: draft.familiarity || null, productionEra: draft.productionEra || null,
+        culturalCategoryPrime: draft.culturalCategoryPrime || null, pleasureTarget: draft.pleasureTarget || null,
       }, token)
       setEditingId(null); setDraft(null); await reload()
     } catch (e: any) { setErr(e.message) }
@@ -84,6 +94,8 @@ export function OutcomeLibrary() {
       await api.createOutcome({
         title: adding.title, tempoBpm: adding.tempoBpm, mode: adding.mode,
         dynamics: adding.dynamics || null, instrumentation: adding.instrumentation || null,
+        familiarity: adding.familiarity || null, productionEra: adding.productionEra || null,
+        culturalCategoryPrime: adding.culturalCategoryPrime || null, pleasureTarget: adding.pleasureTarget || null,
       }, token)
       setAdding(null); await reload()
     } catch (e: any) { setErr(e.message) }
@@ -133,7 +145,7 @@ export function OutcomeLibrary() {
           style={{ ...inputStyle, minWidth: 280, flex: 1, maxWidth: 480 }}
         />
         <button
-          onClick={() => setAdding(adding ? null : { title: '', tempoBpm: 100, mode: 'major', dynamics: '', instrumentation: '' })}
+          onClick={() => setAdding(adding ? null : { title: '', tempoBpm: 100, mode: 'major', dynamics: '', instrumentation: '', familiarity: '', productionEra: '', culturalCategoryPrime: '', pleasureTarget: '' })}
           style={primaryBtn(!adding, false)}
         >{adding ? 'cancel' : '+ new outcome'}</button>
       </div>
@@ -185,7 +197,7 @@ export function OutcomeLibrary() {
   )
 }
 
-const COLS = '1.6fr 60px 70px 90px 1.4fr 1.6fr 80px 90px 110px'
+const COLS = '1.6fr 60px 70px 90px 1fr 1.4fr 80px 80px 80px 80px 90px 110px'
 
 function HeaderRow() {
   return (
@@ -201,9 +213,12 @@ function HeaderRow() {
       <span>mode</span>
       <span>dynamics</span>
       <span>instrumentation</span>
+      <span>familiarity</span>
+      <span>era</span>
+      <span>cultural prime</span>
+      <span>pleasure</span>
       <span style={{ textAlign: 'right' }}>pool</span>
       <span style={{ textAlign: 'right' }}>status</span>
-      <span></span>
     </div>
   )
 }
@@ -225,13 +240,16 @@ function DataRow({ row, onEdit, onSupersede, busy }: {
       <span style={{ color: T.textMuted }}>{row.mode}</span>
       <span style={cellTrunc}>{row.dynamics ?? '—'}</span>
       <span style={cellTrunc}>{row.instrumentation ?? '—'}</span>
+      <span style={cellTrunc}>{row.familiarity ?? '—'}</span>
+      <span style={cellTrunc}>{row.productionEra ?? '—'}</span>
+      <span style={cellTrunc}>{row.culturalCategoryPrime ?? '—'}</span>
+      <span style={cellTrunc}>{row.pleasureTarget ?? '—'}</span>
       <span style={{ color: row.lineageCount === 0 ? T.danger : T.text, textAlign: 'right' }}>{row.lineageCount}</span>
-      <span style={{
-        textAlign: 'right',
-        color: superseded ? T.textDim : T.success,
-        fontSize: 10,
-      }}>{superseded ? 'superseded' : 'active'}</span>
-      <span style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+      <span style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
+        <span style={{
+          color: superseded ? T.textDim : T.success,
+          fontSize: 10, marginRight: 4,
+        }}>{superseded ? 'superseded' : 'active'}</span>
         {!superseded && (
           <>
             <button onClick={onEdit} disabled={busy} style={tinyBtn}>edit</button>
@@ -260,7 +278,7 @@ function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent,
       background: intent === 'new' ? T.accentGlow : 'transparent',
       border: intent === 'new' ? `1px solid ${T.accentMuted}` : 'none',
       borderRadius: 4, padding: intent === 'new' ? 14 : 0,
-      display: 'grid', gridTemplateColumns: '1fr 100px 140px 1fr 1.2fr', gap: 8,
+      display: 'grid', gridTemplateColumns: '1fr 100px 140px 1fr 1.2fr 120px 100px 130px 120px', gap: 8,
     }}>
       <div>
         <label style={labelStyle}>title</label>
@@ -284,6 +302,28 @@ function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent,
       <div>
         <label style={labelStyle}>instrumentation</label>
         <input value={draft.instrumentation} onChange={(e) => set('instrumentation', e.target.value)} style={inputStyle} placeholder="rhodes, brushed kit, upright bass" />
+      </div>
+      <div>
+        <label style={labelStyle}>familiarity</label>
+        <input list="familiarity-suggestions" value={draft.familiarity} onChange={(e) => set('familiarity', e.target.value)} style={inputStyle} placeholder="unfamiliar / familiar / neutral" />
+        <datalist id="familiarity-suggestions">
+          {['unfamiliar', 'familiar', 'neutral'].map((v) => <option key={v} value={v} />)}
+        </datalist>
+      </div>
+      <div>
+        <label style={labelStyle}>production era</label>
+        <input value={draft.productionEra} onChange={(e) => set('productionEra', e.target.value)} style={inputStyle} placeholder="1970s" />
+      </div>
+      <div>
+        <label style={labelStyle}>cultural prime</label>
+        <input value={draft.culturalCategoryPrime} onChange={(e) => set('culturalCategoryPrime', e.target.value)} style={inputStyle} placeholder="french, americana…" />
+      </div>
+      <div>
+        <label style={labelStyle}>pleasure target</label>
+        <input list="pleasure-suggestions" value={draft.pleasureTarget} onChange={(e) => set('pleasureTarget', e.target.value)} style={inputStyle} placeholder="high / moderate / low" />
+        <datalist id="pleasure-suggestions">
+          {['high', 'moderate', 'low'].map((v) => <option key={v} value={v} />)}
+        </datalist>
       </div>
       {intent === 'edit' && currentVersion != null && (
         <div style={{
