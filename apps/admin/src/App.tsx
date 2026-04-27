@@ -290,11 +290,11 @@ function PlaybackRouter({ cards }: { cards: string[] }) {
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
         {cards.map((c) => {
           const on = active === c
-          const ready = c === 'Live Store View' || c === 'Mode Override' || c === 'Interrupt Controls'
+          const ready = c === 'Live Store View'
           return (
             <button
               key={c}
-              onClick={() => ready && setActive((c === 'Mode Override' || c === 'Interrupt Controls') ? 'Live Store View' : c)}
+              onClick={() => ready && setActive(c)}
               disabled={!ready}
               style={{
                 background: 'transparent', border: 'none',
