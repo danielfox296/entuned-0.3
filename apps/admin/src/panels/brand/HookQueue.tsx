@@ -511,9 +511,6 @@ function HookRow({ hook, onChanged }: { hook: HookRowFull; onChanged: () => void
     setBusy('retire'); setErr(null)
     try {
       const preview = await api.retireHookPreview(hook.id, token)
-      const msg = preview.warning
-        ? `${preview.warning}\n\nRetire anyway?`
-        : `Retire this hook? Eno will stop picking it for new submissions. ${preview.activeLineageRows} existing LineageRow(s) keep playing.`
       await api.retireHook(hook.id, preview.inFlightSongSeeds > 0, token)
       onChanged()
     } catch (e: any) { setErr(e.message) }
