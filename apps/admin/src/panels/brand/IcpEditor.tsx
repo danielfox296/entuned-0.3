@@ -6,6 +6,7 @@ import type {
   StyleAnalysisRow, StyleAnalysisUpdate, TasteCategory,
 } from '../../api.js'
 import { T } from '../../tokens.js'
+import { PanelHeader, StorePicker as UIStorePicker, S } from '../../ui/index.js'
 
 const ICP_FIELDS: { key: keyof IcpUpdate; label: string; rows: number }[] = [
   { key: 'name', label: 'name', rows: 1 },
@@ -65,15 +66,13 @@ export function IcpEditor() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>ICP Editor</div>
-        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Per-store ICP. Edit psychographic fields, manage reference tracks, run the decomposer.
-        </div>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
+      <PanelHeader
+        title="ICP Editor"
+        subtitle="Per-store ICP. Edit psychographic fields, manage reference tracks, run the decomposer."
+      />
 
-      <StorePicker stores={stores} storeId={storeId} onPick={(id) => { setStoreId(id); setCreating(false); setNewIcpName('') }} />
+      <UIStorePicker stores={stores} storeId={storeId} onPick={(id) => { setStoreId(id); setCreating(false); setNewIcpName('') }} />
 
       {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
 
@@ -117,37 +116,6 @@ export function IcpEditor() {
     </div>
   )
 }
-
-function StorePicker({ stores, storeId, onPick }: {
-  stores: StoreSummary[] | null
-  storeId: string | null
-  onPick: (id: string) => void
-}) {
-  if (!stores) return <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>
-  if (stores.length === 0) return <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>no stores</div>
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      <span style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono }}>store</span>
-      <select
-        value={storeId ?? ''}
-        onChange={(e) => onPick(e.target.value)}
-        style={{
-          background: T.surface, border: `1px solid ${T.border}`, color: T.text,
-          fontFamily: T.mono, fontSize: 12, padding: '7px 10px', borderRadius: 4,
-          outline: 'none', minWidth: 320,
-        }}
-      >
-        <option value="" disabled>— pick a store —</option>
-        {stores.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.clientName} — {s.name}
-          </option>
-        ))}
-      </select>
-    </div>
-  )
-}
-
 
 type DetailWithIcp = StoreDetail & { icp: NonNullable<StoreDetail['icp']> }
 

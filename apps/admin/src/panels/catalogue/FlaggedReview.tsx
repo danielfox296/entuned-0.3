@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { FlaggedSong } from '../../api.js'
 import { T } from '../../tokens.js'
+import { Button, PanelHeader, S } from '../../ui/index.js'
 
 export function FlaggedReview() {
   const [songs, setSongs] = useState<FlaggedSong[] | null>(null)
@@ -21,13 +22,11 @@ export function FlaggedReview() {
   const resolved = (songs ?? []).filter((s) => !s.anyActive)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Flagged Review</div>
-        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Songs reported via the player. Reasons + counts come from <span style={{ fontFamily: T.mono }}>song_report</span> AudioEvents. Retiring a song deactivates every LineageRow that points at it.
-        </div>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
+      <PanelHeader
+        title="Flagged Review"
+        subtitle="Songs reported via the player. Reasons + counts come from song_report AudioEvents. Retiring a song deactivates every LineageRow that points at it."
+      />
 
       {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
       {loading && !songs && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
@@ -123,12 +122,9 @@ function Card({ song, onChanged, muted }: { song: FlaggedSong; onChanged: () => 
             <div style={{ fontFamily: T.mono, fontSize: 10, color: T.textDim, textTransform: 'uppercase' }}>reports</div>
           </div>
           {song.anyActive ? (
-            <button onClick={retire} disabled={busy} style={{
-              background: T.danger, border: 'none', color: T.bg,
-              padding: '8px 16px', borderRadius: 3,
-              fontFamily: T.mono, fontSize: 12, fontWeight: 600,
-              cursor: 'pointer', opacity: busy ? 0.6 : 1,
-            }}>{busy ? '…' : `retire (${song.activeLineageCount})`}</button>
+            <Button variant="danger" onClick={retire} busy={busy}>
+              {busy ? '…' : `retire (${song.activeLineageCount})`}
+            </Button>
           ) : (
             <span style={{ fontFamily: T.mono, fontSize: 11, color: T.textDim, textTransform: 'uppercase' }}>retired</span>
           )}

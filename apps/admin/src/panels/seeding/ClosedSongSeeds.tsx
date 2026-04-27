@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { SongSeedRow, StoreSummary, SongSeedStatus } from '../../api.js'
 import { T } from '../../tokens.js'
+import { Button, Select, PanelHeader, S } from '../../ui/index.js'
 
 const STATUS_FILTERS: { key: string; label: string; status: SongSeedStatus }[] = [
   { key: 'abandoned', label: 'abandoned', status: 'abandoned' },
@@ -36,13 +37,11 @@ export function ClosedSongSeeds() {
   const icps = uniqueIcps(stores ?? [])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Closed Song Seeds</div>
-        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Song seeds that didn't make it into the pool — operator-abandoned, skipped, or assembly-failed. Useful for spotting hook-pool drift or systematic Mars/Bernie failures.
-        </div>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
+      <PanelHeader
+        title="Closed Song Seeds"
+        subtitle="Song seeds that didn't make it into the pool — operator-abandoned, skipped, or assembly-failed. Useful for spotting hook-pool drift or systematic Mars/Bernie failures."
+      />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 4 }}>
@@ -59,19 +58,14 @@ export function ClosedSongSeeds() {
             )
           })}
         </div>
-        <span style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono }}>icp</span>
-        <select value={icpId} onChange={(e) => setIcpId(e.target.value)} style={{
-          background: T.surface, border: `1px solid ${T.border}`, color: T.text,
-          fontFamily: T.mono, fontSize: 12, padding: '5px 8px', borderRadius: 3, outline: 'none', minWidth: 220,
-        }}>
+        <span style={{ fontSize: S.label, color: T.textDim, fontFamily: T.sans, textTransform: 'uppercase', letterSpacing: '0.04em' }}>icp</span>
+        <Select value={icpId} onChange={(e) => setIcpId(e.target.value)} style={{ minWidth: 220, width: 'auto' }}>
           <option value="">all ICPs</option>
           {icps.map((i) => <option key={i.id} value={i.id}>{i.label}</option>)}
-        </select>
-        <button onClick={reload} disabled={loading} style={{
-          background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-          padding: '5px 12px', borderRadius: 4, fontFamily: T.mono, fontSize: 12, cursor: 'pointer',
-          marginLeft: 'auto',
-        }}>refresh</button>
+        </Select>
+        <span style={{ marginLeft: 'auto' }}>
+          <Button variant="ghost" onClick={reload} disabled={loading}>refresh</Button>
+        </span>
       </div>
 
       {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}

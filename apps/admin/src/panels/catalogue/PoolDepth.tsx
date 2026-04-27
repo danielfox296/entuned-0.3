@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { PoolDepthResponse, PoolStatus } from '../../api.js'
 import { T } from '../../tokens.js'
+import { Button, PanelHeader, S } from '../../ui/index.js'
 
 type Sort = 'risk' | 'icp' | 'outcome'
 
@@ -53,13 +54,11 @@ export function PoolDepth() {
   }, [data])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Pool Depth</div>
-        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Active LineageRow counts per (ICP × Outcome). Hendrix picks from these pools at runtime — thin pools mean less variety, empty pools mean nothing to play.
-        </div>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
+      <PanelHeader
+        title="Pool Depth"
+        subtitle="Active LineageRow counts per (ICP × Outcome). Hendrix picks from these pools at runtime — thin pools mean less variety, empty pools mean nothing to play."
+      />
 
       {data && (
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -84,11 +83,9 @@ export function PoolDepth() {
             }}>{s}</button>
           )
         })}
-        <button onClick={reload} style={{
-          background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-          padding: '5px 12px', borderRadius: 4, fontFamily: T.mono, fontSize: 12, cursor: 'pointer',
-          marginLeft: 'auto',
-        }}>refresh</button>
+        <span style={{ marginLeft: 'auto' }}>
+          <Button variant="ghost" onClick={reload}>refresh</Button>
+        </span>
       </div>
 
       {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}

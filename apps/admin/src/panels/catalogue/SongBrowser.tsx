@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { LineageRowList, LineageRowFull, OutcomeRowFull } from '../../api.js'
 import { T } from '../../tokens.js'
+import { Button, PanelHeader, S } from '../../ui/index.js'
 
 type ActiveFilter = 'all' | 'true' | 'false'
 const PAGE_SIZE = 50
@@ -47,11 +48,8 @@ export function SongBrowser({ defaultActive = 'true' as ActiveFilter, headerLabe
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>{headerLabel}</div>
-        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>{headerHint}</div>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
+      <PanelHeader title={headerLabel} subtitle={headerHint} />
 
       <Filters
         icps={icps} outcomes={outcomes}
@@ -83,9 +81,9 @@ export function SongBrowser({ defaultActive = 'true' as ActiveFilter, headerLabe
 
           {totalPages > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-end' }}>
-              <button onClick={() => reload(page - 1)} disabled={page === 0 || loading} style={pageBtn}>← prev</button>
-              <span style={{ fontFamily: T.mono, fontSize: 12, color: T.textDim }}>page {page + 1} / {totalPages}</span>
-              <button onClick={() => reload(page + 1)} disabled={page >= totalPages - 1 || loading} style={pageBtn}>next →</button>
+              <Button variant="ghost" onClick={() => reload(page - 1)} disabled={page === 0 || loading}>← prev</Button>
+              <span style={{ fontFamily: T.sans, fontSize: S.small, color: T.textDim }}>page {page + 1} / {totalPages}</span>
+              <Button variant="ghost" onClick={() => reload(page + 1)} disabled={page >= totalPages - 1 || loading}>next →</Button>
             </div>
           )}
         </>
@@ -218,11 +216,6 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
 }
 
 const trunc: any = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
-
-const pageBtn: any = {
-  background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-  padding: '5px 12px', borderRadius: 4, fontFamily: T.mono, fontSize: 12, cursor: 'pointer',
-}
 
 const dangerBtn: any = {
   background: 'transparent', border: `1px solid ${T.danger}`, color: T.danger,

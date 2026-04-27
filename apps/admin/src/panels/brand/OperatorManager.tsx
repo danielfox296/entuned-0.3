@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { OperatorRow, StoreSummary } from '../../api.js'
 import { T } from '../../tokens.js'
+import { Button, Input, Section, Field, PanelHeader, S } from '../../ui/index.js'
 
 export function OperatorManager() {
   const [operators, setOperators] = useState<OperatorRow[] | null>(null)
@@ -46,59 +46,53 @@ export function OperatorManager() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Operator Manager</div>
-        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Create store-level operators and manage their credentials and store access.
-        </div>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
+      <PanelHeader
+        title="Operator Manager"
+        subtitle="Create store-level operators and manage their credentials and store access."
+      />
 
-      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</div>}
 
       <div style={{ display: 'flex', gap: 8 }}>
-        <button onClick={() => { setSelected(null); setCreating(true) }} style={primaryBtn(true, false)}>+ new operator</button>
+        <Button onClick={() => { setSelected(null); setCreating(true) }}>+ new operator</Button>
       </div>
 
       {creating && stores && (
-        <CreateForm
-          stores={stores}
-          onSubmit={create}
-          onCancel={() => setCreating(false)}
-          busy={busy}
-          err={err}
-        />
+        <CreateForm stores={stores} onSubmit={create} onCancel={() => setCreating(false)} busy={busy} err={err} />
       )}
 
       {selected && stores && (
-        <EditForm
-          op={selected}
-          stores={stores}
-          onSave={save}
-          onClose={() => setSelected(null)}
-          busy={busy}
-        />
+        <EditForm op={selected} stores={stores} onSave={save} onClose={() => setSelected(null)} busy={busy} />
       )}
 
       {operators && (
-        <div style={{ border: `1px solid ${T.border}`, borderRadius: 4, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', background: T.surfaceRaised, padding: '6px 12px', fontSize: 10, fontFamily: T.mono, color: T.textDim, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        <div style={{ border: `1px solid ${T.border}`, borderRadius: S.r4, overflow: 'hidden' }}>
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto',
+            background: T.surfaceRaised, padding: '6px 12px',
+            fontSize: S.label, fontFamily: T.sans, color: T.textDim,
+            textTransform: 'uppercase', letterSpacing: 0.5,
+          }}>
             <span>Email</span><span>Stores</span><span>Status</span><span />
           </div>
           {operators.map((op) => (
-            <div key={op.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', padding: '10px 12px', borderTop: `1px solid ${T.border}`, alignItems: 'center' }}>
+            <div key={op.id} style={{
+              display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto',
+              padding: '10px 12px', borderTop: `1px solid ${T.border}`, alignItems: 'center',
+            }}>
               <div>
-                <div style={{ fontSize: 12, fontFamily: T.mono, color: T.text }}>{op.email}</div>
-                {op.displayName && <div style={{ fontSize: 11, fontFamily: T.sans, color: T.textMuted }}>{op.displayName}</div>}
-                {op.isAdmin && <div style={{ fontSize: 10, fontFamily: T.mono, color: T.accent }}>admin</div>}
+                <div style={{ fontSize: S.small, fontFamily: T.sans, color: T.text }}>{op.email}</div>
+                {op.displayName && <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.textMuted }}>{op.displayName}</div>}
+                {op.isAdmin && <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.accent }}>admin</div>}
               </div>
-              <div style={{ fontSize: 12, fontFamily: T.mono, color: T.textMuted }}>
+              <div style={{ fontSize: S.small, fontFamily: T.sans, color: T.textMuted }}>
                 {op.stores.length === 0 ? '—' : op.stores.map((s) => s.name).join(', ')}
               </div>
-              <div style={{ fontSize: 11, fontFamily: T.mono, color: op.disabledAt ? T.danger : T.success }}>
+              <div style={{ fontSize: S.label, fontFamily: T.sans, color: op.disabledAt ? T.danger : T.success }}>
                 {op.disabledAt ? 'disabled' : 'active'}
               </div>
-              <button onClick={() => { setCreating(false); setSelected(op) }} style={ghostBtn}>edit</button>
+              <Button variant="ghost" onClick={() => { setCreating(false); setSelected(op) }}>edit</Button>
             </div>
           ))}
         </div>
@@ -122,19 +116,19 @@ function CreateForm({ stores, onSubmit, onCancel, busy, err }: {
   const valid = email.includes('@') && password.length > 0
 
   return (
-    <Section title="new operator">
-      {err && <div style={{ gridColumn: '1/-1', fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
-      <Field label="email"><input value={email} onChange={(e) => setEmail(e.target.value)} style={input} placeholder="operator@store.com" /></Field>
-      <Field label="password"><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={input} placeholder="set initial password" /></Field>
-      <Field label="display name (optional)"><input value={displayName} onChange={(e) => setDisplayName(e.target.value)} style={input} placeholder="e.g. Park Meadows" /></Field>
+    <Section title="New operator" columns={2}>
+      {err && <div style={{ gridColumn: '1/-1', fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</div>}
+      <Field label="email"><Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="operator@store.com" /></Field>
+      <Field label="password"><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="set initial password" /></Field>
+      <Field label="display name (optional)"><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="e.g. Park Meadows" /></Field>
       <Field label="store access" full>
         <StoreCheckboxes stores={stores} selected={storeIds} onChange={setStoreIds} />
       </Field>
       <div style={{ gridColumn: '1/-1', display: 'flex', gap: 8 }}>
-        <button onClick={() => onSubmit({ email, password, displayName: displayName || null, storeIds })} disabled={!valid || busy} style={primaryBtn(valid, busy)}>
+        <Button onClick={() => onSubmit({ email, password, displayName: displayName || null, storeIds })} disabled={!valid} busy={busy}>
           {busy ? 'creating…' : 'create operator'}
-        </button>
-        <button onClick={onCancel} style={ghostBtn}>cancel</button>
+        </Button>
+        <Button variant="ghost" onClick={onCancel}>cancel</Button>
       </div>
     </Section>
   )
@@ -167,26 +161,26 @@ function EditForm({ op, stores, onSave, onClose, busy }: {
   }
 
   return (
-    <Section title={`editing — ${op.email}`}>
-      <Field label="email"><input value={email} onChange={(e) => setEmail(e.target.value)} style={input} /></Field>
-      <Field label="new password"><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={input} placeholder="leave blank to keep current" /></Field>
-      <Field label="display name"><input value={displayName} onChange={(e) => setDisplayName(e.target.value)} style={input} placeholder="optional" /></Field>
+    <Section title={`Editing — ${op.email}`} columns={2}>
+      <Field label="email"><Input value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+      <Field label="new password"><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="leave blank to keep current" /></Field>
+      <Field label="display name"><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="optional" /></Field>
       <Field label="store access" full>
         <StoreCheckboxes stores={stores} selected={storeIds} onChange={setStoreIds} />
       </Field>
       <div style={{ gridColumn: '1/-1', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={submit} disabled={!dirty || busy} style={primaryBtn(dirty, busy)}>
+        <Button onClick={submit} disabled={!dirty} busy={busy}>
           {busy ? 'saving…' : dirty ? 'save changes' : 'no changes'}
-        </button>
-        <button onClick={onClose} style={ghostBtn}>cancel</button>
+        </Button>
+        <Button variant="ghost" onClick={onClose}>cancel</Button>
         {!op.isAdmin && (
-          <button
+          <Button
+            variant={op.disabledAt ? 'ghost' : 'danger'}
             onClick={() => onSave({ disabled: !op.disabledAt })}
             disabled={busy}
-            style={{ ...ghostBtn, borderColor: op.disabledAt ? T.success : T.danger, color: op.disabledAt ? T.success : T.danger }}
           >
             {op.disabledAt ? 'enable' : 'disable'}
-          </button>
+          </Button>
         )}
       </div>
     </Section>
@@ -201,51 +195,14 @@ function StoreCheckboxes({ stores, selected, onChange }: {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px' }}>
       {stores.map((s) => (
-        <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontFamily: T.mono, color: T.text, cursor: 'pointer' }}>
+        <label key={s.id} style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          fontSize: S.small, fontFamily: T.sans, color: T.text, cursor: 'pointer',
+        }}>
           <input type="checkbox" checked={selected.includes(s.id)} onChange={() => toggle(s.id)} />
           {s.clientName} — {s.name}
         </label>
       ))}
     </div>
   )
-}
-
-function Section({ title, children }: { title: string; children: any }) {
-  return (
-    <div style={{ border: `1px solid ${T.border}`, borderRadius: 4, background: T.surface, padding: 16, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-      <div style={{ gridColumn: '1/-1', fontFamily: T.mono, fontSize: 11, color: T.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>{title}</div>
-      {children}
-    </div>
-  )
-}
-
-function Field({ label, full, children }: { label: string; full?: boolean; children: any }) {
-  return (
-    <div style={{ gridColumn: full ? '1/-1' : 'auto' }}>
-      <label style={{ display: 'block', fontSize: 10, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase', marginBottom: 4 }}>{label}</label>
-      {children}
-    </div>
-  )
-}
-
-const input: CSSProperties = {
-  background: T.surfaceRaised, border: `1px solid ${T.border}`, color: T.text,
-  fontFamily: T.mono, fontSize: 12, padding: '7px 10px', borderRadius: 3,
-  outline: 'none', width: '100%', boxSizing: 'border-box',
-}
-
-function primaryBtn(active: boolean, busy: boolean): CSSProperties {
-  return {
-    background: active ? T.accent : T.surfaceRaised,
-    color: active ? T.bg : T.textMuted,
-    border: 'none', borderRadius: 3, padding: '8px 16px',
-    fontFamily: T.mono, fontSize: 12, fontWeight: 600,
-    cursor: active && !busy ? 'pointer' : 'default',
-    opacity: busy ? 0.6 : 1,
-  }
-}
-
-const ghostBtn: CSSProperties = {
-  background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-  padding: '6px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
 }

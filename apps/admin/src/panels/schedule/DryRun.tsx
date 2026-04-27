@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { ScheduleDryRun, DryRunPeriod, StoreSummary } from '../../api.js'
 import { T } from '../../tokens.js'
+import { PanelHeader, StorePicker, S } from '../../ui/index.js'
 
 const DAY_MINUTES = 24 * 60
 
@@ -58,13 +59,11 @@ export function DryRun() {
   }, [data])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Schedule Dry Run</div>
-        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Project the weekly schedule for one store. Gaps fall through to the store's default outcome (or surface as untouched gaps). Pool depth is joined per-(ICP × outcome) so you can see which pools your schedule actually depends on.
-        </div>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
+      <PanelHeader
+        title="Schedule Dry Run"
+        subtitle="Project the weekly schedule for one store. Gaps fall through to the store's default outcome (or surface as untouched gaps). Pool depth is joined per-(ICP × outcome) so you can see which pools your schedule actually depends on."
+      />
 
       <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
 
@@ -87,31 +86,6 @@ export function DryRun() {
           <Timeline data={data} />
         </>
       )}
-    </div>
-  )
-}
-
-function StorePicker({ stores, storeId, onPick }: {
-  stores: StoreSummary[] | null; storeId: string | null; onPick: (id: string) => void
-}) {
-  if (!stores) return <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading stores…</div>
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      <span style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono }}>store</span>
-      <select
-        value={storeId ?? ''}
-        onChange={(e) => onPick(e.target.value)}
-        style={{
-          background: T.surface, border: `1px solid ${T.border}`, color: T.text,
-          fontFamily: T.mono, fontSize: 12, padding: '7px 10px', borderRadius: 4,
-          outline: 'none', minWidth: 320,
-        }}
-      >
-        <option value="" disabled>— pick a store —</option>
-        {stores.map((s) => (
-          <option key={s.id} value={s.id}>{s.clientName} — {s.name}</option>
-        ))}
-      </select>
     </div>
   )
 }

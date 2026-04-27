@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
-import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { StyleExclusionRuleRow } from '../../api.js'
 import { T } from '../../tokens.js'
-import { Header } from './DecomposerRules.js'
+import { Button, Input, PanelHeader, S } from '../../ui/index.js'
 
 type Draft = Omit<StyleExclusionRuleRow, 'id'>
 
@@ -21,17 +20,12 @@ export function FailureRules() {
   const [loaded, setLoaded] = useState(false)
 
   const load = async () => {
-    const token = getToken()
-    if (!token) return
+    const token = getToken(); if (!token) return
     try {
       const r = await api.styleExclusionRules(token)
-      setRows(r)
-      setEditing({})
-    } catch (e: any) {
-      setErr(e.message ?? 'load failed')
-    } finally {
-      setLoaded(true)
-    }
+      setRows(r); setEditing({})
+    } catch (e: any) { setErr(e.message ?? 'load failed') }
+    finally { setLoaded(true) }
   }
 
   useEffect(() => { load() }, [])
@@ -46,77 +40,59 @@ export function FailureRules() {
   }
 
   const saveEdit = async (id: string) => {
-    const token = getToken()
-    const draft = editing[id]
+    const token = getToken(); const draft = editing[id]
     if (!token || !draft) return
     setBusy(id); setErr(null)
     try {
       await api.updateStyleExclusionRule(id, normalize(draft), token)
       await load()
-    } catch (e: any) {
-      setErr(e.message ?? 'save failed')
-    } finally {
-      setBusy(null)
-    }
+    } catch (e: any) { setErr(e.message ?? 'save failed') }
+    finally { setBusy(null) }
   }
 
   const remove = async (id: string) => {
-    const token = getToken()
-    if (!token) return
+    const token = getToken(); if (!token) return
     setBusy(id); setErr(null)
     try {
       await api.deleteStyleExclusionRule(id, token)
       await load()
-    } catch (e: any) {
-      setErr(e.message ?? 'delete failed')
-    } finally {
-      setBusy(null)
-    }
+    } catch (e: any) { setErr(e.message ?? 'delete failed') }
+    finally { setBusy(null) }
   }
 
   const create = async () => {
-    const token = getToken()
-    if (!token || !adding) return
+    const token = getToken(); if (!token || !adding) return
     setBusy('__new__'); setErr(null)
     try {
       await api.createStyleExclusionRule(normalize(adding), token)
-      setAdding(null)
-      await load()
-    } catch (e: any) {
-      setErr(e.message ?? 'create failed')
-    } finally {
-      setBusy(null)
-    }
+      setAdding(null); await load()
+    } catch (e: any) { setErr(e.message ?? 'create failed') }
+    finally { setBusy(null) }
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <Header
+    <div style={{ display: 'flex', flexDirection: 'column', gap: S.lg }}>
+      <PanelHeader
         title="Style Exclusion Rules"
         subtitle="Sanitizer pass — substring triggers, optional override patterns; case-insensitive"
       />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button
+        <Button
+          variant={adding ? 'ghost' : 'primary'}
           onClick={() => setAdding(adding ? null : { ...EMPTY })}
-          style={{
-            background: adding ? T.surfaceRaised : T.accent,
-            color: adding ? T.text : T.bg,
-            border: 'none', borderRadius: 4, padding: '7px 14px',
-            fontFamily: T.mono, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-          }}
-        >{adding ? 'cancel' : '+ new rule'}</button>
-        <span style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono }}>
+        >{adding ? 'cancel' : '+ new rule'}</Button>
+        <span style={{ fontSize: S.small, color: T.textDim, fontFamily: T.sans }}>
           {rows.length} rule{rows.length === 1 ? '' : 's'}
         </span>
-        {err && <span style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</span>}
+        {err && <span style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</span>}
       </div>
 
-      {!loaded && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
+      {!loaded && <div style={{ color: T.textMuted, fontFamily: T.sans, fontSize: S.small }}>loading…</div>}
 
       {loaded && (
         <div style={{
-          border: `1px solid ${T.border}`, borderRadius: 4, overflow: 'hidden',
+          border: `1px solid ${T.border}`, borderRadius: S.r4, overflow: 'hidden',
         }}>
           <HeaderRow />
           {adding && (
@@ -151,7 +127,7 @@ export function FailureRules() {
             )
           })}
           {rows.length === 0 && !adding && (
-            <div style={{ padding: 24, textAlign: 'center', color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>
+            <div style={{ padding: 24, textAlign: 'center', color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>
               no rules
             </div>
           )}
@@ -180,7 +156,8 @@ function HeaderRow() {
       display: 'grid', gridTemplateColumns: COLS, gap: 8,
       padding: '8px 12px', background: T.surface,
       borderBottom: `1px solid ${T.border}`,
-      fontFamily: T.mono, fontSize: 11, color: T.textDim, textTransform: 'uppercase',
+      fontFamily: T.sans, fontSize: S.label, color: T.textDim, textTransform: 'uppercase',
+      letterSpacing: '0.04em',
     }}>
       <span>trigger field</span>
       <span>trigger value</span>
@@ -200,7 +177,7 @@ function DisplayRow({ row, onEdit, onDelete, busy }: {
     <div style={{
       display: 'grid', gridTemplateColumns: COLS, gap: 8,
       padding: '10px 12px', borderBottom: `1px solid ${T.borderSubtle}`,
-      fontFamily: T.mono, fontSize: 12, color: T.text, alignItems: 'center',
+      fontFamily: T.sans, fontSize: S.small, color: T.text, alignItems: 'center',
     }}>
       <span style={{ color: row.triggerField === '*' ? T.accentMuted : T.text }}>{row.triggerField}</span>
       <span style={{ color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.triggerValue}</span>
@@ -209,8 +186,8 @@ function DisplayRow({ row, onEdit, onDelete, busy }: {
       <span style={{ color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.overridePattern ?? '—'}</span>
       <span style={{ color: T.textDim, overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.note ?? ''}</span>
       <span style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-        <button onClick={onEdit} disabled={busy} style={btn(false)}>edit</button>
-        <button onClick={onDelete} disabled={busy} style={btn(true)}>×</button>
+        <Button variant="tiny" onClick={onEdit} disabled={busy}>edit</Button>
+        <Button variant="tinyDanger" onClick={onDelete} disabled={busy}>×</Button>
       </span>
     </div>
   )
@@ -221,42 +198,25 @@ function RuleRow({ draft, onChange, onSave, onCancel, busy, isNew }: {
   onSave: () => void; onCancel: () => void; busy: boolean; isNew?: boolean
 }) {
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => onChange({ ...draft, [k]: v })
-  const valid = draft.triggerField.trim() && draft.exclude.trim()
+  const valid = !!(draft.triggerField.trim() && draft.exclude.trim())
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: COLS, gap: 8,
       padding: '8px 12px', borderBottom: `1px solid ${T.borderSubtle}`,
       background: isNew ? T.accentGlow : T.surfaceRaised, alignItems: 'center',
     }}>
-      <input value={draft.triggerField} onChange={(e) => set('triggerField', e.target.value)} style={inp} placeholder="* or field" />
-      <input value={draft.triggerValue} onChange={(e) => set('triggerValue', e.target.value)} style={inp} placeholder="(empty if *)" />
-      <input value={draft.exclude} onChange={(e) => set('exclude', e.target.value)} style={inp} placeholder="substring" />
-      <input value={draft.overrideField ?? ''} onChange={(e) => set('overrideField', e.target.value || null)} style={inp} placeholder="optional" />
-      <input value={draft.overridePattern ?? ''} onChange={(e) => set('overridePattern', e.target.value || null)} style={inp} placeholder="optional" />
-      <input value={draft.note ?? ''} onChange={(e) => set('note', e.target.value || null)} style={inp} placeholder="note" />
+      <Input value={draft.triggerField} onChange={(e) => set('triggerField', e.target.value)} placeholder="* or field" />
+      <Input value={draft.triggerValue} onChange={(e) => set('triggerValue', e.target.value)} placeholder="(empty if *)" />
+      <Input value={draft.exclude} onChange={(e) => set('exclude', e.target.value)} placeholder="substring" />
+      <Input value={draft.overrideField ?? ''} onChange={(e) => set('overrideField', e.target.value || null)} placeholder="optional" />
+      <Input value={draft.overridePattern ?? ''} onChange={(e) => set('overridePattern', e.target.value || null)} placeholder="optional" />
+      <Input value={draft.note ?? ''} onChange={(e) => set('note', e.target.value || null)} placeholder="note" />
       <span style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-        <button onClick={onSave} disabled={busy || !valid} style={{
-          ...btn(false),
-          background: valid ? T.accent : T.surfaceRaised,
-          color: valid ? T.bg : T.textDim,
-          fontWeight: 600,
-        }}>{busy ? '…' : 'save'}</button>
-        <button onClick={onCancel} disabled={busy} style={btn(false)}>cancel</button>
+        <Button variant="primary" onClick={onSave} disabled={!valid} busy={busy}>
+          {busy ? '…' : 'save'}
+        </Button>
+        <Button variant="tiny" onClick={onCancel} disabled={busy}>cancel</Button>
       </span>
     </div>
   )
 }
-
-const inp: CSSProperties = {
-  background: T.surface, border: `1px solid ${T.border}`, color: T.text,
-  fontFamily: T.mono, fontSize: 12, padding: '5px 8px', borderRadius: 3, outline: 'none',
-  width: '100%', boxSizing: 'border-box',
-}
-
-const btn = (danger: boolean): CSSProperties => ({
-  background: 'transparent',
-  border: `1px solid ${danger ? T.danger : T.border}`,
-  color: danger ? T.danger : T.textMuted,
-  padding: '4px 10px', borderRadius: 3,
-  fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
-})

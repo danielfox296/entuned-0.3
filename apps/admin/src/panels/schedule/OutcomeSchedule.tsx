@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { StoreSummary, ScheduleSlot, ScheduleSlotInput, OutcomeRowFull } from '../../api.js'
 import { T } from '../../tokens.js'
+import { Button, Input, Select, PanelHeader, StorePicker, S } from '../../ui/index.js'
 
 const DAYS: { dow: number; label: string; short: string }[] = [
   { dow: 1, label: 'Monday', short: 'Mon' },
@@ -21,6 +22,8 @@ export function OutcomeSchedule() {
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
   const [adding, setAdding] = useState<{ dayOfWeek: number; startTime: string; endTime: string; outcomeId: string } | null>(null)
   const [err, setErr] = useState<string | null>(null)
+
+  const tz = stores?.find((s) => s.id === storeId)?.timezone ?? null
 
   useEffect(() => {
     const token = getToken(); if (!token) return
@@ -46,32 +49,37 @@ export function OutcomeSchedule() {
   for (const r of rows ?? []) grouped[r.dayOfWeek]?.push(r)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Outcome Schedule</div>
-        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Per-store weekly grid. Rows resolve in store-local time. Gaps fall back to default outcome.
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
+      <PanelHeader
+        title="Outcome Schedule"
+        subtitle="Per-store weekly grid. Rows resolve in store-local time. Gaps fall back to default outcome."
+      />
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
+        {tz && (
+          <span style={{ fontSize: S.label, color: T.textDim, fontFamily: T.sans, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            tz: {tz}
+          </span>
+        )}
       </div>
 
-      <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
+      {err && <div style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</div>}
 
-      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
-
-      {storeId && !rows && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
+      {storeId && !rows && <div style={{ color: T.textMuted, fontFamily: T.sans, fontSize: S.small }}>loading…</div>}
 
       {storeId && rows && (
         <>
-          <button
+          <Button
+            variant={adding ? 'ghost' : 'primary'}
             onClick={() => setAdding(adding ? null : { dayOfWeek: 1, startTime: '09:00', endTime: '12:00', outcomeId: '' })}
-            style={primaryBtn(!adding, false)}
-          >{adding ? 'cancel' : '+ new row'}</button>
+          >{adding ? 'cancel' : '+ new row'}</Button>
 
           {adding && (
             <RowForm
               draft={adding}
               outcomes={outcomes}
-              onChange={setAdding}
+              onChange={setAdding as any}
               onSubmit={async () => {
                 const token = getToken(); if (!token) return
                 try {
@@ -94,31 +102,6 @@ export function OutcomeSchedule() {
   )
 }
 
-function StorePicker({ stores, storeId, onPick }: {
-  stores: StoreSummary[] | null; storeId: string | null; onPick: (id: string) => void
-}) {
-  if (!stores) return <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading stores…</div>
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      <span style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono }}>store</span>
-      <select
-        value={storeId ?? ''}
-        onChange={(e) => onPick(e.target.value)}
-        style={{
-          background: T.surface, border: `1px solid ${T.border}`, color: T.text,
-          fontFamily: T.mono, fontSize: 12, padding: '7px 10px', borderRadius: 4,
-          outline: 'none', minWidth: 320,
-        }}
-      >
-        <option value="" disabled>— pick a store —</option>
-        {stores.map((s) => (
-          <option key={s.id} value={s.id}>{s.clientName} — {s.name}</option>
-        ))}
-      </select>
-    </div>
-  )
-}
-
 function DayColumn({ day, rows, outcomes, onChanged }: {
   day: { dow: number; label: string; short: string }
   rows: ScheduleSlot[]
@@ -128,10 +111,10 @@ function DayColumn({ day, rows, outcomes, onChanged }: {
   return (
     <div style={{
       background: T.surface, border: `1px solid ${T.border}`,
-      borderRadius: 4, padding: 10, minHeight: 120,
+      borderRadius: S.r4, padding: 10, minHeight: 120,
     }}>
       <div style={{
-        fontSize: 11, color: T.accentMuted, fontFamily: T.mono,
+        fontSize: S.label, color: T.accentMuted, fontFamily: T.sans,
         textTransform: 'uppercase', letterSpacing: '0.05em',
         marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${T.borderSubtle}`,
         display: 'flex', justifyContent: 'space-between',
@@ -140,7 +123,7 @@ function DayColumn({ day, rows, outcomes, onChanged }: {
         <span style={{ color: T.textDim }}>{rows.length}</span>
       </div>
       {rows.length === 0 && (
-        <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 11, padding: '4px 0' }}>—</div>
+        <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.label, padding: '4px 0' }}>—</div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {rows.map((r) => <RowItem key={r.id} row={r} outcomes={outcomes} onChanged={onChanged} />)}
@@ -178,7 +161,7 @@ function RowItem({ row, outcomes, onChanged }: {
 
   if (editing) {
     return (
-      <div style={{ background: T.accentGlow, border: `1px solid ${T.accentMuted}`, borderRadius: 3, padding: 8 }}>
+      <div style={{ background: T.accentGlow, border: `1px solid ${T.accentMuted}`, borderRadius: S.r3, padding: 8 }}>
         <RowForm
           draft={editing}
           outcomes={outcomes}
@@ -188,7 +171,7 @@ function RowItem({ row, outcomes, onChanged }: {
           submitLabel={busy === 'save' ? '…' : 'save'}
           compact
         />
-        {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono, marginTop: 4 }}>{err}</div>}
+        {err && <div style={{ fontSize: S.label, color: T.danger, fontFamily: T.sans, marginTop: 4 }}>{err}</div>}
       </div>
     )
   }
@@ -196,19 +179,19 @@ function RowItem({ row, outcomes, onChanged }: {
   return (
     <div style={{
       background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
-      borderRadius: 3, padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 4,
+      borderRadius: S.r3, padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 4,
     }}>
-      <div style={{ fontFamily: T.mono, fontSize: 12, color: T.text }}>
+      <div style={{ fontFamily: T.sans, fontSize: S.small, color: T.text, fontWeight: 500 }}>
         {row.startTime}–{row.endTime}
       </div>
-      <div style={{ fontFamily: T.sans, fontSize: 12, color: T.textMuted }}>
+      <div style={{ fontFamily: T.sans, fontSize: S.small, color: T.textMuted }}>
         {row.outcomeTitle}
       </div>
       <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
-        <button onClick={startEdit} disabled={busy === 'delete'} style={tinyBtn}>edit</button>
-        <button onClick={remove} disabled={busy === 'delete'} style={tinyDangerBtn}>×</button>
+        <Button variant="tiny" onClick={startEdit} disabled={busy === 'delete'}>edit</Button>
+        <Button variant="tinyDanger" onClick={remove} disabled={busy === 'delete'}>×</Button>
       </div>
-      {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ fontSize: S.label, color: T.danger, fontFamily: T.sans }}>{err}</div>}
     </div>
   )
 }
@@ -223,76 +206,50 @@ function RowForm({ draft, outcomes, onChange, onSubmit, onCancel, submitLabel, c
   compact?: boolean
 }) {
   const set = <K extends keyof ScheduleSlotInput>(k: K, v: ScheduleSlotInput[K]) => onChange({ ...draft, [k]: v })
-  const valid = draft.outcomeId && draft.startTime < draft.endTime
+  const valid = !!(draft.outcomeId && draft.startTime < draft.endTime)
 
   return (
     <div style={{
       background: compact ? 'transparent' : T.accentGlow,
       border: compact ? 'none' : `1px solid ${T.accentMuted}`,
-      borderRadius: 4, padding: compact ? 0 : 14,
+      borderRadius: S.r4, padding: compact ? 0 : 14,
       display: 'grid',
       gridTemplateColumns: compact ? '1fr' : 'repeat(4, 1fr)',
       gap: 8,
     }}>
       <div>
         <label style={labelStyle}>day</label>
-        <select value={draft.dayOfWeek} onChange={(e) => set('dayOfWeek', parseInt(e.target.value, 10))} style={inputStyle}>
+        <Select value={draft.dayOfWeek} onChange={(e) => set('dayOfWeek', parseInt(e.target.value, 10))}>
           {DAYS.map((d) => <option key={d.dow} value={d.dow}>{d.label}</option>)}
-        </select>
+        </Select>
       </div>
       <div>
         <label style={labelStyle}>start</label>
-        <input type="time" value={draft.startTime} onChange={(e) => set('startTime', e.target.value)} style={inputStyle} />
+        <Input type="time" value={draft.startTime} onChange={(e) => set('startTime', e.target.value)} />
       </div>
       <div>
         <label style={labelStyle}>end</label>
-        <input type="time" value={draft.endTime} onChange={(e) => set('endTime', e.target.value)} style={inputStyle} />
+        <Input type="time" value={draft.endTime} onChange={(e) => set('endTime', e.target.value)} />
       </div>
       <div>
         <label style={labelStyle}>outcome</label>
-        <select value={draft.outcomeId} onChange={(e) => set('outcomeId', e.target.value)} style={inputStyle}>
+        <Select value={draft.outcomeId} onChange={(e) => set('outcomeId', e.target.value)}>
           <option value="" disabled>— pick —</option>
           {(outcomes ?? []).map((o) => (
             <option key={o.id} value={o.id}>{o.title} (v{o.version})</option>
           ))}
-        </select>
+        </Select>
       </div>
       <div style={{ gridColumn: compact ? '1' : '1 / -1', display: 'flex', gap: 6 }}>
-        <button onClick={onSubmit} disabled={!valid} style={primaryBtn(!!valid, false)}>{submitLabel}</button>
-        {onCancel && <button onClick={onCancel} style={tinyBtn}>cancel</button>}
+        <Button onClick={onSubmit} disabled={!valid}>{submitLabel}</Button>
+        {onCancel && <Button variant="tiny" onClick={onCancel}>cancel</Button>}
       </div>
     </div>
   )
 }
 
-const inputStyle: CSSProperties = {
-  background: T.surface, border: `1px solid ${T.border}`, color: T.text,
-  fontFamily: T.mono, fontSize: 12, padding: '5px 8px', borderRadius: 3, outline: 'none',
-  width: '100%', boxSizing: 'border-box',
-}
-
 const labelStyle: CSSProperties = {
   display: 'block',
-  fontSize: 10, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase',
-  marginBottom: 3,
-}
-
-function primaryBtn(active: boolean, busy: boolean): CSSProperties {
-  return {
-    background: active ? T.accent : T.surfaceRaised,
-    color: active ? T.bg : T.textMuted,
-    border: 'none', borderRadius: 3, padding: '6px 12px',
-    fontFamily: T.mono, fontSize: 12, fontWeight: 600,
-    cursor: active && !busy ? 'pointer' : 'default',
-    opacity: busy ? 0.6 : 1,
-  }
-}
-
-const tinyBtn: CSSProperties = {
-  background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-  padding: '2px 8px', borderRadius: 2, fontFamily: T.mono, fontSize: 10, cursor: 'pointer',
-}
-
-const tinyDangerBtn: CSSProperties = {
-  ...tinyBtn, borderColor: T.danger, color: T.danger,
+  fontSize: S.label, color: T.textDim, fontFamily: T.sans, textTransform: 'uppercase',
+  letterSpacing: '0.04em', marginBottom: 3,
 }

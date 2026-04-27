@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { StoreSummary, StoreDetail, OutcomeRowFull, HookRowFull } from '../../api.js'
 import { T } from '../../tokens.js'
+import { PanelHeader, StorePicker as UIStorePicker, S } from '../../ui/index.js'
 
 type StatusFilter = 'all' | 'draft' | 'approved'
 
@@ -47,15 +48,13 @@ export function HookQueue() {
   const groupedKeys = Object.keys(grouped).sort((a, b) => grouped[a]!.outcome.title.localeCompare(grouped[b]!.outcome.title))
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Hook Queue</div>
-        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Per-ICP hooks grouped by Outcome. Drafts editable; approved hooks immutable.
-        </div>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
+      <PanelHeader
+        title="Hook Queue"
+        subtitle="Per-ICP hooks grouped by Outcome. Drafts editable; approved hooks immutable."
+      />
 
-      <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
+      <UIStorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
 
       {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
 
@@ -101,34 +100,6 @@ export function HookQueue() {
           )}
         </>
       )}
-    </div>
-  )
-}
-
-function StorePicker({ stores, storeId, onPick }: {
-  stores: StoreSummary[] | null
-  storeId: string | null
-  onPick: (id: string) => void
-}) {
-  if (!stores) return <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading stores…</div>
-  if (stores.length === 0) return <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>no stores</div>
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      <span style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono }}>store</span>
-      <select
-        value={storeId ?? ''}
-        onChange={(e) => onPick(e.target.value)}
-        style={{
-          background: T.surface, border: `1px solid ${T.border}`, color: T.text,
-          fontFamily: T.mono, fontSize: 12, padding: '7px 10px', borderRadius: 4,
-          outline: 'none', minWidth: 320,
-        }}
-      >
-        <option value="" disabled>— pick a store —</option>
-        {stores.map((s) => (
-          <option key={s.id} value={s.id}>{s.clientName} — {s.name}</option>
-        ))}
-      </select>
     </div>
   )
 }

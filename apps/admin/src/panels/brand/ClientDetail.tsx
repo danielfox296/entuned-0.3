@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { ClientListRow, ClientFull, ClientPlan, ClientUpdate } from '../../api.js'
 import { T } from '../../tokens.js'
+import { Button, Input, Select, Textarea, Section, Field, PanelHeader, S } from '../../ui/index.js'
 
 const PLANS: ClientPlan[] = ['mvp_pilot', 'trial', 'paid_pilot', 'production', 'paused', 'inactive']
 
@@ -46,7 +47,7 @@ export function ClientDetail() {
     finally { setCreateBusy(false) }
   }
 
-  const dirty = draft && client && Object.entries(draft).some(([k, v]) => (client as any)[k] !== v)
+  const dirty = !!(draft && client && Object.entries(draft).some(([k, v]) => (client as any)[k] !== v))
 
   const save = async () => {
     if (!client || !draft || !dirty) return
@@ -62,124 +63,114 @@ export function ClientDetail() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Client Detail</div>
-        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Edit company info, plan tier, POS provider, and brand lyric guidelines (Bernie's voice anchor). Create new stores in Store Editor.
-        </div>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
+      <PanelHeader
+        title="Client Detail"
+        subtitle="Edit company info, plan tier, POS provider, and brand lyric guidelines (Bernie's voice anchor). Create new stores in Store Editor."
+      />
 
       <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
         <div style={{ width: 240, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <ClientList list={list} clientId={clientId} onPick={(id) => { setClientId(id); setCreating(false) }} />
           {creating ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <input
+              <Input
                 autoFocus
                 placeholder="company name"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') void create(); if (e.key === 'Escape') { setCreating(false); setNewName('') } }}
-                style={{ ...input, fontSize: 12 }}
               />
               <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => void create()} disabled={!newName.trim() || createBusy} style={primaryBtn(!!newName.trim(), createBusy)}>
+                <Button onClick={() => void create()} disabled={!newName.trim()} busy={createBusy}>
                   {createBusy ? 'creating…' : 'create'}
-                </button>
-                <button onClick={() => { setCreating(false); setNewName('') }} style={tinyBtn}>cancel</button>
+                </Button>
+                <Button variant="tiny" onClick={() => { setCreating(false); setNewName('') }}>cancel</Button>
               </div>
             </div>
           ) : (
-            <button onClick={() => setCreating(true)} style={tinyBtn}>+ new client</button>
+            <Button variant="tiny" onClick={() => setCreating(true)}>+ new client</Button>
           )}
         </div>
 
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
-          {!clientId && <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>← pick a client</div>}
-          {clientId && !client && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
+          {err && <div style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</div>}
+          {!clientId && <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>← pick a client</div>}
+          {clientId && !client && <div style={{ color: T.textMuted, fontFamily: T.sans, fontSize: S.small }}>loading…</div>}
 
           {client && draft && (
             <>
-              <Section title="company">
+              <Section title="Company" columns={2}>
                 <Field label="company name">
-                  <input
+                  <Input
                     value={draft.companyName ?? client.companyName ?? ''}
                     onChange={(e) => setDraft({ ...draft, companyName: e.target.value })}
-                    style={input}
                   />
                 </Field>
                 <Field label="plan">
-                  <select
+                  <Select
                     value={draft.plan ?? client.plan}
                     onChange={(e) => setDraft({ ...draft, plan: e.target.value as ClientPlan })}
-                    style={input}
                   >
                     {PLANS.map((p) => <option key={p} value={p}>{p}</option>)}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="POS provider">
-                  <input
+                  <Input
                     value={draft.posProvider ?? client.posProvider ?? ''}
                     onChange={(e) => setDraft({ ...draft, posProvider: e.target.value || null })}
-                    style={input}
                   />
                 </Field>
               </Section>
 
-              <Section title="contact">
+              <Section title="Contact" columns={2}>
                 <Field label="contact name">
-                  <input
+                  <Input
                     value={draft.contactName ?? client.contactName ?? ''}
                     onChange={(e) => setDraft({ ...draft, contactName: e.target.value || null })}
-                    style={input}
                   />
                 </Field>
                 <Field label="email">
-                  <input
+                  <Input
                     type="email"
                     value={draft.contactEmail ?? client.contactEmail ?? ''}
                     onChange={(e) => setDraft({ ...draft, contactEmail: e.target.value || null })}
-                    style={input}
                   />
                 </Field>
                 <Field label="phone">
-                  <input
+                  <Input
                     value={draft.contactPhone ?? client.contactPhone ?? ''}
                     onChange={(e) => setDraft({ ...draft, contactPhone: e.target.value || null })}
-                    style={input}
                   />
                 </Field>
               </Section>
 
-              <Section title="brand voice (Bernie input)">
+              <Section title="Brand voice (Bernie input)" columns={2}>
                 <Field label="brand lyric guidelines" full>
-                  <textarea
+                  <Textarea
                     value={draft.brandLyricGuidelines ?? client.brandLyricGuidelines ?? ''}
                     onChange={(e) => setDraft({ ...draft, brandLyricGuidelines: e.target.value || null })}
                     rows={6}
-                    style={{ ...input, fontFamily: T.sans, lineHeight: 1.5, resize: 'vertical' }}
                   />
                 </Field>
               </Section>
 
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <button onClick={save} disabled={!dirty || busy} style={primaryBtn(!!dirty, busy)}>
+                <Button onClick={save} disabled={!dirty} busy={busy}>
                   {busy ? 'saving…' : (dirty ? 'save changes' : 'no changes')}
-                </button>
-                {dirty && <button onClick={() => setDraft({})} style={tinyBtn}>discard</button>}
+                </Button>
+                {dirty && <Button variant="tiny" onClick={() => setDraft({})}>discard</Button>}
                 <span style={{ flex: 1 }} />
-                <span style={{ fontFamily: T.mono, fontSize: 11, color: T.textDim }}>
+                <span style={{ fontFamily: T.sans, fontSize: S.label, color: T.textDim }}>
                   updated {new Date(client.updatedAt).toISOString().slice(0, 16).replace('T', ' ')}
                 </span>
               </div>
 
-              <Section title={`stores (${client.stores.length})`}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, gridColumn: '1 / -1' }}>
+              <Section title={`Stores (${client.stores.length})`}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {client.stores.map((s) => (
                     <div key={s.id} style={listRow}>
-                      <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500 }}>{s.name}</span>
+                      <span style={{ color: T.text, fontWeight: 500 }}>{s.name}</span>
                       <span style={{ color: T.textMuted }}>{s.timezone}</span>
                       <span style={{ color: s.icp ? T.textMuted : T.textDim }}>{s.icp ? s.icp.name : '(no ICP)'}</span>
                       <span style={{ color: s.defaultOutcome ? T.text : T.textDim }}>
@@ -189,23 +180,23 @@ export function ClientDetail() {
                     </div>
                   ))}
                   {client.stores.length === 0 && (
-                    <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>no stores yet — create one in Store Editor</div>
+                    <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>no stores yet — create one in Store Editor</div>
                   )}
                 </div>
               </Section>
 
               <Section title={`ICPs (${client.icps.length})`}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, gridColumn: '1 / -1' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {client.icps.map((i) => (
                     <div key={i.id} style={listRow}>
-                      <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500 }}>{i.name}</span>
+                      <span style={{ color: T.text, fontWeight: 500 }}>{i.name}</span>
                       <span style={{ color: T.textMuted }}>{i.storeCount === 1 ? '1 store' : 'no store'}</span>
                       <span style={{ color: T.textMuted }}>{i.hookCount} hook{i.hookCount === 1 ? '' : 's'}</span>
                       <span style={{ color: T.textMuted }}>{i.referenceTrackCount} ref track{i.referenceTrackCount === 1 ? '' : 's'}</span>
                     </div>
                   ))}
                   {client.icps.length === 0 && (
-                    <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>no ICPs yet</div>
+                    <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>no ICPs yet</div>
                   )}
                 </div>
               </Section>
@@ -218,11 +209,11 @@ export function ClientDetail() {
 }
 
 function ClientList({ list, clientId, onPick }: { list: ClientListRow[] | null; clientId: string | null; onPick: (id: string) => void }) {
-  if (!list) return <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>
+  if (!list) return <div style={{ color: T.textMuted, fontFamily: T.sans, fontSize: S.small }}>loading…</div>
   return (
     <div style={{
       width: 240, flexShrink: 0,
-      border: `1px solid ${T.border}`, borderRadius: 4,
+      border: `1px solid ${T.border}`, borderRadius: S.r4,
       background: T.surface, overflow: 'hidden',
       display: 'flex', flexDirection: 'column',
     }}>
@@ -234,74 +225,26 @@ function ClientList({ list, clientId, onPick }: { list: ClientListRow[] | null; 
             border: 'none', borderLeft: on ? `2px solid ${T.accent}` : '2px solid transparent',
             color: on ? T.text : T.textMuted,
             padding: '10px 14px', cursor: 'pointer', textAlign: 'left',
-            fontFamily: T.sans, fontSize: 12, fontWeight: on ? 500 : 400,
+            fontFamily: T.sans, fontSize: S.small, fontWeight: on ? 500 : 400,
             borderBottom: `1px solid ${T.borderSubtle}`,
             display: 'flex', flexDirection: 'column', gap: 2,
           }}>
             <span>{c.companyName}</span>
-            <span style={{ fontFamily: T.mono, fontSize: 10, color: T.textDim }}>
+            <span style={{ fontFamily: T.sans, fontSize: S.label, color: T.textDim }}>
               {c.plan} · {c.storeCount}s · {c.icpCount}i
             </span>
           </button>
         )
       })}
-      {list.length === 0 && <div style={{ padding: 16, color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>no clients</div>}
+      {list.length === 0 && <div style={{ padding: 16, color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>no clients</div>}
     </div>
   )
-}
-
-function Section({ title, children }: { title: string; children: any }) {
-  return (
-    <div style={{
-      border: `1px solid ${T.border}`, borderRadius: 4,
-      background: T.surface, padding: 16,
-      display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12,
-    }}>
-      <div style={{ gridColumn: '1 / -1', fontFamily: T.mono, fontSize: 11, color: T.accent, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {title}
-      </div>
-      {children}
-    </div>
-  )
-}
-
-function Field({ label, full, children }: { label: string; full?: boolean; children: any }) {
-  return (
-    <div style={{ gridColumn: full ? '1 / -1' : 'auto' }}>
-      <label style={{ display: 'block', fontSize: 10, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase', marginBottom: 4 }}>
-        {label}
-      </label>
-      {children}
-    </div>
-  )
-}
-
-const input: CSSProperties = {
-  background: T.surfaceRaised, border: `1px solid ${T.border}`, color: T.text,
-  fontFamily: T.mono, fontSize: 12, padding: '7px 10px', borderRadius: 3, outline: 'none',
-  width: '100%', boxSizing: 'border-box',
 }
 
 const listRow: CSSProperties = {
   display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1.4fr 110px',
   gap: 10, padding: '8px 10px',
-  background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
-  borderRadius: 3, fontFamily: T.mono, fontSize: 12,
+  background: T.surfaceRaised, border: `1px solid rgba(106, 176, 187, 0.14)`,
+  borderRadius: 3, fontFamily: 'Inter, sans-serif', fontSize: 12,
   alignItems: 'center',
-}
-
-function primaryBtn(active: boolean, busy: boolean): CSSProperties {
-  return {
-    background: active ? T.accent : T.surfaceRaised,
-    color: active ? T.bg : T.textMuted,
-    border: 'none', borderRadius: 3, padding: '8px 16px',
-    fontFamily: T.mono, fontSize: 12, fontWeight: 600,
-    cursor: active && !busy ? 'pointer' : 'default',
-    opacity: busy ? 0.6 : 1,
-  }
-}
-
-const tinyBtn: CSSProperties = {
-  background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-  padding: '6px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
 }

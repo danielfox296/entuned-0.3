@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { OutcomeRowFull, ProductionEraStub } from '../../api.js'
 import { T } from '../../tokens.js'
+import { Button, Input, Select, PanelHeader, S } from '../../ui/index.js'
 
 type Row = OutcomeRowFull & { lineageCount: number }
 type Filter = 'active' | 'superseded' | 'all'
@@ -110,13 +111,11 @@ export function OutcomeLibrary() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Outcome Library</div>
-        <div style={{ fontSize: 12, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Browse, create, edit (copy-on-write versioned), and retire outcomes.
-        </div>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
+      <PanelHeader
+        title="Outcome Library"
+        subtitle="Browse, create, edit (copy-on-write versioned), and retire outcomes."
+      />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 4 }}>
@@ -130,23 +129,23 @@ export function OutcomeLibrary() {
                   background: on ? T.surfaceRaised : 'transparent',
                   border: `1px solid ${on ? T.accent : T.border}`,
                   color: on ? T.accent : T.textMuted,
-                  padding: '6px 14px', borderRadius: 4,
-                  fontFamily: T.mono, fontSize: 12, cursor: 'pointer',
+                  padding: '6px 14px', borderRadius: S.r4,
+                  fontFamily: T.sans, fontSize: S.small, cursor: 'pointer',
                 }}
               >{f} ({counts[f]})</button>
             )
           })}
         </div>
-        <input
+        <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="search title, mode, instrumentation"
-          style={{ ...inputStyle, minWidth: 280, flex: 1, maxWidth: 480 }}
+          style={{ minWidth: 280, flex: 1, maxWidth: 480, width: 'auto' }}
         />
-        <button
+        <Button
+          variant={adding ? 'ghost' : 'primary'}
           onClick={() => setAdding(adding ? null : { title: '', tempoBpm: 100, mode: 'major', dynamics: '', instrumentation: '', familiarity: '', productionEraId: '' })}
-          style={primaryBtn(!adding, false)}
-        >{adding ? 'cancel' : '+ new outcome'}</button>
+        >{adding ? 'cancel' : '+ new outcome'}</Button>
       </div>
 
       {adding && (
@@ -161,15 +160,15 @@ export function OutcomeLibrary() {
         />
       )}
 
-      {err && <div style={{ fontSize: 12, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+      {err && <div style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</div>}
 
-      {!rows && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
+      {!rows && <div style={{ color: T.textMuted, fontFamily: T.sans, fontSize: S.small }}>loading…</div>}
 
       {rows && (
-        <div style={{ border: `1px solid ${T.border}`, borderRadius: 4, overflow: 'hidden' }}>
+        <div style={{ border: `1px solid ${T.border}`, borderRadius: S.r4, overflow: 'hidden' }}>
           <HeaderRow />
           {visible.length === 0 && (
-            <div style={{ padding: 24, textAlign: 'center', color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>
+            <div style={{ padding: 24, textAlign: 'center', color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>
               no matches
             </div>
           )}
@@ -206,7 +205,8 @@ function HeaderRow() {
       display: 'grid', gridTemplateColumns: COLS, gap: 10,
       padding: '8px 12px', background: T.surface,
       borderBottom: `1px solid ${T.border}`,
-      fontFamily: T.mono, fontSize: 11, color: T.textDim, textTransform: 'uppercase',
+      fontFamily: T.sans, fontSize: S.label, color: T.textDim, textTransform: 'uppercase',
+      letterSpacing: '0.04em',
     }}>
       <span>title</span>
       <span>v</span>
@@ -231,10 +231,10 @@ function DataRow({ row, onEdit, onSupersede, busy }: {
     <div style={{
       display: 'grid', gridTemplateColumns: COLS, gap: 10,
       padding: '10px 12px', borderBottom: `1px solid ${T.borderSubtle}`,
-      fontFamily: T.mono, fontSize: 12, alignItems: 'center',
+      fontFamily: T.sans, fontSize: S.small, alignItems: 'center',
       opacity: superseded ? 0.6 : 1,
     }}>
-      <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500 }}>{row.title}</span>
+      <span style={{ color: T.text, fontWeight: 500 }}>{row.title}</span>
       <span style={{ color: T.accentMuted }}>v{row.version}</span>
       <span style={{ color: T.textMuted }}>{row.tempoBpm}</span>
       <span style={{ color: T.textMuted }}>{row.mode}</span>
@@ -244,13 +244,13 @@ function DataRow({ row, onEdit, onSupersede, busy }: {
       <span style={cellTrunc}>{eraLabel}</span>
       <span style={{ color: row.lineageCount === 0 ? T.danger : T.text, textAlign: 'right' }}>{row.lineageCount}</span>
       <span style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
-        <span style={{ color: superseded ? T.textDim : T.success, fontSize: 11, marginRight: 4 }}>
+        <span style={{ color: superseded ? T.textDim : T.success, fontSize: S.label, marginRight: 4 }}>
           {superseded ? 'superseded' : 'active'}
         </span>
         {!superseded && (
           <>
-            <button onClick={onEdit} disabled={busy} style={tinyBtn}>edit</button>
-            <button onClick={onSupersede} disabled={busy} style={tinyDangerBtn}>retire</button>
+            <Button variant="tiny" onClick={onEdit} disabled={busy}>edit</Button>
+            <Button variant="tinyDanger" onClick={onSupersede} disabled={busy}>retire</Button>
           </>
         )}
       </span>
@@ -260,7 +260,7 @@ function DataRow({ row, onEdit, onSupersede, busy }: {
 
 function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent, currentVersion, eras }: {
   draft: Draft
-  onChange: (d: Draft) => void
+  onChange: (d: Draft | null) => void
   onSubmit: () => void
   onCancel: () => void
   submitLabel: string
@@ -269,68 +269,68 @@ function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent,
   eras: ProductionEraStub[]
 }) {
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => onChange({ ...draft, [k]: v })
-  const valid = draft.title.trim() && draft.mode.trim() && draft.tempoBpm >= 40 && draft.tempoBpm <= 220
+  const valid = !!(draft.title.trim() && draft.mode.trim() && draft.tempoBpm >= 40 && draft.tempoBpm <= 220)
 
   return (
     <div style={{
       background: intent === 'new' ? T.accentGlow : 'transparent',
       border: intent === 'new' ? `1px solid ${T.accentMuted}` : 'none',
-      borderRadius: 4, padding: intent === 'new' ? 14 : 0,
+      borderRadius: S.r4, padding: intent === 'new' ? 14 : 0,
       display: 'grid', gridTemplateColumns: '1fr 100px 140px 1fr 1.4fr 120px 1.2fr', gap: 8,
     }}>
       <div>
         <label style={labelStyle}>title</label>
-        <input value={draft.title} onChange={(e) => set('title', e.target.value)} style={inputStyle} placeholder="Brand Reinforcement" />
+        <Input value={draft.title} onChange={(e) => set('title', e.target.value)} placeholder="Brand Reinforcement" />
       </div>
       <div>
         <label style={labelStyle}>tempo bpm</label>
-        <input type="number" min={40} max={220} value={draft.tempoBpm} onChange={(e) => set('tempoBpm', parseInt(e.target.value, 10) || 100)} style={inputStyle} />
+        <Input type="number" min={40} max={220} value={draft.tempoBpm} onChange={(e) => set('tempoBpm', parseInt(e.target.value, 10) || 100)} />
       </div>
       <div>
         <label style={labelStyle}>mode</label>
-        <input list="mode-suggestions" value={draft.mode} onChange={(e) => set('mode', e.target.value)} style={inputStyle} placeholder="major" />
+        <Input list="mode-suggestions" value={draft.mode} onChange={(e) => set('mode', e.target.value)} placeholder="major" />
         <datalist id="mode-suggestions">
           {MODE_SUGGESTIONS.map((m) => <option key={m} value={m} />)}
         </datalist>
       </div>
       <div>
         <label style={labelStyle}>dynamics</label>
-        <input value={draft.dynamics} onChange={(e) => set('dynamics', e.target.value)} style={inputStyle} placeholder="medium-loud" />
+        <Input value={draft.dynamics} onChange={(e) => set('dynamics', e.target.value)} placeholder="medium-loud" />
       </div>
       <div>
         <label style={labelStyle}>instrumentation</label>
-        <input value={draft.instrumentation} onChange={(e) => set('instrumentation', e.target.value)} style={inputStyle} placeholder="rhodes, brushed kit, upright bass" />
+        <Input value={draft.instrumentation} onChange={(e) => set('instrumentation', e.target.value)} placeholder="rhodes, brushed kit, upright bass" />
       </div>
       <div>
         <label style={labelStyle}>familiarity (playback)</label>
-        <select value={draft.familiarity} onChange={(e) => set('familiarity', e.target.value)} style={inputStyle}>
+        <Select value={draft.familiarity} onChange={(e) => set('familiarity', e.target.value)}>
           <option value="">—</option>
           <option value="unfamiliar">unfamiliar</option>
           <option value="familiar">familiar</option>
           <option value="neutral">neutral</option>
-        </select>
+        </Select>
       </div>
       <div>
         <label style={labelStyle}>production era (generation)</label>
-        <select value={draft.productionEraId} onChange={(e) => set('productionEraId', e.target.value)} style={inputStyle}>
+        <Select value={draft.productionEraId} onChange={(e) => set('productionEraId', e.target.value)}>
           <option value="">—</option>
           {eras.map((e) => (
             <option key={e.id} value={e.id}>{e.decade} — {e.genreDisplayName ?? e.genreSlug}</option>
           ))}
-        </select>
+        </Select>
       </div>
       {intent === 'edit' && currentVersion != null && (
         <div style={{
           gridColumn: '1 / -1',
-          fontSize: 11, fontFamily: T.mono, color: T.warn,
+          fontSize: S.label, fontFamily: T.sans, color: T.warn,
           padding: '4px 0',
         }}>
           ⚠ Saves as v{currentVersion + 1}. v{currentVersion} stays referenced by existing hooks, schedule rows, and song seeds — those won't auto-upgrade.
         </div>
       )}
       <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 6 }}>
-        <button onClick={onSubmit} disabled={!valid} style={primaryBtn(!!valid, false)}>{submitLabel}</button>
-        <button onClick={onCancel} style={tinyBtn}>cancel</button>
+        <Button onClick={onSubmit} disabled={!valid}>{submitLabel}</Button>
+        <Button variant="tiny" onClick={onCancel}>cancel</Button>
       </div>
     </div>
   )
@@ -340,33 +340,7 @@ const cellTrunc: CSSProperties = {
   color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
 }
 
-const inputStyle: CSSProperties = {
-  background: T.surface, border: `1px solid ${T.border}`, color: T.text,
-  fontFamily: T.mono, fontSize: 12, padding: '6px 10px', borderRadius: 3, outline: 'none',
-  width: '100%', boxSizing: 'border-box',
-}
-
 const labelStyle: CSSProperties = {
-  display: 'block', fontSize: 10, color: T.textDim, fontFamily: T.mono,
-  textTransform: 'uppercase', marginBottom: 3,
-}
-
-function primaryBtn(active: boolean, busy: boolean): CSSProperties {
-  return {
-    background: active ? T.accent : T.surfaceRaised,
-    color: active ? T.bg : T.textMuted,
-    border: 'none', borderRadius: 3, padding: '6px 12px',
-    fontFamily: T.mono, fontSize: 12, fontWeight: 600,
-    cursor: active && !busy ? 'pointer' : 'default',
-    opacity: busy ? 0.6 : 1,
-  }
-}
-
-const tinyBtn: CSSProperties = {
-  background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
-  padding: '3px 9px', borderRadius: 2, fontFamily: T.mono, fontSize: 11, cursor: 'pointer',
-}
-
-const tinyDangerBtn: CSSProperties = {
-  ...tinyBtn, borderColor: T.danger, color: T.danger,
+  display: 'block', fontSize: S.label, color: T.textDim, fontFamily: T.sans,
+  textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3,
 }
