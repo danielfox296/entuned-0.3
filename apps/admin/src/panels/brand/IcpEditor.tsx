@@ -4,6 +4,7 @@ import { api, getToken } from '../../api.js'
 import type {
   StoreSummary, StoreDetail, IcpUpdate, NewReferenceTrack, ReferenceTrackRow,
   StyleAnalysisRow, StyleAnalysisUpdate, TasteCategory,
+  SuggestReferenceTracksResult, SuggestedRefTrack,
 } from '../../api.js'
 import { T } from '../../tokens.js'
 import { PanelHeader, StorePicker as UIStorePicker, S, Pill, ConfirmDelete } from '../../ui/index.js'
@@ -218,19 +219,50 @@ function extractIcp(icp: IcpWithRefs): IcpUpdate {
 
 function ReferenceTracks({ detail: _detail, icp, onChanged }: { detail: StoreDetail; icp: IcpWithRefs; onChanged: () => void }) {
   const [adding, setAdding] = useState<NewReferenceTrack | null>(null)
+  const [suggestions, setSuggestions] = useState<SuggestReferenceTracksResult | null>(null)
+  const [suggestBusy, setSuggestBusy] = useState(false)
+  const [suggestErr, setSuggestErr] = useState<string | null>(null)
   const grouped: Record<TasteCategory, ReferenceTrackRow[]> = {
     FormationEra: [], Subculture: [], Aspirational: [],
   }
   for (const r of icp.referenceTracks) grouped[r.bucket].push(r)
 
+  const runSuggest = async () => {
+    const token = getToken(); if (!token) return
+    setSuggestBusy(true); setSuggestErr(null)
+    try {
+      const r = await api.suggestReferenceTracks(icp.id, token)
+      setSuggestions(r)
+    } catch (e: any) { setSuggestErr(e.message) }
+    finally { setSuggestBusy(false) }
+  }
+
   return (
     <Section title={`Reference tracks — ${icp.name}`} subtitle={`${icp.referenceTracks.length} total — bucket describes the ICP's relationship to the music`}>
-      <div style={{ marginBottom: 12 }}>
+      <div style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button
           onClick={() => setAdding(adding ? null : { bucket: 'FormationEra', artist: '', title: '', year: null, operatorNotes: null })}
           style={primaryBtn(!adding, false)}
         >{adding ? 'cancel' : '+ new reference'}</button>
+        <button
+          onClick={runSuggest}
+          disabled={suggestBusy}
+          style={primaryBtn(!suggestBusy, suggestBusy)}
+          title="Ask Claude for reference-track candidates from the ICP profile"
+        >{suggestBusy ? 'suggesting…' : 'suggest from profile'}</button>
+        {suggestions && (
+          <button onClick={() => setSuggestions(null)} style={ghostBtn}>clear suggestions</button>
+        )}
+        {suggestErr && <span style={{ fontSize: 13, color: T.danger, fontFamily: T.mono }}>{suggestErr}</span>}
       </div>
+      {suggestions && (
+        <SuggestionsPanel
+          icpId={icp.id}
+          suggestions={suggestions}
+          onAccepted={onChanged}
+          onClose={() => setSuggestions(null)}
+        />
+      )}
       {adding && (
         <NewRefTrackRow
           icpId={icp.id}
@@ -260,6 +292,122 @@ function ReferenceTracks({ detail: _detail, icp, onChanged }: { detail: StoreDet
         </div>
       ))}
     </Section>
+  )
+}
+
+function SuggestionsPanel({ icpId, suggestions, onAccepted, onClose }: {
+  icpId: string
+  suggestions: SuggestReferenceTracksResult
+  onAccepted: () => void
+  onClose: () => void
+}) {
+  const [accepted, setAccepted] = useState<Record<string, boolean>>({})
+  const [busyKey, setBusyKey] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+
+  const accept = async (bucket: TasteCategory, s: SuggestedRefTrack, key: string) => {
+    const token = getToken(); if (!token) return
+    setBusyKey(key); setErr(null)
+    try {
+      await api.createReferenceTrack(icpId, {
+        bucket,
+        artist: s.artist,
+        title: s.title,
+        year: s.year ?? null,
+        operatorNotes: s.rationale ? `suggested: ${s.rationale}` : null,
+      }, token)
+      setAccepted((a) => ({ ...a, [key]: true }))
+      onAccepted()
+    } catch (e: any) { setErr(e.message) }
+    finally { setBusyKey(null) }
+  }
+
+  const acceptAll = async () => {
+    const token = getToken(); if (!token) return
+    const buckets: TasteCategory[] = ['FormationEra', 'Subculture', 'Aspirational']
+    setErr(null)
+    for (const b of buckets) {
+      for (let i = 0; i < suggestions[b].length; i++) {
+        const s = suggestions[b][i]
+        const key = `${b}:${i}`
+        if (accepted[key]) continue
+        setBusyKey(key)
+        try {
+          await api.createReferenceTrack(icpId, {
+            bucket: b, artist: s.artist, title: s.title,
+            year: s.year ?? null,
+            operatorNotes: s.rationale ? `suggested: ${s.rationale}` : null,
+          }, token)
+          setAccepted((a) => ({ ...a, [key]: true }))
+        } catch (e: any) { setErr(e.message); setBusyKey(null); onAccepted(); return }
+      }
+    }
+    setBusyKey(null)
+    onAccepted()
+  }
+
+  const totalCount = suggestions.FormationEra.length + suggestions.Subculture.length + suggestions.Aspirational.length
+
+  return (
+    <div style={{
+      background: T.surface, border: `1px solid ${T.accentMuted}`, borderRadius: 4,
+      padding: 14, marginBottom: 16,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+        <Pill tone="accent" variant="soft" uppercase>suggestions</Pill>
+        <span style={{ fontSize: 13, color: T.textDim, fontFamily: T.mono }}>
+          {totalCount} candidates · prompt v{suggestions.promptVersion}
+        </span>
+        <div style={{ flex: 1 }} />
+        <button onClick={() => void acceptAll()} disabled={busyKey !== null} style={primaryBtn(busyKey === null, busyKey !== null)}>
+          accept all
+        </button>
+        <button onClick={onClose} style={ghostBtn}>dismiss</button>
+      </div>
+      {err && <div style={{ fontSize: 13, color: T.danger, fontFamily: T.mono, marginBottom: 8 }}>{err}</div>}
+      {(['FormationEra', 'Subculture', 'Aspirational'] as TasteCategory[]).map((b) => (
+        <div key={b} style={{ marginTop: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <Pill tone="muted" variant="soft" uppercase>{b}</Pill>
+            <span style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono }}>{suggestions[b].length}</span>
+          </div>
+          {suggestions[b].length === 0 && (
+            <div style={{ color: T.textDim, fontSize: 13, fontFamily: T.mono, padding: '2px 0' }}>(none)</div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {suggestions[b].map((s, i) => {
+              const key = `${b}:${i}`
+              const isAccepted = accepted[key]
+              const isBusy = busyKey === key
+              return (
+                <div key={key} style={{
+                  display: 'grid', gridTemplateColumns: '1fr 90px',
+                  alignItems: 'center', gap: 8, padding: '6px 8px',
+                  background: isAccepted ? T.accentGlow : 'transparent',
+                  border: `1px solid ${isAccepted ? T.accentMuted : T.borderSubtle}`,
+                  borderRadius: 3,
+                }}>
+                  <div style={{ fontFamily: T.mono, fontSize: 13, color: T.text }}>
+                    <strong>{s.artist}</strong> – {s.title}
+                    {s.year && <span style={{ color: T.textDim }}> ({s.year})</span>}
+                    {s.rationale && (
+                      <div style={{ fontSize: 12, color: T.textDim, marginTop: 2 }}>{s.rationale}</div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => void accept(b, s, key)}
+                    disabled={isAccepted || isBusy}
+                    style={primaryBtn(!isAccepted && !isBusy, isBusy)}
+                  >
+                    {isAccepted ? 'added' : isBusy ? '…' : 'accept'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }
 

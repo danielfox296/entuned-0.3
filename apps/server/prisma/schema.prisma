@@ -351,6 +351,20 @@ model OutcomeFactorPrompt {
   @@map("outcome_factor_prompts")
 }
 
+// ---------- Reference Track Suggester (system prompt for the Claude call that
+// proposes ICP reference tracks from the psychographic profile) ----------
+
+model ReferenceTrackPrompt {
+  id           String   @id @default(uuid()) @db.Uuid
+  version      Int      @unique
+  templateText String   @map("template_text")
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById  String?  @map("created_by") @db.Uuid
+
+  @@map("reference_track_prompts")
+}
+
 model SongSeedBatch {
   id              String    @id @default(uuid()) @db.Uuid
   icpId           String    @map("icp_id") @db.Uuid

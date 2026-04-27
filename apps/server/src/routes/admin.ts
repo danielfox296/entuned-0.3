@@ -25,6 +25,7 @@ import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 import { runEno } from '../lib/eno/eno.js'
 import { downloadAndUploadFromUrl } from '../lib/r2.js'
 import { draftHooks, getOrSeedHookWriterPrompt } from '../lib/hooks/drafter.js'
+import { suggestReferenceTracks } from '../lib/ref-tracks/suggester.js'
 
 interface AuthedOp {
   operatorId: string
@@ -88,6 +89,8 @@ const StyleExclusionRuleBody = z.object({
 const StyleTemplatePostBody = z.object({ templateText: z.string().min(1), notes: z.string().optional() })
 
 const OutcomePrependPostBody = z.object({ templateText: z.string(), notes: z.string().optional() })
+
+const ReferenceTrackPromptPostBody = z.object({ templateText: z.string().min(1), notes: z.string().optional() })
 
 const LyricPromptPostBody = z.object({ promptText: z.string().min(1), notes: z.string().optional() })
 
@@ -221,6 +224,39 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       data: { version: next, templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, createdById: op.operatorId },
     })
     return row
+  })
+
+  // ----- ReferenceTrackPrompt (system prompt for the ref-track suggester) -----
+
+  app.get('/reference-track-prompt', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const all = await prisma.referenceTrackPrompt.findMany({ orderBy: { version: 'desc' } })
+    return { latest: all[0] ?? null, history: all }
+  })
+
+  app.post('/reference-track-prompt', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = ReferenceTrackPromptPostBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const max = await prisma.referenceTrackPrompt.aggregate({ _max: { version: true } })
+    const next = (max._max.version ?? 0) + 1
+    const row = await prisma.referenceTrackPrompt.create({
+      data: { version: next, templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, createdById: op.operatorId },
+    })
+    return row
+  })
+
+  app.post('/icps/:id/suggest-reference-tracks', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const icpId = (req.params as any).id as string
+    const exists = await prisma.iCP.findUnique({ where: { id: icpId }, select: { id: true } })
+    if (!exists) return reply.code(404).send({ error: 'icp_not_found' })
+    try {
+      const result = await suggestReferenceTracks({ icpId })
+      return result
+    } catch (e: any) {
+      return reply.code(500).send({ error: 'suggest_failed', message: e?.message ?? 'unknown' })
+    }
   })
 
   // ----- Lyric prompts (Bernie) -----

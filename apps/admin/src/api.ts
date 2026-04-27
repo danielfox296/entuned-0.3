@@ -149,6 +149,29 @@ export interface LyricPromptRow {
   createdAt: string
 }
 
+export interface ReferenceTrackPromptRow {
+  id: string
+  version: number
+  templateText: string
+  notes: string | null
+  createdAt: string
+}
+
+export interface SuggestedRefTrack {
+  artist: string
+  title: string
+  year: number | null
+  rationale: string | null
+}
+
+export interface SuggestReferenceTracksResult {
+  FormationEra: SuggestedRefTrack[]
+  Subculture: SuggestedRefTrack[]
+  Aspirational: SuggestedRefTrack[]
+  promptVersion: number
+  rawText: string
+}
+
 // --- Brand: stores, ICPs, reference tracks, style analyses ---
 
 export type TasteCategory = 'FormationEra' | 'Subculture' | 'Aspirational'
@@ -610,6 +633,13 @@ export const api = {
     req<{ latest: OutcomeFactorPromptRow | null; history: OutcomeFactorPromptRow[] }>('/admin/outcome-factor-prompt', {}, token),
   saveOutcomeFactorPrompt: (templateText: string, notes: string | undefined, token: string) =>
     req<OutcomeFactorPromptRow>('/admin/outcome-factor-prompt', { method: 'POST', body: JSON.stringify({ templateText, notes }) }, token),
+
+  referenceTrackPrompt: (token: string) =>
+    req<{ latest: ReferenceTrackPromptRow | null; history: ReferenceTrackPromptRow[] }>('/admin/reference-track-prompt', {}, token),
+  saveReferenceTrackPrompt: (templateText: string, notes: string | undefined, token: string) =>
+    req<ReferenceTrackPromptRow>('/admin/reference-track-prompt', { method: 'POST', body: JSON.stringify({ templateText, notes }) }, token),
+  suggestReferenceTracks: (icpId: string, token: string) =>
+    req<SuggestReferenceTracksResult>(`/admin/icps/${icpId}/suggest-reference-tracks`, { method: 'POST' }, token),
 
   lyricPrompts: (token: string) =>
     req<{ draft: { latest: LyricPromptRow | null; history: LyricPromptRow[] }; edit: { latest: LyricPromptRow | null; history: LyricPromptRow[] } }>('/admin/lyric-prompts', {}, token),
