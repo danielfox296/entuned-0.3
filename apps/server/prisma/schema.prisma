@@ -222,6 +222,8 @@ model ProductionEra {
   isActive            Boolean  @default(true) @map("is_active")
   createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  outcomes Outcome[]
+
   @@unique([decade, genreSlug])
   @@index([decade])
   @@map("production_eras")
@@ -423,12 +425,10 @@ model Outcome {
   mode                  String
   dynamics              String?
   instrumentation       String?
-  // Research-backed generation signals
-  familiarity           String?   @map("familiarity")
-  productionEra         String?   @map("production_era")
-  culturalCategoryPrime String?   @map("cultural_category_prime")
-  pleasureTarget        String?   @map("pleasure_target")
-  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  // Research-backed signals
+  familiarity     String?   @map("familiarity")     // unfamiliar | familiar | neutral — Hendrix rotation signal
+  productionEraId String?   @map("production_era_id") @db.Uuid  // → ProductionEra; Mars pulls era sonic descriptors
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   createdById     String?   @map("created_by") @db.Uuid
   supersededAt    DateTime? @map("superseded_at") @db.Timestamptz(6)
 
@@ -438,6 +438,7 @@ model Outcome {
   hooks             Hook[]
   lineageRows       LineageRow[]
   songSeeds         SongSeed[]
+  productionEra     ProductionEra? @relation(fields: [productionEraId], references: [id])
 
   @@unique([outcomeKey, version])
   @@index([outcomeKey, version(sort: Desc)])

@@ -191,6 +191,18 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return row
   })
 
+  // ----- Production Eras (lookup for Outcome FK) -----
+
+  app.get('/production-eras', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const rows = await prisma.productionEra.findMany({
+      where: { isActive: true },
+      select: { id: true, decade: true, genreSlug: true, genreDisplayName: true },
+      orderBy: [{ decade: 'asc' }, { genreSlug: 'asc' }],
+    })
+    return rows
+  })
+
   // ----- OutcomeFactorPrompt (Card 14 — currently a no-op by design) -----
 
   app.get('/outcome-factor-prompt', async (req, reply) => {
@@ -677,6 +689,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const rows = await prisma.outcome.findMany({
       where: includeSuperseded ? {} : { supersededAt: null },
       orderBy: [{ title: 'asc' }, { version: 'desc' }],
+      include: { productionEra: { select: { id: true, decade: true, genreSlug: true, genreDisplayName: true } } },
     })
     if (!includeSuperseded) return rows
     // For library view: include global active LineageRow counts per outcome.
@@ -698,9 +711,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     dynamics: z.string().nullable().optional(),
     instrumentation: z.string().nullable().optional(),
     familiarity: z.string().nullable().optional(),
-    productionEra: z.string().nullable().optional(),
-    culturalCategoryPrime: z.string().nullable().optional(),
-    pleasureTarget: z.string().nullable().optional(),
+    productionEraId: z.string().uuid().nullable().optional(),
   })
 
   app.post('/outcomes', async (req, reply) => {
@@ -717,11 +728,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         dynamics: parsed.data.dynamics ?? null,
         instrumentation: parsed.data.instrumentation ?? null,
         familiarity: parsed.data.familiarity ?? null,
-        productionEra: parsed.data.productionEra ?? null,
-        culturalCategoryPrime: parsed.data.culturalCategoryPrime ?? null,
-        pleasureTarget: parsed.data.pleasureTarget ?? null,
+        productionEraId: parsed.data.productionEraId ?? null,
         createdById: op.operatorId,
       },
+      include: { productionEra: { select: { id: true, decade: true, genreSlug: true, genreDisplayName: true } } },
     })
     return row
   })
@@ -749,11 +759,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
             dynamics: parsed.data.dynamics ?? null,
             instrumentation: parsed.data.instrumentation ?? null,
             familiarity: parsed.data.familiarity ?? null,
-            productionEra: parsed.data.productionEra ?? null,
-            culturalCategoryPrime: parsed.data.culturalCategoryPrime ?? null,
-            pleasureTarget: parsed.data.pleasureTarget ?? null,
+            productionEraId: parsed.data.productionEraId ?? null,
             createdById: op.operatorId,
           },
+          include: { productionEra: { select: { id: true, decade: true, genreSlug: true, genreDisplayName: true } } },
         })
         return created
       })

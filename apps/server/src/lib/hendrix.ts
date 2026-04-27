@@ -130,25 +130,24 @@ function storeLocalMidnight(now: Date, timezone: string): Date {
   return new Date(candidate.getTime() - offsetMs)
 }
 
-async function rankByLeastPlayed(storeId: string, pool: PoolRow[]): Promise<PoolRow[]> {
+// familiarity='familiar'  → most-played first (songs the store already knows create exit pressure)
+// familiarity='unfamiliar' | null → least-played first (novel tracks extend dwell + distort time)
+async function rankByPlayCount(storeId: string, pool: PoolRow[], familiarity: string | null): Promise<PoolRow[]> {
   if (pool.length === 0) return pool
   const songIds = [...new Set(pool.map((r) => r.songId))]
   const counts = await prisma.playbackEvent.groupBy({
     by: ['songId'],
-    where: {
-      storeId,
-      songId: { in: songIds },
-      eventType: 'song_start',
-    },
+    where: { storeId, songId: { in: songIds }, eventType: 'song_start' },
     _count: { _all: true },
     _max: { occurredAt: true },
   })
   const stats = new Map(counts.map((c) => [c.songId!, { n: c._count._all, last: c._max.occurredAt?.getTime() ?? 0 }]))
+  const dir = familiarity === 'familiar' ? -1 : 1 // -1 flips to most-played first
   return [...pool].sort((a, b) => {
     const sa = stats.get(a.songId) ?? { n: 0, last: 0 }
     const sb = stats.get(b.songId) ?? { n: 0, last: 0 }
-    if (sa.n !== sb.n) return sa.n - sb.n // least-played first
-    return sa.last - sb.last // tiebreak: least-recently-played
+    if (sa.n !== sb.n) return dir * (sa.n - sb.n)
+    return dir * (sa.last - sb.last)
   })
 }
 
@@ -207,6 +206,12 @@ export async function nextQueue(storeId: string, now: Date = new Date()): Promis
     }
   }
 
+  const outcomeRecord = await prisma.outcome.findUnique({
+    where: { id: resolved.outcomeId },
+    select: { familiarity: true },
+  })
+  const familiarity = outcomeRecord?.familiarity ?? null
+
   // Tiered fallback: try strict → relax daily_cap → relax sibling_spacing → relax no_repeat_window.
   const tiers: { tier: FallbackTier; cap: boolean; sib: boolean; rep: boolean }[] = [
     { tier: 'none', cap: true, sib: true, rep: true },
@@ -218,7 +223,7 @@ export async function nextQueue(storeId: string, now: Date = new Date()): Promis
   for (const t of tiers) {
     const eligible = await applyFilters(storeId, unfilteredPool, t.cap, t.sib, t.rep, rules, now, store.timezone)
     if (eligible.length > 0) {
-      const ranked = await rankByLeastPlayed(storeId, eligible)
+      const ranked = await rankByPlayCount(storeId, eligible, familiarity)
       const queue = ranked.slice(0, 3).map((r) => ({
         songId: r.songId,
         audioUrl: r.r2Url,

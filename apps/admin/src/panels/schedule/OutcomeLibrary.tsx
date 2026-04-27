@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
-import type { OutcomeRowFull } from '../../api.js'
+import type { OutcomeRowFull, ProductionEraStub } from '../../api.js'
 import { T } from '../../tokens.js'
 
 type Row = OutcomeRowFull & { lineageCount: number }
@@ -14,15 +14,14 @@ interface Draft {
   dynamics: string
   instrumentation: string
   familiarity: string
-  productionEra: string
-  culturalCategoryPrime: string
-  pleasureTarget: string
+  productionEraId: string
 }
 
 const MODE_SUGGESTIONS = ['major', 'minor', 'dorian', 'mixolydian', 'lydian', 'phrygian', 'aeolian', 'modal_jazz', 'blues']
 
 export function OutcomeLibrary() {
   const [rows, setRows] = useState<Row[] | null>(null)
+  const [eras, setEras] = useState<ProductionEraStub[]>([])
   const [err, setErr] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>('active')
   const [search, setSearch] = useState('')
@@ -36,7 +35,11 @@ export function OutcomeLibrary() {
     try { setRows(await api.outcomeLibrary(token)); setErr(null) }
     catch (e: any) { setErr(e.message) }
   }
-  useEffect(() => { reload() }, [])
+  useEffect(() => {
+    reload()
+    const token = getToken(); if (!token) return
+    api.productionEras(token).then(setEras).catch(() => {})
+  }, [])
 
   const visible = useMemo(() => {
     if (!rows) return []
@@ -64,9 +67,7 @@ export function OutcomeLibrary() {
       dynamics: r.dynamics ?? '',
       instrumentation: r.instrumentation ?? '',
       familiarity: r.familiarity ?? '',
-      productionEra: r.productionEra ?? '',
-      culturalCategoryPrime: r.culturalCategoryPrime ?? '',
-      pleasureTarget: r.pleasureTarget ?? '',
+      productionEraId: r.productionEraId ?? '',
     })
   }
 
@@ -78,8 +79,7 @@ export function OutcomeLibrary() {
       await api.editOutcome(editingId, {
         title: draft.title, tempoBpm: draft.tempoBpm, mode: draft.mode,
         dynamics: draft.dynamics || null, instrumentation: draft.instrumentation || null,
-        familiarity: draft.familiarity || null, productionEra: draft.productionEra || null,
-        culturalCategoryPrime: draft.culturalCategoryPrime || null, pleasureTarget: draft.pleasureTarget || null,
+        familiarity: draft.familiarity || null, productionEraId: draft.productionEraId || null,
       }, token)
       setEditingId(null); setDraft(null); await reload()
     } catch (e: any) { setErr(e.message) }
@@ -94,8 +94,7 @@ export function OutcomeLibrary() {
       await api.createOutcome({
         title: adding.title, tempoBpm: adding.tempoBpm, mode: adding.mode,
         dynamics: adding.dynamics || null, instrumentation: adding.instrumentation || null,
-        familiarity: adding.familiarity || null, productionEra: adding.productionEra || null,
-        culturalCategoryPrime: adding.culturalCategoryPrime || null, pleasureTarget: adding.pleasureTarget || null,
+        familiarity: adding.familiarity || null, productionEraId: adding.productionEraId || null,
       }, token)
       setAdding(null); await reload()
     } catch (e: any) { setErr(e.message) }
@@ -145,7 +144,7 @@ export function OutcomeLibrary() {
           style={{ ...inputStyle, minWidth: 280, flex: 1, maxWidth: 480 }}
         />
         <button
-          onClick={() => setAdding(adding ? null : { title: '', tempoBpm: 100, mode: 'major', dynamics: '', instrumentation: '', familiarity: '', productionEra: '', culturalCategoryPrime: '', pleasureTarget: '' })}
+          onClick={() => setAdding(adding ? null : { title: '', tempoBpm: 100, mode: 'major', dynamics: '', instrumentation: '', familiarity: '', productionEraId: '' })}
           style={primaryBtn(!adding, false)}
         >{adding ? 'cancel' : '+ new outcome'}</button>
       </div>
@@ -158,6 +157,7 @@ export function OutcomeLibrary() {
           onCancel={() => setAdding(null)}
           submitLabel={busy === 'create' ? 'creating…' : 'create'}
           intent="new"
+          eras={eras}
         />
       )}
 
@@ -186,6 +186,7 @@ export function OutcomeLibrary() {
                     submitLabel={busy === 'save' ? 'saving…' : `save as v${r.version + 1}`}
                     intent="edit"
                     currentVersion={r.version}
+                    eras={eras}
                   />
                 </div>
               )}
@@ -197,7 +198,7 @@ export function OutcomeLibrary() {
   )
 }
 
-const COLS = '1.6fr 60px 70px 90px 1fr 1.4fr 80px 80px 80px 80px 90px 110px'
+const COLS = '1.6fr 60px 70px 90px 1fr 1.6fr 90px 1fr 80px 130px'
 
 function HeaderRow() {
   return (
@@ -214,9 +215,7 @@ function HeaderRow() {
       <span>dynamics</span>
       <span>instrumentation</span>
       <span>familiarity</span>
-      <span>era</span>
-      <span>cultural prime</span>
-      <span>pleasure</span>
+      <span>production era</span>
       <span style={{ textAlign: 'right' }}>pool</span>
       <span style={{ textAlign: 'right' }}>status</span>
     </div>
@@ -227,6 +226,7 @@ function DataRow({ row, onEdit, onSupersede, busy }: {
   row: Row; onEdit: () => void; onSupersede: () => void; busy: boolean
 }) {
   const superseded = !!row.supersededAt
+  const eraLabel = row.productionEra ? `${row.productionEra.decade} ${row.productionEra.genreDisplayName ?? row.productionEra.genreSlug}` : '—'
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: COLS, gap: 10,
@@ -241,15 +241,12 @@ function DataRow({ row, onEdit, onSupersede, busy }: {
       <span style={cellTrunc}>{row.dynamics ?? '—'}</span>
       <span style={cellTrunc}>{row.instrumentation ?? '—'}</span>
       <span style={cellTrunc}>{row.familiarity ?? '—'}</span>
-      <span style={cellTrunc}>{row.productionEra ?? '—'}</span>
-      <span style={cellTrunc}>{row.culturalCategoryPrime ?? '—'}</span>
-      <span style={cellTrunc}>{row.pleasureTarget ?? '—'}</span>
+      <span style={cellTrunc}>{eraLabel}</span>
       <span style={{ color: row.lineageCount === 0 ? T.danger : T.text, textAlign: 'right' }}>{row.lineageCount}</span>
       <span style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
-        <span style={{
-          color: superseded ? T.textDim : T.success,
-          fontSize: 10, marginRight: 4,
-        }}>{superseded ? 'superseded' : 'active'}</span>
+        <span style={{ color: superseded ? T.textDim : T.success, fontSize: 10, marginRight: 4 }}>
+          {superseded ? 'superseded' : 'active'}
+        </span>
         {!superseded && (
           <>
             <button onClick={onEdit} disabled={busy} style={tinyBtn}>edit</button>
@@ -261,7 +258,7 @@ function DataRow({ row, onEdit, onSupersede, busy }: {
   )
 }
 
-function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent, currentVersion }: {
+function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent, currentVersion, eras }: {
   draft: Draft
   onChange: (d: Draft) => void
   onSubmit: () => void
@@ -269,6 +266,7 @@ function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent,
   submitLabel: string
   intent: 'new' | 'edit'
   currentVersion?: number
+  eras: ProductionEraStub[]
 }) {
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => onChange({ ...draft, [k]: v })
   const valid = draft.title.trim() && draft.mode.trim() && draft.tempoBpm >= 40 && draft.tempoBpm <= 220
@@ -278,7 +276,7 @@ function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent,
       background: intent === 'new' ? T.accentGlow : 'transparent',
       border: intent === 'new' ? `1px solid ${T.accentMuted}` : 'none',
       borderRadius: 4, padding: intent === 'new' ? 14 : 0,
-      display: 'grid', gridTemplateColumns: '1fr 100px 140px 1fr 1.2fr 120px 100px 130px 120px', gap: 8,
+      display: 'grid', gridTemplateColumns: '1fr 100px 140px 1fr 1.4fr 120px 1.2fr', gap: 8,
     }}>
       <div>
         <label style={labelStyle}>title</label>
@@ -304,26 +302,22 @@ function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent,
         <input value={draft.instrumentation} onChange={(e) => set('instrumentation', e.target.value)} style={inputStyle} placeholder="rhodes, brushed kit, upright bass" />
       </div>
       <div>
-        <label style={labelStyle}>familiarity</label>
-        <input list="familiarity-suggestions" value={draft.familiarity} onChange={(e) => set('familiarity', e.target.value)} style={inputStyle} placeholder="unfamiliar / familiar / neutral" />
-        <datalist id="familiarity-suggestions">
-          {['unfamiliar', 'familiar', 'neutral'].map((v) => <option key={v} value={v} />)}
-        </datalist>
+        <label style={labelStyle}>familiarity (playback)</label>
+        <select value={draft.familiarity} onChange={(e) => set('familiarity', e.target.value)} style={inputStyle}>
+          <option value="">—</option>
+          <option value="unfamiliar">unfamiliar</option>
+          <option value="familiar">familiar</option>
+          <option value="neutral">neutral</option>
+        </select>
       </div>
       <div>
-        <label style={labelStyle}>production era</label>
-        <input value={draft.productionEra} onChange={(e) => set('productionEra', e.target.value)} style={inputStyle} placeholder="1970s" />
-      </div>
-      <div>
-        <label style={labelStyle}>cultural prime</label>
-        <input value={draft.culturalCategoryPrime} onChange={(e) => set('culturalCategoryPrime', e.target.value)} style={inputStyle} placeholder="french, americana…" />
-      </div>
-      <div>
-        <label style={labelStyle}>pleasure target</label>
-        <input list="pleasure-suggestions" value={draft.pleasureTarget} onChange={(e) => set('pleasureTarget', e.target.value)} style={inputStyle} placeholder="high / moderate / low" />
-        <datalist id="pleasure-suggestions">
-          {['high', 'moderate', 'low'].map((v) => <option key={v} value={v} />)}
-        </datalist>
+        <label style={labelStyle}>production era (generation)</label>
+        <select value={draft.productionEraId} onChange={(e) => set('productionEraId', e.target.value)} style={inputStyle}>
+          <option value="">—</option>
+          {eras.map((e) => (
+            <option key={e.id} value={e.id}>{e.decade} — {e.genreDisplayName ?? e.genreSlug}</option>
+          ))}
+        </select>
       </div>
       {intent === 'edit' && currentVersion != null && (
         <div style={{
