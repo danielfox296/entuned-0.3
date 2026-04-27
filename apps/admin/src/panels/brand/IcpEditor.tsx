@@ -27,6 +27,9 @@ export function IcpEditor() {
   const [storeId, setStoreId] = useState<string | null>(null)
   const [detail, setDetail] = useState<StoreDetail | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [newIcpName, setNewIcpName] = useState('')
+  const [createBusy, setCreateBusy] = useState(false)
 
   useEffect(() => {
     const token = getToken(); if (!token) return
@@ -49,42 +52,82 @@ export function IcpEditor() {
     } catch (e: any) { setErr(e.message) }
   }
 
+  const createIcp = async () => {
+    if (!storeId || !newIcpName.trim()) return
+    const token = getToken(); if (!token) return
+    setCreateBusy(true); setErr(null)
+    try {
+      await api.createIcp({ storeId, name: newIcpName.trim() }, token)
+      setCreating(false); setNewIcpName('')
+      await reloadDetail()
+    } catch (e: any) { setErr(e.message) }
+    finally { setCreateBusy(false) }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
         <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>ICP Editor</div>
         <div style={{ fontSize: 11, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Per-store ICP. Edit psychographic fields, manage reference tracks, run the decomposer.
+          Per-location ICP. Edit psychographic fields, manage reference tracks, run the decomposer.
         </div>
       </div>
 
-      <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
+      <LocationPicker stores={stores} storeId={storeId} onPick={(id) => { setStoreId(id); setCreating(false); setNewIcpName('') }} />
 
       {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
 
       {storeId && !detail && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>}
 
-      {detail && (
+      {detail && !detail.icp && (
+        <div style={{
+          background: T.surface, border: `1px solid ${T.border}`, borderRadius: 4, padding: 20,
+          display: 'flex', flexDirection: 'column', gap: 12,
+        }}>
+          <div style={{ fontFamily: T.mono, fontSize: 12, color: T.textMuted }}>
+            This location has no ICP yet.
+          </div>
+          {creating ? (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                autoFocus
+                placeholder="ICP name"
+                value={newIcpName}
+                onChange={(e) => setNewIcpName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') void createIcp(); if (e.key === 'Escape') { setCreating(false); setNewIcpName('') } }}
+                style={{ ...inputStyle, maxWidth: 260 }}
+              />
+              <button onClick={() => void createIcp()} disabled={!newIcpName.trim() || createBusy} style={primaryBtn(!!newIcpName.trim(), createBusy)}>
+                {createBusy ? 'creating…' : 'create ICP'}
+              </button>
+              <button onClick={() => { setCreating(false); setNewIcpName('') }} style={ghostBtn}>cancel</button>
+            </div>
+          ) : (
+            <button onClick={() => setCreating(true)} style={primaryBtn(true, false)}>+ create ICP for this location</button>
+          )}
+        </div>
+      )}
+
+      {detail && detail.icp && (
         <>
-          {detail.sharedWith.length > 0 && <SharedNotice sharedWith={detail.sharedWith} />}
-          <IcpFields detail={detail} onSaved={reloadDetail} />
-          <ReferenceTracks detail={detail} onChanged={reloadDetail} />
+          <IcpFields detail={detail as StoreDetail & { icp: NonNullable<StoreDetail['icp']> }} onSaved={reloadDetail} />
+          <ReferenceTracks detail={detail as StoreDetail & { icp: NonNullable<StoreDetail['icp']> }} onChanged={reloadDetail} />
         </>
       )}
     </div>
   )
 }
 
-function StorePicker({ stores, storeId, onPick }: {
+function LocationPicker({ stores, storeId, onPick }: {
   stores: StoreSummary[] | null
   storeId: string | null
   onPick: (id: string) => void
 }) {
-  if (!stores) return <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading stores…</div>
-  if (stores.length === 0) return <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>no stores</div>
+  if (!stores) return <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>
+  if (stores.length === 0) return <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 12 }}>no locations</div>
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      <span style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono }}>store</span>
+      <span style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono }}>location</span>
       <select
         value={storeId ?? ''}
         onChange={(e) => onPick(e.target.value)}
@@ -94,7 +137,7 @@ function StorePicker({ stores, storeId, onPick }: {
           outline: 'none', minWidth: 320,
         }}
       >
-        <option value="" disabled>— pick a store —</option>
+        <option value="" disabled>— pick a location —</option>
         {stores.map((s) => (
           <option key={s.id} value={s.id}>
             {s.clientName} — {s.name}
@@ -105,24 +148,10 @@ function StorePicker({ stores, storeId, onPick }: {
   )
 }
 
-function SharedNotice({ sharedWith }: { sharedWith: { id: string; name: string; clientName: string }[] }) {
-  return (
-    <div style={{
-      background: T.accentGlow, border: `1px solid ${T.accentMuted}`,
-      borderRadius: 4, padding: '10px 14px', fontFamily: T.mono, fontSize: 11,
-      color: T.text,
-    }}>
-      <span style={{ color: T.accent }}>shared ICP</span> — also used by{' '}
-      {sharedWith.map((s, i) => (
-        <span key={s.id} style={{ color: T.textMuted }}>
-          {s.clientName} / {s.name}{i < sharedWith.length - 1 ? ', ' : ''}
-        </span>
-      ))}. Edits affect every store using this ICP.
-    </div>
-  )
-}
 
-function IcpFields({ detail, onSaved }: { detail: StoreDetail; onSaved: () => void }) {
+type DetailWithIcp = StoreDetail & { icp: NonNullable<StoreDetail['icp']> }
+
+function IcpFields({ detail, onSaved }: { detail: DetailWithIcp; onSaved: () => void }) {
   const [draft, setDraft] = useState<IcpUpdate>(() => extractIcp(detail))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -177,13 +206,13 @@ function IcpFields({ detail, onSaved }: { detail: StoreDetail; onSaved: () => vo
   )
 }
 
-function extractIcp(d: StoreDetail): IcpUpdate {
+function extractIcp(d: DetailWithIcp): IcpUpdate {
   const out: IcpUpdate = {}
   for (const f of ICP_FIELDS) (out as any)[f.key] = (d.icp as any)[f.key] ?? null
   return out
 }
 
-function ReferenceTracks({ detail, onChanged }: { detail: StoreDetail; onChanged: () => void }) {
+function ReferenceTracks({ detail, onChanged }: { detail: DetailWithIcp; onChanged: () => void }) {
   const [adding, setAdding] = useState<NewReferenceTrack | null>(null)
   const grouped: Record<TasteCategory, ReferenceTrackRow[]> = {
     FormationEra: [], Subculture: [], Aspirational: [],

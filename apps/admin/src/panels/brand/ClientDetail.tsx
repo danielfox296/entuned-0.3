@@ -66,7 +66,7 @@ export function ClientDetail() {
       <div>
         <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Client Detail</div>
         <div style={{ fontSize: 11, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Edit company info, plan tier, POS provider, and brand lyric guidelines (Bernie's voice anchor).
+          Edit company info, plan tier, POS provider, and brand lyric guidelines (Bernie's voice anchor). Create new locations in Location Editor.
         </div>
       </div>
 
@@ -175,13 +175,13 @@ export function ClientDetail() {
                 </span>
               </div>
 
-              <Section title={`stores (${client.stores.length})`}>
+              <Section title={`locations (${client.stores.length})`}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, gridColumn: '1 / -1' }}>
                   {client.stores.map((s) => (
                     <div key={s.id} style={listRow}>
                       <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500 }}>{s.name}</span>
                       <span style={{ color: T.textMuted }}>{s.timezone}</span>
-                      <span style={{ color: T.textMuted }}>{s.icp.name}</span>
+                      <span style={{ color: s.icp ? T.textMuted : T.textDim }}>{s.icp ? s.icp.name : '(no ICP)'}</span>
                       <span style={{ color: s.defaultOutcome ? T.text : T.textDim }}>
                         {s.defaultOutcome ? `default: ${s.defaultOutcome.title}` : 'no default'}
                       </span>
@@ -189,7 +189,7 @@ export function ClientDetail() {
                     </div>
                   ))}
                   {client.stores.length === 0 && (
-                    <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 11 }}>no stores yet — create one in the Store Editor</div>
+                    <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 11 }}>no locations yet — create one in Location Editor</div>
                   )}
                 </div>
               </Section>
@@ -199,7 +199,7 @@ export function ClientDetail() {
                   {client.icps.map((i) => (
                     <div key={i.id} style={listRow}>
                       <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500 }}>{i.name}</span>
-                      <span style={{ color: T.textMuted }}>{i.storeCount} store{i.storeCount === 1 ? '' : 's'}</span>
+                      <span style={{ color: T.textMuted }}>{i.storeCount === 1 ? '1 location' : 'no location'}</span>
                       <span style={{ color: T.textMuted }}>{i.hookCount} hook{i.hookCount === 1 ? '' : 's'}</span>
                       <span style={{ color: T.textMuted }}>{i.referenceTrackCount} ref track{i.referenceTrackCount === 1 ? '' : 's'}</span>
                     </div>

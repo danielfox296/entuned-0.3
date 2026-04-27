@@ -14,9 +14,8 @@ export function StoreEditor() {
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
   const [clients, setClients] = useState<ClientListRow[] | null>(null)
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
-  const [icps, setIcps] = useState<{ id: string; name: string; clientId: string }[] | null>(null)
   const [storeId, setStoreId] = useState<string | null>(null)
-  const [detail, setDetail] = useState<{ id: string; name: string; timezone: string; clientId: string; clientName: string; icpId: string; goLiveDate: string | null; defaultOutcomeId: string | null } | null>(null)
+  const [detail, setDetail] = useState<{ id: string; name: string; timezone: string; clientId: string; clientName: string; icp: { id: string; name: string } | null; goLiveDate: string | null; defaultOutcomeId: string | null } | null>(null)
   const [draft, setDraft] = useState<StoreUpdateBody | null>(null)
   const [creating, setCreating] = useState<StoreCreateBody | null>(null)
   const [busy, setBusy] = useState(false)
@@ -25,18 +24,12 @@ export function StoreEditor() {
   const reloadAll = async () => {
     const token = getToken(); if (!token) return
     try {
-      const [s, c, o, p] = await Promise.all([
+      const [s, c, o] = await Promise.all([
         api.stores(token),
         api.clients(token),
         api.outcomeLibrary(token),
-        api.poolDepth(token),
       ])
       setStores(s); setClients(c); setOutcomes(o)
-      // Backfill an ICP list — pool depth carries them with stores; map back to clientId via stores.
-      const storeByIcp = new Map<string, string>()
-      for (const st of s) storeByIcp.set(st.icpId, st.clientId)
-      const merged = p.icps.map((i) => ({ id: i.id, name: i.name, clientId: storeByIcp.get(i.id) ?? '' }))
-      setIcps(merged)
     } catch (e: any) { setErr(e.message) }
   }
   useEffect(() => { void reloadAll() }, [])
@@ -46,13 +39,12 @@ export function StoreEditor() {
     const token = getToken(); if (!token) return
     setDetail(null); setDraft(null); setErr(null)
     api.storeDetail(storeId, token).then(async (d) => {
-      // storeDetail does not include goLive/defaultOutcomeId — refetch via the live endpoint shape.
       const live = await api.liveStore(storeId, token).catch(() => null)
       setDetail({
         id: d.store.id, name: d.store.name, timezone: d.store.timezone,
         clientId: d.store.clientId, clientName: d.store.clientName,
-        icpId: d.icp.id,
-        goLiveDate: null, // not exposed in storeDetail; updates still allowed
+        icp: d.icp ? { id: d.icp.id, name: d.icp.name } : null,
+        goLiveDate: null,
         defaultOutcomeId: live?.store.defaultOutcomeId ?? null,
       })
       setDraft({})
@@ -67,7 +59,7 @@ export function StoreEditor() {
     setBusy(true); setErr(null)
     try {
       const updated = await api.updateStore(detail.id, draft, token)
-      setDetail((cur) => cur ? { ...cur, ...updated } : cur)
+      setDetail((cur) => cur ? { ...cur, ...updated, icp: (updated as any).icp ?? cur.icp } : cur)
       setDraft({})
       reloadAll()
     } catch (e: any) { setErr(e.message) }
@@ -88,21 +80,21 @@ export function StoreEditor() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
-        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Store Editor</div>
+        <div style={{ fontSize: 14, fontFamily: T.sans, fontWeight: 500, color: T.text }}>Location Editor</div>
         <div style={{ fontSize: 11, color: T.textMuted, fontFamily: T.sans, marginTop: 4 }}>
-          Edit a store's name, timezone, ICP binding, default outcome, and go-live date. Or create a new store under an existing client + ICP.
+          Edit a location's name, timezone, default outcome, and go-live date. Create a new location under an existing client. Add an ICP in the ICP Editor tab.
         </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <StorePicker stores={stores} storeId={storeId} onPick={(id) => { setStoreId(id); setCreating(null) }} />
+        <LocationPicker stores={stores} storeId={storeId} onPick={(id) => { setStoreId(id); setCreating(null) }} />
         <button
           onClick={() => {
             setStoreId(null)
-            setCreating({ clientId: clients?.[0]?.id ?? '', icpId: '', name: '', timezone: 'America/Denver' })
+            setCreating({ clientId: clients?.[0]?.id ?? '', name: '', timezone: 'America/Denver' })
           }}
           style={primaryBtn(true, false)}
-        >+ new store</button>
+        >+ new location</button>
       </div>
 
       {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.mono }}>{err}</div>}
@@ -111,7 +103,6 @@ export function StoreEditor() {
         <CreateForm
           draft={creating}
           clients={clients ?? []}
-          icps={icps ?? []}
           outcomes={outcomes ?? []}
           onChange={setCreating}
           onSubmit={submitCreate}
@@ -124,7 +115,7 @@ export function StoreEditor() {
 
       {detail && draft && (
         <>
-          <Section title="store">
+          <Section title="location">
             <Field label="name">
               <input
                 value={draft.name ?? detail.name}
@@ -145,15 +136,11 @@ export function StoreEditor() {
               <datalist id="tz-list">{COMMON_TZ.map((tz) => <option key={tz} value={tz} />)}</datalist>
             </Field>
             <Field label="ICP">
-              <select
-                value={draft.icpId ?? detail.icpId}
-                onChange={(e) => setDraft({ ...draft, icpId: e.target.value })}
-                style={input}
-              >
-                {(icps ?? []).filter((i) => !detail.clientId || !i.clientId || i.clientId === detail.clientId).map((i) => (
-                  <option key={i.id} value={i.id}>{i.name}</option>
-                ))}
-              </select>
+              <input
+                value={detail.icp ? detail.icp.name : '(none — create in ICP Editor)'}
+                disabled
+                style={{ ...input, opacity: 0.6 }}
+              />
             </Field>
             <Field label="default outcome">
               <select
@@ -187,46 +174,38 @@ export function StoreEditor() {
   )
 }
 
-function StorePicker({ stores, storeId, onPick }: { stores: StoreSummary[] | null; storeId: string | null; onPick: (id: string) => void }) {
+function LocationPicker({ stores, storeId, onPick }: { stores: StoreSummary[] | null; storeId: string | null; onPick: (id: string) => void }) {
   if (!stores) return <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 12 }}>loading…</div>
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono }}>store</span>
+      <span style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono }}>location</span>
       <select
         value={storeId ?? ''}
         onChange={(e) => onPick(e.target.value)}
         style={{ ...input, width: 360 }}
       >
-        <option value="" disabled>— pick a store —</option>
+        <option value="" disabled>— pick a location —</option>
         {stores.map((s) => <option key={s.id} value={s.id}>{s.clientName} — {s.name}</option>)}
       </select>
     </div>
   )
 }
 
-function CreateForm({ draft, clients, icps, outcomes, onChange, onSubmit, onCancel, busy }: {
+function CreateForm({ draft, clients, outcomes, onChange, onSubmit, onCancel, busy }: {
   draft: StoreCreateBody; clients: ClientListRow[]
-  icps: { id: string; name: string; clientId: string }[]
   outcomes: OutcomeRowFull[]
   onChange: (d: StoreCreateBody) => void
   onSubmit: () => void; onCancel: () => void; busy: boolean
 }) {
   const set = <K extends keyof StoreCreateBody>(k: K, v: StoreCreateBody[K]) => onChange({ ...draft, [k]: v })
-  const valid = draft.clientId && draft.icpId && draft.name && draft.timezone
-  const filteredIcps = icps.filter((i) => !i.clientId || i.clientId === draft.clientId)
+  const valid = draft.clientId && draft.name && draft.timezone
 
   return (
-    <Section title="new store">
+    <Section title="new location">
       <Field label="client">
         <select value={draft.clientId} onChange={(e) => set('clientId', e.target.value)} style={input}>
           <option value="" disabled>— pick —</option>
           {clients.map((c) => <option key={c.id} value={c.id}>{c.companyName}</option>)}
-        </select>
-      </Field>
-      <Field label="ICP">
-        <select value={draft.icpId} onChange={(e) => set('icpId', e.target.value)} style={input}>
-          <option value="" disabled>— pick —</option>
-          {filteredIcps.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
         </select>
       </Field>
       <Field label="name">
@@ -252,7 +231,7 @@ function CreateForm({ draft, clients, icps, outcomes, onChange, onSubmit, onCanc
       </Field>
       <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8 }}>
         <button onClick={onSubmit} disabled={!valid || busy} style={primaryBtn(!!valid, busy)}>
-          {busy ? 'creating…' : 'create store'}
+          {busy ? 'creating…' : 'create location'}
         </button>
         <button onClick={onCancel} style={tinyBtn}>cancel</button>
       </div>

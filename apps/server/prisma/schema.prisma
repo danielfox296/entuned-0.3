@@ -113,7 +113,6 @@ model Client {
 model Store {
   id                        String    @id @default(uuid()) @db.Uuid
   clientId                  String    @map("client_id") @db.Uuid
-  icpId                     String    @map("icp_id") @db.Uuid
   name                      String
   timezone                  String
   goLiveDate                DateTime? @map("go_live_date") @db.Date
@@ -125,7 +124,7 @@ model Store {
   updatedAt                 DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   client              Client                    @relation(fields: [clientId], references: [id])
-  icp                 ICP                       @relation(fields: [icpId], references: [id])
+  icp                 ICP?                      @relation("LocationIcp")
   defaultOutcome      Outcome?                  @relation("StoreDefaultOutcome", fields: [defaultOutcomeId], references: [id])
   outcomeSelection    Outcome?                  @relation("StoreOutcomeSelection", fields: [outcomeSelectionId], references: [id])
   scheduleSlots       ScheduleSlot[]
@@ -133,7 +132,6 @@ model Store {
   playbackEvents      PlaybackEvent[]
 
   @@index([clientId])
-  @@index([icpId])
   @@map("stores")
 }
 
@@ -142,6 +140,7 @@ model Store {
 model ICP {
   id                 String    @id @default(uuid()) @db.Uuid
   clientId           String    @map("client_id") @db.Uuid
+  storeId            String    @unique @map("store_id") @db.Uuid
   name               String
   ageRange           String?   @map("age_range")
   location           String?
@@ -156,7 +155,7 @@ model ICP {
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   client           Client            @relation(fields: [clientId], references: [id])
-  stores           Store[]
+  store            Store             @relation("LocationIcp", fields: [storeId], references: [id])
   hooks            Hook[]
   referenceTracks  ReferenceTrack[]
   hookWriterPrompt HookWriterPrompt?

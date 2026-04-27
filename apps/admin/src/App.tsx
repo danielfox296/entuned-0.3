@@ -37,8 +37,8 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Live Store View', 'Mode Override', 'Interrupt Controls'],
     description: "What's playing now, override outcomes, skip/pause" },
   { key: 'brand', label: 'Client & Brand', short: 'Brand', icon: '◆',
-    cards: ['Client Detail', 'ICP Editor', 'Hook Queue', 'Store Editor'],
-    description: 'ICP profiles, hooks, reference tracks, store config' },
+    cards: ['Client Detail', 'ICP Editor', 'Hook Queue', 'Location Editor'],
+    description: 'ICP profiles, hooks, reference tracks, location config' },
   { key: 'schedule', label: 'Scheduling', short: 'Schedule', icon: '▦',
     cards: ['Outcome Schedule', 'Outcome Library', 'Dry Run'],
     description: 'Weekly outcome grids, schedule preview' },
@@ -277,7 +277,7 @@ function BrandRouter({ cards }: { cards: string[] }) {
       {active === 'Client Detail' && <ClientDetail />}
       {active === 'ICP Editor' && <IcpEditor />}
       {active === 'Hook Queue' && <HookQueue />}
-      {active === 'Store Editor' && <StoreEditor />}
+      {active === 'Location Editor' && <StoreEditor />}
     </div>
   )
 }

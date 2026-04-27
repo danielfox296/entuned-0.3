@@ -159,12 +159,13 @@ export interface StoreSummary {
   timezone: string
   clientId: string
   clientName: string
-  icpId: string
+  icp: { id: string; name: string } | null
 }
 
 export interface IcpRow {
   id: string
   clientId: string
+  storeId: string
   name: string
   ageRange: string | null
   location: string | null
@@ -215,7 +216,7 @@ export interface ReferenceTrackRow {
 
 export interface StoreDetail {
   store: { id: string; name: string; timezone: string; clientId: string; clientName: string }
-  icp: IcpRow & { referenceTracks: ReferenceTrackRow[] }
+  icp: (IcpRow & { referenceTracks: ReferenceTrackRow[] }) | null
   sharedWith: { id: string; name: string; clientName: string }[]
 }
 
@@ -278,7 +279,6 @@ export type ClientUpdate = Partial<{
 
 export interface StoreCreateBody {
   clientId: string
-  icpId: string
   name: string
   timezone: string
   goLiveDate?: string | null
@@ -290,7 +290,11 @@ export interface StoreUpdateBody {
   timezone?: string
   goLiveDate?: string | null
   defaultOutcomeId?: string | null
-  icpId?: string
+}
+
+export interface IcpCreateBody {
+  storeId: string
+  name: string
 }
 
 // --- Song Creation ---
@@ -598,6 +602,8 @@ export const api = {
     req<StoreSummary>('/admin/stores', { method: 'POST', body: JSON.stringify(body) }, token),
   updateStore: (id: string, body: StoreUpdateBody, token: string) =>
     req<StoreSummary & { goLiveDate: string | null; defaultOutcomeId: string | null }>(`/admin/stores/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+  createIcp: (body: IcpCreateBody, token: string) =>
+    req<IcpRow>('/admin/icps', { method: 'POST', body: JSON.stringify(body) }, token),
   updateIcp: (id: string, body: IcpUpdate, token: string) =>
     req<IcpRow>(`/admin/icps/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   createReferenceTrack: (icpId: string, body: NewReferenceTrack, token: string) =>

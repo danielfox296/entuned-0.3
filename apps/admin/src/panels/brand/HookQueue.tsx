@@ -27,12 +27,12 @@ export function HookQueue() {
     setDetail(null); setHooks(null)
     api.storeDetail(storeId, token).then((d) => {
       setDetail(d)
-      return api.icpHooks(d.icp.id, token)
+      return d.icp ? api.icpHooks(d.icp.id, token) : null
     }).then((h) => h && setHooks(h)).catch((e) => setErr(e.message))
   }, [storeId])
 
   const reloadHooks = async () => {
-    if (!detail) return
+    if (!detail?.icp) return
     const token = getToken(); if (!token) return
     try { setHooks(await api.icpHooks(detail.icp.id, token)) }
     catch (e: any) { setErr(e.message) }
@@ -83,7 +83,7 @@ export function HookQueue() {
 
           {hooks && (
             <>
-              <NewHookForm icpId={detail.icp.id} outcomes={outcomes} onCreated={reloadHooks} />
+              {detail.icp && <NewHookForm icpId={detail.icp.id} outcomes={outcomes} onCreated={reloadHooks} />}
               {groupedKeys.length === 0 && (
                 <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 12, padding: '12px 0' }}>
                   no hooks{filter !== 'all' ? ` matching ${filter}` : ''}

@@ -38,7 +38,7 @@ export function SongSeedQueue() {
   useEffect(() => {
     if (!storeId || !stores) { setIcpId(null); return }
     const s = stores.find((x) => x.id === storeId)
-    setIcpId(s?.icpId ?? null)
+    setIcpId(s?.icp?.id ?? null)
   }, [storeId, stores])
 
   const reload = async () => {

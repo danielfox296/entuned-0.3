@@ -289,7 +289,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
             defaultOutcome: { select: { id: true, title: true, version: true } },
           },
         },
-        icps: { orderBy: { name: 'asc' }, select: { id: true, name: true, _count: { select: { hooks: true, referenceTracks: true, stores: true } } } },
+        icps: { orderBy: { name: 'asc' }, select: { id: true, name: true, storeId: true, _count: { select: { hooks: true, referenceTracks: true } } } },
       },
     })
     if (!client) return reply.code(404).send({ error: 'not_found' })
@@ -316,7 +316,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         id: i.id, name: i.name,
         hookCount: i._count.hooks,
         referenceTrackCount: i._count.referenceTracks,
-        storeCount: i._count.stores,
+        storeCount: i.storeId ? 1 : 0,
       })),
     }
   })
@@ -376,7 +376,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   const StoreCreateBody = z.object({
     clientId: z.string().uuid(),
-    icpId: z.string().uuid(),
     name: z.string().min(1),
     timezone: z.string().min(1),
     goLiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
@@ -391,22 +390,21 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       const row = await prisma.store.create({
         data: {
           clientId: parsed.data.clientId,
-          icpId: parsed.data.icpId,
           name: parsed.data.name,
           timezone: parsed.data.timezone,
           goLiveDate: parsed.data.goLiveDate ? new Date(parsed.data.goLiveDate) : null,
           defaultOutcomeId: parsed.data.defaultOutcomeId ?? null,
         },
-        include: { client: { select: { companyName: true } } },
+        include: { client: { select: { companyName: true } }, icp: { select: { id: true, name: true } } },
       })
       return {
         id: row.id, name: row.name, timezone: row.timezone,
         clientId: row.clientId, clientName: row.client.companyName,
-        icpId: row.icpId,
+        icp: row.icp ? { id: row.icp.id, name: row.icp.name } : null,
       }
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
-        return reply.code(404).send({ error: 'client_or_icp_or_outcome_not_found' })
+        return reply.code(404).send({ error: 'client_or_outcome_not_found' })
       }
       throw e
     }
@@ -417,7 +415,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     timezone: z.string().min(1).optional(),
     goLiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
     defaultOutcomeId: z.string().uuid().nullable().optional(),
-    icpId: z.string().uuid().optional(),
   })
 
   app.put('/stores/:id', async (req, reply) => {
@@ -432,12 +429,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     try {
       const row = await prisma.store.update({
         where: { id }, data,
-        include: { client: { select: { companyName: true } } },
+        include: { client: { select: { companyName: true } }, icp: { select: { id: true, name: true } } },
       })
       return {
         id: row.id, name: row.name, timezone: row.timezone,
         clientId: row.clientId, clientName: row.client.companyName,
-        icpId: row.icpId,
+        icp: row.icp ? { id: row.icp.id, name: row.icp.name } : null,
         goLiveDate: row.goLiveDate ? row.goLiveDate.toISOString().slice(0, 10) : null,
         defaultOutcomeId: row.defaultOutcomeId,
       }
@@ -450,7 +447,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.store.findMany({
       orderBy: [{ client: { companyName: 'asc' } }, { name: 'asc' }],
-      include: { client: { select: { companyName: true } } },
+      include: { client: { select: { companyName: true } }, icp: { select: { id: true, name: true } } },
     })
     return rows.map((s) => ({
       id: s.id,
@@ -458,7 +455,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       timezone: s.timezone,
       clientId: s.clientId,
       clientName: s.client.companyName,
-      icpId: s.icpId,
+      icp: s.icp ? { id: s.icp.id, name: s.icp.name } : null,
     }))
   })
 
@@ -471,18 +468,13 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     })
     if (!store) return reply.code(404).send({ error: 'not_found' })
     const icp = await prisma.iCP.findUnique({
-      where: { id: store.icpId },
+      where: { storeId: id },
       include: {
         referenceTracks: {
           orderBy: [{ bucket: 'asc' }, { artist: 'asc' }, { title: 'asc' }],
           include: { styleAnalysis: true },
         },
       },
-    })
-    if (!icp) return reply.code(404).send({ error: 'icp_not_found' })
-    const sharingStores = await prisma.store.findMany({
-      where: { icpId: store.icpId, NOT: { id: store.id } },
-      select: { id: true, name: true, client: { select: { companyName: true } } },
     })
     return {
       store: {
@@ -493,7 +485,35 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         clientName: store.client.companyName,
       },
       icp,
-      sharedWith: sharingStores.map((s) => ({ id: s.id, name: s.name, clientName: s.client.companyName })),
+      sharedWith: [],
+    }
+  })
+
+  // ----- ICP: create (location-scoped) + update -----
+
+  const IcpCreateBody = z.object({
+    storeId: z.string().uuid(),
+    name: z.string().min(1),
+  })
+
+  app.post('/icps', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = IcpCreateBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const store = await prisma.store.findUnique({ where: { id: parsed.data.storeId } })
+    if (!store) return reply.code(404).send({ error: 'store_not_found' })
+    const existing = await prisma.iCP.findUnique({ where: { storeId: parsed.data.storeId } })
+    if (existing) return reply.code(409).send({ error: 'icp_already_exists', message: 'This location already has an ICP.' })
+    try {
+      const row = await prisma.iCP.create({
+        data: { storeId: parsed.data.storeId, clientId: store.clientId, name: parsed.data.name },
+      })
+      return reply.code(201).send(row)
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+        return reply.code(404).send({ error: 'store_not_found' })
+      }
+      throw e
     }
   })
 
@@ -750,7 +770,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       prisma.iCP.findMany({
         select: {
           id: true, name: true,
-          stores: { select: { id: true, name: true } },
+          store: { select: { id: true, name: true } },
         },
         orderBy: { name: 'asc' },
       }),
@@ -774,7 +794,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       icps: icps.map((icp) => ({
         id: icp.id,
         name: icp.name,
-        stores: icp.stores,
+        stores: icp.store ? [icp.store] : [],
         outcomes: activeOutcomes.map((o) => {
           const count = countMap.get(`${icp.id}::${o.id}`) ?? 0
           return {
@@ -1188,7 +1208,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const id = (req.params as any).id as string
     const store = await prisma.store.findUnique({
       where: { id },
-      include: { client: { select: { companyName: true } } },
+      include: { client: { select: { companyName: true } }, icp: { select: { id: true } } },
     })
     if (!store) return reply.code(404).send({ error: 'not_found' })
 
@@ -1197,7 +1217,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       prisma.outcome.findMany({ where: { supersededAt: null }, orderBy: { title: 'asc' } }),
       prisma.lineageRow.groupBy({
         by: ['outcomeId'],
-        where: { icpId: store.icpId, active: true },
+        where: { icpId: store.icp?.id ?? '', active: true },
         _count: { _all: true },
       }),
       prisma.playbackEvent.findMany({
@@ -1232,7 +1252,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         name: store.name,
         clientName: store.client.companyName,
         timezone: store.timezone,
-        icpId: store.icpId,
+        icpId: store.icp?.id ?? null,
         defaultOutcomeId: store.defaultOutcomeId,
         outcomeSelectionId: store.outcomeSelectionId,
         outcomeSelectionExpiresAt: store.outcomeSelectionExpiresAt,
@@ -1530,7 +1550,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const outcomeIds = Array.from(usedOutcomes.keys())
     const counts = outcomeIds.length === 0 ? [] : await prisma.lineageRow.groupBy({
       by: ['outcomeId'],
-      where: { active: true, icpId: store.icpId, outcomeId: { in: outcomeIds } },
+      where: { active: true, icpId: store.icp?.id ?? '', outcomeId: { in: outcomeIds } },
       _count: { _all: true },
     })
     const countMap = new Map<string, number>()
@@ -1573,7 +1593,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
     return {
       store: { id: store.id, name: store.name, timezone: store.timezone },
-      icp: { id: store.icp.id, name: store.icp.name },
+      icp: store.icp ? { id: store.icp.id, name: store.icp.name } : null,
       defaultOutcome: def ? { id: def.id, title: def.title, version: def.version, superseded: !!def.supersededAt } : null,
       thresholds,
       days,

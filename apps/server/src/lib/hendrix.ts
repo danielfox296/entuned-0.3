@@ -166,7 +166,10 @@ function dedupeBySong(pool: PoolRow[]): PoolRow[] {
 
 export async function nextQueue(storeId: string, now: Date = new Date()): Promise<HendrixResponse> {
   const decidedAt = now.toISOString()
-  const store = await prisma.store.findUnique({ where: { id: storeId } })
+  const store = await prisma.store.findUnique({
+    where: { id: storeId },
+    include: { icp: { select: { id: true } } },
+  })
   if (!store) {
     return {
       storeId,
@@ -189,7 +192,10 @@ export async function nextQueue(storeId: string, now: Date = new Date()): Promis
     dailyCap: 3,
   }
 
-  const unfilteredPool = dedupeBySong(await fetchPool(store.icpId, resolved.outcomeId))
+  if (!store.icp) {
+    return { storeId, decidedAt, activeOutcome: serializeOutcome(resolved), queue: [], fallbackTier: 'none', reason: 'no_pool' }
+  }
+  const unfilteredPool = dedupeBySong(await fetchPool(store.icp.id, resolved.outcomeId))
   if (unfilteredPool.length === 0) {
     return {
       storeId,
