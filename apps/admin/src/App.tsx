@@ -42,34 +42,34 @@ interface SurfaceGroup {
 const GROUPS: SurfaceGroup[] = [
   { key: 'workflows', label: 'Workflows', short: 'Workflows', icon: ListChecks,
     cards: ['Pre-Launch Checklist', 'Hook Refresh', 'Reference Track Refresh', 'Hook → Prompt'],
-    description: 'Multi-step actions for the selected client, store, and ICP' },
+    description: '' },
   { key: 'seeding', label: 'Song Creation', short: 'Creation', icon: Disc3,
     cards: ['Song Seed Queue', 'Closed Song Seeds'],
-    description: 'Claim song seeds, paste to Suno, accept or close takes' },
+    description: '' },
   { key: 'playback', label: 'Playback & Overrides', short: 'Playback', icon: Play,
-    cards: ['Live Store View'],
-    description: "What's playing now, override outcomes, skip/pause" },
-  { key: 'brand', label: 'Client & Brand', short: 'Brand', icon: Sparkles,
-    cards: ['Client Detail', 'ICP Editor', 'Hook Queue', 'Store Editor', 'Operator Manager'],
-    description: 'ICP profiles, hooks, reference tracks, store config' },
+    cards: ['Live Location View'],
+    description: '' },
+  { key: 'brand', label: 'Clients', short: 'Clients', icon: Sparkles,
+    cards: ['Client Detail', 'ICP Editor', 'Hook Queue', 'Location', 'Operator Manager'],
+    description: '' },
   { key: 'schedule', label: 'Scheduling', short: 'Schedule', icon: CalendarDays,
     cards: ['Outcome Schedule', 'Outcome Library', 'Dry Run'],
-    description: 'Weekly outcome grids, schedule preview' },
+    description: '' },
   { key: 'engine', label: 'Engine', short: 'Engine', icon: Settings,
     cards: ['Hook Drafter', 'Track Analyzer Rules', 'Style Exclusion Rules', 'Lyric Prompts', 'Outcome Factor Prompt', 'Reference Track Suggester'],
-    description: 'System-level prompts that drive decomposer, Mars, and Bernie' },
+    description: '' },
   { key: 'catalogue', label: 'Song Catalogue', short: 'Catalogue', icon: Music2,
     cards: ['Song Browser', 'Flagged Review', 'Retired Songs', 'Pool Depth'],
-    description: 'Browse songs, review flags, monitor pool depth' },
+    description: '' },
   { key: 'experiments', label: 'Experiments', short: 'Experiments', icon: FlaskConical,
     cards: ['Experiment Editor', 'Experiment Detail', 'Results'],
-    description: 'A/B tests, arm pools, conclusions', deferred: true },
+    description: '', deferred: true },
   { key: 'hypothesis', label: 'Hypothesis Review', short: 'Hypotheses', icon: Lightbulb,
     cards: ['Hypothesis Queue', 'Hypothesis Detail', 'Promotion History'],
-    description: 'Kraftwerk output review, promote or reject', deferred: true },
+    description: '', deferred: true },
   { key: 'monitoring', label: 'Monitoring & Alerts', short: 'Monitoring', icon: Activity,
     cards: ['Alert Feed', 'Metric Source Registry'],
-    description: 'Pool alerts, experiment gates, system health', deferred: true },
+    description: '', deferred: true },
 ]
 
 // ── Sidebar ────────────────────────────────────────────────────
@@ -164,9 +164,6 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
               border: `1px solid ${T.borderSubtle}`,
             }}>deferred</span>}
           </div>
-          <p style={{ fontSize: 14, color: T.textMuted, fontFamily: T.sans, margin: '6px 0 0' }}>
-            {group.description}
-          </p>
         </div>
       )}
 
@@ -279,7 +276,7 @@ function BrandRouter({ cards }: { cards: string[] }) {
       {active === 'Client Detail' && <ClientDetail />}
       {active === 'ICP Editor' && <IcpEditor />}
       {active === 'Hook Queue' && <HookQueue />}
-      {active === 'Store Editor' && <StoreEditor />}
+      {active === 'Location' && <StoreEditor />}
       {active === 'Operator Manager' && <OperatorManager />}
     </div>
   )
@@ -287,7 +284,7 @@ function BrandRouter({ cards }: { cards: string[] }) {
 
 // ── Playback router ────────────────────────────────────────────
 function PlaybackRouter({ cards }: { cards: string[] }) {
-  const [active, setActive] = useNavSub<string>('Live Store View')
+  const [active, setActive] = useNavSub<string>('Live Location View')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
@@ -309,7 +306,7 @@ function PlaybackRouter({ cards }: { cards: string[] }) {
           )
         })}
       </div>
-      {active === 'Live Store View' && <LiveStoreView />}
+      {active === 'Live Location View' && <LiveStoreView />}
     </div>
   )
 }

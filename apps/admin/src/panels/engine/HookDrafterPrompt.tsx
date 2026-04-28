@@ -235,7 +235,7 @@ export function HookDrafterPrompt() {
 
       {!storeId && (
         <div style={{ fontFamily: T.sans, fontSize: 12, color: T.textDim }}>
-          Tip: pick a store + ICP in the Workflows tab and they'll auto-fill the ICP picker here.
+          Tip: pick a location + ICP in the Workflows tab and they'll auto-fill the ICP picker here.
         </div>
       )}
     </div>

@@ -112,7 +112,7 @@ function Card({ song, onChanged, muted }: { song: FlaggedSong; onChanged: () => 
               song <span style={{ color: T.accentMuted }}>{song.songId.slice(0, 8)}</span>
             </div>
             <div style={{ fontFamily: T.mono, fontSize: 13, color: T.textDim, marginTop: 2 }}>
-              last reported {lastStr} · {song.storeCount} store{song.storeCount === 1 ? '' : 's'}
+              last reported {lastStr} · {song.storeCount} location{song.storeCount === 1 ? '' : 's'}
             </div>
           </div>
         </div>

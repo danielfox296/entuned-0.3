@@ -77,17 +77,14 @@ export function StoreEditor() {
     try {
       const created = await api.createStore(creating, token)
       setCreating(null); setStoreId(created.id); reloadAll()
-      toast.success(`store ${created.name} created`)
+      toast.success(`location ${created.name} created`)
     } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'create failed') }
     finally { setBusy(false) }
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      <PanelHeader
-        title="Store Editor"
-        subtitle="Edit a store's name, timezone, default outcome, and go-live date. Create a new store under an existing client. Add an ICP in the ICP Editor tab."
-      />
+      <PanelHeader title="Location" />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <StorePicker stores={stores} storeId={storeId} onPick={(id) => { setStoreId(id); setCreating(null) }} />
@@ -96,7 +93,7 @@ export function StoreEditor() {
             setStoreId(null)
             setCreating({ clientId: detail?.clientId ?? clients?.[0]?.id ?? '', name: '', timezone: 'America/Denver' })
           }}
-        >+ new store</Button>
+        >+ new location</Button>
       </div>
 
       {err && <div style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</div>}
@@ -117,7 +114,7 @@ export function StoreEditor() {
 
       {detail && draft && (
         <>
-          <Section title="Store" columns={2}>
+          <Section title="Location" columns={2}>
             <Field label="name">
               <Input
                 value={draft.name ?? detail.name}
@@ -188,7 +185,7 @@ function CreateForm({ draft, clients, outcomes, onChange, onSubmit, onCancel, bu
   const valid = draft.clientId && draft.name && draft.timezone
 
   return (
-    <Section title="New store" columns={2}>
+    <Section title="New location" columns={2}>
       <Field label="client">
         <Select value={draft.clientId} onChange={(e) => set('clientId', e.target.value)}>
           <option value="" disabled>— pick —</option>
@@ -224,7 +221,7 @@ function CreateForm({ draft, clients, outcomes, onChange, onSubmit, onCancel, bu
       </Field>
       <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8 }}>
         <Button onClick={onSubmit} disabled={!valid} busy={busy}>
-          {busy ? 'creating…' : 'create store'}
+          {busy ? 'creating…' : 'create location'}
         </Button>
         <Button variant="tiny" onClick={onCancel}>cancel</Button>
       </div>

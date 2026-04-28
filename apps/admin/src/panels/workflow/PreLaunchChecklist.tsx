@@ -78,7 +78,7 @@ export function PreLaunchChecklist({ ctx }: { ctx: WorkflowContext }) {
         borderRadius: 4, padding: '14px 18px', color: T.textMuted,
         fontFamily: T.sans, fontSize: 14,
       }}>
-        select a store above to begin
+        select a location above to begin
       </div>
     )
   }
@@ -108,7 +108,7 @@ function computeGates(args: {
   const tzOk = !!detail.store.timezone
   const defOk = !!detail.store.defaultOutcomeId
   out.push({
-    title: 'Store config',
+    title: 'Location config',
     status: tzOk && defOk ? 'pass' : 'fail',
     detail: tzOk && defOk
       ? `tz ${detail.store.timezone} · default outcome set`
@@ -125,7 +125,7 @@ function computeGates(args: {
   out.push({
     title: 'ICPs',
     status: icpCount > 0 ? 'pass' : 'fail',
-    detail: `${icpCount} ICP${icpCount === 1 ? '' : 's'} on this store`,
+    detail: `${icpCount} ICP${icpCount === 1 ? '' : 's'} on this location`,
   })
 
   // 3. Approved hooks per ICP
@@ -194,7 +194,7 @@ function computeGates(args: {
       title: 'Pool depth (default outcome)',
       status: items.length === 0 ? 'fail' : allOk ? 'pass' : 'fail',
       detail: items.length === 0
-        ? 'no pool data for this store'
+        ? 'no pool data for this location'
         : allOk
           ? 'no critical pools'
           : `${items.filter((x) => !x.ok).length} ICP${items.filter((x) => !x.ok).length === 1 ? '' : 's'} below critical threshold`,
@@ -209,7 +209,7 @@ function computeGates(args: {
     status: slotCount > 0 ? 'pass' : 'fail',
     detail: slotCount > 0
       ? `${slotCount} slot${slotCount === 1 ? '' : 's'} configured`
-      : 'no schedule slots — store will fall back to the default outcome only',
+      : 'no schedule slots — location will fall back to the default outcome only',
   })
 
   // 7. Player presence — is a player paired and pinging? Use most recent
@@ -219,7 +219,7 @@ function computeGates(args: {
     out.push({
       title: 'Player paired',
       status: 'warn',
-      detail: 'no live store response (endpoint unreachable or store has never had a player)',
+      detail: 'no live response (endpoint unreachable or location has never had a player)',
     })
   } else {
     const latest = live.recentEvents

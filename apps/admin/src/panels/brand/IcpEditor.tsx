@@ -84,10 +84,7 @@ export function IcpEditor() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      <PanelHeader
-        title="ICP Editor"
-        subtitle="A store can have many ICPs. Pick one to edit psychographic fields, manage reference tracks, run the decomposer."
-      />
+      <PanelHeader title="ICP Editor" />
 
       <UIStorePicker stores={stores} storeId={storeId} onPick={(id) => { setStoreId(id); setCreating(false); setNewIcpName('') }} />
 

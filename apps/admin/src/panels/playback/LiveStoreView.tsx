@@ -46,10 +46,7 @@ export function LiveStoreView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      <PanelHeader
-        title="Live Store View"
-        subtitle="Real-time per-store playback: active outcome, override controls, upcoming queue, recent events."
-      />
+      <PanelHeader title="Live Location View" />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />

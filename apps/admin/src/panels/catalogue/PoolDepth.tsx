@@ -135,7 +135,7 @@ function HeaderRow() {
       fontFamily: T.mono, fontSize: 13, color: T.textDim, textTransform: 'uppercase',
     }}>
       <span>icp</span>
-      <span>stores</span>
+      <span>locations</span>
       <span>outcome</span>
       <span style={{ textAlign: 'right' }}>active rows</span>
       <span style={{ textAlign: 'right' }}>status</span>

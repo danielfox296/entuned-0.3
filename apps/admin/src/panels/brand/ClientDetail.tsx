@@ -67,10 +67,7 @@ export function ClientDetail() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      <PanelHeader
-        title="Client Detail"
-        subtitle="Edit company info, plan tier, POS provider, and brand lyric guidelines (Bernie's voice anchor). Create new stores in Store Editor."
-      />
+      <PanelHeader title="Client Detail" />
 
       <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
         <div style={{ width: 240, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -169,7 +166,7 @@ export function ClientDetail() {
                 </span>
               </div>
 
-              <Section title={`Stores (${client.stores.length})`}>
+              <Section title={`Locations (${client.stores.length})`}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {client.stores.map((s) => (
                     <div key={s.id} style={listRow}>
@@ -189,7 +186,7 @@ export function ClientDetail() {
                     </div>
                   ))}
                   {client.stores.length === 0 && (
-                    <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>no stores yet — create one in Store Editor</div>
+                    <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>no locations yet — create one in Location</div>
                   )}
                 </div>
               </Section>
@@ -199,7 +196,7 @@ export function ClientDetail() {
                   {client.icps.map((i) => (
                     <div key={i.id} style={listRow}>
                       <span style={{ color: T.text, fontWeight: 500 }}>{i.name}</span>
-                      <span style={{ color: T.textMuted }}>{i.storeCount === 1 ? '1 store' : 'no store'}</span>
+                      <span style={{ color: T.textMuted }}>{i.storeCount === 1 ? '1 location' : 'no locations'}</span>
                       <span style={{ color: T.textMuted }}>{i.hookCount} hook{i.hookCount === 1 ? '' : 's'}</span>
                       <span style={{ color: T.textMuted }}>{i.referenceTrackCount} ref track{i.referenceTrackCount === 1 ? '' : 's'}</span>
                     </div>
@@ -240,7 +237,7 @@ function ClientList({ list, clientId, onPick }: { list: ClientListRow[] | null; 
           }}>
             <span>{c.companyName}</span>
             <span style={{ fontFamily: T.sans, fontSize: S.label, color: T.textDim }}>
-              {c.plan} · {c.storeCount}s · {c.icpCount}i
+              {c.plan} · {c.storeCount} location{c.storeCount === 1 ? '' : 's'} · {c.icpCount} ICP{c.icpCount === 1 ? '' : 's'}
             </span>
           </button>
         )

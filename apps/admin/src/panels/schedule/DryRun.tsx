@@ -35,7 +35,7 @@ export function DryRun() {
       out.push(`${fmtDur(data.totals.gapMin)} of weekly time has no outcome (no schedule row, no default).`)
     }
     if (!data.defaultOutcome) {
-      out.push('No default outcome set on this store — gaps in the schedule resolve to nothing.')
+      out.push('No default outcome set on this location — gaps in the schedule resolve to nothing.')
     } else if (data.defaultOutcome.superseded) {
       out.push(`Default outcome "${data.defaultOutcome.displayTitle ?? data.defaultOutcome.title}" is superseded — replace it before any gap is hit.`)
     }
@@ -60,10 +60,7 @@ export function DryRun() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      <PanelHeader
-        title="Schedule Dry Run"
-        subtitle="Project the weekly schedule for one store. Gaps fall through to the store's default outcome (or surface as untouched gaps). Pool depth is joined per-(ICP × outcome) so you can see which pools your schedule actually depends on."
-      />
+      <PanelHeader title="Schedule Dry Run" />
 
       <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
 

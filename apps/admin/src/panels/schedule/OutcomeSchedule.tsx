@@ -51,10 +51,7 @@ export function OutcomeSchedule() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      <PanelHeader
-        title="Outcome Schedule"
-        subtitle="Per-store weekly grid. Rows resolve in store-local time. Gaps fall back to default outcome."
-      />
+      <PanelHeader title="Outcome Schedule" />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
