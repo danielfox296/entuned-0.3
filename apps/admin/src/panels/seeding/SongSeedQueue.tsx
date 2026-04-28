@@ -1,24 +1,17 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
-import type { SongSeedRow, StoreSummary, OutcomeRowFull, SeedBuilderResult, SongSeedStatus } from '../../api.js'
+import type { SongSeedRow, StoreSummary, OutcomeRowFull, SeedBuilderResult } from '../../api.js'
 import { T } from '../../tokens.js'
 import { PanelHeader, StorePicker as UIStorePicker, S, useStoreSelection } from '../../ui/index.js'
 import { SongSeed } from './SongSeed.js'
 
-// Single-operator filter set. Prompts are either queued (to work), accepted,
-// or deleted outright — no terminal-discard states surface in the UI.
-const FILTERS: { key: string; label: string; statuses: SongSeedStatus[] }[] = [
-  { key: 'to_work', label: 'to work', statuses: ['queued'] },
-  { key: 'accepted', label: 'accepted', statuses: ['accepted'] },
-]
 
 export function SongSeedQueue() {
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
   const [storeId, setStoreId] = useStoreSelection()
   const [icpId, setIcpId] = useState<string | null>(null)
-  const [filter, setFilter] = useState<string>('to_work')
   const [songSeeds, setSongSeeds] = useState<SongSeedRow[] | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -48,23 +41,14 @@ export function SongSeedQueue() {
   const reload = async () => {
     if (!icpId) { setSongSeeds(null); return }
     const token = getToken(); if (!token) return
-    const f = FILTERS.find((x) => x.key === filter)
-    if (!f) { setSongSeeds(null); return }
     try {
-      // The server only accepts a single status; for chips that combine
-      // multiple statuses (e.g. abandoned ∪ failed), fan out and merge.
-      const batches = await Promise.all(
-        f.statuses.map((s) => api.songSeeds(token, { icpId, status: s, limit: 100 })),
-      )
-      const merged = batches.flat().sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      )
-      setSongSeeds(merged)
+      const rows = await api.songSeeds(token, { icpId, status: 'queued', limit: 100 })
+      setSongSeeds(rows)
       setErr(null)
     } catch (e: any) { setErr(e.message) }
   }
 
-  useEffect(() => { reload() }, [icpId, filter])
+  useEffect(() => { reload() }, [icpId])
 
   const launch = async () => {
     const token = getToken(); if (!token || !icpId || !runOutcome) return
@@ -140,23 +124,7 @@ export function SongSeedQueue() {
 
       {icpId && (
         <>
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            {FILTERS.map((f) => {
-              const on = filter === f.key
-              return (
-                <button
-                  key={f.key}
-                  onClick={() => setFilter(f.key)}
-                  style={{
-                    background: on ? T.surfaceRaised : 'transparent',
-                    border: `1px solid ${on ? T.accent : T.border}`,
-                    color: on ? T.accent : T.textMuted,
-                    padding: '6px 12px', borderRadius: 4,
-                    fontFamily: T.mono, fontSize: 14, cursor: 'pointer',
-                  }}
-                >{f.label}</button>
-              )
-            })}
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button onClick={reload} style={ghostBtn}>refresh</button>
           </div>
 
@@ -164,7 +132,7 @@ export function SongSeedQueue() {
 
           {songSeeds && songSeeds.length === 0 && (
             <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 14, padding: '12px 0' }}>
-              No Song Prompts match
+              No Song Prompts
             </div>
           )}
 
@@ -180,20 +148,15 @@ export function SongSeedQueue() {
 }
 
 function SeedListRow({ sub, onOpen }: { sub: SongSeedRow; onOpen: () => void }) {
-  const statusColor = statusColorOf(sub.status)
   return (
     <div
       onClick={onOpen}
       style={{
         background: T.surface, border: `1px solid ${T.border}`,
         borderRadius: 4, padding: '12px 14px', cursor: 'pointer',
-        display: 'grid', gridTemplateColumns: '90px 1fr 1fr 110px', gap: 14, alignItems: 'center',
+        display: 'grid', gridTemplateColumns: '1fr 1fr 110px', gap: 14, alignItems: 'center',
       }}
     >
-      <span style={{
-        fontSize: 13, fontFamily: T.mono, color: statusColor,
-        border: `1px solid ${statusColor}`, borderRadius: 3, padding: '2px 8px', textAlign: 'center',
-      }}>{sub.status}{sub.claimedById ? ' · claimed' : ''}</span>
       <span style={{ fontSize: 14, fontFamily: T.sans, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {sub.title ?? sub.hook.text}
       </span>
@@ -205,17 +168,6 @@ function SeedListRow({ sub, onOpen }: { sub: SongSeedRow; onOpen: () => void }) 
       </span>
     </div>
   )
-}
-
-function statusColorOf(s: SongSeedStatus): string {
-  switch (s) {
-    case 'queued': return T.warn
-    case 'accepted': return T.success
-    case 'abandoned': return T.textDim
-    case 'skipped': return T.textDim
-    case 'failed': return T.danger
-    case 'assembling': return T.accentMuted
-  }
 }
 
 function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: any }) {

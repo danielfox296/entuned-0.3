@@ -19,7 +19,6 @@ import { HookQueue } from './panels/brand/HookQueue.js'
 import { ClientDetail } from './panels/brand/ClientDetail.js'
 import { StoreEditor } from './panels/brand/StoreEditor.js'
 import { OperatorManager } from './panels/brand/OperatorManager.js'
-import { ClosedSongSeeds } from './panels/seeding/ClosedSongSeeds.js'
 // SongSeed is reached as a drilldown from SongSeedQueue, not as a primary tab.
 import { LiveStoreView } from './panels/playback/LiveStoreView.js'
 import { OutcomeSchedule } from './panels/schedule/OutcomeSchedule.js'
@@ -44,7 +43,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Launch Checklist', 'Hook Writing', 'Reference Tracks', 'Hook → Prompt'],
     description: '' },
   { key: 'seeding', label: 'Song Creation', short: 'Creation', icon: Disc3,
-    cards: ['Song Creation Queue', 'Song Prompt Archive'],
+    cards: ['Song Creation Queue'],
     description: '' },
   { key: 'playback', label: 'Playback & Overrides', short: 'Playback', icon: Play,
     cards: ['Live Location View'],
@@ -440,7 +439,6 @@ function SeedingRouter({ cards }: { cards: string[] }) {
         })}
       </div>
       {active === 'Song Creation Queue' && <SongSeedQueue />}
-      {active === 'Song Prompt Archive' && <ClosedSongSeeds />}
     </div>
   )
 }
