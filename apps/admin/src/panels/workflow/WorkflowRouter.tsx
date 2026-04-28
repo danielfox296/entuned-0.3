@@ -21,10 +21,10 @@ export type WorkflowContext = {
 }
 
 const TABS = [
-  { key: 'launch', label: 'Pre-Launch Checklist' },
-  { key: 'hooks', label: 'Hook Refresh' },
-  { key: 'tracks', label: 'Reference Track Refresh' },
-  { key: 'burst', label: 'Hook → Prompt' },
+  { key: 'Pre-Launch Checklist', label: 'Pre-Launch Checklist' },
+  { key: 'Hook Refresh', label: 'Hook Refresh' },
+  { key: 'Reference Track Refresh', label: 'Reference Track Refresh' },
+  { key: 'Hook → Prompt', label: 'Hook → Prompt' },
 ] as const
 
 type TabKey = typeof TABS[number]['key']
@@ -34,7 +34,7 @@ export function WorkflowRouter() {
   const [storeId, setStoreId] = useStoreSelection()
   const [icpId, setIcpId] = useIcpSelection()
   const [detail, setDetail] = useState<StoreDetail | null>(null)
-  const [active, setActive] = useNavSub<TabKey>('launch')
+  const [active, setActive] = useNavSub<TabKey>('Pre-Launch Checklist')
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
@@ -126,10 +126,10 @@ export function WorkflowRouter() {
         })}
       </div>
 
-      {active === 'launch' && <PreLaunchChecklist ctx={ctx} />}
-      {active === 'hooks' && <HookRefresh ctx={ctx} />}
-      {active === 'tracks' && <ReferenceTrackRefresh ctx={ctx} />}
-      {active === 'burst' && <SongSeedBurst ctx={ctx} />}
+      {active === 'Pre-Launch Checklist' && <PreLaunchChecklist ctx={ctx} />}
+      {active === 'Hook Refresh' && <HookRefresh ctx={ctx} />}
+      {active === 'Reference Track Refresh' && <ReferenceTrackRefresh ctx={ctx} />}
+      {active === 'Hook → Prompt' && <SongSeedBurst ctx={ctx} />}
       </div>
     </div>
   )

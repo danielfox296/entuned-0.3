@@ -72,7 +72,7 @@ export function OperatorManager() {
       {operators && (
         <div style={{ border: `1px solid ${T.border}`, borderRadius: S.r4, overflow: 'hidden' }}>
           <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto',
+            display: 'grid', gridTemplateColumns: '1.2fr 2fr 90px auto', gap: 16,
             background: T.surfaceRaised, padding: '6px 12px',
             fontSize: S.label, fontFamily: T.sans, color: T.textDim,
             textTransform: 'uppercase', letterSpacing: 0.5,
@@ -81,20 +81,20 @@ export function OperatorManager() {
           </div>
           {operators.map((op) => (
             <div key={op.id} style={{
-              display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto',
+              display: 'grid', gridTemplateColumns: '1.2fr 2fr 90px auto', gap: 16,
               padding: '10px 12px', borderTop: `1px solid ${T.border}`, alignItems: 'center',
             }}>
-              <div>
-                <div style={{ fontSize: S.small, fontFamily: T.sans, color: T.text }}>{op.email}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: S.small, fontFamily: T.sans, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.email}</div>
                 {op.displayName && <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.textMuted }}>{op.displayName}</div>}
                 {op.isAdmin && <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.accent }}>admin</div>}
               </div>
-              <div style={{ fontSize: S.small, fontFamily: T.sans, color: T.textMuted }}>
+              <div style={{ fontSize: S.small, fontFamily: T.sans, color: T.textMuted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={op.stores.map((s) => (s.clientName ? `${s.clientName} — ${s.name}` : s.name)).join(', ')}>
                 {op.stores.length === 0
                   ? '—'
                   : op.stores.map((s) => (s.clientName ? `${s.clientName} — ${s.name}` : s.name)).join(', ')}
               </div>
-              <div style={{ fontSize: S.label, fontFamily: T.sans, color: op.disabledAt ? T.danger : T.success }}>
+              <div style={{ fontSize: S.label, fontFamily: T.sans, color: op.disabledAt ? T.danger : T.success, whiteSpace: 'nowrap' }}>
                 {op.disabledAt ? 'disabled' : 'active'}
               </div>
               <Button variant="ghost" onClick={() => { setCreating(false); setSelected(op) }}>edit</Button>

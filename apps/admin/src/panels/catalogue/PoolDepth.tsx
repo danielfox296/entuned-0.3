@@ -21,12 +21,12 @@ export function PoolDepth() {
 
   const flat = useMemo(() => {
     if (!data) return []
-    const rows: { icpId: string; icpName: string; storeNames: string; outcomeId: string; outcomeTitle: string; outcomeDisplayTitle: string | null; outcomeVersion: number; count: number; status: PoolStatus }[] = []
+    const rows: { icpId: string; icpName: string; clientName: string | null; storeNames: string; outcomeId: string; outcomeTitle: string; outcomeDisplayTitle: string | null; outcomeVersion: number; count: number; status: PoolStatus }[] = []
     for (const icp of data.icps) {
       const storeNames = icp.stores.map((s) => s.name).join(', ') || '—'
       for (const cell of icp.outcomes) {
         rows.push({
-          icpId: icp.id, icpName: icp.name, storeNames,
+          icpId: icp.id, icpName: icp.name, clientName: icp.clientName, storeNames,
           outcomeId: cell.outcome.id, outcomeTitle: cell.outcome.title, outcomeDisplayTitle: cell.outcome.displayTitle, outcomeVersion: cell.outcome.version,
           count: cell.count, status: cell.status,
         })
@@ -144,7 +144,7 @@ function HeaderRow() {
 }
 
 function DataRow({ row }: {
-  row: { icpName: string; storeNames: string; outcomeTitle: string; outcomeDisplayTitle: string | null; outcomeVersion: number; count: number; status: PoolStatus }
+  row: { icpName: string; clientName: string | null; storeNames: string; outcomeTitle: string; outcomeDisplayTitle: string | null; outcomeVersion: number; count: number; status: PoolStatus }
 }) {
   const color = row.status === 'critical' ? T.danger : row.status === 'thin' ? T.warn : T.success
   return (
@@ -153,7 +153,10 @@ function DataRow({ row }: {
       padding: '10px 12px', borderBottom: `1px solid ${T.borderSubtle}`,
       fontFamily: T.mono, fontSize: 14, alignItems: 'center',
     }}>
-      <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500 }}>{row.icpName}</span>
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+        <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500, ...cellTrunc }}>{row.icpName}</span>
+        {row.clientName && <span style={{ color: T.textDim, fontSize: 12, ...cellTrunc }}>{row.clientName}</span>}
+      </span>
       <span style={cellTrunc}>{row.storeNames}</span>
       <span style={cellTrunc}>{row.outcomeDisplayTitle ?? row.outcomeTitle}</span>
       <span style={{ color, textAlign: 'right', fontWeight: 600 }}>{row.count}</span>

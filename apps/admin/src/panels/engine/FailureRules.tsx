@@ -148,7 +148,7 @@ function normalize(d: Draft): Draft {
   }
 }
 
-const COLS = '120px 1fr 1.4fr 120px 1fr 1fr 110px'
+const COLS = '180px 1fr 1.4fr 140px 1fr 1fr 110px'
 
 function HeaderRow() {
   return (
@@ -179,12 +179,12 @@ function DisplayRow({ row, onEdit, onDelete, busy }: {
       padding: '10px 12px', borderBottom: `1px solid ${T.borderSubtle}`,
       fontFamily: T.sans, fontSize: S.small, color: T.text, alignItems: 'center',
     }}>
-      <span style={{ color: row.triggerField === '*' ? T.accentMuted : T.text }}>{row.triggerField}</span>
-      <span style={{ color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.triggerValue}</span>
-      <span style={{ color: T.danger, overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.exclude}</span>
-      <span style={{ color: T.textMuted }}>{row.overrideField ?? '—'}</span>
-      <span style={{ color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.overridePattern ?? '—'}</span>
-      <span style={{ color: T.textDim, overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.note ?? ''}</span>
+      <span title={row.triggerField} style={{ color: row.triggerField === '*' ? T.accentMuted : T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.triggerField}</span>
+      <span title={row.triggerValue ?? ''} style={{ color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.triggerValue}</span>
+      <span title={row.exclude} style={{ color: T.danger, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.exclude}</span>
+      <span style={{ color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.overrideField ?? '—'}</span>
+      <span title={row.overridePattern ?? ''} style={{ color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.overridePattern ?? '—'}</span>
+      <span title={row.note ?? ''} style={{ color: T.textDim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.note ?? ''}</span>
       <span style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
         <Button variant="tiny" onClick={onEdit} disabled={busy}>edit</Button>
         <Button variant="tinyDanger" onClick={onDelete} disabled={busy}>×</Button>

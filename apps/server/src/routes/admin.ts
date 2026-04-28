@@ -896,6 +896,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         select: {
           id: true, name: true,
           store: { select: { id: true, name: true } },
+          client: { select: { id: true, companyName: true } },
         },
         orderBy: { name: 'asc' },
       }),
@@ -919,6 +920,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       icps: icps.map((icp) => ({
         id: icp.id,
         name: icp.name,
+        clientId: icp.client?.id ?? null,
+        clientName: icp.client?.companyName ?? null,
         stores: icp.store ? [icp.store] : [],
         outcomes: activeOutcomes.map((o) => {
           const count = countMap.get(`${icp.id}::${o.id}`) ?? 0
@@ -964,26 +967,35 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       prisma.lineageRow.count({ where }),
     ])
 
-    // Resolve ICP names in one shot.
+    // Resolve ICP names + client/store context in one shot.
     const icpIds = [...new Set(rows.map((r) => r.icpId))]
     const icps = icpIds.length === 0 ? [] : await prisma.iCP.findMany({
       where: { id: { in: icpIds } },
-      select: { id: true, name: true },
+      select: {
+        id: true, name: true,
+        client: { select: { id: true, companyName: true } },
+        store: { select: { id: true, name: true } },
+      },
     })
-    const icpById = new Map(icps.map((i) => [i.id, i.name]))
+    const icpById = new Map(icps.map((i) => [i.id, i]))
 
     return {
       total, limit, offset,
-      rows: rows.map((r) => ({
-        id: r.id,
-        active: r.active,
-        createdAt: r.createdAt.toISOString(),
-        icpId: r.icpId,
-        icpName: icpById.get(r.icpId) ?? null,
-        outcome: r.outcome,
-        hook: r.hook,
-        song: r.song,
-      })),
+      rows: rows.map((r) => {
+        const i = icpById.get(r.icpId)
+        return {
+          id: r.id,
+          active: r.active,
+          createdAt: r.createdAt.toISOString(),
+          icpId: r.icpId,
+          icpName: i?.name ?? null,
+          clientName: i?.client?.companyName ?? null,
+          storeName: i?.store?.name ?? null,
+          outcome: r.outcome,
+          hook: r.hook,
+          song: r.song,
+        }
+      }),
     }
   })
 

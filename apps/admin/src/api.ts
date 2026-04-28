@@ -137,6 +137,8 @@ export interface PoolDepthCell {
 export interface PoolDepthIcp {
   id: string
   name: string
+  clientId: string | null
+  clientName: string | null
   stores: { id: string; name: string }[]
   outcomes: PoolDepthCell[]
 }
@@ -469,6 +471,8 @@ export interface LineageRowFull {
   createdAt: string
   icpId: string
   icpName: string | null
+  clientName: string | null
+  storeName: string | null
   outcome: { id: string; title: string; displayTitle: string | null; version: number }
   hook: { id: string; text: string }
   song: { id: string; r2Url: string; byteSize: number | string | null }

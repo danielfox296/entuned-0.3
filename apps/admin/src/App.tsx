@@ -10,7 +10,6 @@ import { T } from './tokens.js'
 import { ToastProvider } from './ui/index.js'
 import { DecomposerRules } from './panels/engine/DecomposerRules.js'
 import { FailureRules } from './panels/engine/FailureRules.js'
-import { StyleTemplate } from './panels/engine/StyleTemplate.js'
 import { LyricPrompts } from './panels/engine/LyricPrompts.js'
 import { OutcomeFactorPrompt } from './panels/engine/OutcomeFactorPrompt.js'
 import { ReferenceTrackPrompt } from './panels/engine/ReferenceTrackPrompt.js'
@@ -21,6 +20,7 @@ import { ClientDetail } from './panels/brand/ClientDetail.js'
 import { StoreEditor } from './panels/brand/StoreEditor.js'
 import { OperatorManager } from './panels/brand/OperatorManager.js'
 import { ClosedSongSeeds } from './panels/seeding/ClosedSongSeeds.js'
+// SongSeed is reached as a drilldown from SongSeedQueue, not as a primary tab.
 import { LiveStoreView } from './panels/playback/LiveStoreView.js'
 import { OutcomeSchedule } from './panels/schedule/OutcomeSchedule.js'
 import { OutcomeLibrary } from './panels/schedule/OutcomeLibrary.js'
@@ -30,7 +30,6 @@ import { SongBrowser } from './panels/catalogue/SongBrowser.js'
 import { FlaggedReview } from './panels/catalogue/FlaggedReview.js'
 import { RetiredSongs } from './panels/catalogue/RetiredSongs.js'
 import { SongSeedQueue } from './panels/seeding/SongSeedQueue.js'
-import { SongSeed } from './panels/seeding/SongSeed.js'
 import { WorkflowRouter } from './panels/workflow/WorkflowRouter.js'
 import { useNavGroup, useNavSub } from './nav.js'
 
@@ -45,10 +44,10 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Pre-Launch Checklist', 'Hook Refresh', 'Reference Track Refresh', 'Hook → Prompt'],
     description: 'Multi-step actions for the selected client, store, and ICP' },
   { key: 'seeding', label: 'Song Creation', short: 'Creation', icon: Disc3,
-    cards: ['Song Seed Queue', 'Song Seed', 'Closed Song Seeds'],
+    cards: ['Song Seed Queue', 'Closed Song Seeds'],
     description: 'Claim song seeds, paste to Suno, accept or close takes' },
   { key: 'playback', label: 'Playback & Overrides', short: 'Playback', icon: Play,
-    cards: ['Live Store View', 'Mode Override', 'Interrupt Controls'],
+    cards: ['Live Store View'],
     description: "What's playing now, override outcomes, skip/pause" },
   { key: 'brand', label: 'Client & Brand', short: 'Brand', icon: Sparkles,
     cards: ['Client Detail', 'ICP Editor', 'Hook Queue', 'Store Editor', 'Operator Manager'],
@@ -57,7 +56,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Outcome Schedule', 'Outcome Library', 'Dry Run'],
     description: 'Weekly outcome grids, schedule preview' },
   { key: 'engine', label: 'Engine', short: 'Engine', icon: Settings,
-    cards: ['Hook Drafter', 'Track Analyzer Rules', 'Style Exclusion Rules', 'Style Template', 'Lyric Prompts', 'Outcome Factor Prompt', 'Reference Track Suggester'],
+    cards: ['Hook Drafter', 'Track Analyzer Rules', 'Style Exclusion Rules', 'Lyric Prompts', 'Outcome Factor Prompt', 'Reference Track Suggester'],
     description: 'System-level prompts that drive decomposer, Mars, and Bernie' },
   { key: 'catalogue', label: 'Song Catalogue', short: 'Catalogue', icon: Music2,
     cards: ['Song Browser', 'Flagged Review', 'Retired Songs', 'Pool Depth'],
@@ -245,7 +244,6 @@ function EngineRouter({ cards }: { cards: string[] }) {
       {active === 'Hook Drafter' && <HookDrafterPrompt />}
       {active === 'Track Analyzer Rules' && <DecomposerRules />}
       {active === 'Style Exclusion Rules' && <FailureRules />}
-      {active === 'Style Template' && <StyleTemplate />}
       {active === 'Lyric Prompts' && <LyricPrompts />}
       {active === 'Outcome Factor Prompt' && <OutcomeFactorPrompt />}
       {active === 'Reference Track Suggester' && <ReferenceTrackPrompt />}
@@ -295,21 +293,19 @@ function PlaybackRouter({ cards }: { cards: string[] }) {
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
         {cards.map((c) => {
           const on = active === c
-          const ready = c === 'Live Store View'
           return (
             <button
               key={c}
-              onClick={() => ready && setActive(c)}
-              disabled={!ready}
+              onClick={() => setActive(c)}
               style={{
                 background: 'transparent', border: 'none',
                 borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
-                color: on ? T.text : (ready ? T.textMuted : T.textDim),
-                padding: '8px 14px', cursor: ready ? 'pointer' : 'default',
+                color: on ? T.text : T.textMuted,
+                padding: '8px 14px', cursor: 'pointer',
                 fontFamily: T.sans, fontSize: 14, fontWeight: on ? 500 : 400,
                 marginBottom: -1,
               }}
-            >{c}{ready ? '' : ' (soon)'}</button>
+            >{c}</button>
           )
         })}
       </div>
@@ -326,21 +322,19 @@ function ScheduleRouter({ cards }: { cards: string[] }) {
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
         {cards.map((c) => {
           const on = active === c
-          const ready = c === 'Outcome Schedule' || c === 'Outcome Library' || c === 'Dry Run'
           return (
             <button
               key={c}
-              onClick={() => ready && setActive(c)}
-              disabled={!ready}
+              onClick={() => setActive(c)}
               style={{
                 background: 'transparent', border: 'none',
                 borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
-                color: on ? T.text : (ready ? T.textMuted : T.textDim),
-                padding: '8px 14px', cursor: ready ? 'pointer' : 'default',
+                color: on ? T.text : T.textMuted,
+                padding: '8px 14px', cursor: 'pointer',
                 fontFamily: T.sans, fontSize: 14, fontWeight: on ? 500 : 400,
                 marginBottom: -1,
               }}
-            >{c}{ready ? '' : ' (soon)'}</button>
+            >{c}</button>
           )
         })}
       </div>
@@ -386,8 +380,6 @@ function CatalogueRouter({ cards }: { cards: string[] }) {
 // ── Seeding router ─────────────────────────────────────────────
 function SeedingRouter({ cards }: { cards: string[] }) {
   const [active, setActive] = useNavSub<string>('Song Seed Queue')
-  const [detailId, setDetailId] = useState<string>('')
-  const [openId, setOpenId] = useState<string | null>(null)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
@@ -396,7 +388,7 @@ function SeedingRouter({ cards }: { cards: string[] }) {
           return (
             <button
               key={c}
-              onClick={() => { setActive(c); if (c !== 'Song Seed') setOpenId(null) }}
+              onClick={() => setActive(c)}
               style={{
                 background: 'transparent', border: 'none',
                 borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
@@ -411,38 +403,6 @@ function SeedingRouter({ cards }: { cards: string[] }) {
       </div>
       {active === 'Song Seed Queue' && <SongSeedQueue />}
       {active === 'Closed Song Seeds' && <ClosedSongSeeds />}
-      {active === 'Song Seed' && (
-        openId ? (
-          <SongSeed songSeedId={openId} onClose={() => setOpenId(null)} />
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 520 }}>
-            <div style={{ fontFamily: T.sans, fontSize: 14, color: T.textMuted }}>
-              Per-song-seed drill-in. Normally reached by clicking a row in Song Seed Queue. Paste a song seed ID to open it directly.
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                value={detailId}
-                onChange={(e) => setDetailId(e.target.value)}
-                placeholder="song seed id"
-                style={{
-                  flex: 1, background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
-                  color: T.text, padding: '8px 10px', fontFamily: T.mono, fontSize: 14,
-                }}
-              />
-              <button
-                onClick={() => { if (detailId.trim()) setOpenId(detailId.trim()) }}
-                disabled={!detailId.trim()}
-                style={{
-                  background: T.accent, border: 'none', color: T.bg,
-                  padding: '8px 14px', fontFamily: T.sans, fontSize: 14, fontWeight: 500,
-                  cursor: detailId.trim() ? 'pointer' : 'default',
-                  opacity: detailId.trim() ? 1 : 0.4,
-                }}
-              >Open</button>
-            </div>
-          </div>
-        )
-      )}
     </div>
   )
 }

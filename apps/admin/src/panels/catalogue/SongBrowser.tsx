@@ -7,7 +7,7 @@ import { Button, PanelHeader, S } from '../../ui/index.js'
 type ActiveFilter = 'all' | 'true' | 'false'
 const PAGE_SIZE = 50
 
-interface IcpOption { id: string; name: string }
+interface IcpOption { id: string; name: string; clientName: string | null; storeName: string | null }
 
 // Show one row per outcomeKey (latest-version wins) and skip superseded entries.
 // Otherwise the dropdown lists "Linger" / "Linger" / "Linger" once per historical version.
@@ -52,7 +52,11 @@ export function SongBrowser({ defaultActive = 'true' as ActiveFilter, headerLabe
     const token = getToken(); if (!token) return
     api.outcomeLibrary(token).then(setOutcomes).catch((e) => setErr(e.message))
     // We don't have a direct ICP list endpoint exposed, but pool-depth carries them.
-    api.poolDepth(token).then((r) => setIcps(r.icps.map((i) => ({ id: i.id, name: i.name })))).catch(() => {})
+    api.poolDepth(token).then((r) => setIcps(r.icps.map((i) => ({
+      id: i.id, name: i.name,
+      clientName: i.clientName,
+      storeName: i.stores[0]?.name ?? null,
+    })))).catch(() => {})
   }, [])
 
   useEffect(() => { void reload(0) }, [icpId, outcomeId, active])
@@ -111,7 +115,10 @@ function Filters({ icps, outcomes, icpId, outcomeId, active, onIcp, onOutcome, o
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-      <FilterSelect label="icp" value={icpId} onChange={onIcp} options={[{ value: '', label: 'all ICPs' }, ...(icps ?? []).map((i) => ({ value: i.id, label: i.name }))]} />
+      <FilterSelect label="icp" value={icpId} onChange={onIcp} options={[{ value: '', label: 'all ICPs' }, ...(icps ?? []).map((i) => ({
+        value: i.id,
+        label: i.clientName ? `${i.name} — ${i.clientName}${i.storeName ? ` · ${i.storeName}` : ''}` : i.name,
+      }))]} />
       <FilterSelect label="outcome" value={outcomeId} onChange={onOutcome} options={[{ value: '', label: 'all outcomes' }, ...dedupeActiveOutcomes(outcomes ?? []).map((o) => ({ value: o.id, label: o.displayTitle ?? o.title }))]} />
       <div style={{ display: 'flex', gap: 4 }}>
         {(['true', 'false', 'all'] as const).map((k) => {
@@ -204,7 +211,14 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
       fontFamily: T.mono, fontSize: 14, alignItems: 'center',
       opacity: row.active ? 1 : 0.55,
     }}>
-      <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500, ...trunc }}>{row.icpName ?? row.icpId.slice(0, 8)}</span>
+      <span style={{ ...trunc, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500, ...trunc }}>{row.icpName ?? row.icpId.slice(0, 8)}</span>
+        {(row.clientName || row.storeName) && (
+          <span style={{ color: T.textDim, fontFamily: T.mono, fontSize: 12, ...trunc }}>
+            {[row.clientName, row.storeName].filter(Boolean).join(' · ')}
+          </span>
+        )}
+      </span>
       <span style={{ color: T.textMuted, ...trunc }}>{row.outcome.displayTitle ?? row.outcome.title}</span>
       <span style={{ color: T.textMuted, fontFamily: T.sans, ...trunc }} title={row.hook.text}>{row.hook.text}</span>
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, ...trunc }}>
