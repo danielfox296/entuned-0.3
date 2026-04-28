@@ -222,8 +222,6 @@ function statusColorOf(s: string): string {
   switch (s) {
     case 'queued': return T.warn
     case 'accepted': return T.success
-    case 'abandoned': return T.textDim
-    case 'skipped': return T.textDim
     case 'failed': return T.danger
     case 'assembling': return T.accentMuted
     default: return T.text

@@ -361,7 +361,7 @@ export interface IcpCreateBody {
 
 // --- Song Creation ---
 
-export type SongSeedStatus = 'assembling' | 'queued' | 'accepted' | 'abandoned' | 'skipped' | 'failed'
+export type SongSeedStatus = 'assembling' | 'queued' | 'accepted' | 'failed'
 
 export interface SongSeedRow {
   id: string
@@ -377,8 +377,6 @@ export interface SongSeedRow {
   lyrics: string | null
   title: string | null
   errorText: string | null
-  claimedById: string | null
-  claimedAt: string | null
   createdAt: string
   updatedAt: string
   terminalAt: string | null
@@ -810,11 +808,10 @@ export const api = {
 
   // --- Song Creation ---
 
-  songSeeds: (token: string, params: { icpId?: string; status?: string; claimedBy?: string; limit?: number } = {}) => {
+  songSeeds: (token: string, params: { icpId?: string; status?: string; limit?: number } = {}) => {
     const qs = new URLSearchParams()
     if (params.icpId) qs.set('icpId', params.icpId)
     if (params.status) qs.set('status', params.status)
-    if (params.claimedBy) qs.set('claimedBy', params.claimedBy)
     if (params.limit) qs.set('limit', String(params.limit))
     const q = qs.toString() ? `?${qs.toString()}` : ''
     return req<SongSeedRow[]>(`/admin/song-seeds${q}`, {}, token)

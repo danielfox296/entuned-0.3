@@ -406,7 +406,7 @@ model SongSeed {
   hookId                     String    @map("hook_id") @db.Uuid
   outcomeId                  String    @map("outcome_id") @db.Uuid
   referenceTrackId           String?   @map("reference_track_id") @db.Uuid
-  status                     String    @default("assembling") // assembling|queued|accepted|abandoned|skipped|failed
+  status                     String    @default("assembling") // assembling|queued|accepted|failed
 
   // Final Song Prompt payload
   style                      String?
@@ -423,10 +423,6 @@ model SongSeed {
   lyricEditPromptVersion     Int?      @map("lyric_edit_prompt_version")
   firedExclusionRuleIds      String[]  @map("fired_exclusion_rule_ids") @db.Uuid
   errorText                  String?   @map("error_text")
-
-  // Operator claim
-  claimedById String?   @map("claimed_by") @db.Uuid
-  claimedAt   DateTime? @map("claimed_at") @db.Timestamptz(6)
 
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)

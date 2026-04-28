@@ -1798,7 +1798,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   const SongSeedsListQuery = z.object({
     icpId: z.string().uuid().optional(),
     status: z.string().optional(),
-    claimedBy: z.string().optional(), // 'me' | 'unclaimed' | uuid
     limit: z.coerce.number().int().min(1).max(200).optional(),
   })
 
@@ -1809,9 +1808,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const where: any = {}
     if (parsed.data.icpId) where.icpId = parsed.data.icpId
     if (parsed.data.status) where.status = parsed.data.status
-    if (parsed.data.claimedBy === 'unclaimed') where.claimedById = null
-    else if (parsed.data.claimedBy === 'me') where.claimedById = op.operatorId
-    else if (parsed.data.claimedBy) where.claimedById = parsed.data.claimedBy
     const rows = await prisma.songSeed.findMany({
       where,
       orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],

@@ -360,8 +360,6 @@ function StatusPill({ status }: { status: SongSeedRow['status'] }) {
     assembling: { bg: 'rgba(136,192,201,0.18)', fg: T.accent },
     queued: { bg: T.surfaceRaised, fg: T.text },
     accepted: { bg: 'rgba(80,180,120,0.18)', fg: '#7fdba0' },
-    abandoned: { bg: 'rgba(160,160,160,0.18)', fg: T.textDim },
-    skipped: { bg: 'rgba(160,160,160,0.18)', fg: T.textDim },
     failed: { bg: 'rgba(220,80,80,0.18)', fg: T.danger },
   }
   const p = palette[status]
