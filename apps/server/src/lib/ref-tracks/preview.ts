@@ -2,11 +2,13 @@
  * Resolves a 30s preview URL + album art for a (artist, title) pair.
  *
  * Strategy:
- *   1. Deezer Search API. No auth, broad catalog, returns a 30s mp3 in
- *      the `preview` field plus `album.cover_xl` (1000x1000). Most
- *      reliable post-Spotify's preview_url deprecation.
- *   2. iTunes Search API. Unauthenticated; `previewUrl` (30s) and
- *      `artworkUrl100` which we upscale to 600x600.
+ *   1. iTunes Search API. Unauthenticated; `previewUrl` (30s) and
+ *      `artworkUrl100` which we upscale to 600x600. URLs are stable —
+ *      they don't expire, so the cached previewUrl stays playable
+ *      indefinitely.
+ *   2. Deezer Search API fallback. Broader catalog but URLs are signed
+ *      with an `hdnea=exp=<unix>` token (~24h TTL), so cached Deezer
+ *      previewUrls go stale and need re-resolving.
  *
  * Both URLs are MP3/AAC playable in a plain <audio> element.
  *
@@ -61,12 +63,12 @@ async function tryItunes(artist: string, title: string): Promise<{ preview: stri
 
 export async function resolvePreview(artist: string, title: string): Promise<Resolved> {
   try {
-    const dz = await tryDeezer(artist, title)
-    if (dz) return { previewUrl: dz.preview, coverUrl: dz.cover, source: 'deezer' }
-  } catch {}
-  try {
     const it = await tryItunes(artist, title)
     if (it) return { previewUrl: it.preview, coverUrl: it.cover, source: 'itunes' }
+  } catch {}
+  try {
+    const dz = await tryDeezer(artist, title)
+    if (dz) return { previewUrl: dz.preview, coverUrl: dz.cover, source: 'deezer' }
   } catch {}
   return { previewUrl: null, coverUrl: null, source: 'none' }
 }
