@@ -6,13 +6,11 @@ import { T } from '../../tokens.js'
 import { PanelHeader, StorePicker as UIStorePicker, S, useStoreSelection } from '../../ui/index.js'
 import { SongSeed } from './SongSeed.js'
 
-// Single-operator filter set. The row badge still shows the exact underlying
-// status; chips fold every "didn't make it into the pool" status under one
-// catch-all "Rejected" so operators don't have to distinguish.
+// Single-operator filter set. Prompts are either queued (to work), accepted,
+// or deleted outright — no terminal-discard states surface in the UI.
 const FILTERS: { key: string; label: string; statuses: SongSeedStatus[] }[] = [
   { key: 'to_work', label: 'to work', statuses: ['queued'] },
   { key: 'accepted', label: 'accepted', statuses: ['accepted'] },
-  { key: 'rejected', label: 'rejected', statuses: ['skipped', 'abandoned', 'failed'] },
 ]
 
 export function SongSeedQueue() {

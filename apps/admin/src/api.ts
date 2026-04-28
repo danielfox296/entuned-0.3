@@ -823,14 +823,8 @@ export const api = {
     req<SongSeedDetail>(`/admin/song-seeds/${id}`, {}, token),
   runSeedBuilder: (body: { icpId: string; outcomeId: string; n: number }, token: string) =>
     req<SeedBuilderResult>('/admin/eno/run', { method: 'POST', body: JSON.stringify(body) }, token),
-  claimSongSeed: (id: string, token: string) =>
-    req<SongSeedRow>(`/admin/song-seeds/${id}/claim`, { method: 'POST' }, token),
-  releaseSongSeed: (id: string, token: string) =>
-    req<SongSeedRow>(`/admin/song-seeds/${id}/release`, { method: 'POST' }, token),
-  skipSongSeed: (id: string, token: string) =>
-    req<SongSeedRow>(`/admin/song-seeds/${id}/skip`, { method: 'POST' }, token),
-  abandonSongSeed: (id: string, token: string) =>
-    req<SongSeedRow>(`/admin/song-seeds/${id}/abandon`, { method: 'POST' }, token),
+  deleteSongSeed: (id: string, token: string) =>
+    req<{ ok: true }>(`/admin/song-seeds/${id}`, { method: 'DELETE' }, token),
   acceptSongSeed: (id: string, body: { takes: { sourceUrl: string }[] }, token: string) =>
     req<{ songSeed: SongSeedRow; lineageRows: any[] }>(`/admin/song-seeds/${id}/accept`, { method: 'POST', body: JSON.stringify(body) }, token),
 

@@ -1867,55 +1867,14 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
-  app.post('/song-seeds/:id/claim', async (req, reply) => {
+  app.delete('/song-seeds/:id', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const existing = await prisma.songSeed.findUnique({ where: { id } })
     if (!existing) return reply.code(404).send({ error: 'not_found' })
-    if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued', message: `SongSeed is ${existing.status}` })
-    if (existing.claimedById && existing.claimedById !== op.operatorId) {
-      return reply.code(409).send({ error: 'already_claimed' })
-    }
-    const row = await prisma.songSeed.update({
-      where: { id }, data: { claimedById: op.operatorId, claimedAt: new Date() },
-    })
-    return row
-  })
-
-  app.post('/song-seeds/:id/release', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
-    const id = (req.params as any).id as string
-    const existing = await prisma.songSeed.findUnique({ where: { id } })
-    if (!existing) return reply.code(404).send({ error: 'not_found' })
-    if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued' })
-    const row = await prisma.songSeed.update({
-      where: { id }, data: { claimedById: null, claimedAt: null },
-    })
-    return row
-  })
-
-  app.post('/song-seeds/:id/skip', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
-    const id = (req.params as any).id as string
-    const existing = await prisma.songSeed.findUnique({ where: { id } })
-    if (!existing) return reply.code(404).send({ error: 'not_found' })
-    if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued' })
-    const row = await prisma.songSeed.update({
-      where: { id }, data: { status: 'skipped', terminalAt: new Date() },
-    })
-    return row
-  })
-
-  app.post('/song-seeds/:id/abandon', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
-    const id = (req.params as any).id as string
-    const existing = await prisma.songSeed.findUnique({ where: { id } })
-    if (!existing) return reply.code(404).send({ error: 'not_found' })
-    if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued' })
-    const row = await prisma.songSeed.update({
-      where: { id }, data: { status: 'abandoned', terminalAt: new Date() },
-    })
-    return row
+    if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued', message: `SongSeed is ${existing.status}; only queued prompts can be deleted` })
+    await prisma.songSeed.delete({ where: { id } })
+    return { ok: true }
   })
 
   // Accept: body { takes: [{ sourceUrl }] }

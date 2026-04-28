@@ -26,11 +26,14 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
     api.styleExclusionRules(token).then(setExclusionRules).catch(() => { /* non-fatal */ })
   }, [])
 
-  const action = async (label: string, fn: () => Promise<unknown>) => {
-    setBusy(label); setErr(null)
-    try { await fn(); await load() }
-    catch (e: any) { setErr(e.message) }
-    finally { setBusy(null) }
+  const del = async () => {
+    const token = getToken(); if (!token) return
+    if (!confirm('Delete this Song Prompt? This cannot be undone.')) return
+    setBusy('delete'); setErr(null)
+    try {
+      await api.deleteSongSeed(songSeedId, token)
+      onClose()
+    } catch (e: any) { setErr(e.message); setBusy(null) }
   }
 
   const accept = async () => {
@@ -89,38 +92,17 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
           fontSize: S.label, fontFamily: T.sans,
           color: statusColor,
           border: `1px solid ${statusColor}`, borderRadius: S.r3, padding: '2px 8px',
-        }}>{data.status}{data.claimedById ? ' · claimed' : ''}</span>
+        }}>{data.status}</span>
+        {isQueued && (
+          <div style={{ marginLeft: 'auto' }}>
+            <Button variant="danger" onClick={del} busy={busy === 'delete'}>
+              delete
+            </Button>
+          </div>
+        )}
       </div>
 
       {err && <div style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</div>}
-
-      {/* Single Reject action lives in a dropdown so it can't be hit by accident.
-          Accept happens via the Accept Takes section once Suno returns. */}
-      {isQueued && (
-        <Section title="Actions">
-          <select
-            value=""
-            disabled={busy !== null}
-            onChange={(e) => {
-              const v = e.target.value
-              e.target.value = ''
-              if (v === 'reject') {
-                if (!confirm('Reject this Song Prompt? It will not be played.')) return
-                // 'reject' maps to the existing skip endpoint server-side (lifecycle is the same: pre-acceptance discard).
-                action('reject', () => api.skipSongSeed(songSeedId, getToken()!))
-              }
-            }}
-            style={{
-              background: T.surface, border: `1px solid ${T.border}`, color: T.text,
-              padding: '7px 10px', fontFamily: T.sans, fontSize: S.small, borderRadius: S.r4,
-              minWidth: 180, outline: 'none',
-            }}
-          >
-            <option value="">Choose action…</option>
-            <option value="reject">Reject</option>
-          </select>
-        </Section>
-      )}
 
       <Section title="Song Prompt" subtitle="Copy these into Suno (style → Style; lyrics → Lyrics; vocal_gender → Persona/Gender; negative → Exclude Styles)">
         <CopyBlock label="Style" value={data.style ?? ''} onCopy={() => copyToClipboard(data.style ?? '')} />
