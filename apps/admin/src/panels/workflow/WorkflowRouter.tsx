@@ -5,13 +5,10 @@ import { T } from '../../tokens.js'
 import {
   PanelHeader, StorePicker, S, useStoreSelection, useIcpSelection,
 } from '../../ui/index.js'
-import { OnboardStore } from './OnboardStore.js'
 import { HookRefresh } from './HookRefresh.js'
 import { ReferenceTrackRefresh } from './ReferenceTrackRefresh.js'
-import { PoolHealth } from './PoolHealth.js'
 import { PreLaunchChecklist } from './PreLaunchChecklist.js'
-import { ScheduleRun } from './ScheduleRun.js'
-import { FeedbackTriage } from './FeedbackTriage.js'
+import { SongSeedBurst } from './SongSeedBurst.js'
 
 export type WorkflowContext = {
   storeId: string | null
@@ -22,13 +19,10 @@ export type WorkflowContext = {
 }
 
 const TABS = [
-  { key: 'onboard', label: 'Onboard Store' },
+  { key: 'launch', label: 'Pre-Launch Checklist' },
   { key: 'hooks', label: 'Hook Refresh' },
   { key: 'tracks', label: 'Reference Track Refresh' },
-  { key: 'pool', label: 'Pool Health' },
-  { key: 'launch', label: 'Pre-Launch Checklist' },
-  { key: 'schedule', label: 'Schedule Run' },
-  { key: 'triage', label: 'Feedback Triage' },
+  { key: 'burst', label: 'Song Seed Burst' },
 ] as const
 
 type TabKey = typeof TABS[number]['key']
@@ -132,13 +126,10 @@ export function WorkflowRouter() {
         })}
       </div>
 
-      {active === 'onboard' && <OnboardStore ctx={ctx} />}
+      {active === 'launch' && <PreLaunchChecklist ctx={ctx} />}
       {active === 'hooks' && <HookRefresh ctx={ctx} />}
       {active === 'tracks' && <ReferenceTrackRefresh ctx={ctx} />}
-      {active === 'pool' && <PoolHealth ctx={ctx} />}
-      {active === 'launch' && <PreLaunchChecklist ctx={ctx} />}
-      {active === 'schedule' && <ScheduleRun ctx={ctx} />}
-      {active === 'triage' && <FeedbackTriage ctx={ctx} />}
+      {active === 'burst' && <SongSeedBurst ctx={ctx} />}
     </div>
   )
 }

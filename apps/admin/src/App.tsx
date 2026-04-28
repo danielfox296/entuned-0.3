@@ -40,7 +40,7 @@ interface SurfaceGroup {
 
 const GROUPS: SurfaceGroup[] = [
   { key: 'workflows', label: 'Workflows', short: 'Workflows', icon: ListChecks,
-    cards: ['Onboard Store', 'Hook Refresh', 'Reference Track Refresh', 'Pool Health', 'Pre-Launch Checklist', 'Schedule Run', 'Feedback Triage'],
+    cards: ['Pre-Launch Checklist', 'Hook Refresh', 'Reference Track Refresh', 'Song Seed Burst'],
     description: 'Multi-step actions for the selected client, store, and ICP' },
   { key: 'seeding', label: 'Song Creation', short: 'Creation', icon: Disc3,
     cards: ['Song Seed Queue', 'Song Seed', 'Closed Song Seeds'],
