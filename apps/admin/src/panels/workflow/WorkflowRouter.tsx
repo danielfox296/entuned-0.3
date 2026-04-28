@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ListChecks } from 'lucide-react'
 import { api, getToken } from '../../api.js'
 import type { StoreSummary, StoreDetail } from '../../api.js'
 import { T } from '../../tokens.js'
@@ -63,36 +64,45 @@ export function WorkflowRouter() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      {/* Persistent context selector — single line. */}
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {/* Custom panel header: title on the left, persistent selectors on the right. */}
       <div style={{
-        display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 16,
-        padding: '10px 14px', background: T.surfaceRaised,
-        border: `1px solid ${T.borderSubtle}`, borderRadius: 4,
+        padding: '14px 28px', borderBottom: `1px solid ${T.borderSubtle}`,
+        display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0,
       }}>
-        <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
-
-        {detail && detail.icps.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{
-              fontSize: S.label, color: T.textDim, fontFamily: T.sans,
-              textTransform: 'uppercase', letterSpacing: '0.04em',
-            }}>icp</span>
-            <select
-              value={icpId ?? ''}
-              onChange={(e) => setIcpId(e.target.value || null)}
-              style={{
-                minWidth: 220, background: T.bg, color: T.text,
-                border: `1px solid ${T.border}`, padding: '6px 10px',
-                fontFamily: T.sans, fontSize: 14,
-              }}
-            >
-              {detail.icps.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-            </select>
-          </div>
-        )}
+        <span style={{ display: 'inline-flex', color: T.accent }}>
+          <ListChecks size={18} strokeWidth={1.75} />
+        </span>
+        <h1 style={{
+          fontSize: 21, fontFamily: T.heading, fontWeight: 700,
+          color: T.text, margin: 0, letterSpacing: '-0.02em',
+        }}>Workflows</h1>
+        <div style={{ flex: 1 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
+          {detail && detail.icps.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                fontSize: S.label, color: T.textDim, fontFamily: T.sans,
+                textTransform: 'uppercase', letterSpacing: '0.04em',
+              }}>icp</span>
+              <select
+                value={icpId ?? ''}
+                onChange={(e) => setIcpId(e.target.value || null)}
+                style={{
+                  minWidth: 200, background: T.bg, color: T.text,
+                  border: `1px solid ${T.border}`, padding: '6px 10px',
+                  fontFamily: T.sans, fontSize: 14,
+                }}
+              >
+                {detail.icps.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
       </div>
 
+      <div style={{ padding: 28, display: 'flex', flexDirection: 'column', gap: S.xl }}>
       {err && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</div>}
 
       {/* Workflow tabs */}
@@ -120,6 +130,7 @@ export function WorkflowRouter() {
       {active === 'hooks' && <HookRefresh ctx={ctx} />}
       {active === 'tracks' && <ReferenceTrackRefresh ctx={ctx} />}
       {active === 'burst' && <SongSeedBurst ctx={ctx} />}
+      </div>
     </div>
   )
 }

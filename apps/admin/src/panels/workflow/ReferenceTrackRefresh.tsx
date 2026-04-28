@@ -732,7 +732,7 @@ function StyleAnalysisModal({ track, onClose, onSaved, analyzing, onAnalyze }: {
                   <textarea
                     value={v(key, (analysis as any)[key]) ?? ''}
                     onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value || null }))}
-                    rows={3}
+                    rows={6}
                     style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
                   />
                 </Field>

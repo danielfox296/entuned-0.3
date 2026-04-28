@@ -143,29 +143,34 @@ function Sidebar({ active, onSelect, collapsed, onToggle, email, onLogout }: {
 
 // ── Panel shell ────────────────────────────────────────────────
 function PanelShell({ group }: { group: SurfaceGroup }) {
+  // Workflows owns its own header so it can render the persistent
+  // client/store/ICP selector inline with the title.
+  const ownsHeader = group.key === 'workflows'
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ padding: '20px 28px 16px', borderBottom: `1px solid ${T.borderSubtle}`, flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-          <span style={{ display: 'inline-flex', color: T.accent }}>
-            <group.icon size={18} strokeWidth={1.75} />
-          </span>
-          <h1 style={{
-            fontSize: 21, fontFamily: T.heading, fontWeight: 700,
-            color: T.text, margin: 0, letterSpacing: '-0.02em',
-          }}>{group.label}</h1>
-          {group.deferred && <span style={{
-            fontSize: 13, fontFamily: T.sans, color: T.textDim,
-            background: T.surfaceRaised, padding: '2px 8px', borderRadius: 3,
-            border: `1px solid ${T.borderSubtle}`,
-          }}>deferred</span>}
+      {!ownsHeader && (
+        <div style={{ padding: '20px 28px 16px', borderBottom: `1px solid ${T.borderSubtle}`, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+            <span style={{ display: 'inline-flex', color: T.accent }}>
+              <group.icon size={18} strokeWidth={1.75} />
+            </span>
+            <h1 style={{
+              fontSize: 21, fontFamily: T.heading, fontWeight: 700,
+              color: T.text, margin: 0, letterSpacing: '-0.02em',
+            }}>{group.label}</h1>
+            {group.deferred && <span style={{
+              fontSize: 13, fontFamily: T.sans, color: T.textDim,
+              background: T.surfaceRaised, padding: '2px 8px', borderRadius: 3,
+              border: `1px solid ${T.borderSubtle}`,
+            }}>deferred</span>}
+          </div>
+          <p style={{ fontSize: 14, color: T.textMuted, fontFamily: T.sans, margin: '6px 0 0' }}>
+            {group.description}
+          </p>
         </div>
-        <p style={{ fontSize: 14, color: T.textMuted, fontFamily: T.sans, margin: '6px 0 0' }}>
-          {group.description}
-        </p>
-      </div>
+      )}
 
-      <div style={{ flex: 1, overflow: 'auto', padding: 28 }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: ownsHeader ? 0 : 28 }}>
         {group.key === 'workflows' ? <WorkflowRouter /> :
          group.key === 'engine' ? <EngineRouter cards={group.cards} /> :
          group.key === 'brand' ? <BrandRouter cards={group.cards} /> :
