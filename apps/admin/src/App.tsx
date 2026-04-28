@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   Disc3, Play, Sparkles, CalendarDays, Settings, Music2,
-  FlaskConical, Lightbulb, Activity,
+  FlaskConical, Lightbulb, Activity, ListChecks,
 } from 'lucide-react'
 import { api, getToken, setToken, clearToken } from './api.js'
 import type { MeResponse } from './api.js'
@@ -30,6 +30,7 @@ import { FlaggedReview } from './panels/catalogue/FlaggedReview.js'
 import { RetiredSongs } from './panels/catalogue/RetiredSongs.js'
 import { SongSeedQueue } from './panels/seeding/SongSeedQueue.js'
 import { SongSeed } from './panels/seeding/SongSeed.js'
+import { WorkflowRouter } from './panels/workflow/WorkflowRouter.js'
 
 // ── Surface groups (from admin-ui.md, priority order) ──────────
 interface SurfaceGroup {
@@ -38,6 +39,9 @@ interface SurfaceGroup {
 }
 
 const GROUPS: SurfaceGroup[] = [
+  { key: 'workflows', label: 'Workflows', short: 'Workflows', icon: ListChecks,
+    cards: ['Onboard Store', 'Hook Refresh', 'Reference Track Refresh', 'Pool Health', 'Pre-Launch Checklist', 'Schedule Run', 'Feedback Triage'],
+    description: 'Multi-step actions for the selected client, store, and ICP' },
   { key: 'seeding', label: 'Song Creation', short: 'Creation', icon: Disc3,
     cards: ['Song Seed Queue', 'Song Seed', 'Closed Song Seeds'],
     description: 'Claim song seeds, paste to Suno, accept or close takes' },
@@ -161,7 +165,8 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: 28 }}>
-        {group.key === 'engine' ? <EngineRouter cards={group.cards} /> :
+        {group.key === 'workflows' ? <WorkflowRouter /> :
+         group.key === 'engine' ? <EngineRouter cards={group.cards} /> :
          group.key === 'brand' ? <BrandRouter cards={group.cards} /> :
          group.key === 'playback' ? <PlaybackRouter cards={group.cards} /> :
          group.key === 'schedule' ? <ScheduleRouter cards={group.cards} /> :
