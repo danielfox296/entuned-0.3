@@ -124,8 +124,15 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
     }
   }
 
+  // Stops any active preview audio across the panel. Uses the same event
+  // PreviewButton already listens for; null detail means "not me — pause".
+  const stopAllPreviews = () => {
+    window.dispatchEvent(new CustomEvent(PREVIEW_STOP_EVENT, { detail: null }))
+  }
+
   const approve = async (t: ReferenceTrackRow) => {
     const token = getToken(); if (!token) return
+    stopAllPreviews()
     setPendingMutation((s) => new Set(s).add(t.id))
     try {
       // Persist any in-flight edits before approval so what was on screen is what gets saved.
@@ -143,11 +150,16 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
     }
   }
 
+  // Soft-discard: flips status to 'rejected' so the suggester pulls it into
+  // its "do not repeat" exclusion list on the next run. The pending column
+  // filter (`status === 'pending'`) hides rejected rows from the UI, but
+  // the row stays in the database as a permanent signal.
   const discard = async (t: ReferenceTrackRow) => {
     const token = getToken(); if (!token) return
+    stopAllPreviews()
     setPendingMutation((s) => new Set(s).add(t.id))
     try {
-      await api.deleteReferenceTrack(t.id, token)
+      await api.rejectReferenceTrack(t.id, token)
       await refetch()
     } catch (e: any) {
       toast.error(e.message ?? 'discard failed')

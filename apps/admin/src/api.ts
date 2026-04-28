@@ -227,7 +227,7 @@ export interface StyleAnalysisRow {
   updatedAt: string
 }
 
-export type ReferenceTrackStatus = 'pending' | 'approved'
+export type ReferenceTrackStatus = 'pending' | 'approved' | 'rejected'
 
 export interface ReferenceTrackRow {
   id: string
@@ -704,6 +704,8 @@ export const api = {
     ),
   decomposeReferenceTrack: (id: string, force: boolean, token: string) =>
     req<StyleAnalysisRow>(`/admin/reference-tracks/${id}/decompose${force ? '?force=1' : ''}`, { method: 'POST' }, token),
+  rejectReferenceTrack: (id: string, token: string) =>
+    req<ReferenceTrackRow>(`/admin/reference-tracks/${id}/reject`, { method: 'POST' }, token),
   approveReferenceTrack: (id: string, token: string) =>
     req<ReferenceTrackRow>(`/admin/reference-tracks/${id}/approve`, { method: 'POST' }, token),
   updateStyleAnalysis: (id: string, body: StyleAnalysisUpdate, token: string) =>

@@ -680,6 +680,22 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
+  // --- Reject a pending suggestion. Soft-delete: keeps the row so the
+  // suggester learns to exclude it from future runs. Idempotent. ---
+  app.post('/reference-tracks/:id/reject', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    try {
+      const row = await prisma.referenceTrack.update({
+        where: { id },
+        data: { status: 'rejected' },
+      })
+      return row
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
+    }
+  })
+
   // --- Approve a pending (suggested) reference track. Flips status to approved. ---
   app.post('/reference-tracks/:id/approve', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return

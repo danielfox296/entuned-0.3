@@ -171,6 +171,7 @@ model ICP {
 enum ReferenceTrackStatus {
   pending
   approved
+  rejected
 }
 
 model ReferenceTrack {
