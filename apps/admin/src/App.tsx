@@ -31,6 +31,7 @@ import { RetiredSongs } from './panels/catalogue/RetiredSongs.js'
 import { SongSeedQueue } from './panels/seeding/SongSeedQueue.js'
 import { SongSeed } from './panels/seeding/SongSeed.js'
 import { WorkflowRouter } from './panels/workflow/WorkflowRouter.js'
+import { useNavGroup, useNavSub } from './nav.js'
 
 // ── Surface groups (from admin-ui.md, priority order) ──────────
 interface SurfaceGroup {
@@ -212,7 +213,7 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
 
 // ── Engine router ──────────────────────────────────────────────
 function EngineRouter({ cards }: { cards: string[] }) {
-  const [active, setActive] = useState<string>(cards[0]!)
+  const [active, setActive] = useNavSub<string>(cards[0]!)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}`, paddingBottom: 0 }}>
@@ -247,7 +248,7 @@ function EngineRouter({ cards }: { cards: string[] }) {
 
 // ── Brand router ───────────────────────────────────────────────
 function BrandRouter({ cards }: { cards: string[] }) {
-  const [active, setActive] = useState<string>('Client Detail')
+  const [active, setActive] = useNavSub<string>('Client Detail')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
@@ -281,7 +282,7 @@ function BrandRouter({ cards }: { cards: string[] }) {
 
 // ── Playback router ────────────────────────────────────────────
 function PlaybackRouter({ cards }: { cards: string[] }) {
-  const [active, setActive] = useState<string>('Live Store View')
+  const [active, setActive] = useNavSub<string>('Live Store View')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
@@ -312,7 +313,7 @@ function PlaybackRouter({ cards }: { cards: string[] }) {
 
 // ── Schedule router ────────────────────────────────────────────
 function ScheduleRouter({ cards }: { cards: string[] }) {
-  const [active, setActive] = useState<string>('Outcome Schedule')
+  const [active, setActive] = useNavSub<string>('Outcome Schedule')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
@@ -345,7 +346,7 @@ function ScheduleRouter({ cards }: { cards: string[] }) {
 
 // ── Catalogue router ───────────────────────────────────────────
 function CatalogueRouter({ cards }: { cards: string[] }) {
-  const [active, setActive] = useState<string>('Song Browser')
+  const [active, setActive] = useNavSub<string>('Song Browser')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
@@ -377,7 +378,7 @@ function CatalogueRouter({ cards }: { cards: string[] }) {
 
 // ── Seeding router ─────────────────────────────────────────────
 function SeedingRouter({ cards }: { cards: string[] }) {
-  const [active, setActive] = useState<string>('Song Seed Queue')
+  const [active, setActive] = useNavSub<string>('Song Seed Queue')
   const [detailId, setDetailId] = useState<string>('')
   const [openId, setOpenId] = useState<string | null>(null)
   return (
@@ -513,7 +514,7 @@ function Login({ onLogin }: { onLogin: (token: string) => void }) {
 export function App() {
   const [token, setTokenState] = useState<string | null>(getToken)
   const [me, setMe] = useState<MeResponse | null>(null)
-  const [active, setActive] = useState('seeding')
+  const [active, setActive] = useNavGroup('seeding')
   const [collapsed, setCollapsed] = useState(false)
 
   // Verify token

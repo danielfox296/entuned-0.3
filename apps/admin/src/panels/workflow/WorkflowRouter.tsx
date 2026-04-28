@@ -5,6 +5,7 @@ import { T } from '../../tokens.js'
 import {
   PanelHeader, StorePicker, S, useStoreSelection, useIcpSelection,
 } from '../../ui/index.js'
+import { useNavSub } from '../../nav.js'
 import { HookRefresh } from './HookRefresh.js'
 import { ReferenceTrackRefresh } from './ReferenceTrackRefresh.js'
 import { PreLaunchChecklist } from './PreLaunchChecklist.js'
@@ -32,7 +33,7 @@ export function WorkflowRouter() {
   const [storeId, setStoreId] = useStoreSelection()
   const [icpId, setIcpId] = useIcpSelection()
   const [detail, setDetail] = useState<StoreDetail | null>(null)
-  const [active, setActive] = useState<TabKey>('launch')
+  const [active, setActive] = useNavSub<TabKey>('launch')
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
