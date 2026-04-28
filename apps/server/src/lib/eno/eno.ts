@@ -171,13 +171,30 @@ async function pickAvailableHook(icpId: string, outcomeId: string): Promise<{ id
 type RefTrackWithAnalysis = Awaited<ReturnType<typeof prisma.referenceTrack.findFirstOrThrow<{ include: { styleAnalysis: true } }>>>
 
 async function pickReferenceTrack(icpId: string): Promise<RefTrackWithAnalysis | null> {
+  // useCount alone doesn't spread bursts: it only increments on operator
+  // accept (admin.ts), so every iteration of a burst sees the same snapshot
+  // and grabs the same lowest-useCount track. Add in-flight + already-
+  // accepted seed counts to the score so each created seed naturally
+  // pushes the next iteration toward a different track. Tiebreak randomly
+  // so single-seed runs also vary across calls.
   const tracks = await prisma.referenceTrack.findMany({
     where: { icpId, styleAnalysis: { isNot: null } },
-    include: { styleAnalysis: true },
-    orderBy: [{ useCount: 'asc' }, { createdAt: 'asc' }],
-    take: 1,
+    include: {
+      styleAnalysis: true,
+      songSeeds: { select: { status: true } },
+    },
   })
-  const t = tracks[0]
-  if (!t || !t.styleAnalysis) return null
-  return t as RefTrackWithAnalysis
+  if (tracks.length === 0) return null
+
+  const scored = tracks.map((t) => {
+    const inFlight = t.songSeeds.filter(
+      (s) => s.status === 'assembling' || s.status === 'queued' || s.status === 'accepted',
+    ).length
+    return { t, score: t.useCount + inFlight }
+  })
+  scored.sort((a, b) => (a.score - b.score) || (Math.random() - 0.5))
+
+  const winner = scored[0]?.t
+  if (!winner || !winner.styleAnalysis) return null
+  return winner as unknown as RefTrackWithAnalysis
 }
