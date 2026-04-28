@@ -28,7 +28,6 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
 
   const del = async () => {
     const token = getToken(); if (!token) return
-    if (!confirm('Delete this Song Prompt? This cannot be undone.')) return
     setBusy('delete'); setErr(null)
     try {
       await api.deleteSongSeed(songSeedId, token)
