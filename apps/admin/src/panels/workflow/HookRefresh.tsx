@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { HookRowFull, OutcomeRowFull } from '../../api.js'
 import { T } from '../../tokens.js'
-import { Button, S, useToast } from '../../ui/index.js'
+import { Button, S, useToast, LlmProgress } from '../../ui/index.js'
 import type { WorkflowContext } from './WorkflowRouter.js'
 
 type Draft = {
@@ -181,7 +181,7 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
                   {o.title}
                 </div>
                 <div style={{ fontSize: 12, color: T.textDim, marginTop: 4, fontFamily: T.mono }}>
-                  v{o.version} · {approvedCount} approved
+                  {approvedCount} approved
                 </div>
               </button>
             )
@@ -217,42 +217,40 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
 
           {/* Generation controls */}
           {activeOutcome && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{
-                fontSize: S.label, color: T.textDim, fontFamily: T.sans,
-                textTransform: 'uppercase', letterSpacing: '0.04em',
-              }}>generate</span>
-              <input
-                type="number" min={1} max={20} value={n}
-                onChange={(e) => setN(Math.max(1, Math.min(20, Number(e.target.value) || DEFAULT_N)))}
-                style={{
-                  width: 60, background: T.bg, color: T.text,
-                  border: `1px solid ${T.border}`, padding: '6px 8px',
-                  fontFamily: T.mono, fontSize: 14,
-                }}
-              />
-              <Button
-                onClick={() => generate(activeOutcome.id)}
-                disabled={generating.has(activeOutcome.id)}
-              >
-                {generating.has(activeOutcome.id) ? 'generating…' : `generate ${n} draft${n === 1 ? '' : 's'}`}
-              </Button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{
+                  fontSize: S.label, color: T.textDim, fontFamily: T.sans,
+                  textTransform: 'uppercase', letterSpacing: '0.04em',
+                }}>generate</span>
+                <input
+                  type="number" min={1} max={20} value={n}
+                  onChange={(e) => setN(Math.max(1, Math.min(20, Number(e.target.value) || DEFAULT_N)))}
+                  style={{
+                    width: 60, background: T.bg, color: T.text,
+                    border: `1px solid ${T.border}`, padding: '6px 8px',
+                    fontFamily: T.mono, fontSize: 14,
+                  }}
+                />
+                <Button
+                  onClick={() => generate(activeOutcome.id)}
+                  disabled={generating.has(activeOutcome.id)}
+                >
+                  {generating.has(activeOutcome.id) ? 'generating…' : `generate ${n} draft${n === 1 ? '' : 's'}`}
+                </Button>
+              </div>
+              {generating.has(activeOutcome.id) && (
+                <LlmProgress
+                  etaSeconds={Math.max(8, n * 3)}
+                  label={`drafting ${n} hook${n === 1 ? '' : 's'}`}
+                />
+              )}
             </div>
           )}
 
-          {/* Side-by-side: current approved (left) | new drafts (right) */}
+          {/* Side-by-side: new drafts (left) | currently approved (right) */}
           {activeOutcome && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <Column title={`Currently approved (${(approvedByOutcome[activeOutcome.id] ?? []).length})`}>
-                {(approvedByOutcome[activeOutcome.id] ?? []).length === 0 ? (
-                  <Empty>no approved hooks yet for this outcome</Empty>
-                ) : (
-                  (approvedByOutcome[activeOutcome.id] ?? []).map((h) => (
-                    <ApprovedRow key={h.id} text={h.text} />
-                  ))
-                )}
-              </Column>
-
               <Column title={`New drafts (${(drafts[activeOutcome.id] ?? []).filter((x) => !x.saved).length})`}>
                 {(drafts[activeOutcome.id] ?? []).length === 0 ? (
                   <Empty>click generate to draft new hooks</Empty>
@@ -265,6 +263,16 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
                       onApprove={() => approve(activeOutcome.id, d.key)}
                       onDiscard={() => discard(activeOutcome.id, d.key)}
                     />
+                  ))
+                )}
+              </Column>
+
+              <Column title={`Currently approved (${(approvedByOutcome[activeOutcome.id] ?? []).length})`}>
+                {(approvedByOutcome[activeOutcome.id] ?? []).length === 0 ? (
+                  <Empty>no approved hooks yet for this outcome</Empty>
+                ) : (
+                  (approvedByOutcome[activeOutcome.id] ?? []).map((h) => (
+                    <ApprovedRow key={h.id} text={h.text} />
                   ))
                 )}
               </Column>
