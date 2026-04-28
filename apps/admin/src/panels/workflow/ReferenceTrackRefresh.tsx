@@ -247,6 +247,7 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
         onSaved={() => { refetch() }}
         analyzing={openTrack ? analyzing.has(openTrack.id) : false}
         onAnalyze={(force) => openTrack && analyze(openTrack, force)}
+        onResolvedPreview={refetch}
       />
     </div>
   )
@@ -325,21 +326,52 @@ function PreviewButton({ track, onResolved }: {
       ? 'finding preview…'
       : playing ? 'pause preview' : 'play preview'
 
+  // Sized to overlay the cover. Slightly bigger glyph so it reads well on
+  // top of busy album art.
+  const btnSize = 32
   return (
     <button
       onClick={toggle}
       disabled={unavailable || resolving}
       title={title}
       style={{
-        background: unavailable ? 'transparent' : T.bg,
-        border: `1px solid ${unavailable ? T.borderSubtle : T.border}`,
-        color: unavailable ? T.textDim : T.text,
-        width: 28, height: 28, borderRadius: 14,
+        background: unavailable ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.65)',
+        border: `1px solid rgba(255,255,255,${unavailable ? 0.15 : 0.3})`,
+        color: unavailable ? 'rgba(255,255,255,0.4)' : '#fff',
+        width: btnSize, height: btnSize, borderRadius: btnSize / 2,
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         cursor: unavailable ? 'default' : 'pointer',
-        fontFamily: T.sans, fontSize: 12, padding: 0, flexShrink: 0,
+        fontFamily: T.sans, fontSize: 13, padding: 0,
+        backdropFilter: 'blur(2px)',
+        WebkitBackdropFilter: 'blur(2px)',
+        boxShadow: unavailable ? 'none' : '0 1px 4px rgba(0,0,0,0.4)',
       }}
     >{label}</button>
+  )
+}
+
+/** Album art with the play button overlaid in the centre. */
+function CoverWithPlay({ track, size, rounded = 4, onResolvedPreview }: {
+  track: ReferenceTrackRow
+  size: number
+  rounded?: number
+  onResolvedPreview: () => void
+}) {
+  return (
+    <div style={{
+      position: 'relative', width: size, height: size, flexShrink: 0,
+    }}>
+      <Cover url={track.coverUrl} size={size} rounded={rounded} />
+      <div style={{
+        position: 'absolute', top: 0, left: 0, width: size, height: size,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        pointerEvents: 'none',
+      }}>
+        <div style={{ pointerEvents: 'auto' }}>
+          <PreviewButton track={track} onResolved={onResolvedPreview} />
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -359,7 +391,7 @@ function PendingRow({ track, edit, busy, onChange, onBlur, onApprove, onDiscard,
   return (
     <div style={cardStyle(false)}>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        <Cover url={track.coverUrl} size={44} />
+        <CoverWithPlay track={track} size={56} onResolvedPreview={() => onResolvedPreview()} />
         <div style={{ fontFamily: T.sans, fontSize: 14, color: T.text, flex: 1, minWidth: 0 }}>
           <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {track.artist} — {track.title}
@@ -431,7 +463,6 @@ function PendingRow({ track, edit, busy, onChange, onBlur, onApprove, onDiscard,
       </Field>
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <PreviewButton track={track} onResolved={onResolvedPreview} />
         <Button onClick={onApprove} disabled={busy}>{busy ? '…' : 'approve'}</Button>
         <button
           onClick={onDiscard}
@@ -454,8 +485,7 @@ function ApprovedRow({ track, analyzing, onAnalyze, onOpen, onResolvedPreview }:
   return (
     <div style={cardStyle(true)}>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        <Cover url={track.coverUrl} size={44} />
-        <PreviewButton track={track} onResolved={onResolvedPreview} />
+        <CoverWithPlay track={track} size={56} onResolvedPreview={() => onResolvedPreview()} />
         <button
           onClick={onOpen}
           title={analysis ? 'view & edit style analysis' : 'open track details'}
@@ -600,12 +630,13 @@ const ANALYSIS_FIELDS: { key: keyof StyleAnalysisUpdate; label: string }[] = [
   { key: 'harmonicAndGroove', label: 'Harmonic & Groove' },
 ]
 
-function StyleAnalysisModal({ track, onClose, onSaved, analyzing, onAnalyze }: {
+function StyleAnalysisModal({ track, onClose, onSaved, analyzing, onAnalyze, onResolvedPreview }: {
   track: ReferenceTrackRow | null
   onClose: () => void
   onSaved: () => void
   analyzing: boolean
   onAnalyze: (force: boolean) => void
+  onResolvedPreview: () => void
 }) {
   const toast = useToast()
   const [draft, setDraft] = useState<StyleAnalysisUpdate>({})
@@ -669,7 +700,7 @@ function StyleAnalysisModal({ track, onClose, onSaved, analyzing, onAnalyze }: {
           display: 'flex', alignItems: 'center', gap: 12,
           paddingBottom: 12, borderBottom: `1px solid ${T.borderSubtle}`,
         }}>
-          <Cover url={track.coverUrl} size={64} rounded={6} />
+          <CoverWithPlay track={track} size={80} rounded={6} onResolvedPreview={onResolvedPreview} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: T.sans, fontSize: 15, color: T.text, fontWeight: 500 }}>
               {track.artist}
