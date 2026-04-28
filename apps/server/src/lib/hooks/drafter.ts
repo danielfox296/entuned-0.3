@@ -40,15 +40,16 @@ export interface DraftHooksResult {
   promptUsed: string
 }
 
-export async function draftHooks(opts: {
+/**
+ * Builds the system + user message that the hook drafter sends to Claude.
+ * Pulled out so the admin can preview the exact context without firing an
+ * LLM call.
+ */
+export async function buildHookDrafterContext(opts: {
   icpId: string
   outcomeId: string
   n: number
-}): Promise<DraftHooksResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
-  const client = new Anthropic({ apiKey })
-
+}): Promise<{ systemPrompt: string; userMessage: string }> {
   const [icp, outcome, prompt] = await Promise.all([
     prisma.iCP.findUniqueOrThrow({ where: { id: opts.icpId }, include: { client: true } }),
     prisma.outcome.findUniqueOrThrow({ where: { id: opts.outcomeId } }),
@@ -100,10 +101,24 @@ ${existingHooks.length === 0 ? '(none)' : existingHooks.map((h) => `- "${h.text}
 Write ${opts.n} new hook candidates for this ICP + Outcome. Vary in approach
 (image vs. statement vs. question vs. quiet observation). Output JSON only.`
 
+  return { systemPrompt: prompt.promptText, userMessage }
+}
+
+export async function draftHooks(opts: {
+  icpId: string
+  outcomeId: string
+  n: number
+}): Promise<DraftHooksResult> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
+  const client = new Anthropic({ apiKey })
+
+  const { systemPrompt, userMessage } = await buildHookDrafterContext(opts)
+
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 2000,
-    system: [{ type: 'text', text: prompt.promptText, cache_control: { type: 'ephemeral' } }],
+    system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: userMessage }],
   })
 
@@ -118,5 +133,5 @@ Write ${opts.n} new hook candidates for this ICP + Outcome. Vary in approach
   if (!Array.isArray(parsed.hooks)) throw new Error('Drafter output missing hooks array')
 
   const hooks = parsed.hooks.filter((h): h is string => typeof h === 'string' && h.trim().length > 0).map((h) => h.trim())
-  return { hooks, rawText: raw, promptUsed: prompt.promptText }
+  return { hooks, rawText: raw, promptUsed: systemPrompt }
 }

@@ -24,7 +24,7 @@ import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 import { runEno } from '../lib/eno/eno.js'
 import { downloadAndUploadFromUrl } from '../lib/r2.js'
-import { draftHooks, getOrSeedHookWriterPrompt } from '../lib/hooks/drafter.js'
+import { draftHooks, getOrSeedHookWriterPrompt, buildHookDrafterContext } from '../lib/hooks/drafter.js'
 import { suggestReferenceTracks } from '../lib/ref-tracks/suggester.js'
 import { resolvePreview } from '../lib/ref-tracks/preview.js'
 
@@ -1163,6 +1163,22 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       return { hooks: result.hooks }
     } catch (e: any) {
       return reply.code(502).send({ error: 'drafter_failed', message: e.message ?? 'unknown' })
+    }
+  })
+
+  // Returns the system + user message that would be sent to Claude for the
+  // given (ICP, Outcome, n). Read-only — does not call the model.
+  app.get('/icps/:id/hook-writer/context', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const icpId = (req.params as any).id as string
+    const q = req.query as { outcomeId?: string; n?: string }
+    if (!q.outcomeId) return reply.code(400).send({ error: 'bad_query', message: 'outcomeId required' })
+    const n = Math.max(1, Math.min(20, Number(q.n ?? 5) || 5))
+    try {
+      const ctx = await buildHookDrafterContext({ icpId, outcomeId: q.outcomeId, n })
+      return ctx
+    } catch (e: any) {
+      return reply.code(502).send({ error: 'context_build_failed', message: e.message ?? 'unknown' })
     }
   })
 

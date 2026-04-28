@@ -750,6 +750,12 @@ export const api = {
     req<HookRowFull>(`/admin/hooks/${id}/retire`, { method: 'POST', body: JSON.stringify({ force }) }, token),
   draftHooks: (icpId: string, body: { outcomeId: string; n: number }, token: string) =>
     req<{ hooks: string[] }>(`/admin/icps/${icpId}/hook-writer/run`, { method: 'POST', body: JSON.stringify(body) }, token),
+  hookDrafterContext: (icpId: string, outcomeId: string, n: number, token: string) =>
+    req<{ systemPrompt: string; userMessage: string }>(
+      `/admin/icps/${icpId}/hook-writer/context?outcomeId=${encodeURIComponent(outcomeId)}&n=${n}`,
+      {},
+      token,
+    ),
 
   // --- Playback ---
 

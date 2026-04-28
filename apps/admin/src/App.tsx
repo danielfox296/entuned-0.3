@@ -14,6 +14,7 @@ import { StyleTemplate } from './panels/engine/StyleTemplate.js'
 import { LyricPrompts } from './panels/engine/LyricPrompts.js'
 import { OutcomeFactorPrompt } from './panels/engine/OutcomeFactorPrompt.js'
 import { ReferenceTrackPrompt } from './panels/engine/ReferenceTrackPrompt.js'
+import { HookDrafterPrompt } from './panels/engine/HookDrafterPrompt.js'
 import { IcpEditor } from './panels/brand/IcpEditor.js'
 import { HookQueue } from './panels/brand/HookQueue.js'
 import { ClientDetail } from './panels/brand/ClientDetail.js'
@@ -56,7 +57,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Outcome Schedule', 'Outcome Library', 'Dry Run'],
     description: 'Weekly outcome grids, schedule preview' },
   { key: 'engine', label: 'Engine', short: 'Engine', icon: Settings,
-    cards: ['Track Analyzer Rules', 'Style Exclusion Rules', 'Style Template', 'Lyric Prompts', 'Outcome Factor Prompt', 'Reference Track Suggester'],
+    cards: ['Hook Drafter', 'Track Analyzer Rules', 'Style Exclusion Rules', 'Style Template', 'Lyric Prompts', 'Outcome Factor Prompt', 'Reference Track Suggester'],
     description: 'System-level prompts that drive decomposer, Mars, and Bernie' },
   { key: 'catalogue', label: 'Song Catalogue', short: 'Catalogue', icon: Music2,
     cards: ['Song Browser', 'Flagged Review', 'Retired Songs', 'Pool Depth'],
@@ -241,6 +242,7 @@ function EngineRouter({ cards }: { cards: string[] }) {
           )
         })}
       </div>
+      {active === 'Hook Drafter' && <HookDrafterPrompt />}
       {active === 'Track Analyzer Rules' && <DecomposerRules />}
       {active === 'Style Exclusion Rules' && <FailureRules />}
       {active === 'Style Template' && <StyleTemplate />}
