@@ -1,17 +1,16 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
-import type { SongSeedRow, StoreSummary, OutcomeRowFull, SeedBuilderResult } from '../../api.js'
+import type { SongSeedRow, OutcomeRowFull, SeedBuilderResult } from '../../api.js'
 import { T } from '../../tokens.js'
-import { PanelHeader, StorePicker as UIStorePicker, S, useStoreSelection } from '../../ui/index.js'
+import { S } from '../../ui/index.js'
 import { SongSeed } from './SongSeed.js'
+import type { WorkflowContext } from '../workflow/WorkflowRouter.js'
 
 
-export function SongSeedQueue() {
-  const [stores, setStores] = useState<StoreSummary[] | null>(null)
+export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
+  const { storeId, store, icpId } = ctx
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
-  const [storeId, setStoreId] = useStoreSelection()
-  const [icpId, setIcpId] = useState<string | null>(null)
   const [songSeeds, setSongSeeds] = useState<SongSeedRow[] | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -22,21 +21,11 @@ export function SongSeedQueue() {
 
   useEffect(() => {
     const token = getToken(); if (!token) return
-    api.stores(token).then(setStores).catch((e) => setErr(e.message))
     api.outcomes(token).then(setOutcomes).catch((e) => setErr(e.message))
   }, [])
 
-  const currentStore = storeId && stores ? stores.find((x) => x.id === storeId) ?? null : null
-  const storeIcps = currentStore?.icps ?? []
+  const storeIcps = store?.icps ?? []
   const selectedIcp = icpId ? storeIcps.find((i) => i.id === icpId) ?? null : null
-
-  useEffect(() => {
-    if (!storeId || !stores) { setIcpId(null); return }
-    const s = stores.find((x) => x.id === storeId)
-    // Default to first ICP; if current selection is no longer present, reset.
-    if (!s || s.icps.length === 0) { setIcpId(null); return }
-    setIcpId((cur) => (cur && s.icps.some((i) => i.id === cur)) ? cur : s.icps[0]!.id)
-  }, [storeId, stores])
 
   const reload = async () => {
     if (!icpId) { setSongSeeds(null); return }
@@ -65,29 +54,28 @@ export function SongSeedQueue() {
     return <SongSeed songSeedId={openId} onClose={() => { setOpenId(null); reload() }} />
   }
 
+  if (!storeId) {
+    return (
+      <div style={{
+        background: T.surfaceRaised, border: `1px solid ${T.border}`,
+        borderRadius: 4, padding: '14px 18px', color: T.textMuted,
+        fontFamily: T.sans, fontSize: 14,
+      }}>
+        select a store and ICP above to begin
+      </div>
+    )
+  }
+
+  if (storeIcps.length === 0) {
+    return (
+      <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 14 }}>
+        this store has no ICPs yet — create one in the ICP Editor first
+      </div>
+    )
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      <PanelHeader
-        title="Song Creation Queue"
-      />
-
-      <UIStorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
-
-      {currentStore && storeIcps.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontFamily: T.mono, fontSize: 13, color: T.textDim, textTransform: 'uppercase' }}>ICP</span>
-          <select value={icpId ?? ''} onChange={(e) => setIcpId(e.target.value || null)} style={inputStyle} disabled={storeIcps.length === 1}>
-            {storeIcps.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-          </select>
-        </div>
-      )}
-
-      {currentStore && storeIcps.length === 0 && (
-        <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 14 }}>
-          this store has no ICPs yet — create one in the ICP Editor first
-        </div>
-      )}
-
       {icpId && (
         <Section title="Create Song Prompt" subtitle="Generate Song Prompts for the selected ICP and Outcome. Each Song Prompt is permanently bound to one ICP.">
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>

@@ -11,6 +11,7 @@ import { HookRefresh } from './HookRefresh.js'
 import { ReferenceTrackRefresh } from './ReferenceTrackRefresh.js'
 import { PreLaunchChecklist } from './PreLaunchChecklist.js'
 import { SongSeedBurst } from './SongSeedBurst.js'
+import { SongSeedQueue } from '../seeding/SongSeedQueue.js'
 
 export type WorkflowContext = {
   storeId: string | null
@@ -25,6 +26,7 @@ const TABS = [
   { key: 'Hook Writing', label: 'Hook Writing' },
   { key: 'Reference Tracks', label: 'Reference Tracks' },
   { key: 'Hook → Prompt', label: 'Hook → Prompt' },
+  { key: 'Song Creation Queue', label: 'Song Creation Queue' },
 ] as const
 
 type TabKey = typeof TABS[number]['key']
@@ -130,6 +132,7 @@ export function WorkflowRouter() {
       {active === 'Hook Writing' && <HookRefresh ctx={ctx} />}
       {active === 'Reference Tracks' && <ReferenceTrackRefresh ctx={ctx} />}
       {active === 'Hook → Prompt' && <SongSeedBurst ctx={ctx} />}
+      {active === 'Song Creation Queue' && <SongSeedQueue ctx={ctx} />}
       </div>
     </div>
   )

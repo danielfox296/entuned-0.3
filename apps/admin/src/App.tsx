@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
-  Disc3, Play, Sparkles, CalendarDays, Settings, Music2,
+  Play, Sparkles, CalendarDays, Settings, Music2,
   FlaskConical, Lightbulb, Activity, ListChecks,
 } from 'lucide-react'
 import { api, getToken, setToken, clearToken } from './api.js'
@@ -19,7 +19,6 @@ import { HookQueue } from './panels/brand/HookQueue.js'
 import { ClientDetail } from './panels/brand/ClientDetail.js'
 import { StoreEditor } from './panels/brand/StoreEditor.js'
 import { OperatorManager } from './panels/brand/OperatorManager.js'
-// SongSeed is reached as a drilldown from SongSeedQueue, not as a primary tab.
 import { LiveStoreView } from './panels/playback/LiveStoreView.js'
 import { OutcomeSchedule } from './panels/schedule/OutcomeSchedule.js'
 import { OutcomeLibrary } from './panels/schedule/OutcomeLibrary.js'
@@ -28,7 +27,6 @@ import { PoolDepth } from './panels/catalogue/PoolDepth.js'
 import { SongBrowser } from './panels/catalogue/SongBrowser.js'
 import { FlaggedReview } from './panels/catalogue/FlaggedReview.js'
 import { RetiredSongs } from './panels/catalogue/RetiredSongs.js'
-import { SongSeedQueue } from './panels/seeding/SongSeedQueue.js'
 import { WorkflowRouter } from './panels/workflow/WorkflowRouter.js'
 import { useNavGroup, useNavSub } from './nav.js'
 
@@ -41,9 +39,6 @@ interface SurfaceGroup {
 const GROUPS: SurfaceGroup[] = [
   { key: 'workflows', label: 'Workflows', short: 'Workflows', icon: ListChecks,
     cards: ['Launch Checklist', 'Hook Writing', 'Reference Tracks', 'Hook → Prompt'],
-    description: '' },
-  { key: 'seeding', label: 'Song Creation', short: 'Creation', icon: Disc3,
-    cards: ['Song Creation Queue'],
     description: '' },
   { key: 'playback', label: 'Playback & Overrides', short: 'Playback', icon: Play,
     cards: ['Live Location View'],
@@ -213,7 +208,6 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
          group.key === 'brand' ? <BrandRouter cards={group.cards} /> :
          group.key === 'playback' ? <PlaybackRouter cards={group.cards} /> :
          group.key === 'schedule' ? <ScheduleRouter cards={group.cards} /> :
-         group.key === 'seeding' ? <SeedingRouter cards={group.cards} /> :
          group.key === 'catalogue' ? <CatalogueRouter cards={group.cards} /> : (
         <>
         <div style={{
@@ -414,35 +408,6 @@ function CatalogueRouter({ cards }: { cards: string[] }) {
   )
 }
 
-// ── Seeding router ─────────────────────────────────────────────
-function SeedingRouter({ cards }: { cards: string[] }) {
-  const [active, setActive] = useNavSub<string>('Song Creation Queue')
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
-        {cards.map((c) => {
-          const on = active === c
-          return (
-            <button
-              key={c}
-              onClick={() => setActive(c)}
-              style={{
-                background: 'transparent', border: 'none',
-                borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
-                color: on ? T.text : T.textMuted,
-                padding: '8px 14px', cursor: 'pointer',
-                fontFamily: T.sans, fontSize: 14, fontWeight: on ? 500 : 400,
-                marginBottom: -1,
-              }}
-            >{c}</button>
-          )
-        })}
-      </div>
-      {active === 'Song Creation Queue' && <SongSeedQueue />}
-    </div>
-  )
-}
-
 // ── Login ──────────────────────────────────────────────────────
 function Login({ onLogin }: { onLogin: (token: string) => void }) {
   const [email, setEmail] = useState('daniel@entuned.co')
@@ -517,7 +482,7 @@ function Login({ onLogin }: { onLogin: (token: string) => void }) {
 export function App() {
   const [token, setTokenState] = useState<string | null>(getToken)
   const [me, setMe] = useState<MeResponse | null>(null)
-  const [active, setActive] = useNavGroup('seeding')
+  const [active, setActive] = useNavGroup('workflows')
   const [collapsed, setCollapsed] = useState(false)
 
   // Verify token
@@ -548,7 +513,7 @@ export function App() {
     )
   }
 
-  const activeGroup = GROUPS.find((g) => g.key === active)!
+  const activeGroup = GROUPS.find((g) => g.key === active) ?? GROUPS[0]!
 
   return (
     <ToastProvider>
