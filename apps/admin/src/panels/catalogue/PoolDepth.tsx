@@ -21,13 +21,13 @@ export function PoolDepth() {
 
   const flat = useMemo(() => {
     if (!data) return []
-    const rows: { icpId: string; icpName: string; storeNames: string; outcomeId: string; outcomeTitle: string; outcomeVersion: number; count: number; status: PoolStatus }[] = []
+    const rows: { icpId: string; icpName: string; storeNames: string; outcomeId: string; outcomeTitle: string; outcomeDisplayTitle: string | null; outcomeVersion: number; count: number; status: PoolStatus }[] = []
     for (const icp of data.icps) {
       const storeNames = icp.stores.map((s) => s.name).join(', ') || '—'
       for (const cell of icp.outcomes) {
         rows.push({
           icpId: icp.id, icpName: icp.name, storeNames,
-          outcomeId: cell.outcome.id, outcomeTitle: cell.outcome.title, outcomeVersion: cell.outcome.version,
+          outcomeId: cell.outcome.id, outcomeTitle: cell.outcome.title, outcomeDisplayTitle: cell.outcome.displayTitle, outcomeVersion: cell.outcome.version,
           count: cell.count, status: cell.status,
         })
       }
@@ -36,9 +36,9 @@ export function PoolDepth() {
       const rank = { critical: 0, thin: 1, ok: 2 } as const
       rows.sort((a, b) => rank[a.status] - rank[b.status] || a.count - b.count || a.icpName.localeCompare(b.icpName))
     } else if (sort === 'icp') {
-      rows.sort((a, b) => a.icpName.localeCompare(b.icpName) || a.outcomeTitle.localeCompare(b.outcomeTitle))
+      rows.sort((a, b) => a.icpName.localeCompare(b.icpName) || (a.outcomeDisplayTitle ?? a.outcomeTitle).localeCompare(b.outcomeDisplayTitle ?? b.outcomeTitle))
     } else {
-      rows.sort((a, b) => a.outcomeTitle.localeCompare(b.outcomeTitle) || a.icpName.localeCompare(b.icpName))
+      rows.sort((a, b) => (a.outcomeDisplayTitle ?? a.outcomeTitle).localeCompare(b.outcomeDisplayTitle ?? b.outcomeTitle) || a.icpName.localeCompare(b.icpName))
     }
     return rows
   }, [data, sort])
@@ -144,7 +144,7 @@ function HeaderRow() {
 }
 
 function DataRow({ row }: {
-  row: { icpName: string; storeNames: string; outcomeTitle: string; outcomeVersion: number; count: number; status: PoolStatus }
+  row: { icpName: string; storeNames: string; outcomeTitle: string; outcomeDisplayTitle: string | null; outcomeVersion: number; count: number; status: PoolStatus }
 }) {
   const color = row.status === 'critical' ? T.danger : row.status === 'thin' ? T.warn : T.success
   return (
@@ -155,7 +155,7 @@ function DataRow({ row }: {
     }}>
       <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500 }}>{row.icpName}</span>
       <span style={cellTrunc}>{row.storeNames}</span>
-      <span style={cellTrunc}>{row.outcomeTitle}</span>
+      <span style={cellTrunc}>{row.outcomeDisplayTitle ?? row.outcomeTitle}</span>
       <span style={{ color, textAlign: 'right', fontWeight: 600 }}>{row.count}</span>
       <span style={{ color, textAlign: 'right', fontSize: 13, textTransform: 'uppercase' }}>{row.status}</span>
     </div>

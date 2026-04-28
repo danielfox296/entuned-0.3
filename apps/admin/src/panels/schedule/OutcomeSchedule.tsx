@@ -195,7 +195,7 @@ function RowItem({ row, outcomes, onChanged }: {
         {row.startTime}–{row.endTime}
       </div>
       <div style={{ fontFamily: T.sans, fontSize: S.small, color: T.textMuted }}>
-        {row.outcomeTitle}
+        {row.outcomeDisplayTitle ?? row.outcomeTitle}
       </div>
       <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
         <Button variant="tiny" onClick={startEdit} disabled={busy === 'delete'}>edit</Button>
@@ -246,7 +246,7 @@ function RowForm({ draft, outcomes, onChange, onSubmit, onCancel, submitLabel, c
         <Select value={draft.outcomeId} onChange={(e) => set('outcomeId', e.target.value)}>
           <option value="" disabled>— pick —</option>
           {(outcomes ?? []).map((o) => (
-            <option key={o.id} value={o.id}>{o.title}</option>
+            <option key={o.id} value={o.id}>{o.displayTitle ?? o.title}</option>
           ))}
         </Select>
       </div>
@@ -324,7 +324,7 @@ function MultiDayCreateForm({ draft, outcomes, busy, onChange, onSubmit }: {
           <Select value={draft.outcomeId} onChange={(e) => onChange({ ...draft, outcomeId: e.target.value })}>
             <option value="" disabled>— pick —</option>
             {(outcomes ?? []).map((o) => (
-              <option key={o.id} value={o.id}>{o.title}</option>
+              <option key={o.id} value={o.id}>{o.displayTitle ?? o.title}</option>
             ))}
           </Select>
         </div>

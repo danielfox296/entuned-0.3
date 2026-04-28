@@ -183,7 +183,7 @@ export function ClientDetail() {
                             : `${s.icps.length} ICPs`}
                       </span>
                       <span style={{ color: s.defaultOutcome ? T.text : T.textDim }}>
-                        {s.defaultOutcome ? `default: ${s.defaultOutcome.title}` : 'no default'}
+                        {s.defaultOutcome ? `default: ${s.defaultOutcome.displayTitle ?? s.defaultOutcome.title}` : 'no default'}
                       </span>
                       <span style={{ color: T.textDim }}>{s.goLiveDate ? `live ${s.goLiveDate}` : '—'}</span>
                     </div>

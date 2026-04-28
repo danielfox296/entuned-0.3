@@ -66,11 +66,24 @@ export interface OutcomeRow {
   outcomeKey: string
   version: number
   title: string
+  displayTitle: string | null
   tempoBpm: number
   mode: string
   dynamics: string | null
   instrumentation: string | null
   supersededAt: string | null
+}
+
+// Operator-facing label for an outcome. Falls back to `title` (the LLM-prompt-facing
+// identifier) when no displayTitle is set, e.g. on freshly-seeded rows.
+export function outcomeLabel(o: { title: string; displayTitle?: string | null }): string {
+  return o.displayTitle ?? o.title
+}
+
+// Same idea for the flattened `outcomeTitle`/`outcomeDisplayTitle` shape used in
+// monitoring/playback/dry-run payloads.
+export function outcomeLabelFromFlat(o: { outcomeTitle: string | null; outcomeDisplayTitle?: string | null }): string | null {
+  return o.outcomeDisplayTitle ?? o.outcomeTitle
 }
 
 export interface LineageRowSummary {
@@ -116,7 +129,7 @@ export interface StyleTemplateRow {
 export type PoolStatus = 'critical' | 'thin' | 'ok'
 
 export interface PoolDepthCell {
-  outcome: { id: string; title: string; version: number }
+  outcome: { id: string; title: string; displayTitle: string | null; version: number }
   count: number
   status: PoolStatus
 }
@@ -282,7 +295,7 @@ export interface ClientFull {
   stores: {
     id: string; name: string; timezone: string; goLiveDate: string | null
     icps: { id: string; name: string }[]
-    defaultOutcome: { id: string; title: string; version: number } | null
+    defaultOutcome: { id: string; title: string; displayTitle: string | null; version: number } | null
   }[]
   icps: { id: string; name: string; hookCount: number; referenceTrackCount: number; storeCount: number }[]
 }
@@ -365,7 +378,7 @@ export interface SongSeedRow {
   updatedAt: string
   terminalAt: string | null
   hook: { id: string; text: string }
-  outcome: { id: string; title: string; version: number }
+  outcome: { id: string; title: string; displayTitle: string | null; version: number }
   referenceTrack: { id: string; artist: string; title: string } | null
   songSeedBatch: { id: string; startedAt: string; triggeredBy: string }
 }
@@ -399,6 +412,7 @@ export interface ScheduleSlot {
   endTime: string
   outcomeId: string
   outcomeTitle: string
+  outcomeDisplayTitle: string | null
   outcomeVersion: number
 }
 
@@ -420,6 +434,7 @@ export interface DryRunPeriod {
   source: DryRunSource
   outcomeId: string | null
   outcomeTitle: string | null
+  outcomeDisplayTitle: string | null
   outcomeVersion: number | null
   outcomeSuperseded: boolean
   durationMin: number
@@ -435,6 +450,7 @@ export interface DryRunDay {
 export interface DryRunOutcomeTotal {
   outcomeId: string
   outcomeTitle: string
+  outcomeDisplayTitle: string | null
   outcomeVersion: number
   outcomeSuperseded: boolean
   scheduledMin: number
@@ -450,7 +466,7 @@ export interface LineageRowFull {
   createdAt: string
   icpId: string
   icpName: string | null
-  outcome: { id: string; title: string; version: number }
+  outcome: { id: string; title: string; displayTitle: string | null; version: number }
   hook: { id: string; text: string }
   song: { id: string; r2Url: string; byteSize: number | string | null }
 }
@@ -469,7 +485,7 @@ export interface FlaggedSong {
   lastReportedAt: string
   reasons: Record<string, number>
   storeCount: number
-  lineageRows: { id: string; active: boolean; hook: { id: string; text: string }; outcome: { id: string; title: string; version: number } }[]
+  lineageRows: { id: string; active: boolean; hook: { id: string; text: string }; outcome: { id: string; title: string; displayTitle: string | null; version: number } }[]
   activeLineageCount: number
   anyActive: boolean
 }
@@ -481,7 +497,7 @@ export interface FlaggedResponse {
 export interface ScheduleDryRun {
   store: { id: string; name: string; timezone: string }
   icps: { id: string; name: string }[]
-  defaultOutcome: { id: string; title: string; version: number; superseded: boolean } | null
+  defaultOutcome: { id: string; title: string; displayTitle: string | null; version: number; superseded: boolean } | null
   thresholds: { critical: number; thin: number }
   days: DryRunDay[]
   byOutcome: DryRunOutcomeTotal[]
@@ -504,6 +520,7 @@ export interface QueueEntry {
   outcomeId: string
   hookText: string | null
   outcomeTitle: string | null
+  outcomeDisplayTitle: string | null
 }
 
 export interface PlaybackEventRow {
@@ -514,6 +531,7 @@ export interface PlaybackEventRow {
   hookId: string | null
   outcomeId: string | null
   outcomeTitle: string | null
+  outcomeDisplayTitle: string | null
   operatorId: string | null
   operatorEmail: string | null
   reportReason: string | null
@@ -533,6 +551,7 @@ export interface LiveStoreView {
   active: {
     outcomeId: string
     outcomeTitle: string | null
+    outcomeDisplayTitle: string | null
     source: 'selection' | 'schedule' | 'default'
     expiresAt: string | null
   } | null
@@ -555,6 +574,7 @@ export interface OutcomeRowFull {
   outcomeKey: string
   version: number
   title: string
+  displayTitle: string | null
   tempoBpm: number
   mode: string
   dynamics: string | null
@@ -576,7 +596,7 @@ export interface HookRowFull {
   approvedById: string | null
   createdAt: string
   updatedAt: string
-  outcome: { id: string; title: string; version: number }
+  outcome: { id: string; title: string; displayTitle: string | null; version: number }
 }
 
 export type StyleAnalysisUpdate = Partial<{
@@ -686,9 +706,9 @@ export const api = {
     req<OutcomeRowFull[]>('/admin/outcomes', {}, token),
   outcomeLibrary: (token: string) =>
     req<(OutcomeRowFull & { lineageCount: number })[]>('/admin/outcomes?include=all', {}, token),
-  createOutcome: (body: { title: string; tempoBpm: number; mode: string; dynamics?: string | null; instrumentation?: string | null; familiarity?: string | null; productionEraId?: string | null }, token: string) =>
+  createOutcome: (body: { title: string; displayTitle?: string | null; tempoBpm: number; mode: string; dynamics?: string | null; instrumentation?: string | null; familiarity?: string | null; productionEraId?: string | null }, token: string) =>
     req<OutcomeRowFull>('/admin/outcomes', { method: 'POST', body: JSON.stringify(body) }, token),
-  editOutcome: (id: string, body: { title: string; tempoBpm: number; mode: string; dynamics?: string | null; instrumentation?: string | null; familiarity?: string | null; productionEraId?: string | null }, token: string) =>
+  editOutcome: (id: string, body: { title: string; displayTitle?: string | null; tempoBpm: number; mode: string; dynamics?: string | null; instrumentation?: string | null; familiarity?: string | null; productionEraId?: string | null }, token: string) =>
     req<OutcomeRowFull>(`/admin/outcomes/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   productionEras: (token: string) =>
     req<ProductionEraStub[]>('/admin/production-eras', {}, token),

@@ -335,7 +335,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           orderBy: { name: 'asc' },
           include: {
             icps: { select: { id: true, name: true } },
-            defaultOutcome: { select: { id: true, title: true, version: true } },
+            defaultOutcome: { select: { id: true, title: true, displayTitle: true, version: true } },
           },
         },
         icps: { orderBy: { name: 'asc' }, select: { id: true, name: true, storeId: true, _count: { select: { hooks: true, referenceTracks: true } } } },
@@ -759,6 +759,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   const OutcomeCreateBody = z.object({
     title: z.string().min(1),
+    displayTitle: z.string().nullable().optional(),
     tempoBpm: z.number().int().min(40).max(220),
     mode: z.string().min(1),
     dynamics: z.string().nullable().optional(),
@@ -776,6 +777,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         outcomeKey: crypto.randomUUID(),
         version: 1,
         title: parsed.data.title,
+        displayTitle: parsed.data.displayTitle ?? null,
         tempoBpm: parsed.data.tempoBpm,
         mode: parsed.data.mode,
         dynamics: parsed.data.dynamics ?? null,
@@ -807,6 +809,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
             outcomeKey: existing.outcomeKey,
             version: existing.version + 1,
             title: parsed.data.title,
+            displayTitle: parsed.data.displayTitle ?? null,
             tempoBpm: parsed.data.tempoBpm,
             mode: parsed.data.mode,
             dynamics: parsed.data.dynamics ?? null,
@@ -853,7 +856,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       }),
       prisma.outcome.findMany({
         where: { supersededAt: null },
-        select: { id: true, title: true, version: true },
+        select: { id: true, title: true, displayTitle: true, version: true },
         orderBy: [{ title: 'asc' }, { version: 'desc' }],
       }),
       prisma.lineageRow.groupBy({
@@ -910,7 +913,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         include: {
           song: { select: { id: true, r2Url: true, byteSize: true } },
           hook: { select: { id: true, text: true } },
-          outcome: { select: { id: true, title: true, version: true } },
+          outcome: { select: { id: true, title: true, displayTitle: true, version: true } },
         },
       }),
       prisma.lineageRow.count({ where }),
@@ -953,7 +956,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         include: {
           song: { select: { id: true, r2Url: true, byteSize: true } },
           hook: { select: { id: true, text: true } },
-          outcome: { select: { id: true, title: true, version: true } },
+          outcome: { select: { id: true, title: true, displayTitle: true, version: true } },
         },
       })
       return { ...row, createdAt: row.createdAt.toISOString() }
@@ -1002,7 +1005,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         where: { songId: { in: songIds } },
         include: {
           hook: { select: { id: true, text: true } },
-          outcome: { select: { id: true, title: true, version: true } },
+          outcome: { select: { id: true, title: true, displayTitle: true, version: true } },
         },
       }),
       prisma.song.findMany({
@@ -1063,7 +1066,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const rows = await prisma.hook.findMany({
       where: { icpId },
       orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-      include: { outcome: { select: { id: true, title: true, version: true } } },
+      include: { outcome: { select: { id: true, title: true, displayTitle: true, version: true } } },
     })
     return rows
   })
@@ -1182,7 +1185,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         data.approvedAt = new Date()
         data.approvedById = op.operatorId
       }
-      const row = await prisma.hook.create({ data, include: { outcome: { select: { id: true, title: true, version: true } } } })
+      const row = await prisma.hook.create({ data, include: { outcome: { select: { id: true, title: true, displayTitle: true, version: true } } } })
       return row
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
@@ -1209,7 +1212,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
     const row = await prisma.hook.update({
       where: { id }, data: parsed.data,
-      include: { outcome: { select: { id: true, title: true, version: true } } },
+      include: { outcome: { select: { id: true, title: true, displayTitle: true, version: true } } },
     })
     return row
   })
@@ -1224,7 +1227,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const row = await prisma.hook.update({
       where: { id },
       data: { status: 'approved', approvedAt: new Date(), approvedById: op.operatorId },
-      include: { outcome: { select: { id: true, title: true, version: true } } },
+      include: { outcome: { select: { id: true, title: true, displayTitle: true, version: true } } },
     })
     return row
   })
@@ -1273,7 +1276,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
     const row = await prisma.hook.update({
       where: { id }, data: { status: 'retired' },
-      include: { outcome: { select: { id: true, title: true, version: true } } },
+      include: { outcome: { select: { id: true, title: true, displayTitle: true, version: true } } },
     })
     return row
   })
@@ -1320,6 +1323,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       ...q,
       hookText: hookTextById.get(q.hookId) ?? null,
       outcomeTitle: outcomeById.get(q.outcomeId)?.title ?? null,
+      outcomeDisplayTitle: outcomeById.get(q.outcomeId)?.displayTitle ?? null,
     }))
 
     const activeOutcomeRow = hendrix.activeOutcome ? outcomeById.get(hendrix.activeOutcome.outcomeId) : null
@@ -1338,6 +1342,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       active: hendrix.activeOutcome ? {
         outcomeId: hendrix.activeOutcome.outcomeId,
         outcomeTitle: activeOutcomeRow?.title ?? null,
+        outcomeDisplayTitle: activeOutcomeRow?.displayTitle ?? null,
         source: hendrix.activeOutcome.source,
         expiresAt: hendrix.activeOutcome.expiresAt ?? null,
       } : null,
@@ -1347,6 +1352,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       outcomes: outcomes.map((o) => ({
         outcomeId: o.id,
         title: o.title,
+        displayTitle: o.displayTitle,
         version: o.version,
         tempoBpm: o.tempoBpm,
         mode: o.mode,
@@ -1360,6 +1366,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         hookId: e.hookId,
         outcomeId: e.outcomeId,
         outcomeTitle: e.outcomeId ? (outcomeById.get(e.outcomeId)?.title ?? null) : null,
+        outcomeDisplayTitle: e.outcomeId ? (outcomeById.get(e.outcomeId)?.displayTitle ?? null) : null,
         operatorId: e.operatorId,
         operatorEmail: e.operator?.email ?? null,
         reportReason: e.reportReason,
@@ -1418,7 +1425,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const rows = await prisma.scheduleSlot.findMany({
       where: { storeId: id },
       orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
-      include: { outcome: { select: { id: true, title: true, version: true } } },
+      include: { outcome: { select: { id: true, title: true, displayTitle: true, version: true } } },
     })
     return rows.map((r) => ({
       id: r.id,
@@ -1428,6 +1435,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       endTime: timeToHHMM(r.endTime),
       outcomeId: r.outcomeId,
       outcomeTitle: r.outcome.title,
+      outcomeDisplayTitle: r.outcome.displayTitle,
       outcomeVersion: r.outcome.version,
     }))
   })
@@ -1463,12 +1471,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           endTime: hhmmToTime(parsed.data.endTime),
           outcomeId: parsed.data.outcomeId,
         },
-        include: { outcome: { select: { title: true, version: true } } },
+        include: { outcome: { select: { title: true, displayTitle: true, version: true } } },
       })
       return {
         id: row.id, storeId: row.storeId, dayOfWeek: row.dayOfWeek,
         startTime: timeToHHMM(row.startTime), endTime: timeToHHMM(row.endTime),
-        outcomeId: row.outcomeId, outcomeTitle: row.outcome.title, outcomeVersion: row.outcome.version,
+        outcomeId: row.outcomeId, outcomeTitle: row.outcome.title, outcomeDisplayTitle: row.outcome.displayTitle, outcomeVersion: row.outcome.version,
       }
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
@@ -1506,12 +1514,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           endTime: hhmmToTime(parsed.data.endTime),
           outcomeId: parsed.data.outcomeId,
         },
-        include: { outcome: { select: { title: true, version: true } } },
+        include: { outcome: { select: { title: true, displayTitle: true, version: true } } },
       })
       return {
         id: row.id, storeId: row.storeId, dayOfWeek: row.dayOfWeek,
         startTime: timeToHHMM(row.startTime), endTime: timeToHHMM(row.endTime),
-        outcomeId: row.outcomeId, outcomeTitle: row.outcome.title, outcomeVersion: row.outcome.version,
+        outcomeId: row.outcomeId, outcomeTitle: row.outcome.title, outcomeDisplayTitle: row.outcome.displayTitle, outcomeVersion: row.outcome.version,
       }
     } catch {
       return reply.code(404).send({ error: 'not_found' })
@@ -1543,7 +1551,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       where: { id: storeId },
       include: {
         icps: { select: { id: true, name: true } },
-        defaultOutcome: { select: { id: true, title: true, version: true, supersededAt: true } },
+        defaultOutcome: { select: { id: true, title: true, displayTitle: true, version: true, supersededAt: true } },
       },
     })
     if (!store) return reply.code(404).send({ error: 'store_not_found' })
@@ -1551,7 +1559,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
     const rows = await prisma.scheduleSlot.findMany({
       where: { storeId },
-      include: { outcome: { select: { id: true, title: true, version: true, supersededAt: true } } },
+      include: { outcome: { select: { id: true, title: true, displayTitle: true, version: true, supersededAt: true } } },
       orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
     })
 
@@ -1563,8 +1571,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const def = store.defaultOutcome ?? null
-    const usedOutcomes = new Map<string, { id: string; title: string; version: number; superseded: boolean }>()
-    if (def) usedOutcomes.set(def.id, { id: def.id, title: def.title, version: def.version, superseded: !!def.supersededAt })
+    const usedOutcomes = new Map<string, { id: string; title: string; displayTitle: string | null; version: number; superseded: boolean }>()
+    if (def) usedOutcomes.set(def.id, { id: def.id, title: def.title, displayTitle: def.displayTitle, version: def.version, superseded: !!def.supersededAt })
 
     type Period = {
       startSec: number; endSec: number
@@ -1572,6 +1580,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       source: 'schedule' | 'default' | 'gap'
       outcomeId: string | null
       outcomeTitle: string | null
+      outcomeDisplayTitle: string | null
       outcomeVersion: number | null
       outcomeSuperseded: boolean
       durationMin: number
@@ -1599,7 +1608,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
             startSec: from, endSec: to,
             startHHMM: fmtHHMM(from), endHHMM: fmtHHMM(to),
             source: 'default',
-            outcomeId: def.id, outcomeTitle: def.title, outcomeVersion: def.version,
+            outcomeId: def.id, outcomeTitle: def.title, outcomeDisplayTitle: def.displayTitle, outcomeVersion: def.version,
             outcomeSuperseded: !!def.supersededAt,
             durationMin: Math.round((to - from) / 60),
             overlap: false,
@@ -1609,7 +1618,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
             startSec: from, endSec: to,
             startHHMM: fmtHHMM(from), endHHMM: fmtHHMM(to),
             source: 'gap',
-            outcomeId: null, outcomeTitle: null, outcomeVersion: null,
+            outcomeId: null, outcomeTitle: null, outcomeDisplayTitle: null, outcomeVersion: null,
             outcomeSuperseded: false,
             durationMin: Math.round((to - from) / 60),
             overlap: false,
@@ -1623,14 +1632,14 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         const start = Math.max(cursor, r.startSec)
         const end = Math.max(start, r.endSec)
         usedOutcomes.set(r.outcome.id, {
-          id: r.outcome.id, title: r.outcome.title, version: r.outcome.version,
+          id: r.outcome.id, title: r.outcome.title, displayTitle: r.outcome.displayTitle, version: r.outcome.version,
           superseded: !!r.outcome.supersededAt,
         })
         periods.push({
           startSec: start, endSec: end,
           startHHMM: fmtHHMM(start), endHHMM: fmtHHMM(end),
           source: 'schedule',
-          outcomeId: r.outcome.id, outcomeTitle: r.outcome.title, outcomeVersion: r.outcome.version,
+          outcomeId: r.outcome.id, outcomeTitle: r.outcome.title, outcomeDisplayTitle: r.outcome.displayTitle, outcomeVersion: r.outcome.version,
           outcomeSuperseded: !!r.outcome.supersededAt,
           durationMin: Math.round((end - start) / 60),
           overlap,
@@ -1671,7 +1680,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       const t = totalsByOutcome.get(o.id) ?? { scheduledMin: 0, defaultMin: 0 }
       const count = countMap.get(o.id) ?? 0
       return {
-        outcomeId: o.id, outcomeTitle: o.title, outcomeVersion: o.version,
+        outcomeId: o.id, outcomeTitle: o.title, outcomeDisplayTitle: o.displayTitle, outcomeVersion: o.version,
         outcomeSuperseded: o.superseded,
         scheduledMin: t.scheduledMin, defaultMin: t.defaultMin,
         totalMin: t.scheduledMin + t.defaultMin,
@@ -1736,7 +1745,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       take: parsed.data.limit ?? 100,
       include: {
         hook: { select: { id: true, text: true } },
-        outcome: { select: { id: true, title: true, version: true } },
+        outcome: { select: { id: true, title: true, displayTitle: true, version: true } },
         referenceTrack: { select: { id: true, artist: true, title: true } },
         songSeedBatch: { select: { id: true, startedAt: true, triggeredBy: true } },
       },

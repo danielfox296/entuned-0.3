@@ -10,6 +10,7 @@ type Filter = 'active' | 'superseded' | 'all'
 
 interface Draft {
   title: string
+  displayTitle: string
   tempoBpm: number
   mode: string
   dynamics: string
@@ -48,7 +49,7 @@ export function OutcomeLibrary() {
     return rows.filter((r) => {
       if (filter === 'active' && r.supersededAt) return false
       if (filter === 'superseded' && !r.supersededAt) return false
-      if (q && !r.title.toLowerCase().includes(q) && !(r.mode ?? '').toLowerCase().includes(q) && !(r.instrumentation ?? '').toLowerCase().includes(q)) return false
+      if (q && !r.title.toLowerCase().includes(q) && !(r.displayTitle ?? '').toLowerCase().includes(q) && !(r.mode ?? '').toLowerCase().includes(q) && !(r.instrumentation ?? '').toLowerCase().includes(q)) return false
       return true
     })
   }, [rows, filter, search])
@@ -63,6 +64,7 @@ export function OutcomeLibrary() {
     setEditingId(r.id)
     setDraft({
       title: r.title,
+      displayTitle: r.displayTitle ?? '',
       tempoBpm: r.tempoBpm,
       mode: r.mode,
       dynamics: r.dynamics ?? '',
@@ -78,7 +80,8 @@ export function OutcomeLibrary() {
     setBusy('save'); setErr(null)
     try {
       await api.editOutcome(editingId, {
-        title: draft.title, tempoBpm: draft.tempoBpm, mode: draft.mode,
+        title: draft.title, displayTitle: draft.displayTitle.trim() || null,
+        tempoBpm: draft.tempoBpm, mode: draft.mode,
         dynamics: draft.dynamics || null, instrumentation: draft.instrumentation || null,
         familiarity: draft.familiarity || null, productionEraId: draft.productionEraId || null,
       }, token)
@@ -93,7 +96,8 @@ export function OutcomeLibrary() {
     setBusy('create'); setErr(null)
     try {
       await api.createOutcome({
-        title: adding.title, tempoBpm: adding.tempoBpm, mode: adding.mode,
+        title: adding.title, displayTitle: adding.displayTitle.trim() || null,
+        tempoBpm: adding.tempoBpm, mode: adding.mode,
         dynamics: adding.dynamics || null, instrumentation: adding.instrumentation || null,
         familiarity: adding.familiarity || null, productionEraId: adding.productionEraId || null,
       }, token)
@@ -144,7 +148,7 @@ export function OutcomeLibrary() {
         />
         <Button
           variant={adding ? 'ghost' : 'primary'}
-          onClick={() => setAdding(adding ? null : { title: '', tempoBpm: 100, mode: 'major', dynamics: '', instrumentation: '', familiarity: '', productionEraId: '' })}
+          onClick={() => setAdding(adding ? null : { title: '', displayTitle: '', tempoBpm: 100, mode: 'major', dynamics: '', instrumentation: '', familiarity: '', productionEraId: '' })}
         >{adding ? 'cancel' : '+ new outcome'}</Button>
       </div>
 
@@ -234,7 +238,7 @@ function DataRow({ row, onEdit, onSupersede, busy }: {
       fontFamily: T.sans, fontSize: S.small, alignItems: 'center',
       opacity: superseded ? 0.6 : 1,
     }}>
-      <span style={{ color: T.text, fontWeight: 500 }}>{row.title}</span>
+      <span style={{ color: T.text, fontWeight: 500 }}>{row.displayTitle ?? row.title}</span>
       <span style={{ color: T.accentMuted }}>v{row.version}</span>
       <span style={{ color: T.textMuted }}>{row.tempoBpm}</span>
       <span style={{ color: T.textMuted }}>{row.mode}</span>
@@ -276,11 +280,15 @@ function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent,
       background: intent === 'new' ? T.accentGlow : 'transparent',
       border: intent === 'new' ? `1px solid ${T.accentMuted}` : 'none',
       borderRadius: S.r4, padding: intent === 'new' ? 14 : 0,
-      display: 'grid', gridTemplateColumns: '1fr 100px 140px 1fr 1.4fr 120px 1.2fr', gap: 8,
+      display: 'grid', gridTemplateColumns: '1fr 1fr 100px 140px 1fr 1.4fr 120px 1.2fr', gap: 8,
     }}>
       <div>
-        <label style={labelStyle}>title</label>
+        <label style={labelStyle}>title (LLM-facing)</label>
         <Input value={draft.title} onChange={(e) => set('title', e.target.value)} placeholder="Brand Reinforcement" />
+      </div>
+      <div>
+        <label style={labelStyle}>display title (operator UI)</label>
+        <Input value={draft.displayTitle} onChange={(e) => set('displayTitle', e.target.value)} placeholder="Reinforce Brand" />
       </div>
       <div>
         <label style={labelStyle}>tempo bpm</label>

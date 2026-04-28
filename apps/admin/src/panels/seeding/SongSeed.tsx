@@ -188,7 +188,7 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
 
       <Section title="Scope">
         <KV k="ICP" v={data.icpId.slice(0, 8)} />
-        <KV k="Outcome" v={data.outcome?.title ?? '—'} />
+        <KV k="Outcome" v={(data.outcome?.displayTitle ?? data.outcome?.title) ?? '—'} />
         <KV k="Hook" v={data.hook.text} />
         <KV k="Reference track" v={data.referenceTrack ? `${data.referenceTrack.artist} — ${data.referenceTrack.title}${data.referenceTrack.year ? ` (${data.referenceTrack.year})` : ''}` : '—'} />
         <KV k="Seed Batch" v={`${data.songSeedBatch?.id?.slice(0, 8)} · ${data.songSeedBatch?.triggeredBy} · ${data.songSeedBatch ? new Date(data.songSeedBatch.startedAt).toLocaleString() : ''}`} />

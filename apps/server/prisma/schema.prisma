@@ -448,6 +448,7 @@ model Outcome {
   outcomeKey      String    @map("outcome_key") @db.Uuid
   version         Int
   title           String
+  displayTitle    String?   @map("display_title")
   // Song Outcome Specs
   tempoBpm              Int       @map("tempo_bpm")
   mode                  String

@@ -147,7 +147,7 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
     )
   }
 
-  const ordered = liveOutcomes.slice().sort((a, b) => a.title.localeCompare(b.title))
+  const ordered = liveOutcomes.slice().sort((a, b) => (a.displayTitle ?? a.title).localeCompare(b.displayTitle ?? b.title))
   const activeOutcome = activeOutcomeId
     ? liveOutcomes.find((o) => o.id === activeOutcomeId) ?? null
     : null
@@ -178,7 +178,7 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
                 }}
               >
                 <div style={{ fontSize: 14, color: T.text, fontWeight: on ? 500 : 400 }}>
-                  {o.title}
+                  {o.displayTitle ?? o.title}
                 </div>
                 <div style={{ fontSize: 12, color: T.textDim, marginTop: 4, fontFamily: T.mono }}>
                   {approvedCount} approved
@@ -209,7 +209,7 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
                     marginBottom: -1,
                   }}
                 >
-                  {o.title}{draftCount > 0 ? ` · ${draftCount}` : ''}
+                  {o.displayTitle ?? o.title}{draftCount > 0 ? ` · ${draftCount}` : ''}
                 </button>
               )
             })}

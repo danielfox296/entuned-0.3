@@ -113,7 +113,7 @@ export function SongSeedQueue() {
             <span style={{ color: T.textDim, fontFamily: T.mono }}>+</span>
             <select value={runOutcome} onChange={(e) => setRunOutcome(e.target.value)} style={inputStyle}>
               <option value="" disabled>— pick outcome —</option>
-              {(outcomes ?? []).map((o) => <option key={o.id} value={o.id}>{o.title}</option>)}
+              {(outcomes ?? []).map((o) => <option key={o.id} value={o.id}>{o.displayTitle ?? o.title}</option>)}
             </select>
             <input type="number" min={1} max={20} value={runN} onChange={(e) => setRunN(parseInt(e.target.value, 10) || 1)} style={{ ...inputStyle, width: 80 }} />
             <button onClick={launch} disabled={running || !runOutcome} style={primaryBtn(!!runOutcome, running)}>
@@ -195,7 +195,7 @@ function SeedListRow({ sub, onOpen }: { sub: SongSeedRow; onOpen: () => void }) 
         {sub.title ?? sub.hook.text}
       </span>
       <span style={{ fontSize: 13, fontFamily: T.mono, color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {sub.outcome.title} · {sub.referenceTrack ? `${sub.referenceTrack.artist} — ${sub.referenceTrack.title}` : 'no ref'}
+        {(sub.outcome.displayTitle ?? sub.outcome.title)} · {sub.referenceTrack ? `${sub.referenceTrack.artist} — ${sub.referenceTrack.title}` : 'no ref'}
       </span>
       <span style={{ fontSize: 13, fontFamily: T.mono, color: T.textDim, textAlign: 'right' }}>
         {new Date(sub.createdAt).toLocaleString()}

@@ -48,12 +48,16 @@ export function HookQueue() {
   }
 
   const visibleHooks = (hooks ?? []).filter((h) => filter === 'all' ? true : h.status === filter)
-  const grouped: Record<string, { outcome: { id: string; title: string; version: number }; hooks: HookRowFull[] }> = {}
+  const grouped: Record<string, { outcome: { id: string; title: string; displayTitle: string | null; version: number }; hooks: HookRowFull[] }> = {}
   for (const h of visibleHooks) {
     if (!grouped[h.outcomeId]) grouped[h.outcomeId] = { outcome: h.outcome, hooks: [] }
     grouped[h.outcomeId]!.hooks.push(h)
   }
-  const groupedKeys = Object.keys(grouped).sort((a, b) => grouped[a]!.outcome.title.localeCompare(grouped[b]!.outcome.title))
+  const groupedKeys = Object.keys(grouped).sort((a, b) => {
+    const al = grouped[a]!.outcome.displayTitle ?? grouped[a]!.outcome.title
+    const bl = grouped[b]!.outcome.displayTitle ?? grouped[b]!.outcome.title
+    return al.localeCompare(bl)
+  })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
@@ -289,7 +293,7 @@ function NewHookForm({ icpId, outcomes, onCreated }: {
         <select value={outcomeId} onChange={(e) => setOutcomeId(e.target.value)} style={inputStyle}>
           <option value="" disabled>— pick an outcome —</option>
           {(outcomes ?? []).map((o) => (
-            <option key={o.id} value={o.id}>{o.title}</option>
+            <option key={o.id} value={o.id}>{o.displayTitle ?? o.title}</option>
           ))}
         </select>
       </div>
@@ -501,7 +505,7 @@ function DrafterPromptEditor({ icpId }: { icpId: string }) {
 }
 
 function OutcomeGroup({ outcome, hooks, onChanged }: {
-  outcome: { id: string; title: string; version: number }
+  outcome: { id: string; title: string; displayTitle: string | null; version: number }
   hooks: HookRowFull[]
   onChanged: () => void
 }) {
@@ -512,7 +516,7 @@ function OutcomeGroup({ outcome, hooks, onChanged }: {
         textTransform: 'uppercase', letterSpacing: '0.05em',
         marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${T.borderSubtle}`,
       }}>
-        {outcome.title} <span style={{ color: T.textDim }}>{hooks.length}</span>
+        {outcome.displayTitle ?? outcome.title} <span style={{ color: T.textDim }}>{hooks.length}</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {hooks.map((h) => <HookRow key={h.id} hook={h} onChanged={onChanged} />)}

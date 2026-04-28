@@ -9,6 +9,18 @@ const PAGE_SIZE = 50
 
 interface IcpOption { id: string; name: string }
 
+// Show one row per outcomeKey (latest-version wins) and skip superseded entries.
+// Otherwise the dropdown lists "Linger" / "Linger" / "Linger" once per historical version.
+function dedupeActiveOutcomes(rows: OutcomeRowFull[]): OutcomeRowFull[] {
+  const byKey = new Map<string, OutcomeRowFull>()
+  for (const r of rows) {
+    if (r.supersededAt) continue
+    const cur = byKey.get(r.outcomeKey)
+    if (!cur || r.version > cur.version) byKey.set(r.outcomeKey, r)
+  }
+  return Array.from(byKey.values()).sort((a, b) => (a.displayTitle ?? a.title).localeCompare(b.displayTitle ?? b.title))
+}
+
 export function SongBrowser({ defaultActive = 'true' as ActiveFilter, headerLabel = 'Song Browser', headerHint = 'Every LineageRow Hendrix can pick. Retire a row to remove it from the pool without deleting the underlying song.' }: { defaultActive?: ActiveFilter; headerLabel?: string; headerHint?: string }) {
   const [data, setData] = useState<LineageRowList | null>(null)
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
@@ -100,7 +112,7 @@ function Filters({ icps, outcomes, icpId, outcomeId, active, onIcp, onOutcome, o
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
       <FilterSelect label="icp" value={icpId} onChange={onIcp} options={[{ value: '', label: 'all ICPs' }, ...(icps ?? []).map((i) => ({ value: i.id, label: i.name }))]} />
-      <FilterSelect label="outcome" value={outcomeId} onChange={onOutcome} options={[{ value: '', label: 'all outcomes' }, ...(outcomes ?? []).map((o) => ({ value: o.id, label: o.title }))]} />
+      <FilterSelect label="outcome" value={outcomeId} onChange={onOutcome} options={[{ value: '', label: 'all outcomes' }, ...dedupeActiveOutcomes(outcomes ?? []).map((o) => ({ value: o.id, label: o.displayTitle ?? o.title }))]} />
       <div style={{ display: 'flex', gap: 4 }}>
         {(['true', 'false', 'all'] as const).map((k) => {
           const on = active === k
@@ -193,7 +205,7 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
       opacity: row.active ? 1 : 0.55,
     }}>
       <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500, ...trunc }}>{row.icpName ?? row.icpId.slice(0, 8)}</span>
-      <span style={{ color: T.textMuted, ...trunc }}>{row.outcome.title}</span>
+      <span style={{ color: T.textMuted, ...trunc }}>{row.outcome.displayTitle ?? row.outcome.title}</span>
       <span style={{ color: T.textMuted, fontFamily: T.sans, ...trunc }} title={row.hook.text}>{row.hook.text}</span>
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, ...trunc }}>
         <button onClick={play} style={playBtn(playing)} title={playing ? 'pause' : 'play'}>

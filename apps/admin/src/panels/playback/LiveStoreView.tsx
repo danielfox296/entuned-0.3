@@ -126,7 +126,7 @@ function ActiveAndOverride({ data, onChange }: { data: LiveStoreData; onChange: 
       ) : (
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
           <div style={{ fontSize: S.title, fontFamily: T.sans, fontWeight: 500, color: T.text }}>
-            {a.outcomeTitle ?? a.outcomeId.slice(0, 8)}
+            {a.outcomeDisplayTitle ?? a.outcomeTitle ?? a.outcomeId.slice(0, 8)}
           </div>
           <Pill tone={sourceTone}>{a.source}</Pill>
           {a.expiresAt && (
@@ -223,7 +223,7 @@ function QueueCard({ queue, fallbackTier, reason }: {
                 {q.hookText ?? <span style={{ color: T.textDim }}>(hook {q.hookId.slice(0, 8)})</span>}
               </span>
               <span style={{ fontFamily: T.sans, fontSize: S.label, color: T.textMuted }}>
-                {q.outcomeTitle ?? q.outcomeId.slice(0, 8)}
+                {q.outcomeDisplayTitle ?? q.outcomeTitle ?? q.outcomeId.slice(0, 8)}
               </span>
             </div>
           ))}
@@ -284,7 +284,8 @@ function eventColor(type: string): string {
 
 function eventDetail(e: PlaybackEventRow): string {
   const parts: string[] = []
-  if (e.outcomeTitle) parts.push(e.outcomeTitle)
+  const label = e.outcomeDisplayTitle ?? e.outcomeTitle
+  if (label) parts.push(label)
   if (e.reportReason) parts.push(`reason: ${e.reportReason}`)
   if (e.operatorEmail) parts.push(`by ${e.operatorEmail}`)
   if (e.songId) parts.push(`song ${e.songId.slice(0, 8)}`)

@@ -37,19 +37,19 @@ export function DryRun() {
     if (!data.defaultOutcome) {
       out.push('No default outcome set on this store — gaps in the schedule resolve to nothing.')
     } else if (data.defaultOutcome.superseded) {
-      out.push(`Default outcome "${data.defaultOutcome.title}" is superseded — replace it before any gap is hit.`)
+      out.push(`Default outcome "${data.defaultOutcome.displayTitle ?? data.defaultOutcome.title}" is superseded — replace it before any gap is hit.`)
     }
     const supersededOutcomes = data.byOutcome.filter((o) => o.outcomeSuperseded)
     if (supersededOutcomes.length > 0) {
-      out.push(`Schedule references superseded outcomes: ${supersededOutcomes.map((o) => o.outcomeTitle).join(', ')}.`)
+      out.push(`Schedule references superseded outcomes: ${supersededOutcomes.map((o) => o.outcomeDisplayTitle ?? o.outcomeTitle).join(', ')}.`)
     }
     const critical = data.byOutcome.filter((o) => o.poolStatus === 'critical' && o.totalMin > 0)
     if (critical.length > 0) {
-      out.push(`${critical.length} outcome(s) are scheduled but their pool is CRITICAL (< ${data.thresholds.critical} active LineageRows): ${critical.map((o) => o.outcomeTitle).join(', ')}.`)
+      out.push(`${critical.length} outcome(s) are scheduled but their pool is CRITICAL (< ${data.thresholds.critical} active LineageRows): ${critical.map((o) => o.outcomeDisplayTitle ?? o.outcomeTitle).join(', ')}.`)
     }
     const thin = data.byOutcome.filter((o) => o.poolStatus === 'thin' && o.totalMin > 0)
     if (thin.length > 0) {
-      out.push(`${thin.length} outcome(s) are scheduled with thin pools (< ${data.thresholds.thin}): ${thin.map((o) => o.outcomeTitle).join(', ')}.`)
+      out.push(`${thin.length} outcome(s) are scheduled with thin pools (< ${data.thresholds.thin}): ${thin.map((o) => o.outcomeDisplayTitle ?? o.outcomeTitle).join(', ')}.`)
     }
     const overlaps = data.days.flatMap((d) => d.periods.filter((p) => p.overlap).map((p) => `${d.label} ${p.startHHMM}`))
     if (overlaps.length > 0) {
@@ -96,7 +96,7 @@ function SummaryRow({ data }: { data: ScheduleDryRun }) {
       <Chip label="scheduled" value={fmtDur(data.totals.scheduledMin)} pct={pct(data.totals.scheduledMin, data.totals.totalMin)} color={T.accent} />
       <Chip label="default fill" value={fmtDur(data.totals.defaultMin)} pct={pct(data.totals.defaultMin, data.totals.totalMin)} color={T.textMuted} />
       <Chip label="gap" value={fmtDur(data.totals.gapMin)} pct={pct(data.totals.gapMin, data.totals.totalMin)} color={data.totals.gapMin > 0 ? T.danger : T.textDim} />
-      <Chip label="default outcome" value={data.defaultOutcome?.title ?? '—'} color={data.defaultOutcome ? T.text : T.danger} />
+      <Chip label="default outcome" value={(data.defaultOutcome?.displayTitle ?? data.defaultOutcome?.title) ?? '—'} color={data.defaultOutcome ? T.text : T.danger} />
       <Chip
         label={`ICPs (${data.icps.length})`}
         value={data.icps.length === 0 ? '—' : data.icps.map((i) => i.name).join(', ')}
@@ -170,7 +170,7 @@ function ByOutcomeTable({ data }: { data: ScheduleDryRun }) {
             fontFamily: T.mono, fontSize: 14, alignItems: 'center',
           }}>
             <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500 }}>
-              {o.outcomeTitle} <span style={{ color: T.accentMuted }}>v{o.outcomeVersion}</span>
+              {o.outcomeDisplayTitle ?? o.outcomeTitle} <span style={{ color: T.accentMuted }}>v{o.outcomeVersion}</span>
               {o.outcomeSuperseded && <span style={{ color: T.danger, fontFamily: T.mono, fontSize: 12, marginLeft: 6 }}>SUPERSEDED</span>}
             </span>
             <span style={{ textAlign: 'right', color: T.text }}>{fmtDur(o.scheduledMin)}</span>
@@ -259,7 +259,7 @@ function DayColumn({ periods, palette }: { periods: DryRunPeriod[]; palette: Map
             {height > 4 && (
               <>
                 <div style={{ fontWeight: 600, color: p.source === 'gap' ? T.danger : T.bg }}>
-                  {p.source === 'gap' ? 'GAP' : p.outcomeTitle}
+                  {p.source === 'gap' ? 'GAP' : (p.outcomeDisplayTitle ?? p.outcomeTitle)}
                 </div>
                 {height > 8 && (
                   <div style={{ opacity: 0.85, fontSize: 10 }}>
@@ -299,8 +299,9 @@ function pct(n: number, total: number): string {
 
 function labelOf(p: DryRunPeriod): string {
   if (p.source === 'gap') return 'gap (no default)'
-  if (p.source === 'default') return `default · ${p.outcomeTitle}`
-  return `scheduled · ${p.outcomeTitle}`
+  const label = p.outcomeDisplayTitle ?? p.outcomeTitle
+  if (p.source === 'default') return `default · ${label}`
+  return `scheduled · ${label}`
 }
 
 // Stable color per outcome id, reusing tokens that exist.
