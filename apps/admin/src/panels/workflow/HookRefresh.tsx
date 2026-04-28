@@ -88,10 +88,21 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
   const toggleOutcome = (id: string) => {
     setSelectedOutcomeIds((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id); else next.add(id)
+      const wasSelected = next.has(id)
+      if (wasSelected) next.delete(id); else next.add(id)
+      // Selecting a new outcome should also focus it — otherwise the
+      // Generate button stays pointed at whatever was previously active,
+      // which silently misfires generation against the wrong outcome.
+      if (!wasSelected) {
+        setActiveOutcomeId(id)
+      } else if (activeOutcomeId === id) {
+        // Deselected the active one — pick any other still-selected outcome,
+        // or null out if nothing remains selected.
+        const fallback = next.values().next().value ?? null
+        setActiveOutcomeId(fallback)
+      }
       return next
     })
-    if (!activeOutcomeId) setActiveOutcomeId(id)
   }
 
   const generate = async (outcomeId: string) => {
