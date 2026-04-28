@@ -65,8 +65,8 @@ export function StoreEditor() {
       setDetail((cur) => cur ? { ...cur, ...updated, icps: (updated as any).icps ?? cur.icps } : cur)
       setDraft({})
       reloadAll()
-      toast.success(`${detail.name} saved`)
-    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'save failed') }
+      toast.success(`location "${detail.name}" saved`)
+    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'failed to save location') }
     finally { setBusy(false) }
   }
 
@@ -77,8 +77,8 @@ export function StoreEditor() {
     try {
       const created = await api.createStore(creating, token)
       setCreating(null); setStoreId(created.id); reloadAll()
-      toast.success(`location ${created.name} created`)
-    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'create failed') }
+      toast.success(`location "${created.name}" created`)
+    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'failed to create location') }
     finally { setBusy(false) }
   }
 

@@ -98,10 +98,10 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
     try {
       const r = await api.suggestReferenceTracks(ctx.icpId, token)
       await refetch()
-      toast.success(`${r.createdCount} new suggestion${r.createdCount === 1 ? '' : 's'}`)
+      toast.success(`${r.createdCount} new reference track suggestion${r.createdCount === 1 ? '' : 's'}`)
     } catch (e: any) {
       setErr(e.message ?? 'suggestion failed')
-      toast.error(e.message ?? 'suggestion failed')
+      toast.error(e.message ?? 'failed to suggest reference tracks')
     } finally {
       setSuggesting(false)
     }
@@ -120,7 +120,7 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
       setEdits((prev) => { const { [id]: _, ...rest } = prev; return rest })
       await refetch()
     } catch (e: any) {
-      toast.error(e.message ?? 'update failed')
+      toast.error(e.message ?? 'failed to update reference track')
     }
   }
 
@@ -142,9 +142,9 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
       }
       await api.approveReferenceTrack(t.id, token)
       await refetch()
-      toast.success('approved')
+      toast.success('reference track approved')
     } catch (e: any) {
-      toast.error(e.message ?? 'approve failed')
+      toast.error(e.message ?? 'failed to approve reference track')
     } finally {
       setPendingMutation((s) => { const next = new Set(s); next.delete(t.id); return next })
     }
@@ -162,7 +162,7 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
       await api.rejectReferenceTrack(t.id, token)
       await refetch()
     } catch (e: any) {
-      toast.error(e.message ?? 'discard failed')
+      toast.error(e.message ?? 'failed to remove reference track')
     } finally {
       setPendingMutation((s) => { const next = new Set(s); next.delete(t.id); return next })
     }
@@ -174,9 +174,9 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
     try {
       await api.decomposeReferenceTrack(t.id, force, token)
       await refetch()
-      toast.success('analysis complete')
+      toast.success('reference track decomposed')
     } catch (e: any) {
-      toast.error(e.message ?? 'analysis failed')
+      toast.error(e.message ?? 'decomposition failed')
     } finally {
       setAnalyzing((s) => { const next = new Set(s); next.delete(t.id); return next })
     }
@@ -503,7 +503,7 @@ function PendingRow({ track, edit, busy, onChange, onBlur, onApprove, onDiscard,
           onClick={onDiscard}
           disabled={busy}
           style={ghostBtnStyle}
-        >discard</button>
+        >remove</button>
       </div>
     </div>
   )
@@ -543,8 +543,7 @@ function ApprovedRow({ track, analyzing, onAnalyze, onOpen, onResolvedPreview }:
       }}>
         <span>{BUCKET_LABEL[track.bucket]}</span>
         <span>·</span>
-        <span>used {track.useCount}×</span>
-        <span>·</span>
+        {track.useCount > 0 && <><span>in use</span><span>·</span></>}
         <span style={{ color: analysis ? T.accent : T.textDim }}>
           {analysis ? `decomposed (${analysis.status})` : 'not decomposed'}
         </span>
@@ -695,11 +694,11 @@ function StyleAnalysisModal({ track, onClose, onSaved, analyzing, onAnalyze, onR
     setSaving(true)
     try {
       await api.updateStyleAnalysis(analysis.id, draft, token)
-      toast.success('analysis saved')
+      toast.success('decomposition saved')
       onSaved()
       onClose()
     } catch (e: any) {
-      toast.error(e.message ?? 'save failed')
+      toast.error(e.message ?? 'failed to save decomposition')
     } finally {
       setSaving(false)
     }
@@ -744,7 +743,7 @@ function StyleAnalysisModal({ track, onClose, onSaved, analyzing, onAnalyze, onR
               {track.title}{track.year ? ` (${track.year})` : ''}
             </div>
             <div style={{ fontFamily: T.mono, fontSize: 12, color: T.textDim, marginTop: 2 }}>
-              {BUCKET_LABEL[track.bucket]} · used {track.useCount}×
+              {BUCKET_LABEL[track.bucket]}{track.useCount > 0 ? ' · in use' : ''}
             </div>
           </div>
         </div>

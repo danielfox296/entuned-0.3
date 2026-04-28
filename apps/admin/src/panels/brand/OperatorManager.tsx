@@ -18,7 +18,7 @@ export function OperatorManager() {
     try {
       const [ops, sts] = await Promise.all([api.operators(token), api.stores(token)])
       setOperators(ops); setStores(sts)
-    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'failed to load') }
+    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'failed to load location associates') }
   }
 
   useEffect(() => { void load() }, [])
@@ -31,8 +31,8 @@ export function OperatorManager() {
       const updated = await api.updateOperator(selected.id, body, token)
       setSelected(updated)
       await load()
-      toast.success(`${updated.email} saved`)
-    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'save failed') }
+      toast.success(`associate "${updated.email}" saved`)
+    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'failed to save associate') }
     finally { setBusy(false) }
   }
 
@@ -43,8 +43,8 @@ export function OperatorManager() {
       const created = await api.createOperator(body, token)
       setCreating(false)
       await load()
-      toast.success(`${created.email} created`)
-    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'create failed') }
+      toast.success(`associate "${created.email}" created`)
+    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'failed to create associate') }
     finally { setBusy(false) }
   }
 

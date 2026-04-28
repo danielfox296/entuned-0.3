@@ -128,13 +128,13 @@ export function SongSeedBurst({ ctx }: { ctx: WorkflowContext }) {
         result.reason === 'pool_exhausted' ? ' (pool exhausted)'
         : result.reason === 'precheck_failed' ? ' (precheck failed)' : ''
       if (result.producedN > 0) {
-        toast.success(`${result.producedN} of ${result.requestedN} seeded${reasonNote}`)
+        toast.success(`created ${result.producedN} of ${result.requestedN} Song Prompt${result.requestedN === 1 ? '' : 's'}${reasonNote}`)
       } else {
-        toast.error(`no seeds produced${reasonNote}`)
+        toast.error(`no Song Prompts created${reasonNote}`)
       }
     } catch (e: any) {
       setErr(e.message ?? 'batch failed')
-      toast.error(e.message ?? 'batch failed')
+      toast.error(e.message ?? 'Song Prompt batch failed')
     } finally {
       setRunning((s) => { const next = new Set(s); next.delete(outcomeId); return next })
     }
@@ -156,7 +156,7 @@ export function SongSeedBurst({ ctx }: { ctx: WorkflowContext }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Outcome picker */}
       <div>
-        <Heading>Pick outcomes to seed</Heading>
+        <Heading>Select outcomes to use</Heading>
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
           gap: 8, marginTop: 10,
@@ -188,7 +188,7 @@ export function SongSeedBurst({ ctx }: { ctx: WorkflowContext }) {
                 }}>
                   <span>{r?.approvedHooks ?? 0} hook{r?.approvedHooks === 1 ? '' : 's'}</span>
                   <span>·</span>
-                  <span>{inFlight} in flight</span>
+                  <span>{inFlight} to work</span>
                   <span>·</span>
                   <span>{accepted} accepted</span>
                 </div>
@@ -310,7 +310,7 @@ function BurstSurface({ outcome, readiness, recentSeeds, n, setN, running, lastR
 
       {/* Recent seeds for this outcome */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <Heading>Recent seeds ({recentSeeds.length})</Heading>
+        <Heading>Recent Song Prompts ({recentSeeds.length})</Heading>
         {recentSeeds.length === 0 ? (
           <Empty>no seeds yet for this outcome</Empty>
         ) : (

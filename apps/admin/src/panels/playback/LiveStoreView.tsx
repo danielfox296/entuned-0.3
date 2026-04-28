@@ -115,11 +115,11 @@ function ActiveAndOverride({ data, onChange }: { data: LiveStoreData; onChange: 
 
   return (
     <Section
-      title="Active outcome"
+      title="Current Outcome"
       subtitle={`${data.store.clientName} / ${data.store.name} · ${data.store.timezone}`}
     >
       {!a ? (
-        <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>no active outcome</div>
+        <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>no current outcome</div>
       ) : (
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
           <div style={{ fontSize: S.title, fontFamily: T.sans, fontWeight: 500, color: T.text }}>
@@ -197,13 +197,13 @@ function ActiveAndOverride({ data, onChange }: { data: LiveStoreData; onChange: 
   )
 }
 
-function QueueCard({ queue, fallbackTier, reason }: {
+function QueueCard({ queue, reason }: {
   queue: QueueEntry[]; fallbackTier: string; reason: string | null
 }) {
   return (
     <Section
       title="Next up"
-      subtitle={`fallback tier: ${fallbackTier}${reason ? ` · ${reason}` : ''}`}
+      subtitle={`song playback gap${reason ? ` · ${reason}` : ''}`}
     >
       {queue.length === 0 ? (
         <div style={{ color: T.danger, fontFamily: T.sans, fontSize: S.small }}>queue empty — {reason ?? 'unknown'}</div>

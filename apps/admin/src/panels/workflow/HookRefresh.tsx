@@ -121,7 +121,7 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
       await refetchHooks()
     } catch (e: any) {
       setErr(e.message ?? 'generation failed')
-      toast.error(e.message ?? 'generation failed')
+      toast.error(e.message ?? 'failed to generate hooks')
     } finally {
       setGenerating((s) => {
         const next = new Set(s); next.delete(outcomeId); return next
@@ -147,7 +147,7 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
       setEdits((prev) => { const { [id]: _, ...rest } = prev; return rest })
       await refetchHooks()
     } catch (e: any) {
-      toast.error(e.message ?? 'save failed')
+      toast.error(e.message ?? 'failed to save hook')
     }
   }
 
@@ -164,8 +164,9 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
       await api.approveHook(id, token)
       await refetchHooks()
       toast.success('hook approved')
+
     } catch (e: any) {
-      toast.error(e.message ?? 'approve failed')
+      toast.error(e.message ?? 'failed to approve hook')
     } finally {
       setBusy((s) => { const next = new Set(s); next.delete(id); return next })
     }
@@ -179,7 +180,7 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
       setEdits((prev) => { const { [id]: _, ...rest } = prev; return rest })
       await refetchHooks()
     } catch (e: any) {
-      toast.error(e.message ?? 'discard failed')
+      toast.error(e.message ?? 'failed to remove hook')
     } finally {
       setBusy((s) => { const next = new Set(s); next.delete(id); return next })
     }
@@ -373,10 +374,10 @@ function Empty({ children }: { children: React.ReactNode }) {
 function OutcomeTag({ title }: { title: string }) {
   return (
     <span style={{
-      fontFamily: T.mono, fontSize: 11, color: T.textDim,
+      fontFamily: T.sans, fontSize: 11, color: T.textDim,
       background: T.bg, border: `1px solid ${T.borderSubtle}`,
       borderRadius: 3, padding: '2px 6px',
-      textTransform: 'uppercase', letterSpacing: '0.04em',
+      letterSpacing: '0.02em',
     }}>{title}</span>
   )
 }
@@ -437,7 +438,7 @@ function DraftRow({ hook, pendingText, busy, onChange, onBlur, onApprove, onDisc
             color: T.textMuted, padding: '6px 12px', borderRadius: 3,
             fontFamily: T.sans, fontSize: 13, cursor: 'pointer',
           }}
-        >discard</button>
+        >remove</button>
       </div>
     </div>
   )

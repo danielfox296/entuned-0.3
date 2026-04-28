@@ -44,8 +44,8 @@ export function ClientDetail() {
       setClientId(created.id)
       setCreating(false)
       setNewName('')
-      toast.success(`client ${created.companyName} created`)
-    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'create failed') }
+      toast.success(`client "${created.companyName}" created`)
+    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'failed to create client') }
     finally { setCreateBusy(false) }
   }
 
@@ -60,8 +60,8 @@ export function ClientDetail() {
       setClient((cur) => cur ? { ...cur, ...updated } : cur)
       setDraft({})
       reloadList()
-      toast.success(`${updated.companyName ?? client.companyName} saved`)
-    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'save failed') }
+      toast.success(`client "${updated.companyName ?? client.companyName}" saved`)
+    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'failed to save client') }
     finally { setBusy(false) }
   }
 

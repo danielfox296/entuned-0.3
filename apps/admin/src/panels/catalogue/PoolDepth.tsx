@@ -5,12 +5,12 @@ import type { PoolDepthResponse, PoolStatus } from '../../api.js'
 import { T } from '../../tokens.js'
 import { Button, PanelHeader, S } from '../../ui/index.js'
 
-type Sort = 'risk' | 'icp' | 'outcome'
+type Sort = 'low' | 'icp' | 'outcome'
 
 export function PoolDepth() {
   const [data, setData] = useState<PoolDepthResponse | null>(null)
   const [err, setErr] = useState<string | null>(null)
-  const [sort, setSort] = useState<Sort>('risk')
+  const [sort, setSort] = useState<Sort>('low')
 
   const reload = async () => {
     const token = getToken(); if (!token) return
@@ -32,7 +32,7 @@ export function PoolDepth() {
         })
       }
     }
-    if (sort === 'risk') {
+    if (sort === 'low') {
       const rank = { critical: 0, thin: 1, ok: 2 } as const
       rows.sort((a, b) => rank[a.status] - rank[b.status] || a.count - b.count || a.icpName.localeCompare(b.icpName))
     } else if (sort === 'icp') {
@@ -63,7 +63,7 @@ export function PoolDepth() {
       {data && (
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <SummaryChip label="critical" count={summary.critical} color={T.danger} hint={`< ${data.thresholds.critical}`} />
-          <SummaryChip label="thin" count={summary.thin} color={T.warn} hint={`< ${data.thresholds.thin}`} />
+          <SummaryChip label="low" count={summary.thin} color={T.warn} hint={`< ${data.thresholds.thin}`} />
           <SummaryChip label="ok" count={summary.ok} color={T.success} hint={`≥ ${data.thresholds.thin}`} />
           <SummaryChip label="total pools" count={summary.total} color={T.textMuted} />
         </div>
@@ -71,7 +71,7 @@ export function PoolDepth() {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <span style={{ fontSize: 13, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>sort</span>
-        {(['risk', 'icp', 'outcome'] as const).map((s) => {
+        {(['low', 'icp', 'outcome'] as const).map((s) => {
           const on = sort === s
           return (
             <button key={s} onClick={() => setSort(s)} style={{

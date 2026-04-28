@@ -171,7 +171,7 @@ function Header() {
       <span>outcome</span>
       <span>hook</span>
       <span>song</span>
-      <span>created</span>
+      <span>date</span>
       <span style={{ textAlign: 'right' }}>status</span>
       <span style={{ textAlign: 'right' }}>action</span>
     </div>

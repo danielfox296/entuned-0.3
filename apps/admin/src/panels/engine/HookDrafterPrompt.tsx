@@ -98,12 +98,12 @@ export function HookDrafterPrompt() {
     try {
       await api.saveHookWriterPrompt(icpId, promptText, null, token)
       setSavedText(promptText)
-      toast.success('hook drafter prompt saved')
+      toast.success('Hook Drafter prompt saved')
       // Refresh preview to reflect new system prompt.
       const ctx = await api.hookDrafterContext(icpId, outcomeId ?? '', n, token)
       setSystemPreview(ctx.systemPrompt)
     } catch (e: any) {
-      toast.error(e.message ?? 'save failed')
+      toast.error(e.message ?? 'failed to save Hook Drafter prompt')
     } finally {
       setSaving(false)
     }

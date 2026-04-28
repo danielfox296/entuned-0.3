@@ -201,7 +201,7 @@ export function OutcomeLibrary() {
   )
 }
 
-const COLS = '1.6fr 60px 70px 90px 1fr 1.6fr 90px 1fr 60px 200px'
+const COLS = '1.6fr 60px 70px 90px 1fr 1.6fr 1fr 60px 200px'
 
 function HeaderRow() {
   return (
@@ -218,7 +218,6 @@ function HeaderRow() {
       <span>mode</span>
       <span>dynamics</span>
       <span>instrumentation</span>
-      <span>familiarity</span>
       <span>production era</span>
       <span style={{ textAlign: 'right' }}>pool</span>
       <span style={{ textAlign: 'right' }}>status</span>
@@ -244,7 +243,6 @@ function DataRow({ row, onEdit, onSupersede, busy }: {
       <span style={{ color: T.textMuted }}>{row.mode}</span>
       <span style={cellTrunc}>{row.dynamics ?? '—'}</span>
       <span style={cellTrunc}>{row.instrumentation ?? '—'}</span>
-      <span style={cellTrunc}>{row.familiarity ?? '—'}</span>
       <span style={cellTrunc}>{eraLabel}</span>
       <span style={{ color: row.lineageCount === 0 ? T.danger : T.text, textAlign: 'right', paddingRight: 6 }}>{row.lineageCount}</span>
       <span style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
@@ -308,15 +306,6 @@ function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent,
       <div>
         <label style={labelStyle}>instrumentation</label>
         <Input value={draft.instrumentation} onChange={(e) => set('instrumentation', e.target.value)} placeholder="rhodes, brushed kit, upright bass" />
-      </div>
-      <div>
-        <label style={labelStyle}>familiarity (playback)</label>
-        <Select value={draft.familiarity} onChange={(e) => set('familiarity', e.target.value)}>
-          <option value="">—</option>
-          <option value="unfamiliar">unfamiliar</option>
-          <option value="familiar">familiar</option>
-          <option value="neutral">neutral</option>
-        </Select>
       </div>
       <div>
         <label style={labelStyle}>production era (generation)</label>

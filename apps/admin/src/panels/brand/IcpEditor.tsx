@@ -166,8 +166,8 @@ function IcpFields({ detail: _detail, icp, onSaved }: { detail: StoreDetail; icp
     try {
       await api.updateIcp(icp.id, draft, token)
       onSaved()
-      toast.success(`${icp.name} profile saved`)
-    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'save failed') }
+      toast.success(`ICP "${icp.name}" saved`)
+    } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'failed to save ICP') }
     finally { setBusy(false) }
   }
 
@@ -268,8 +268,8 @@ function ReferenceTracks({ detail: _detail, icp, onChanged }: { detail: StoreDet
       setBulkBusy({ kind: 'approve', done: i + 1, total: pending.length })
     }
     setBulkBusy(null); onChanged()
-    if (failed === 0) toast.success(`approved ${ok} reference${ok === 1 ? '' : 's'}`)
-    else toast.error(`approved ${ok}, ${failed} failed`)
+    if (failed === 0) toast.success(`approved ${ok} reference track${ok === 1 ? '' : 's'}`)
+    else toast.error(`approved ${ok} reference track${ok === 1 ? '' : 's'}, ${failed} failed`)
   }
 
   const decomposeAllUndecomposed = async () => {
@@ -283,8 +283,8 @@ function ReferenceTracks({ detail: _detail, icp, onChanged }: { detail: StoreDet
       setBulkBusy({ kind: 'decompose', done: i + 1, total: undecomposedApproved.length })
     }
     setBulkBusy(null); onChanged()
-    if (failed === 0) toast.success(`decomposed ${ok} reference${ok === 1 ? '' : 's'}`)
-    else toast.error(`decomposed ${ok}, ${failed} failed`)
+    if (failed === 0) toast.success(`decomposed ${ok} reference track${ok === 1 ? '' : 's'}`)
+    else toast.error(`decomposed ${ok} reference track${ok === 1 ? '' : 's'}, ${failed} failed`)
   }
 
   return (
