@@ -5,14 +5,6 @@ import { T } from '../../tokens.js'
 import { Button, S, useToast, LlmProgress } from '../../ui/index.js'
 import type { WorkflowContext } from './WorkflowRouter.js'
 
-type Draft = {
-  /** Stable client-side id so React keys + edits don't get confused. */
-  key: string
-  text: string
-  saving?: boolean
-  saved?: boolean
-}
-
 const DEFAULT_N = 5
 
 export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
@@ -22,8 +14,11 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
   const [selectedOutcomeIds, setSelectedOutcomeIds] = useState<Set<string>>(new Set())
   const [activeOutcomeId, setActiveOutcomeId] = useState<string | null>(null)
   const [n, setN] = useState(DEFAULT_N)
-  const [drafts, setDrafts] = useState<Record<string, Draft[]>>({}) // outcomeId → drafts
   const [generating, setGenerating] = useState<Set<string>>(new Set())
+  /** Pending text edits keyed by hook id; flushed to server onBlur. */
+  const [edits, setEdits] = useState<Record<string, string>>({})
+  /** Hooks the user is acting on (approve/discard) — disables card buttons. */
+  const [busy, setBusy] = useState<Set<string>>(new Set())
   const [err, setErr] = useState<string | null>(null)
 
   // Fetch outcomes once.
@@ -32,20 +27,37 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
     api.outcomes(token).then(setOutcomes).catch((e) => setErr(e.message))
   }, [])
 
-  // Fetch existing hooks whenever the active ICP changes.
+  const refetchHooks = async () => {
+    if (!ctx.icpId) return
+    const token = getToken(); if (!token) return
+    try { setHooks(await api.icpHooks(ctx.icpId, token)) }
+    catch (e: any) { setErr(e.message) }
+  }
+
+  // Load hooks whenever the active ICP changes.
   useEffect(() => {
     if (!ctx.icpId) { setHooks(null); return }
-    const token = getToken(); if (!token) return
     setHooks(null)
-    api.icpHooks(ctx.icpId, token).then(setHooks).catch((e) => setErr(e.message))
+    refetchHooks()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx.icpId])
 
   // Reset workspace when ICP changes.
   useEffect(() => {
     setSelectedOutcomeIds(new Set())
     setActiveOutcomeId(null)
-    setDrafts({})
+    setEdits({})
+    setBusy(new Set())
   }, [ctx.icpId])
+
+  const draftsByOutcome = useMemo(() => {
+    const m: Record<string, HookRowFull[]> = {}
+    for (const h of hooks ?? []) {
+      if (h.status !== 'draft') continue
+      ;(m[h.outcomeId] ??= []).push(h)
+    }
+    return m
+  }, [hooks])
 
   const approvedByOutcome = useMemo(() => {
     const m: Record<string, HookRowFull[]> = {}
@@ -54,6 +66,21 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
       ;(m[h.outcomeId] ??= []).push(h)
     }
     return m
+  }, [hooks])
+
+  // When hooks first arrive, auto-select any outcome that already has drafts
+  // so the user can pick up where they left off without manually re-selecting.
+  useEffect(() => {
+    if (!hooks) return
+    const withDrafts = new Set<string>()
+    for (const h of hooks) if (h.status === 'draft') withDrafts.add(h.outcomeId)
+    if (withDrafts.size === 0) return
+    setSelectedOutcomeIds((prev) => {
+      const next = new Set(prev)
+      withDrafts.forEach((id) => next.add(id))
+      return next
+    })
+    setActiveOutcomeId((prev) => prev ?? Array.from(withDrafts)[0] ?? null)
   }, [hooks])
 
   const liveOutcomes = (outcomes ?? []).filter((o) => !o.supersededAt)
@@ -74,11 +101,13 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
     setErr(null)
     try {
       const r = await api.draftHooks(ctx.icpId, { outcomeId, n }, token)
-      const next: Draft[] = r.hooks.map((text, i) => ({
-        key: `${outcomeId}-${Date.now()}-${i}`,
-        text,
-      }))
-      setDrafts((d) => ({ ...d, [outcomeId]: [...(d[outcomeId] ?? []), ...next] }))
+      // Persist generated text as actual draft hooks so they survive nav.
+      await api.bulkCreateHooks(
+        ctx.icpId,
+        { outcomeId, texts: r.hooks, approve: false },
+        token,
+      )
+      await refetchHooks()
     } catch (e: any) {
       setErr(e.message ?? 'generation failed')
       toast.error(e.message ?? 'generation failed')
@@ -89,49 +118,59 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
     }
   }
 
-  const editDraft = (outcomeId: string, key: string, text: string) => {
-    setDrafts((d) => ({
-      ...d,
-      [outcomeId]: (d[outcomeId] ?? []).map((x) => x.key === key ? { ...x, text, saved: false } : x),
-    }))
+  const setEdit = (id: string, text: string) => {
+    setEdits((prev) => ({ ...prev, [id]: text }))
   }
 
-  const discard = (outcomeId: string, key: string) => {
-    setDrafts((d) => ({
-      ...d,
-      [outcomeId]: (d[outcomeId] ?? []).filter((x) => x.key !== key),
-    }))
-  }
-
-  const approve = async (outcomeId: string, key: string) => {
-    if (!ctx.icpId) return
-    const draft = drafts[outcomeId]?.find((x) => x.key === key)
-    if (!draft || !draft.text.trim()) return
+  const flushEdit = async (id: string) => {
+    const text = edits[id]
+    if (text === undefined) return
+    const original = hooks?.find((h) => h.id === id)?.text
+    if (text === original) {
+      setEdits((prev) => { const { [id]: _, ...rest } = prev; return rest })
+      return
+    }
     const token = getToken(); if (!token) return
-    setDrafts((d) => ({
-      ...d,
-      [outcomeId]: (d[outcomeId] ?? []).map((x) => x.key === key ? { ...x, saving: true } : x),
-    }))
     try {
-      const created = await api.createHook(
-        ctx.icpId,
-        { text: draft.text.trim(), outcomeId, approve: true },
-        token,
-      )
-      // Reflect in approved list immediately.
-      setHooks((prev) => prev ? [...prev, created] : [created])
-      setDrafts((d) => ({
-        ...d,
-        [outcomeId]: (d[outcomeId] ?? []).map((x) => x.key === key ? { ...x, saving: false, saved: true } : x),
-      }))
+      await api.updateHook(id, { text }, token)
+      setEdits((prev) => { const { [id]: _, ...rest } = prev; return rest })
+      await refetchHooks()
+    } catch (e: any) {
+      toast.error(e.message ?? 'save failed')
+    }
+  }
+
+  const approve = async (id: string) => {
+    const text = edits[id]
+    const token = getToken(); if (!token) return
+    setBusy((s) => new Set(s).add(id))
+    try {
+      // Persist any pending edit before approval.
+      if (text !== undefined) {
+        await api.updateHook(id, { text }, token)
+        setEdits((prev) => { const { [id]: _, ...rest } = prev; return rest })
+      }
+      await api.approveHook(id, token)
+      await refetchHooks()
       toast.success('hook approved')
     } catch (e: any) {
-      setErr(e.message ?? 'approve failed')
       toast.error(e.message ?? 'approve failed')
-      setDrafts((d) => ({
-        ...d,
-        [outcomeId]: (d[outcomeId] ?? []).map((x) => x.key === key ? { ...x, saving: false } : x),
-      }))
+    } finally {
+      setBusy((s) => { const next = new Set(s); next.delete(id); return next })
+    }
+  }
+
+  const discard = async (id: string) => {
+    const token = getToken(); if (!token) return
+    setBusy((s) => new Set(s).add(id))
+    try {
+      await api.deleteHook(id, token)
+      setEdits((prev) => { const { [id]: _, ...rest } = prev; return rest })
+      await refetchHooks()
+    } catch (e: any) {
+      toast.error(e.message ?? 'discard failed')
+    } finally {
+      setBusy((s) => { const next = new Set(s); next.delete(id); return next })
     }
   }
 
@@ -165,6 +204,7 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
           {ordered.map((o) => {
             const on = selectedOutcomeIds.has(o.id)
             const approvedCount = (approvedByOutcome[o.id] ?? []).length
+            const draftCount = (draftsByOutcome[o.id] ?? []).length
             return (
               <button
                 key={o.id}
@@ -181,7 +221,7 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
                   {o.displayTitle ?? o.title}
                 </div>
                 <div style={{ fontSize: 12, color: T.textDim, marginTop: 4, fontFamily: T.mono }}>
-                  {approvedCount} approved
+                  {approvedCount} approved{draftCount > 0 ? ` · ${draftCount} draft${draftCount === 1 ? '' : 's'}` : ''}
                 </div>
               </button>
             )
@@ -195,7 +235,7 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
             {selectedList.map((o) => {
               const on = activeOutcomeId === o.id
-              const draftCount = (drafts[o.id] ?? []).filter((x) => !x.saved).length
+              const draftCount = (draftsByOutcome[o.id] ?? []).length
               return (
                 <button
                   key={o.id}
@@ -248,31 +288,34 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
             </div>
           )}
 
-          {/* Side-by-side: new drafts (left) | currently approved (right) */}
+          {/* Side-by-side: drafts (left) | approved (right) */}
           {activeOutcome && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <Column title={`New drafts (${(drafts[activeOutcome.id] ?? []).filter((x) => !x.saved).length})`}>
-                {(drafts[activeOutcome.id] ?? []).length === 0 ? (
+              <Column title={`Drafts (${(draftsByOutcome[activeOutcome.id] ?? []).length})`}>
+                {(draftsByOutcome[activeOutcome.id] ?? []).length === 0 ? (
                   <Empty>click generate to draft new hooks</Empty>
                 ) : (
-                  (drafts[activeOutcome.id] ?? []).map((d) => (
+                  (draftsByOutcome[activeOutcome.id] ?? []).map((h) => (
                     <DraftRow
-                      key={d.key}
-                      draft={d}
-                      onChange={(text) => editDraft(activeOutcome.id, d.key, text)}
-                      onApprove={() => approve(activeOutcome.id, d.key)}
-                      onDiscard={() => discard(activeOutcome.id, d.key)}
+                      key={h.id}
+                      hook={h}
+                      pendingText={edits[h.id]}
+                      busy={busy.has(h.id)}
+                      onChange={(text) => setEdit(h.id, text)}
+                      onBlur={() => flushEdit(h.id)}
+                      onApprove={() => approve(h.id)}
+                      onDiscard={() => discard(h.id)}
                     />
                   ))
                 )}
               </Column>
 
-              <Column title={`Currently approved (${(approvedByOutcome[activeOutcome.id] ?? []).length})`}>
+              <Column title={`Approved (${(approvedByOutcome[activeOutcome.id] ?? []).length})`}>
                 {(approvedByOutcome[activeOutcome.id] ?? []).length === 0 ? (
                   <Empty>no approved hooks yet for this outcome</Empty>
                 ) : (
                   (approvedByOutcome[activeOutcome.id] ?? []).map((h) => (
-                    <ApprovedRow key={h.id} text={h.text} />
+                    <ApprovedRow key={h.id} hook={h} />
                   ))
                 )}
               </Column>
@@ -316,34 +359,55 @@ function Empty({ children }: { children: React.ReactNode }) {
   )
 }
 
-function ApprovedRow({ text }: { text: string }) {
+function OutcomeTag({ title }: { title: string }) {
   return (
-    <div style={{
-      background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
-      borderRadius: 4, padding: '10px 12px', fontFamily: T.sans,
-      fontSize: 14, color: T.text, lineHeight: 1.5, whiteSpace: 'pre-wrap',
-    }}>{text}</div>
+    <span style={{
+      fontFamily: T.mono, fontSize: 11, color: T.textDim,
+      background: T.bg, border: `1px solid ${T.borderSubtle}`,
+      borderRadius: 3, padding: '2px 6px',
+      textTransform: 'uppercase', letterSpacing: '0.04em',
+    }}>{title}</span>
   )
 }
 
-function DraftRow({ draft, onChange, onApprove, onDiscard }: {
-  draft: Draft
+function ApprovedRow({ hook }: { hook: HookRowFull }) {
+  return (
+    <div style={{
+      background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
+      borderRadius: 4, padding: '10px 12px', display: 'flex',
+      flexDirection: 'column', gap: 8,
+    }}>
+      <OutcomeTag title={hook.outcome.title} />
+      <div style={{
+        fontFamily: T.sans, fontSize: 14, color: T.text,
+        lineHeight: 1.5, whiteSpace: 'pre-wrap',
+      }}>{hook.text}</div>
+    </div>
+  )
+}
+
+function DraftRow({ hook, pendingText, busy, onChange, onBlur, onApprove, onDiscard }: {
+  hook: HookRowFull
+  pendingText: string | undefined
+  busy: boolean
   onChange: (text: string) => void
+  onBlur: () => void
   onApprove: () => void
   onDiscard: () => void
 }) {
-  const saved = draft.saved
+  const text = pendingText !== undefined ? pendingText : hook.text
   return (
     <div style={{
-      background: saved ? T.accentGlow : T.surfaceRaised,
-      border: `1px solid ${saved ? T.accent : T.border}`,
+      background: T.surfaceRaised, border: `1px solid ${T.border}`,
       borderRadius: 4, padding: 10, display: 'flex', flexDirection: 'column', gap: 8,
     }}>
+      <OutcomeTag title={hook.outcome.title} />
       <textarea
-        value={draft.text}
+        value={text}
         onChange={(e) => onChange(e.target.value)}
-        disabled={saved}
-        rows={Math.min(6, Math.max(2, Math.ceil(draft.text.length / 60)))}
+        onBlur={onBlur}
+        disabled={busy}
+        rows={6}
         style={{
           background: T.bg, color: T.text, border: `1px solid ${T.borderSubtle}`,
           borderRadius: 3, padding: '8px 10px', fontFamily: T.sans, fontSize: 14,
@@ -351,29 +415,18 @@ function DraftRow({ draft, onChange, onApprove, onDiscard }: {
         }}
       />
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        {saved ? (
-          <span style={{ fontFamily: T.mono, fontSize: 12, color: T.accent }}>
-            ✓ approved
-          </span>
-        ) : (
-          <>
-            <Button
-              onClick={onApprove}
-              disabled={draft.saving || !draft.text.trim()}
-            >
-              {draft.saving ? 'approving…' : 'approve'}
-            </Button>
-            <button
-              onClick={onDiscard}
-              disabled={draft.saving}
-              style={{
-                background: 'transparent', border: `1px solid ${T.border}`,
-                color: T.textMuted, padding: '6px 12px', borderRadius: 3,
-                fontFamily: T.sans, fontSize: 13, cursor: 'pointer',
-              }}
-            >discard</button>
-          </>
-        )}
+        <Button onClick={onApprove} disabled={busy || !text.trim()}>
+          {busy ? '…' : 'approve'}
+        </Button>
+        <button
+          onClick={onDiscard}
+          disabled={busy}
+          style={{
+            background: 'transparent', border: `1px solid ${T.border}`,
+            color: T.textMuted, padding: '6px 12px', borderRadius: 3,
+            fontFamily: T.sans, fontSize: 13, cursor: 'pointer',
+          }}
+        >discard</button>
       </div>
     </div>
   )
