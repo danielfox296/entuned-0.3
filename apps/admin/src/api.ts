@@ -244,7 +244,7 @@ export interface ReferenceTrackRow {
   approvedAt: string | null
   useCount: number
   previewUrl: string | null
-  previewSource: 'spotify' | 'itunes' | 'none' | null
+  previewSource: 'deezer' | 'itunes' | 'none' | null
   createdAt: string
   styleAnalysis: StyleAnalysisRow | null
 }
@@ -696,7 +696,7 @@ export const api = {
   deleteReferenceTrack: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/reference-tracks/${id}`, { method: 'DELETE' }, token),
   resolveReferenceTrackPreview: (id: string, force: boolean, token: string) =>
-    req<{ previewUrl: string | null; previewSource: 'spotify' | 'itunes' | 'none' | null }>(
+    req<{ previewUrl: string | null; previewSource: 'deezer' | 'itunes' | 'none' | null }>(
       `/admin/reference-tracks/${id}/preview${force ? '?force=1' : ''}`,
       { method: 'POST' },
       token,
