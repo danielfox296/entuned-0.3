@@ -23,7 +23,10 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
   const [err, setErr] = useState<string | null>(null)
   const [openTrackId, setOpenTrackId] = useState<string | null>(null)
   const [prefetchingCovers, setPrefetchingCovers] = useState(false)
-  const prefetchedIcps = useRef<Set<string>>(new Set())
+  /** Track ids we've already attempted to prefetch in this session, regardless
+   *  of outcome. Prevents re-fetching the same track on every storeDetail
+   *  refetch but still picks up freshly-suggested tracks when they appear. */
+  const prefetchedTrackIds = useRef<Set<string>>(new Set())
 
   const refetch = async () => {
     if (!ctx.storeId) return
@@ -53,25 +56,27 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
   const approved = tracks.filter((t) => t.status === 'approved')
   const openTrack = openTrackId ? tracks.find((t) => t.id === openTrackId) ?? null : null
 
-  // Eagerly resolve covers for any tracks that have never been resolved.
-  // Runs once per ICP per session (prefetchedIcps guard) so we don't refire
-  // every time storeDetail refetches after a mutation. Concurrency 3 — Deezer
-  // and iTunes both tolerate it fine and the server is doing a single
-  // outbound fetch per row.
+  // Eagerly resolve covers + previews for any tracks that haven't been
+  // resolved AND that we haven't already attempted in this session. Re-fires
+  // when new pending suggestions appear after a `suggest reference tracks`
+  // call so freshly-suggested rows don't have to do a synchronous server
+  // round-trip on click (which loses the user gesture and breaks audio
+  // autoplay). Concurrency 3 — both providers tolerate it fine.
   useEffect(() => {
     if (!ctx.icpId) return
-    if (prefetchedIcps.current.has(ctx.icpId)) return
-    const unresolved = tracks.filter((t) => !t.previewSource)
-    if (unresolved.length === 0) return
-    prefetchedIcps.current.add(ctx.icpId)
+    const queue = tracks.filter(
+      (t) => !t.previewSource && !prefetchedTrackIds.current.has(t.id),
+    )
+    if (queue.length === 0) return
+    queue.forEach((t) => prefetchedTrackIds.current.add(t.id))
     const token = getToken(); if (!token) return
     let cancelled = false
     setPrefetchingCovers(true)
     ;(async () => {
-      const queue = unresolved.slice()
+      const work = queue.slice()
       const workers = Array.from({ length: 3 }, async () => {
         while (!cancelled) {
-          const next = queue.shift(); if (!next) return
+          const next = work.shift(); if (!next) return
           try { await api.resolveReferenceTrackPreview(next.id, false, token) } catch {}
         }
       })
@@ -83,7 +88,7 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
     })()
     return () => { cancelled = true; setPrefetchingCovers(false) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctx.icpId, tracks.length])
+  }, [ctx.icpId, tracks])
 
   const suggest = async () => {
     if (!ctx.icpId) return
@@ -304,17 +309,35 @@ function PreviewButton({ track, onResolved }: {
       setPlaying(false)
       return
     }
-    const url = await ensureUrl()
-    if (!url) return
-    if (!audioRef.current) audioRef.current = new Audio(url)
-    else audioRef.current.src = url
+    // Create + retain the Audio element synchronously on the click so the
+    // browser's autoplay policy treats the eventual play() as user-initiated
+    // even if we have to fetch the URL first.
+    if (!audioRef.current) audioRef.current = new Audio()
     audioRef.current.onended = () => setPlaying(false)
     window.dispatchEvent(new CustomEvent(PREVIEW_STOP_EVENT, { detail: audioRef.current }))
+
+    if (track.previewUrl) {
+      audioRef.current.src = track.previewUrl
+      try {
+        await audioRef.current.play()
+        setPlaying(true)
+      } catch {
+        toast.error('playback failed')
+      }
+      return
+    }
+
+    // Need to resolve the URL first. Some browsers may revoke the gesture
+    // across the await — if so, the user can click again and the second
+    // click hits the cached previewUrl path above.
+    const url = await ensureUrl()
+    if (!url) return
+    audioRef.current.src = url
     try {
       await audioRef.current.play()
       setPlaying(true)
-    } catch (e: any) {
-      toast.error('playback failed')
+    } catch {
+      toast.error('preview ready — click again to play')
     }
   }
 
