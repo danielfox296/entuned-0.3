@@ -667,7 +667,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     // hit a 403.
     const isStale = (url: string | null): boolean => {
       if (!url) return false
-      const m = url.match(/[?&~]exp=(\d+)/)
+      const m = url.match(/[?&~=]exp=(\d+)/)
       if (!m) return false
       const expSec = Number(m[1])
       return !Number.isFinite(expSec) || expSec * 1000 <= Date.now() + 60_000
