@@ -662,14 +662,22 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const ref = await prisma.referenceTrack.findUnique({ where: { id } })
     if (!ref) return reply.code(404).send({ error: 'not_found' })
     if (!force && ref.previewSource) {
-      return { previewUrl: ref.previewUrl, previewSource: ref.previewSource }
+      return {
+        previewUrl: ref.previewUrl,
+        previewSource: ref.previewSource,
+        coverUrl: ref.coverUrl,
+      }
     }
     const r = await resolvePreview(ref.artist, ref.title)
     const updated = await prisma.referenceTrack.update({
       where: { id },
-      data: { previewUrl: r.url, previewSource: r.source },
+      data: { previewUrl: r.previewUrl, previewSource: r.source, coverUrl: r.coverUrl },
     })
-    return { previewUrl: updated.previewUrl, previewSource: updated.previewSource }
+    return {
+      previewUrl: updated.previewUrl,
+      previewSource: updated.previewSource,
+      coverUrl: updated.coverUrl,
+    }
   })
 
   // --- Approve a pending (suggested) reference track. Flips status to approved. ---

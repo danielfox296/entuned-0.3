@@ -204,6 +204,8 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
         track={openTrack}
         onClose={() => setOpenTrackId(null)}
         onSaved={() => { refetch() }}
+        analyzing={openTrack ? analyzing.has(openTrack.id) : false}
+        onAnalyze={(force) => openTrack && analyze(openTrack, force)}
       />
     </div>
   )
@@ -315,6 +317,17 @@ function PendingRow({ track, edit, busy, onChange, onBlur, onApprove, onDiscard,
 
   return (
     <div style={cardStyle(false)}>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <Cover url={track.coverUrl} size={44} />
+        <div style={{ fontFamily: T.sans, fontSize: 14, color: T.text, flex: 1, minWidth: 0 }}>
+          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {track.artist} — {track.title}
+          </div>
+          <div style={{ fontFamily: T.mono, fontSize: 11, color: T.textDim, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            suggested
+          </div>
+        </div>
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <Field label="artist">
           <input
@@ -399,7 +412,8 @@ function ApprovedRow({ track, analyzing, onAnalyze, onOpen, onResolvedPreview }:
   const analysis = track.styleAnalysis
   return (
     <div style={cardStyle(true)}>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <Cover url={track.coverUrl} size={44} />
         <PreviewButton track={track} onResolved={onResolvedPreview} />
         <button
           onClick={onOpen}
@@ -429,19 +443,46 @@ function ApprovedRow({ track, analyzing, onAnalyze, onOpen, onResolvedPreview }:
           {analysis ? `analyzed (${analysis.status})` : 'not analyzed'}
         </span>
       </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        {analysis ? (
-          <button onClick={() => onAnalyze(true)} disabled={analyzing} style={ghostBtnStyle}>
-            {analyzing ? 'reanalyzing…' : 're-analyze'}
-          </button>
-        ) : (
+      {/* Re-analyze lives inside the edit modal now. Only the first-time
+          "run style analysis" prompt is on the row, since opening the modal
+          for an unanalyzed track shows an empty state instead of the editor. */}
+      {!analysis && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <Button onClick={() => onAnalyze(false)} disabled={analyzing}>
             {analyzing ? 'analyzing…' : 'run style analysis'}
           </Button>
-        )}
-      </div>
+        </div>
+      )}
       {analyzing && <LlmProgress etaSeconds={30} label="analyzing track" />}
     </div>
+  )
+}
+
+function Cover({ url, size, rounded = 4 }: { url: string | null; size: number; rounded?: number }) {
+  if (!url) {
+    return (
+      <div style={{
+        width: size, height: size, flexShrink: 0,
+        background: T.bg, border: `1px solid ${T.borderSubtle}`,
+        borderRadius: rounded, display: 'inline-flex',
+        alignItems: 'center', justifyContent: 'center',
+        color: T.textDim, fontFamily: T.mono, fontSize: Math.max(10, size / 4),
+      }}>♪</div>
+    )
+  }
+  return (
+    <img
+      src={url}
+      alt=""
+      width={size}
+      height={size}
+      loading="lazy"
+      style={{
+        width: size, height: size, flexShrink: 0,
+        objectFit: 'cover', borderRadius: rounded,
+        background: T.bg, display: 'block',
+      }}
+    />
   )
 }
 
@@ -518,10 +559,12 @@ const ANALYSIS_FIELDS: { key: keyof StyleAnalysisUpdate; label: string }[] = [
   { key: 'harmonicAndGroove', label: 'Harmonic & Groove' },
 ]
 
-function StyleAnalysisModal({ track, onClose, onSaved }: {
+function StyleAnalysisModal({ track, onClose, onSaved, analyzing, onAnalyze }: {
   track: ReferenceTrackRow | null
   onClose: () => void
   onSaved: () => void
+  analyzing: boolean
+  onAnalyze: (force: boolean) => void
 }) {
   const toast = useToast()
   const [draft, setDraft] = useState<StyleAnalysisUpdate>({})
@@ -561,66 +604,109 @@ function StyleAnalysisModal({ track, onClose, onSaved }: {
       onClose={onClose}
       title={`${track.artist} — ${track.title}${track.year ? ` (${track.year})` : ''}`}
       footer={analysis ? (
-        <>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+          <button
+            onClick={() => onAnalyze(true)}
+            disabled={analyzing || saving}
+            style={ghostBtnStyle}
+            title="discard the current analysis and run again"
+          >
+            {analyzing ? 'reanalyzing…' : 're-analyze'}
+          </button>
+          <div style={{ flex: 1 }} />
           <button onClick={onClose} style={ghostBtnStyle} disabled={saving}>cancel</button>
           <Button onClick={save} disabled={saving || Object.keys(draft).length === 0}>
             {saving ? 'saving…' : 'save'}
           </Button>
-        </>
+        </div>
       ) : null}
       width={760}
     >
-      {!analysis ? (
-        <div style={{ fontFamily: T.sans, fontSize: 14, color: T.textMuted, lineHeight: 1.6 }}>
-          No style analysis yet. Close this and use the “Run style analysis” button on the track to generate one.
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10,
-            paddingBottom: 10, borderBottom: `1px solid ${T.borderSubtle}`,
-          }}>
-            <Field label="status">
-              <select
-                value={v('status', analysis.status)}
-                onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as any }))}
-                style={inputStyle}
-              >
-                <option value="draft">draft</option>
-                <option value="verified">verified</option>
-              </select>
-            </Field>
-            <Field label="confidence">
-              <select
-                value={v('confidence', analysis.confidence) ?? ''}
-                onChange={(e) => setDraft((d) => ({ ...d, confidence: (e.target.value || null) as any }))}
-                style={inputStyle}
-              >
-                <option value="">—</option>
-                <option value="low">low</option>
-                <option value="medium">medium</option>
-                <option value="high">high</option>
-              </select>
-            </Field>
-          </div>
-
-          {ANALYSIS_FIELDS.map(({ key, label }) => (
-            <Field key={key} label={label}>
-              <textarea
-                value={v(key, (analysis as any)[key]) ?? ''}
-                onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value || null }))}
-                rows={3}
-                style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
-              />
-            </Field>
-          ))}
-
-          <div style={{ fontFamily: T.mono, fontSize: 12, color: T.textDim }}>
-            instructions v{analysis.styleAnalyzerInstructionsVersion}
-            {analysis.verifiedAt ? ` · verified ${new Date(analysis.verifiedAt).toLocaleDateString()}` : ''}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Track header with album art */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          paddingBottom: 12, borderBottom: `1px solid ${T.borderSubtle}`,
+        }}>
+          <Cover url={track.coverUrl} size={64} rounded={6} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: T.sans, fontSize: 15, color: T.text, fontWeight: 500 }}>
+              {track.artist}
+            </div>
+            <div style={{ fontFamily: T.sans, fontSize: 14, color: T.textMuted }}>
+              {track.title}{track.year ? ` (${track.year})` : ''}
+            </div>
+            <div style={{ fontFamily: T.mono, fontSize: 12, color: T.textDim, marginTop: 2 }}>
+              {BUCKET_LABEL[track.bucket]} · used {track.useCount}×
+            </div>
           </div>
         </div>
-      )}
+
+        {!analysis ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ fontFamily: T.sans, fontSize: 14, color: T.textMuted, lineHeight: 1.6 }}>
+              No style analysis yet for this track.
+            </div>
+            <div>
+              <Button onClick={() => onAnalyze(false)} disabled={analyzing}>
+                {analyzing ? 'analyzing…' : 'run style analysis'}
+              </Button>
+            </div>
+            {analyzing && <LlmProgress etaSeconds={30} label="analyzing track" />}
+          </div>
+        ) : (
+          <>
+            <div style={{
+              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10,
+              paddingBottom: 10, borderBottom: `1px solid ${T.borderSubtle}`,
+            }}>
+              <Field label="status">
+                <select
+                  value={v('status', analysis.status)}
+                  onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as any }))}
+                  style={inputStyle}
+                >
+                  <option value="draft">draft</option>
+                  <option value="verified">verified</option>
+                </select>
+              </Field>
+              <Field label="confidence">
+                <select
+                  value={v('confidence', analysis.confidence) ?? ''}
+                  onChange={(e) => setDraft((d) => ({ ...d, confidence: (e.target.value || null) as any }))}
+                  style={inputStyle}
+                >
+                  <option value="">—</option>
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                </select>
+              </Field>
+            </div>
+
+            {/* Narrative fields, two per row. */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {ANALYSIS_FIELDS.map(({ key, label }) => (
+                <Field key={key} label={label}>
+                  <textarea
+                    value={v(key, (analysis as any)[key]) ?? ''}
+                    onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value || null }))}
+                    rows={3}
+                    style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
+                  />
+                </Field>
+              ))}
+            </div>
+
+            {analyzing && <LlmProgress etaSeconds={30} label="re-analyzing track" />}
+
+            <div style={{ fontFamily: T.mono, fontSize: 12, color: T.textDim }}>
+              instructions v{analysis.styleAnalyzerInstructionsVersion}
+              {analysis.verifiedAt ? ` · verified ${new Date(analysis.verifiedAt).toLocaleDateString()}` : ''}
+            </div>
+          </>
+        )}
+      </div>
     </Modal>
   )
 }

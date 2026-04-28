@@ -1,26 +1,26 @@
 /**
- * Resolves a 30s preview URL for a (artist, title) pair.
+ * Resolves a 30s preview URL + album art for a (artist, title) pair.
  *
  * Strategy:
  *   1. Deezer Search API. No auth, broad catalog, returns a 30s mp3 in
- *      the `preview` field. Most reliable post-Spotify's preview_url
- *      deprecation (Spotify nulled that field for client-credentials
- *      apps in late 2024 — Search returns the track but preview_url
- *      is null, so it's useless for our case).
- *   2. iTunes Search API. Unauthenticated, 30s `previewUrl` field.
+ *      the `preview` field plus `album.cover_xl` (1000x1000). Most
+ *      reliable post-Spotify's preview_url deprecation.
+ *   2. iTunes Search API. Unauthenticated; `previewUrl` (30s) and
+ *      `artworkUrl100` which we upscale to 600x600.
  *
  * Both URLs are MP3/AAC playable in a plain <audio> element.
  *
  * Result is cached on the ReferenceTrack row (preview_url +
- * preview_source) so we don't re-hit either API.
+ * preview_source + cover_url) so we don't re-hit either API.
  */
 
 type Resolved = {
-  url: string | null
+  previewUrl: string | null
+  coverUrl: string | null
   source: 'deezer' | 'itunes' | 'none'
 }
 
-async function tryDeezer(artist: string, title: string): Promise<string | null> {
+async function tryDeezer(artist: string, title: string): Promise<{ preview: string; cover: string | null } | null> {
   const term = `${artist} ${title}`
   const r = await fetch(
     `https://api.deezer.com/search?limit=5&q=${encodeURIComponent(term)}`,
@@ -29,12 +29,18 @@ async function tryDeezer(artist: string, title: string): Promise<string | null> 
   const j: any = await r.json()
   const items: any[] = j?.data ?? []
   for (const it of items) {
-    if (it?.preview) return it.preview as string
+    if (it?.preview) {
+      const cover = it?.album?.cover_xl
+        ?? it?.album?.cover_big
+        ?? it?.album?.cover_medium
+        ?? null
+      return { preview: it.preview as string, cover }
+    }
   }
   return null
 }
 
-async function tryItunes(artist: string, title: string): Promise<string | null> {
+async function tryItunes(artist: string, title: string): Promise<{ preview: string; cover: string | null } | null> {
   const term = `${artist} ${title}`
   const r = await fetch(
     `https://itunes.apple.com/search?media=music&entity=song&limit=5&term=${encodeURIComponent(term)}`,
@@ -43,7 +49,12 @@ async function tryItunes(artist: string, title: string): Promise<string | null> 
   const j: any = await r.json()
   const results: any[] = j?.results ?? []
   for (const it of results) {
-    if (it?.previewUrl) return it.previewUrl as string
+    if (it?.previewUrl) {
+      // iTunes returns 100x100; trivially upscale by string-replace.
+      const small: string | null = it?.artworkUrl100 ?? it?.artworkUrl60 ?? null
+      const cover = small ? small.replace(/\/(\d+)x\1bb\./, '/600x600bb.') : null
+      return { preview: it.previewUrl as string, cover }
+    }
   }
   return null
 }
@@ -51,11 +62,11 @@ async function tryItunes(artist: string, title: string): Promise<string | null> 
 export async function resolvePreview(artist: string, title: string): Promise<Resolved> {
   try {
     const dz = await tryDeezer(artist, title)
-    if (dz) return { url: dz, source: 'deezer' }
+    if (dz) return { previewUrl: dz.preview, coverUrl: dz.cover, source: 'deezer' }
   } catch {}
   try {
     const it = await tryItunes(artist, title)
-    if (it) return { url: it, source: 'itunes' }
+    if (it) return { previewUrl: it.preview, coverUrl: it.cover, source: 'itunes' }
   } catch {}
-  return { url: null, source: 'none' }
+  return { previewUrl: null, coverUrl: null, source: 'none' }
 }
