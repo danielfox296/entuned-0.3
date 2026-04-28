@@ -661,7 +661,18 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const force = (req.query as any)?.force === '1'
     const ref = await prisma.referenceTrack.findUnique({ where: { id } })
     if (!ref) return reply.code(404).send({ error: 'not_found' })
-    if (!force && ref.previewSource) {
+    // Deezer signs preview URLs with an `hdnea=exp=<unix>` token (~24h
+    // TTL); iTunes URLs don't expire. If the cached URL has an `exp=` in
+    // the past (or within the next 60s), re-resolve so the player doesn't
+    // hit a 403.
+    const isStale = (url: string | null): boolean => {
+      if (!url) return false
+      const m = url.match(/[?&~]exp=(\d+)/)
+      if (!m) return false
+      const expSec = Number(m[1])
+      return !Number.isFinite(expSec) || expSec * 1000 <= Date.now() + 60_000
+    }
+    if (!force && ref.previewSource && !isStale(ref.previewUrl)) {
       return {
         previewUrl: ref.previewUrl,
         previewSource: ref.previewSource,
