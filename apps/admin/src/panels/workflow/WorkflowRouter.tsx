@@ -57,8 +57,8 @@ export function WorkflowRouter() {
     storeId,
     store: detail,
     icpId,
-    clientId: detail?.clientId ?? null,
-    clientName: detail?.clientName ?? null,
+    clientId: detail?.store.clientId ?? null,
+    clientName: detail?.store.clientName ?? null,
   }
 
   return (
@@ -98,7 +98,7 @@ export function WorkflowRouter() {
 
         {detail && (
           <div style={{ fontSize: S.small, color: T.textDim, fontFamily: T.mono }}>
-            client: {detail.clientName} · store: {detail.name} · tz: {detail.timezone}
+            client: {detail.store.clientName} · store: {detail.store.name} · tz: {detail.store.timezone}
           </div>
         )}
       </div>
