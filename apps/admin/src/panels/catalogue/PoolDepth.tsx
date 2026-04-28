@@ -137,8 +137,8 @@ function HeaderRow() {
       <span>icp</span>
       <span>locations</span>
       <span>outcome</span>
-      <span style={{ textAlign: 'right' }}>active rows</span>
-      <span style={{ textAlign: 'right' }}>status</span>
+      <span style={{ textAlign: 'right' }}>count</span>
+      <span style={{ textAlign: 'right' }}>depth</span>
     </div>
   )
 }

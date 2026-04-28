@@ -208,7 +208,7 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Outcome picker */}
       <div>
-        <Heading>Pick outcomes to refresh</Heading>
+        <Heading>Add hooks for outcomes</Heading>
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
           gap: 8, marginTop: 10,

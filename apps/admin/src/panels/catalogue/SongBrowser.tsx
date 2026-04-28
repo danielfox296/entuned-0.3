@@ -173,7 +173,7 @@ function Header() {
       <span>song</span>
       <span>date</span>
       <span style={{ textAlign: 'right' }}>status</span>
-      <span style={{ textAlign: 'right' }}>action</span>
+      <span />
     </div>
   )
 }

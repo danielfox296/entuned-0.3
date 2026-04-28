@@ -201,7 +201,7 @@ export function OutcomeLibrary() {
   )
 }
 
-const COLS = '1.6fr 60px 70px 90px 1fr 1.6fr 1fr 60px 200px'
+const COLS = '1.6fr 60px 70px 90px 1fr 1.6fr 1fr 60px 130px'
 
 function HeaderRow() {
   return (
@@ -220,7 +220,7 @@ function HeaderRow() {
       <span>instrumentation</span>
       <span>production era</span>
       <span style={{ textAlign: 'right' }}>pool</span>
-      <span style={{ textAlign: 'right' }}>status</span>
+      <span />
     </div>
   )
 }
@@ -246,9 +246,6 @@ function DataRow({ row, onEdit, onSupersede, busy }: {
       <span style={cellTrunc}>{eraLabel}</span>
       <span style={{ color: row.lineageCount === 0 ? T.danger : T.text, textAlign: 'right', paddingRight: 6 }}>{row.lineageCount}</span>
       <span style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
-        <span style={{ color: superseded ? T.textDim : T.success, fontSize: S.label, marginRight: 4, whiteSpace: 'nowrap' }}>
-          {superseded ? 'superseded' : 'active'}
-        </span>
         {!superseded && (
           <>
             <Button variant="tiny" onClick={onEdit} disabled={busy}>edit</Button>
