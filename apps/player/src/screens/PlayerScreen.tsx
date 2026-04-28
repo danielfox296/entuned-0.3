@@ -202,14 +202,23 @@ export function PlayerScreen({ session, onLogout }: Props) {
     if (isPlaying) {
       intentionalPauseRef.current = true;
       wasPlayingRef.current = false;
+      if (preloadTimerRef.current) {
+        clearTimeout(preloadTimerRef.current);
+        preloadTimerRef.current = null;
+      }
       player.pause();
       setIsPlaying(false);
     } else {
       wasPlayingRef.current = true;
       player.resume();
       setIsPlaying(true);
+      const p = player.getProgress();
+      if (p?.duration) {
+        const remaining = Math.max(0, p.duration - p.elapsed);
+        if (remaining > 0) schedulePreload(remaining);
+      }
     }
-  }, [isPlaying, playFromQueue]);
+  }, [isPlaying, playFromQueue, schedulePreload]);
 
   const handleSelectOutcome = useCallback(async (outcomeId: string) => {
     // Empty-pool outcomes are disabled in OutcomeModal, so we don't need a
@@ -270,6 +279,14 @@ export function PlayerScreen({ session, onLogout }: Props) {
 
   // ── Init / teardown ───────────────────────────────────────────────────────
   useEffect(() => {
+    // Defensive: kill any inherited HTML5 audio element state from a prior
+    // session before any user gesture. Howler's html5 pool can occasionally
+    // resume on page load if the underlying <audio> element was left playing.
+    try {
+      document.querySelectorAll("audio").forEach((el) => {
+        try { el.pause(); el.removeAttribute("src"); el.load(); } catch {}
+      });
+    } catch {}
     playerRef.current = new CrossfadePlayer({
       crossfadeMs: CROSSFADE_MS,
       onTrackEnded: () => {
