@@ -125,7 +125,7 @@ function computeGates(args: {
   out.push({
     title: 'ICPs',
     status: icpCount > 0 ? 'pass' : 'fail',
-    detail: `${icpCount} ICP${icpCount === 1 ? '' : 's'} on this location`,
+    detail: icpCount === 1 ? '1 ICP at this location' : `${icpCount} ICPs at this location`,
   })
 
   // 3. Approved hooks per ICP
@@ -138,10 +138,10 @@ function computeGates(args: {
     title: 'Approved hooks',
     status: hookItems.length === 0 ? 'fail' : allHaveHooks ? 'pass' : 'fail',
     detail: hookItems.length === 0
-      ? 'no ICPs to evaluate'
+      ? 'no ICPs at this location yet'
       : allHaveHooks
-        ? `every ICP has approved hooks`
-        : `${hookItems.filter((x) => !x.ok).length} ICP${hookItems.filter((x) => !x.ok).length === 1 ? '' : 's'} missing approved hooks`,
+        ? `each ICP at this location has approved hooks`
+        : `${hookItems.filter((x) => !x.ok).length} ICP${hookItems.filter((x) => !x.ok).length === 1 ? '' : 's'} at this location still need approved hooks`,
     items: hookItems,
   })
 
@@ -157,10 +157,10 @@ function computeGates(args: {
     title: 'Reference tracks decomposed',
     status: trackItems.length === 0 ? 'fail' : allHaveTracks ? 'pass' : 'fail',
     detail: trackItems.length === 0
-      ? 'no ICPs to evaluate'
+      ? 'no ICPs at this location yet'
       : allHaveTracks
-        ? `every ICP has at least one decomposed reference track`
-        : `${trackItems.filter((x) => !x.ok).length} ICP${trackItems.filter((x) => !x.ok).length === 1 ? '' : 's'} missing decomposed reference tracks`,
+        ? `each ICP at this location has at least one decomposed reference track`
+        : `${trackItems.filter((x) => !x.ok).length} ICP${trackItems.filter((x) => !x.ok).length === 1 ? '' : 's'} at this location still need decomposed reference tracks`,
     items: trackItems,
   })
 

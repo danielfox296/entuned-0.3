@@ -56,8 +56,8 @@ export function OutcomeSchedule() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
         {tz && (
-          <span style={{ fontSize: S.label, color: T.textDim, fontFamily: T.sans, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            tz: {tz}
+          <span style={{ fontSize: S.label, color: T.textDim, fontFamily: T.sans }}>
+            Timezone: {tz}
           </span>
         )}
       </div>

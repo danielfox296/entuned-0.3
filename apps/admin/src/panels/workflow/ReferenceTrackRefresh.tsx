@@ -247,7 +247,6 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
                 key={t.id}
                 track={t}
                 analyzing={analyzing.has(t.id)}
-                onAnalyze={(force) => analyze(t, force)}
                 onOpen={() => setOpenTrackId(t.id)}
                 onResolvedPreview={refetch}
               />
@@ -431,8 +430,8 @@ function PendingRow({ track, edit, busy, onChange, onBlur, onApprove, onDiscard,
           <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {track.artist} — {track.title}
           </div>
-          <div style={{ fontFamily: T.mono, fontSize: 11, color: T.textDim, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            suggested
+          <div style={{ fontFamily: T.sans, fontSize: 11, color: T.accent }}>
+            New
           </div>
         </div>
       </div>
@@ -509,10 +508,9 @@ function PendingRow({ track, edit, busy, onChange, onBlur, onApprove, onDiscard,
   )
 }
 
-function ApprovedRow({ track, analyzing, onAnalyze, onOpen, onResolvedPreview }: {
+function ApprovedRow({ track, analyzing, onOpen, onResolvedPreview }: {
   track: ReferenceTrackRow
   analyzing: boolean
-  onAnalyze: (force: boolean) => void
   onOpen: () => void
   onResolvedPreview: () => void
 }) {
@@ -548,16 +546,8 @@ function ApprovedRow({ track, analyzing, onAnalyze, onOpen, onResolvedPreview }:
           {analysis ? `decomposed (${analysis.status})` : 'not decomposed'}
         </span>
       </div>
-      {/* Re-decompose lives inside the edit modal now. Only the first-time
-          "decompose" prompt is on the row, since opening the modal for an
-          undecomposed track shows an empty state instead of the editor. */}
-      {!analysis && (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Button onClick={() => onAnalyze(false)} disabled={analyzing}>
-            {analyzing ? 'decomposing…' : 'decompose'}
-          </Button>
-        </div>
-      )}
+      {/* Decomposition (first-time and re-decompose) lives only inside the
+          edit modal so it's never accidentally clickable from the list. */}
       {analyzing && <LlmProgress etaSeconds={30} label="decomposing track" />}
     </div>
   )
@@ -603,8 +593,7 @@ function Column({ title, children }: { title: string; children: React.ReactNode 
 function Heading({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
-      fontFamily: T.mono, fontSize: 12, color: T.textDim,
-      textTransform: 'uppercase', letterSpacing: '0.04em',
+      fontFamily: T.sans, fontSize: 13, color: T.textDim, fontWeight: 500,
     }}>{children}</div>
   )
 }

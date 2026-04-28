@@ -87,7 +87,7 @@ export function SongBrowser({ defaultActive = 'true' as ActiveFilter, headerLabe
             <Header />
             {data.rows.length === 0 && (
               <div style={{ padding: 24, textAlign: 'center', color: T.textDim, fontFamily: T.mono, fontSize: 14 }}>
-                no rows match these filters
+                No rows match these filters
               </div>
             )}
             {data.rows.map((r) => (

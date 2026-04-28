@@ -290,7 +290,7 @@ function ReferenceTracks({ detail: _detail, icp, onChanged }: { detail: StoreDet
   return (
     <Section
       title={`Reference tracks — ${icp.name}`}
-      subtitle={`${approvedCount} approved · ${pendingCount} pending — bucket describes the ICP's relationship to the music`}
+      subtitle={`${approvedCount} approved · ${pendingCount} pending`}
     >
       <div style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button
@@ -339,7 +339,7 @@ function ReferenceTracks({ detail: _detail, icp, onChanged }: { detail: StoreDet
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8,
           }}>
-            <Pill tone="muted" variant="soft" uppercase>{b}</Pill>
+            <Pill tone="muted" variant="soft">{b === 'FormationEra' ? 'Formation Era' : b}</Pill>
             <span style={{ fontSize: 13, color: T.textDim, fontFamily: T.mono }}>
               {grouped[b].length}
             </span>
@@ -480,7 +480,7 @@ function RefTrackRow({ track, onChanged }: { track: ReferenceTrackRow; onChanged
         <span style={{ fontSize: 14, fontFamily: T.sans, color: T.textMuted, fontStyle: 'italic' }}>{track.title}</span>
         <span style={{ fontSize: 14, fontFamily: T.mono, color: T.textDim }}>{track.year ?? ''}</span>
         {isPending
-          ? <Pill tone="accent" variant="soft" uppercase>suggested</Pill>
+          ? <Pill tone="accent" variant="soft">New</Pill>
           : <DecompositionBadge dec={dec} />}
         <div style={{ display: 'flex', gap: 6 }}>
           {isPending ? (
@@ -593,13 +593,13 @@ function RefTrackRow({ track, onChanged }: { track: ReferenceTrackRow; onChanged
 }
 
 function DecompositionBadge({ dec }: { dec: StyleAnalysisRow | null }) {
-  if (!dec) return <Pill tone="dim" variant="soft" uppercase>not decomposed</Pill>
+  if (!dec) return <Pill tone="dim" variant="soft">Not decomposed</Pill>
   const verified = dec.status === 'verified'
   const conf = dec.confidence
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-      <Pill tone={verified ? 'success' : 'muted'} variant="soft" uppercase>
-        {verified ? 'verified' : 'draft'}
+      <Pill tone={verified ? 'success' : 'muted'} variant="soft">
+        {verified ? 'Verified' : 'Draft'}
       </Pill>
       {conf && (
         <span style={{ fontSize: 11, fontFamily: T.mono, color: T.textDim, letterSpacing: '0.04em' }}>

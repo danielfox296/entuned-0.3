@@ -6,19 +6,13 @@ import { T } from '../../tokens.js'
 import { PanelHeader, StorePicker as UIStorePicker, S, useStoreSelection } from '../../ui/index.js'
 import { SongSeed } from './SongSeed.js'
 
-// Single-operator filter set. Row badges still show the exact underlying
-// status; chips collapse the negative outcomes to keep the UI scannable.
-//   To work    = queued (claimed or not — for one operator there's no
-//                 difference worth surfacing)
-//   Accepted   = accepted
-//   Skipped    = skipped (operator decided pre-Suno the prompt was bad)
-//   Abandoned  = abandoned ∪ failed (post-Suno give-up OR Mars/Bernie
-//                 build failure — both mean "this prompt didn't yield a song")
+// Single-operator filter set. The row badge still shows the exact underlying
+// status; chips fold every "didn't make it into the pool" status under one
+// catch-all "Rejected" so operators don't have to distinguish.
 const FILTERS: { key: string; label: string; statuses: SongSeedStatus[] }[] = [
   { key: 'to_work', label: 'to work', statuses: ['queued'] },
   { key: 'accepted', label: 'accepted', statuses: ['accepted'] },
-  { key: 'skipped', label: 'skipped', statuses: ['skipped'] },
-  { key: 'abandoned', label: 'abandoned', statuses: ['abandoned', 'failed'] },
+  { key: 'rejected', label: 'rejected', statuses: ['skipped', 'abandoned', 'failed'] },
 ]
 
 export function SongSeedQueue() {
@@ -172,7 +166,7 @@ export function SongSeedQueue() {
 
           {songSeeds && songSeeds.length === 0 && (
             <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 14, padding: '12px 0' }}>
-              no Song Prompts match
+              No Song Prompts match
             </div>
           )}
 

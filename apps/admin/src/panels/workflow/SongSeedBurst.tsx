@@ -378,8 +378,7 @@ function StatusPill({ status }: { status: SongSeedRow['status'] }) {
 function Heading({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
-      fontFamily: T.mono, fontSize: 12, color: T.textDim,
-      textTransform: 'uppercase', letterSpacing: '0.04em',
+      fontFamily: T.sans, fontSize: 13, color: T.textDim, fontWeight: 500,
     }}>{children}</div>
   )
 }

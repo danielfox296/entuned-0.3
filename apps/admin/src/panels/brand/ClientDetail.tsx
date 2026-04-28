@@ -186,7 +186,7 @@ export function ClientDetail() {
                     </div>
                   ))}
                   {client.stores.length === 0 && (
-                    <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>no locations yet — create one in Location</div>
+                    <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>No locations yet — create one in Location</div>
                   )}
                 </div>
               </Section>
@@ -242,7 +242,7 @@ function ClientList({ list, clientId, onPick }: { list: ClientListRow[] | null; 
           </button>
         )
       })}
-      {list.length === 0 && <div style={{ padding: 16, color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>no clients</div>}
+      {list.length === 0 && <div style={{ padding: 16, color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>No clients</div>}
     </div>
   )
 }

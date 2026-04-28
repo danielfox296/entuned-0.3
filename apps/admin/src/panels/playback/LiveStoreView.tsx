@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { api, getToken } from '../../api.js'
 import type { StoreSummary, LiveStoreView as LiveStoreData, OutcomeWithPool, QueueEntry, PlaybackEventRow } from '../../api.js'
 import { T } from '../../tokens.js'
@@ -6,15 +6,11 @@ import {
   Button, Section, PanelHeader, StorePicker, Pill, S, useStoreSelection,
 } from '../../ui/index.js'
 
-const REFRESH_MS = 10000
-
 export function LiveStoreView() {
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
   const [storeId, setStoreId] = useStoreSelection()
   const [data, setData] = useState<LiveStoreData | null>(null)
   const [err, setErr] = useState<string | null>(null)
-  const [autoRefresh, setAutoRefresh] = useState(true)
-  const intervalRef = useRef<number | null>(null)
 
   useEffect(() => {
     const token = getToken(); if (!token) return
@@ -36,32 +32,13 @@ export function LiveStoreView() {
     load()
   }, [storeId, load])
 
-  useEffect(() => {
-    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null }
-    if (storeId && autoRefresh) {
-      intervalRef.current = window.setInterval(load, REFRESH_MS)
-    }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
-  }, [storeId, autoRefresh, load])
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
       <PanelHeader title="Live Location View" />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
-        {storeId && (
-          <>
-            <Button variant="ghost" onClick={load}>refresh</Button>
-            <label style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              fontSize: S.small, color: T.textMuted, fontFamily: T.sans, cursor: 'pointer',
-            }}>
-              <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
-              auto-refresh ({REFRESH_MS / 1000}s)
-            </label>
-          </>
-        )}
+        {storeId && <Button variant="ghost" onClick={load}>Refresh</Button>}
       </div>
 
       {err && <div style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</div>}
@@ -119,7 +96,7 @@ function ActiveAndOverride({ data, onChange }: { data: LiveStoreData; onChange: 
       subtitle={`${data.store.clientName} / ${data.store.name} · ${data.store.timezone}`}
     >
       {!a ? (
-        <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>no current outcome</div>
+        <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>No current outcome</div>
       ) : (
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
           <div style={{ fontSize: S.title, fontFamily: T.sans, fontWeight: 500, color: T.text }}>
@@ -202,7 +179,7 @@ function QueueCard({ queue, reason }: {
 }) {
   return (
     <Section
-      title="Next up"
+      title="Up next"
       subtitle={`song playback gap${reason ? ` · ${reason}` : ''}`}
     >
       {queue.length === 0 ? (
@@ -237,9 +214,9 @@ function QueueCard({ queue, reason }: {
 
 function RecentEvents({ events }: { events: PlaybackEventRow[] }) {
   return (
-    <Section title="Recent events" subtitle={`last ${events.length}`}>
+    <Section title="Recent events" subtitle={`Last ${events.length}`}>
       {events.length === 0 ? (
-        <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>no events</div>
+        <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>No events</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {events.map((e) => <EventRow key={e.id} event={e} />)}

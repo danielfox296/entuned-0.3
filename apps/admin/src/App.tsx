@@ -77,16 +77,29 @@ function Sidebar({ active, onSelect, collapsed, onToggle, email, onLogout }: {
   active: string; onSelect: (k: string) => void
   collapsed: boolean; onToggle: () => void; email: string; onLogout: () => void
 }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  // Close the dropdown on any outside click.
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = () => setMenuOpen(false)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [menuOpen])
+
+  // Index of the first deferred group — we render a divider above it so the
+  // post-MVP entries are clearly fenced off from active surfaces.
+  const firstDeferredIdx = GROUPS.findIndex((g) => g.deferred)
+
   return (
     <div style={{
-      width: collapsed ? 48 : 200, background: T.surface,
+      width: collapsed ? 48 : 168, background: T.surface,
       borderRight: `1px solid ${T.border}`, display: 'flex',
       flexDirection: 'column', flexShrink: 0,
       transition: 'width 0.2s ease', overflow: 'hidden',
     }}>
       <div onClick={onToggle} style={{
         height: 48, display: 'flex', alignItems: 'center',
-        padding: collapsed ? '0 14px' : '0 16px', gap: 10,
+        padding: collapsed ? '0 14px' : '0 14px', gap: 10,
         borderBottom: `1px solid ${T.borderSubtle}`, cursor: 'pointer', flexShrink: 0,
       }}>
         {collapsed
@@ -96,45 +109,73 @@ function Sidebar({ active, onSelect, collapsed, onToggle, email, onLogout }: {
       </div>
 
       <div style={{ flex: 1, padding: '8px 0', overflowY: 'auto' }}>
-        {GROUPS.map((g) => {
+        {GROUPS.map((g, i) => {
           const on = active === g.key
           return (
-            <div key={g.key} onClick={() => onSelect(g.key)} style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: collapsed ? '10px 14px' : '10px 16px', cursor: 'pointer',
-              background: on ? T.accentGlow : 'transparent',
-              borderLeft: on ? `2px solid ${T.accent}` : '2px solid transparent',
-              transition: 'all 0.15s ease', opacity: g.deferred ? 0.4 : 1,
-            }}>
-              <span style={{
-                width: 18, display: 'inline-flex', alignItems: 'center',
-                justifyContent: 'center', flexShrink: 0,
-                color: on ? T.accent : T.textMuted,
+            <div key={g.key}>
+              {i === firstDeferredIdx && firstDeferredIdx > 0 && (
+                <div style={{
+                  height: 1, background: T.borderSubtle,
+                  margin: '6px 14px',
+                }} />
+              )}
+              <div onClick={() => onSelect(g.key)} style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: collapsed ? '10px 14px' : '10px 14px', cursor: 'pointer',
+                background: on ? T.accentGlow : 'transparent',
+                borderLeft: on ? `2px solid ${T.accent}` : '2px solid transparent',
+                transition: 'all 0.15s ease', opacity: g.deferred ? 0.4 : 1,
               }}>
-                <g.icon size={16} strokeWidth={1.75} />
-              </span>
-              {!collapsed && <span style={{
-                fontSize: 15, fontFamily: T.sans, fontWeight: on ? 500 : 400,
-                color: on ? T.text : T.textMuted, whiteSpace: 'nowrap',
-              }}>{g.short}</span>}
+                <span style={{
+                  width: 18, display: 'inline-flex', alignItems: 'center',
+                  justifyContent: 'center', flexShrink: 0,
+                  color: on ? T.accent : T.textMuted,
+                }}>
+                  <g.icon size={16} strokeWidth={1.75} />
+                </span>
+                {!collapsed && <span style={{
+                  fontSize: 14, fontFamily: T.sans, fontWeight: on ? 500 : 400,
+                  color: on ? T.text : T.textMuted, whiteSpace: 'nowrap',
+                }}>{g.short}</span>}
+              </div>
             </div>
           )
         })}
       </div>
 
       {!collapsed && (
-        <div style={{ padding: '12px 16px', borderTop: `1px solid ${T.borderSubtle}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <div style={{ fontSize: 13, color: T.textDim, fontFamily: T.sans, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email}</div>
+        <div style={{ position: 'relative', borderTop: `1px solid ${T.borderSubtle}` }}>
           <button
-            onClick={onLogout}
-            title="Sign out"
+            onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v) }}
+            title="Account"
             style={{
-              background: 'transparent', border: `1px solid ${T.border}`,
-              color: T.textMuted, padding: '3px 8px', borderRadius: 2,
-              fontFamily: T.mono, fontSize: 12, cursor: 'pointer', flexShrink: 0,
-              textTransform: 'uppercase', letterSpacing: 0.5,
+              width: '100%', background: 'transparent', border: 'none',
+              padding: '10px 14px', textAlign: 'left',
+              fontSize: 12, color: T.textDim, fontFamily: T.sans,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              cursor: 'pointer',
             }}
-          >sign out</button>
+          >{email}</button>
+          {menuOpen && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: 'absolute', bottom: '100%', left: 8, right: 8, marginBottom: 4,
+                background: T.surfaceRaised, border: `1px solid ${T.border}`,
+                borderRadius: 4, padding: 4, zIndex: 10,
+              }}
+            >
+              <button
+                onClick={() => { setMenuOpen(false); onLogout() }}
+                style={{
+                  width: '100%', background: 'transparent', border: 'none',
+                  padding: '6px 10px', textAlign: 'left',
+                  fontSize: 13, color: T.text, fontFamily: T.sans,
+                  cursor: 'pointer', borderRadius: 3,
+                }}
+              >Sign out</button>
+            </div>
+          )}
         </div>
       )}
     </div>

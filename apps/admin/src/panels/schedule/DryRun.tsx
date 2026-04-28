@@ -49,7 +49,7 @@ export function DryRun() {
     }
     const thin = data.byOutcome.filter((o) => o.poolStatus === 'thin' && o.totalMin > 0)
     if (thin.length > 0) {
-      out.push(`${thin.length} outcome(s) are scheduled with thin pools (< ${data.thresholds.thin}): ${thin.map((o) => o.outcomeDisplayTitle ?? o.outcomeTitle).join(', ')}.`)
+      out.push(`${thin.length} outcome(s) are scheduled with low pools (< ${data.thresholds.thin} active Song Entries): ${thin.map((o) => o.outcomeDisplayTitle ?? o.outcomeTitle).join(', ')}.`)
     }
     const overlaps = data.days.flatMap((d) => d.periods.filter((p) => p.overlap).map((p) => `${d.label} ${p.startHHMM}`))
     if (overlaps.length > 0) {
@@ -65,7 +65,7 @@ export function DryRun() {
       <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
 
       {err && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</div>}
-      {loading && <div style={{ fontSize: 14, color: T.textMuted, fontFamily: T.mono }}>simulating…</div>}
+      {loading && <div style={{ fontSize: 14, color: T.textMuted, fontFamily: T.sans }}>loading…</div>}
 
       {data && (
         <>
@@ -90,16 +90,9 @@ export function DryRun() {
 function SummaryRow({ data }: { data: ScheduleDryRun }) {
   return (
     <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-      <Chip label="scheduled" value={fmtDur(data.totals.scheduledMin)} pct={pct(data.totals.scheduledMin, data.totals.totalMin)} color={T.accent} />
-      <Chip label="default fill" value={fmtDur(data.totals.defaultMin)} pct={pct(data.totals.defaultMin, data.totals.totalMin)} color={T.textMuted} />
-      <Chip label="gap" value={fmtDur(data.totals.gapMin)} pct={pct(data.totals.gapMin, data.totals.totalMin)} color={data.totals.gapMin > 0 ? T.danger : T.textDim} />
-      <Chip label="default outcome" value={(data.defaultOutcome?.displayTitle ?? data.defaultOutcome?.title) ?? '—'} color={data.defaultOutcome ? T.text : T.danger} />
-      <Chip
-        label={`ICPs (${data.icps.length})`}
-        value={data.icps.length === 0 ? '—' : data.icps.map((i) => i.name).join(', ')}
-        color={data.icps.length > 0 ? T.text : T.textDim}
-      />
-      <Chip label="timezone" value={data.store.timezone} color={T.textMuted} />
+      <Chip label="Scheduled" value={pct(data.totals.scheduledMin, data.totals.totalMin) || '0%'} color={T.accent} />
+      <Chip label="Gap" value={pct(data.totals.gapMin, data.totals.totalMin) || '0%'} color={data.totals.gapMin > 0 ? T.warn : T.textDim} />
+      <Chip label="Default outcome" value={(data.defaultOutcome?.displayTitle ?? data.defaultOutcome?.title) ?? 'none set'} color={data.defaultOutcome ? T.text : T.warn} />
     </div>
   )
 }
@@ -112,10 +105,10 @@ function Chip({ label, value, pct, color }: { label: string; value: string; pct?
       border: `1px solid ${T.border}`, background: T.surface,
       minWidth: 120,
     }}>
-      <div style={{ fontFamily: T.mono, fontSize: 16, color, fontWeight: 600, lineHeight: 1.2 }}>
+      <div style={{ fontFamily: T.sans, fontSize: 16, color, fontWeight: 600, lineHeight: 1.2 }}>
         {value}{pct && <span style={{ color: T.textDim, fontSize: 13, marginLeft: 6 }}>{pct}</span>}
       </div>
-      <div style={{ fontFamily: T.mono, fontSize: 12, color: T.textDim, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+      <div style={{ fontFamily: T.sans, fontSize: 12, color: T.textDim }}>
         {label}
       </div>
     </div>
@@ -129,7 +122,7 @@ function Issues({ items }: { items: string[] }) {
       padding: '10px 14px', background: T.surface,
       display: 'flex', flexDirection: 'column', gap: 6,
     }}>
-      <div style={{ fontFamily: T.mono, fontSize: 13, color: T.warn, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+      <div style={{ fontFamily: T.sans, fontSize: 13, color: T.warn, fontWeight: 500 }}>
         {items.length} issue{items.length === 1 ? '' : 's'}
       </div>
       {items.map((i, idx) => (
@@ -139,45 +132,47 @@ function Issues({ items }: { items: string[] }) {
   )
 }
 
-const TBL_COLS = '1.6fr 90px 90px 90px 80px 90px'
+const TBL_COLS = '1.6fr 90px 80px 90px'
 
 function ByOutcomeTable({ data }: { data: ScheduleDryRun }) {
   if (data.byOutcome.length === 0) return null
   return (
-    <div style={{ border: `1px solid ${T.border}`, borderRadius: 4, overflow: 'hidden' }}>
-      <div style={{
-        display: 'grid', gridTemplateColumns: TBL_COLS, gap: 10,
-        padding: '8px 12px', background: T.surface,
-        borderBottom: `1px solid ${T.border}`,
-        fontFamily: T.mono, fontSize: 13, color: T.textDim, textTransform: 'uppercase',
-      }}>
-        <span>outcome</span>
-        <span style={{ textAlign: 'right' }}>scheduled</span>
-        <span style={{ textAlign: 'right' }}>default fill</span>
-        <span style={{ textAlign: 'right' }}>total</span>
-        <span style={{ textAlign: 'right' }}>pool</span>
-        <span style={{ textAlign: 'right' }}>status</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontFamily: T.sans, fontSize: 14, color: T.textMuted, fontWeight: 500 }}>
+        Outcomes used
       </div>
-      {data.byOutcome.map((o) => {
-        const color = o.poolStatus === 'critical' ? T.danger : o.poolStatus === 'thin' ? T.warn : T.success
-        return (
-          <div key={o.outcomeId} style={{
-            display: 'grid', gridTemplateColumns: TBL_COLS, gap: 10,
-            padding: '10px 12px', borderBottom: `1px solid ${T.borderSubtle}`,
-            fontFamily: T.mono, fontSize: 14, alignItems: 'center',
-          }}>
-            <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500 }}>
-              {o.outcomeDisplayTitle ?? o.outcomeTitle} <span style={{ color: T.accentMuted }}>v{o.outcomeVersion}</span>
-              {o.outcomeSuperseded && <span style={{ color: T.danger, fontFamily: T.mono, fontSize: 12, marginLeft: 6 }}>SUPERSEDED</span>}
-            </span>
-            <span style={{ textAlign: 'right', color: T.text }}>{fmtDur(o.scheduledMin)}</span>
-            <span style={{ textAlign: 'right', color: T.textMuted }}>{fmtDur(o.defaultMin)}</span>
-            <span style={{ textAlign: 'right', color: T.text, fontWeight: 600 }}>{fmtDur(o.totalMin)}</span>
-            <span style={{ textAlign: 'right', color, fontWeight: 600 }}>{o.poolCount}</span>
-            <span style={{ textAlign: 'right', color, fontSize: 13, textTransform: 'uppercase' }}>{o.poolStatus}</span>
-          </div>
-        )
-      })}
+      <div style={{ border: `1px solid ${T.border}`, borderRadius: 4, overflow: 'hidden' }}>
+        <div style={{
+          display: 'grid', gridTemplateColumns: TBL_COLS, gap: 10,
+          padding: '8px 12px', background: T.surface,
+          borderBottom: `1px solid ${T.border}`,
+          fontFamily: T.sans, fontSize: 13, color: T.textDim,
+        }}>
+          <span>Outcome</span>
+          <span style={{ textAlign: 'right' }}>Total</span>
+          <span style={{ textAlign: 'right' }}>Pool</span>
+          <span style={{ textAlign: 'right' }}>Depth</span>
+        </div>
+        {data.byOutcome.map((o) => {
+          const color = o.poolStatus === 'critical' ? T.danger : o.poolStatus === 'thin' ? T.warn : T.success
+          const depthLabel = o.poolStatus === 'thin' ? 'low' : o.poolStatus
+          return (
+            <div key={o.outcomeId} style={{
+              display: 'grid', gridTemplateColumns: TBL_COLS, gap: 10,
+              padding: '10px 12px', borderBottom: `1px solid ${T.borderSubtle}`,
+              fontFamily: T.sans, fontSize: 14, alignItems: 'center',
+            }}>
+              <span style={{ color: T.text, fontWeight: 500 }}>
+                {o.outcomeDisplayTitle ?? o.outcomeTitle}
+                {o.outcomeSuperseded && <span style={{ color: T.danger, fontSize: 12, marginLeft: 6 }}>superseded</span>}
+              </span>
+              <span style={{ textAlign: 'right', color: T.text, fontWeight: 600 }}>{fmtDur(o.totalMin)}</span>
+              <span style={{ textAlign: 'right', color, fontWeight: 600 }}>{o.poolCount}</span>
+              <span style={{ textAlign: 'right', color, fontSize: 13, textTransform: 'uppercase' }}>{depthLabel}</span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -191,8 +186,7 @@ function Timeline({ data }: { data: ScheduleDryRun }) {
       <div /> {/* spacer over hour rail */}
       {data.days.map((d) => (
         <div key={d.dayOfWeek} style={{
-          fontFamily: T.mono, fontSize: 13, color: T.textDim,
-          textTransform: 'uppercase', letterSpacing: 0.5,
+          fontFamily: T.sans, fontSize: 13, color: T.textDim,
           textAlign: 'center', paddingBottom: 4,
         }}>{d.label}</div>
       ))}
@@ -212,8 +206,8 @@ function HourRail() {
       <div key={h} style={{
         position: 'absolute', top: `${(h * 60 / DAY_MINUTES) * 100}%`,
         right: 4, transform: 'translateY(-50%)',
-        fontFamily: T.mono, fontSize: 12, color: T.textDim,
-      }}>{String(h).padStart(2, '0')}:00</div>,
+        fontFamily: T.sans, fontSize: 12, color: T.textDim,
+      }}>{fmtHour12(h)}</div>,
     )
   }
   return (
@@ -221,6 +215,21 @@ function HourRail() {
       {lines}
     </div>
   )
+}
+
+function fmtHour12(h: number): string {
+  if (h === 0 || h === 24) return '12 AM'
+  if (h === 12) return '12 PM'
+  return h < 12 ? `${h} AM` : `${h - 12} PM`
+}
+
+function fmtHHMMto12(s: string): string {
+  // "14:30" → "2:30 PM"
+  const [hStr, mStr] = s.split(':')
+  const h = parseInt(hStr ?? '0', 10)
+  const suffix = h < 12 ? 'AM' : 'PM'
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
+  return `${h12}:${mStr} ${suffix}`
 }
 
 function DayColumn({ periods, palette }: { periods: DryRunPeriod[]; palette: Map<string, string> }) {
@@ -236,17 +245,17 @@ function DayColumn({ periods, palette }: { periods: DryRunPeriod[]; palette: Map
         const fill = p.source === 'gap' ? 'transparent'
           : p.source === 'default' ? T.surfaceRaised
           : palette.get(p.outcomeId!) ?? T.accent
-        const color = p.source === 'gap' ? T.danger : T.bg
-        const border = p.source === 'gap' ? `1px dashed ${T.danger}`
+        const color = p.source === 'gap' ? T.warn : T.bg
+        const border = p.source === 'gap' ? `1px dashed ${T.warn}`
           : p.source === 'default' ? `1px dashed ${T.borderSubtle}`
           : `1px solid ${T.bg}`
         return (
-          <div key={i} title={`${p.startHHMM}–${p.endHHMM} · ${labelOf(p)}`} style={{
+          <div key={i} title={`${fmtHHMMto12(p.startHHMM)}–${fmtHHMMto12(p.endHHMM)} · ${labelOf(p)}`} style={{
             position: 'absolute', left: 0, right: 0,
             top: `${top}%`, height: `${height}%`,
             background: fill, color,
             border, boxSizing: 'border-box',
-            fontFamily: T.mono, fontSize: 12,
+            fontFamily: T.sans, fontSize: 12,
             padding: '2px 4px',
             display: 'flex', flexDirection: 'column',
             justifyContent: 'flex-start',
@@ -255,12 +264,12 @@ function DayColumn({ periods, palette }: { periods: DryRunPeriod[]; palette: Map
           }}>
             {height > 4 && (
               <>
-                <div style={{ fontWeight: 600, color: p.source === 'gap' ? T.danger : T.bg }}>
-                  {p.source === 'gap' ? 'GAP' : (p.outcomeDisplayTitle ?? p.outcomeTitle)}
+                <div style={{ fontWeight: 600, color: p.source === 'gap' ? T.warn : T.bg }}>
+                  {p.source === 'gap' ? 'Unscheduled' : (p.outcomeDisplayTitle ?? p.outcomeTitle)}
                 </div>
                 {height > 8 && (
                   <div style={{ opacity: 0.85, fontSize: 10 }}>
-                    {p.startHHMM}–{p.endHHMM}
+                    {fmtHHMMto12(p.startHHMM)}–{fmtHHMMto12(p.endHHMM)}
                   </div>
                 )}
               </>
@@ -295,7 +304,7 @@ function pct(n: number, total: number): string {
 }
 
 function labelOf(p: DryRunPeriod): string {
-  if (p.source === 'gap') return 'gap (no default)'
+  if (p.source === 'gap') return 'unscheduled (no default outcome)'
   const label = p.outcomeDisplayTitle ?? p.outcomeTitle
   if (p.source === 'default') return `default · ${label}`
   return `scheduled · ${label}`
