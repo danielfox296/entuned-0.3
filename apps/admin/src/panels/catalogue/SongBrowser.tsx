@@ -100,7 +100,7 @@ function Filters({ icps, outcomes, icpId, outcomeId, active, onIcp, onOutcome, o
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
       <FilterSelect label="icp" value={icpId} onChange={onIcp} options={[{ value: '', label: 'all ICPs' }, ...(icps ?? []).map((i) => ({ value: i.id, label: i.name }))]} />
-      <FilterSelect label="outcome" value={outcomeId} onChange={onOutcome} options={[{ value: '', label: 'all outcomes' }, ...(outcomes ?? []).map((o) => ({ value: o.id, label: `${o.title} v${o.version}` }))]} />
+      <FilterSelect label="outcome" value={outcomeId} onChange={onOutcome} options={[{ value: '', label: 'all outcomes' }, ...(outcomes ?? []).map((o) => ({ value: o.id, label: o.title }))]} />
       <div style={{ display: 'flex', gap: 4 }}>
         {(['true', 'false', 'all'] as const).map((k) => {
           const on = active === k
@@ -193,7 +193,7 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
       opacity: row.active ? 1 : 0.55,
     }}>
       <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500, ...trunc }}>{row.icpName ?? row.icpId.slice(0, 8)}</span>
-      <span style={{ color: T.textMuted, ...trunc }}>{row.outcome.title} <span style={{ color: T.accentMuted }}>v{row.outcome.version}</span></span>
+      <span style={{ color: T.textMuted, ...trunc }}>{row.outcome.title}</span>
       <span style={{ color: T.textMuted, fontFamily: T.sans, ...trunc }} title={row.hook.text}>{row.hook.text}</span>
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, ...trunc }}>
         <button onClick={play} style={playBtn(playing)} title={playing ? 'pause' : 'play'}>

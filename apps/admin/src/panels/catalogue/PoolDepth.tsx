@@ -155,7 +155,7 @@ function DataRow({ row }: {
     }}>
       <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500 }}>{row.icpName}</span>
       <span style={cellTrunc}>{row.storeNames}</span>
-      <span style={cellTrunc}>{row.outcomeTitle} <span style={{ color: T.accentMuted }}>v{row.outcomeVersion}</span></span>
+      <span style={cellTrunc}>{row.outcomeTitle}</span>
       <span style={{ color, textAlign: 'right', fontWeight: 600 }}>{row.count}</span>
       <span style={{ color, textAlign: 'right', fontSize: 13, textTransform: 'uppercase' }}>{row.status}</span>
     </div>

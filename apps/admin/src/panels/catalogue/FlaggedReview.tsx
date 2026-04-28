@@ -150,7 +150,7 @@ function Card({ song, onChanged, muted }: { song: FlaggedSong; onChanged: () => 
             <span style={{ color: lr.active ? T.success : T.textDim, width: 60 }}>
               {lr.active ? 'ACTIVE' : 'retired'}
             </span>
-            <span style={{ color: T.textMuted, ...truncStyle }}>{lr.outcome.title} v{lr.outcome.version}</span>
+            <span style={{ color: T.textMuted, ...truncStyle }}>{lr.outcome.title}</span>
             <span style={{ color: T.textDim, ...truncStyle, fontFamily: T.sans }}>· {lr.hook.text}</span>
           </div>
         ))}

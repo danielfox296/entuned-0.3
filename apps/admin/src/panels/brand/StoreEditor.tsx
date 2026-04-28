@@ -140,7 +140,7 @@ export function StoreEditor() {
                 onChange={(e) => setDraft({ ...draft, defaultOutcomeId: e.target.value || null })}
               >
                 <option value="">— none —</option>
-                {(outcomes ?? []).map((o) => <option key={o.id} value={o.id}>{o.title} v{o.version}</option>)}
+                {(outcomes ?? []).map((o) => <option key={o.id} value={o.id}>{o.title}</option>)}
               </Select>
             </Field>
 
@@ -212,7 +212,7 @@ function CreateForm({ draft, clients, outcomes, onChange, onSubmit, onCancel, bu
           onChange={(e) => set('defaultOutcomeId', e.target.value || null)}
         >
           <option value="">— none —</option>
-          {outcomes.map((o) => <option key={o.id} value={o.id}>{o.title} v{o.version}</option>)}
+          {outcomes.map((o) => <option key={o.id} value={o.id}>{o.title}</option>)}
         </Select>
       </Field>
       <Field label="go-live date">

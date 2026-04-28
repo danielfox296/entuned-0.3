@@ -246,7 +246,7 @@ function RowForm({ draft, outcomes, onChange, onSubmit, onCancel, submitLabel, c
         <Select value={draft.outcomeId} onChange={(e) => set('outcomeId', e.target.value)}>
           <option value="" disabled>— pick —</option>
           {(outcomes ?? []).map((o) => (
-            <option key={o.id} value={o.id}>{o.title} (v{o.version})</option>
+            <option key={o.id} value={o.id}>{o.title}</option>
           ))}
         </Select>
       </div>
@@ -324,7 +324,7 @@ function MultiDayCreateForm({ draft, outcomes, busy, onChange, onSubmit }: {
           <Select value={draft.outcomeId} onChange={(e) => onChange({ ...draft, outcomeId: e.target.value })}>
             <option value="" disabled>— pick —</option>
             {(outcomes ?? []).map((o) => (
-              <option key={o.id} value={o.id}>{o.title} (v{o.version})</option>
+              <option key={o.id} value={o.id}>{o.title}</option>
             ))}
           </Select>
         </div>

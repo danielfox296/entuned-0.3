@@ -289,7 +289,7 @@ function NewHookForm({ icpId, outcomes, onCreated }: {
         <select value={outcomeId} onChange={(e) => setOutcomeId(e.target.value)} style={inputStyle}>
           <option value="" disabled>— pick an outcome —</option>
           {(outcomes ?? []).map((o) => (
-            <option key={o.id} value={o.id}>{o.title} (v{o.version})</option>
+            <option key={o.id} value={o.id}>{o.title}</option>
           ))}
         </select>
       </div>
@@ -512,7 +512,7 @@ function OutcomeGroup({ outcome, hooks, onChanged }: {
         textTransform: 'uppercase', letterSpacing: '0.05em',
         marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${T.borderSubtle}`,
       }}>
-        {outcome.title} <span style={{ color: T.textDim }}>v{outcome.version} · {hooks.length}</span>
+        {outcome.title} <span style={{ color: T.textDim }}>{hooks.length}</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {hooks.map((h) => <HookRow key={h.id} hook={h} onChanged={onChanged} />)}

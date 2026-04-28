@@ -113,7 +113,7 @@ export function SongSeedQueue() {
             <span style={{ color: T.textDim, fontFamily: T.mono }}>+</span>
             <select value={runOutcome} onChange={(e) => setRunOutcome(e.target.value)} style={inputStyle}>
               <option value="" disabled>— pick outcome —</option>
-              {(outcomes ?? []).map((o) => <option key={o.id} value={o.id}>{o.title} (v{o.version})</option>)}
+              {(outcomes ?? []).map((o) => <option key={o.id} value={o.id}>{o.title}</option>)}
             </select>
             <input type="number" min={1} max={20} value={runN} onChange={(e) => setRunN(parseInt(e.target.value, 10) || 1)} style={{ ...inputStyle, width: 80 }} />
             <button onClick={launch} disabled={running || !runOutcome} style={primaryBtn(!!runOutcome, running)}>
