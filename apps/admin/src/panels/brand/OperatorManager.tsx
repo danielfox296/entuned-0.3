@@ -52,7 +52,7 @@ export function OperatorManager() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
       <PanelHeader
         title="Operator Manager"
-        subtitle="Create store-level operators and manage their credentials and store access."
+        subtitle="Each operator login is bound to one location and can only see the catalogue, songs, and settings for that location."
       />
 
       {err && <div style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</div>}
@@ -77,7 +77,7 @@ export function OperatorManager() {
             fontSize: S.label, fontFamily: T.sans, color: T.textDim,
             textTransform: 'uppercase', letterSpacing: 0.5,
           }}>
-            <span>Email</span><span>Stores</span><span>Status</span><span />
+            <span>Email</span><span>Location</span><span>Status</span><span />
           </div>
           {operators.map((op) => (
             <div key={op.id} style={{
@@ -126,11 +126,11 @@ function CreateForm({ stores, onSubmit, onCancel, busy, err }: {
       <Field label="email"><Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="operator@store.com" /></Field>
       <Field label="password"><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="set initial password" /></Field>
       <Field label="display name (optional)"><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="e.g. Park Meadows" /></Field>
-      <Field label="store access" full>
-        <StoreCheckboxes stores={stores} selected={storeIds} onChange={setStoreIds} />
+      <Field label="location" full>
+        <LocationPicker stores={stores} selected={storeIds[0] ?? null} onChange={(id) => setStoreIds(id ? [id] : [])} />
       </Field>
       <div style={{ gridColumn: '1/-1', display: 'flex', gap: 8 }}>
-        <Button onClick={() => onSubmit({ email, password, displayName: displayName || null, storeIds })} disabled={!valid} busy={busy}>
+        <Button onClick={() => onSubmit({ email, password, displayName: displayName || null, storeIds })} disabled={!valid || storeIds.length !== 1} busy={busy}>
           {busy ? 'creating…' : 'create operator'}
         </Button>
         <Button variant="ghost" onClick={onCancel}>cancel</Button>
@@ -170,11 +170,15 @@ function EditForm({ op, stores, onSave, onClose, busy }: {
       <Field label="email"><Input value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
       <Field label="new password"><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="leave blank to keep current" /></Field>
       <Field label="display name"><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="optional" /></Field>
-      <Field label="store access" full>
-        <StoreCheckboxes stores={stores} selected={storeIds} onChange={setStoreIds} />
+      <Field label="location" full>
+        {op.isAdmin ? (
+          <StoreCheckboxes stores={stores} selected={storeIds} onChange={setStoreIds} />
+        ) : (
+          <LocationPicker stores={stores} selected={storeIds[0] ?? null} onChange={(id) => setStoreIds(id ? [id] : [])} />
+        )}
       </Field>
       <div style={{ gridColumn: '1/-1', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <Button onClick={submit} disabled={!dirty} busy={busy}>
+        <Button onClick={submit} disabled={!dirty || (!op.isAdmin && storeIds.length !== 1)} busy={busy}>
           {busy ? 'saving…' : dirty ? 'save changes' : 'no changes'}
         </Button>
         <Button variant="ghost" onClick={onClose}>cancel</Button>
@@ -189,6 +193,27 @@ function EditForm({ op, stores, onSave, onClose, busy }: {
         )}
       </div>
     </Section>
+  )
+}
+
+function LocationPicker({ stores, selected, onChange }: {
+  stores: StoreSummary[]; selected: string | null; onChange: (id: string | null) => void
+}) {
+  return (
+    <select
+      value={selected ?? ''}
+      onChange={(e) => onChange(e.target.value || null)}
+      style={{
+        background: T.surface, border: `1px solid ${T.border}`, color: T.text,
+        padding: '7px 10px', fontFamily: T.sans, fontSize: S.small, borderRadius: S.r4,
+        minWidth: 280, outline: 'none',
+      }}
+    >
+      <option value="">— pick a location —</option>
+      {stores.map((s) => (
+        <option key={s.id} value={s.id}>{s.clientName} — {s.name}</option>
+      ))}
+    </select>
   )
 }
 
