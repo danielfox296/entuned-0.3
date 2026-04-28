@@ -38,10 +38,7 @@ export function ClosedSongSeeds() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      <PanelHeader
-        title="Closed Song Seeds"
-        subtitle="Song seeds that didn't make it into the pool — operator-abandoned, skipped, or assembly-failed. Useful for spotting hook-pool drift or systematic Mars/Bernie failures."
-      />
+      <PanelHeader title="Song Prompt Archive" />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 4 }}>
@@ -74,14 +71,14 @@ export function ClosedSongSeeds() {
       {rows && (
         <>
           <div style={{ fontFamily: T.mono, fontSize: 14, color: T.textDim }}>
-            {rows.length} {status} song seed{rows.length === 1 ? '' : 's'}
+            {rows.length} {status} Song Prompt{rows.length === 1 ? '' : 's'}
           </div>
 
           <div style={{ border: `1px solid ${T.border}`, borderRadius: 4, overflow: 'hidden' }}>
             <Header />
             {rows.length === 0 && (
               <div style={{ padding: 24, textAlign: 'center', color: T.textDim, fontFamily: T.mono, fontSize: 14 }}>
-                no {status} song seeds match
+                no {status} Song Prompts match
               </div>
             )}
             {rows.map((r) => <Row key={r.id} row={r} />)}

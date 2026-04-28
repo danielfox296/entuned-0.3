@@ -41,10 +41,10 @@ interface SurfaceGroup {
 
 const GROUPS: SurfaceGroup[] = [
   { key: 'workflows', label: 'Workflows', short: 'Workflows', icon: ListChecks,
-    cards: ['Pre-Launch Checklist', 'Hook Refresh', 'Reference Track Refresh', 'Hook → Prompt'],
+    cards: ['Launch Checklist', 'Hook Writing', 'Reference Tracks', 'Hook → Prompt'],
     description: '' },
   { key: 'seeding', label: 'Song Creation', short: 'Creation', icon: Disc3,
-    cards: ['Song Seed Queue', 'Closed Song Seeds'],
+    cards: ['Song Creation Queue', 'Song Prompt Archive'],
     description: '' },
   { key: 'playback', label: 'Playback & Overrides', short: 'Playback', icon: Play,
     cards: ['Live Location View'],
@@ -55,10 +55,10 @@ const GROUPS: SurfaceGroup[] = [
   { key: 'schedule', label: 'Scheduling', short: 'Schedule', icon: CalendarDays,
     cards: ['Outcome Schedule', 'Outcome Library', 'Dry Run'],
     description: '' },
-  { key: 'engine', label: 'Engine', short: 'Engine', icon: Settings,
+  { key: 'engine', label: 'Prompts & Rules', short: 'Prompts & Rules', icon: Settings,
     cards: ['Hook Drafter', 'Track Analyzer Rules', 'Style Exclusion Rules', 'Lyric Prompts', 'Outcome Factor Prompt', 'Reference Track Suggester'],
     description: '' },
-  { key: 'catalogue', label: 'Song Catalogue', short: 'Catalogue', icon: Music2,
+  { key: 'catalogue', label: 'Library', short: 'Library', icon: Music2,
     cards: ['Song Browser', 'Flagged Review', 'Retired Songs', 'Pool Depth'],
     description: '' },
   { key: 'experiments', label: 'Experiments', short: 'Experiments', icon: FlaskConical,
@@ -376,7 +376,7 @@ function CatalogueRouter({ cards }: { cards: string[] }) {
 
 // ── Seeding router ─────────────────────────────────────────────
 function SeedingRouter({ cards }: { cards: string[] }) {
-  const [active, setActive] = useNavSub<string>('Song Seed Queue')
+  const [active, setActive] = useNavSub<string>('Song Creation Queue')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
@@ -398,8 +398,8 @@ function SeedingRouter({ cards }: { cards: string[] }) {
           )
         })}
       </div>
-      {active === 'Song Seed Queue' && <SongSeedQueue />}
-      {active === 'Closed Song Seeds' && <ClosedSongSeeds />}
+      {active === 'Song Creation Queue' && <SongSeedQueue />}
+      {active === 'Song Prompt Archive' && <ClosedSongSeeds />}
     </div>
   )
 }

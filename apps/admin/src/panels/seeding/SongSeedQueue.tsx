@@ -6,14 +6,19 @@ import { T } from '../../tokens.js'
 import { PanelHeader, StorePicker as UIStorePicker, S, useStoreSelection } from '../../ui/index.js'
 import { SongSeed } from './SongSeed.js'
 
-const FILTERS: { key: string; label: string; status?: SongSeedStatus; claimedBy?: string }[] = [
-  { key: 'pending', label: 'pending', status: 'queued', claimedBy: 'unclaimed' },
-  { key: 'mine', label: 'in progress (mine)', status: 'queued', claimedBy: 'me' },
-  { key: 'all_queued', label: 'all queued', status: 'queued' },
-  { key: 'accepted', label: 'accepted', status: 'accepted' },
-  { key: 'abandoned', label: 'abandoned', status: 'abandoned' },
-  { key: 'skipped', label: 'skipped', status: 'skipped' },
-  { key: 'failed', label: 'failed', status: 'failed' },
+// Single-operator filter set. Row badges still show the exact underlying
+// status; chips collapse the negative outcomes to keep the UI scannable.
+//   To work    = queued (claimed or not — for one operator there's no
+//                 difference worth surfacing)
+//   Accepted   = accepted
+//   Skipped    = skipped (operator decided pre-Suno the prompt was bad)
+//   Abandoned  = abandoned ∪ failed (post-Suno give-up OR Mars/Bernie
+//                 build failure — both mean "this prompt didn't yield a song")
+const FILTERS: { key: string; label: string; statuses: SongSeedStatus[] }[] = [
+  { key: 'to_work', label: 'to work', statuses: ['queued'] },
+  { key: 'accepted', label: 'accepted', statuses: ['accepted'] },
+  { key: 'skipped', label: 'skipped', statuses: ['skipped'] },
+  { key: 'abandoned', label: 'abandoned', statuses: ['abandoned', 'failed'] },
 ]
 
 export function SongSeedQueue() {
@@ -21,7 +26,7 @@ export function SongSeedQueue() {
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
   const [storeId, setStoreId] = useStoreSelection()
   const [icpId, setIcpId] = useState<string | null>(null)
-  const [filter, setFilter] = useState<string>('pending')
+  const [filter, setFilter] = useState<string>('to_work')
   const [songSeeds, setSongSeeds] = useState<SongSeedRow[] | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -52,10 +57,17 @@ export function SongSeedQueue() {
     if (!icpId) { setSongSeeds(null); return }
     const token = getToken(); if (!token) return
     const f = FILTERS.find((x) => x.key === filter)
+    if (!f) { setSongSeeds(null); return }
     try {
-      setSongSeeds(await api.songSeeds(token, {
-        icpId, status: f?.status, claimedBy: f?.claimedBy, limit: 100,
-      }))
+      // The server only accepts a single status; for chips that combine
+      // multiple statuses (e.g. abandoned ∪ failed), fan out and merge.
+      const batches = await Promise.all(
+        f.statuses.map((s) => api.songSeeds(token, { icpId, status: s, limit: 100 })),
+      )
+      const merged = batches.flat().sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )
+      setSongSeeds(merged)
       setErr(null)
     } catch (e: any) { setErr(e.message) }
   }
@@ -80,8 +92,7 @@ export function SongSeedQueue() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
       <PanelHeader
-        title="Song Seed Queue"
-        subtitle="Generate Song Seeds, claim them, paste prompts into Suno, seed accepted takes."
+        title="Song Creation Queue"
       />
 
       <UIStorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
@@ -102,7 +113,7 @@ export function SongSeedQueue() {
       )}
 
       {icpId && (
-        <Section title="Run Seed Builder" subtitle="Generates SongSeeds for the selected ICP and Outcome. Each seed is permanently bound to one ICP.">
+        <Section title="Create Song Prompt" subtitle="Generate Song Prompts for the selected ICP and Outcome. Each Song Prompt is permanently bound to one ICP.">
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{
               fontFamily: T.mono, fontSize: 13, color: T.accent,
@@ -161,7 +172,7 @@ export function SongSeedQueue() {
 
           {songSeeds && songSeeds.length === 0 && (
             <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 14, padding: '12px 0' }}>
-              no songSeeds match
+              no Song Prompts match
             </div>
           )}
 
