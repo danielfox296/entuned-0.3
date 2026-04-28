@@ -22,6 +22,8 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
   const [edits, setEdits] = useState<Record<string, RefTrackUpdate>>({})
   const [err, setErr] = useState<string | null>(null)
   const [openTrackId, setOpenTrackId] = useState<string | null>(null)
+  const [prefetchingCovers, setPrefetchingCovers] = useState(false)
+  const prefetchedIcps = useRef<Set<string>>(new Set())
 
   const refetch = async () => {
     if (!ctx.storeId) return
@@ -50,6 +52,38 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
   const pending = tracks.filter((t) => t.status === 'pending')
   const approved = tracks.filter((t) => t.status === 'approved')
   const openTrack = openTrackId ? tracks.find((t) => t.id === openTrackId) ?? null : null
+
+  // Eagerly resolve covers for any tracks that have never been resolved.
+  // Runs once per ICP per session (prefetchedIcps guard) so we don't refire
+  // every time storeDetail refetches after a mutation. Concurrency 3 — Deezer
+  // and iTunes both tolerate it fine and the server is doing a single
+  // outbound fetch per row.
+  useEffect(() => {
+    if (!ctx.icpId) return
+    if (prefetchedIcps.current.has(ctx.icpId)) return
+    const unresolved = tracks.filter((t) => !t.previewSource)
+    if (unresolved.length === 0) return
+    prefetchedIcps.current.add(ctx.icpId)
+    const token = getToken(); if (!token) return
+    let cancelled = false
+    setPrefetchingCovers(true)
+    ;(async () => {
+      const queue = unresolved.slice()
+      const workers = Array.from({ length: 3 }, async () => {
+        while (!cancelled) {
+          const next = queue.shift(); if (!next) return
+          try { await api.resolveReferenceTrackPreview(next.id, false, token) } catch {}
+        }
+      })
+      await Promise.all(workers)
+      if (!cancelled) {
+        await refetch()
+        setPrefetchingCovers(false)
+      }
+    })()
+    return () => { cancelled = true; setPrefetchingCovers(false) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctx.icpId, tracks.length])
 
   const suggest = async () => {
     if (!ctx.icpId) return
@@ -154,6 +188,13 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
           <span style={{ fontFamily: T.sans, fontSize: S.small, color: T.textDim }}>
             generates new candidates for this ICP based on the current reference-track prompt
           </span>
+          {prefetchingCovers && (
+            <span style={{
+              fontFamily: T.mono, fontSize: 11, color: T.textDim,
+              textTransform: 'uppercase', letterSpacing: '0.04em',
+              marginLeft: 'auto',
+            }}>fetching covers…</span>
+          )}
         </div>
         {suggesting && <LlmProgress etaSeconds={45} label="suggesting reference tracks" />}
       </div>
