@@ -24,7 +24,7 @@ const TABS = [
   { key: 'launch', label: 'Pre-Launch Checklist' },
   { key: 'hooks', label: 'Hook Refresh' },
   { key: 'tracks', label: 'Reference Track Refresh' },
-  { key: 'burst', label: 'Song Seed Burst' },
+  { key: 'burst', label: 'Hook → Prompt' },
 ] as const
 
 type TabKey = typeof TABS[number]['key']
