@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
-  Play, Sparkles, CalendarDays, Settings, Music2,
+  Sparkles, CalendarDays, Settings, Music2,
   FlaskConical, Lightbulb, Activity, ListChecks,
 } from 'lucide-react'
 import { api, getToken, setToken, clearToken } from './api.js'
@@ -40,11 +40,8 @@ const GROUPS: SurfaceGroup[] = [
   { key: 'workflows', label: 'Workflows', short: 'Workflows', icon: ListChecks,
     cards: ['Launch Checklist', 'Hook Writing', 'Reference Tracks', 'Hook → Prompt'],
     description: '' },
-  { key: 'playback', label: 'Playback & Overrides', short: 'Playback', icon: Play,
-    cards: ['Live Location View'],
-    description: '' },
   { key: 'brand', label: 'Clients', short: 'Clients', icon: Sparkles,
-    cards: ['Client Detail', 'ICP Editor', 'Hook Queue', 'Location', 'Location Associates'],
+    cards: ['Client Detail', 'ICP Editor', 'Hook Queue', 'Location', 'Location Associates', 'Live Location View'],
     description: '' },
   { key: 'schedule', label: 'Scheduling', short: 'Schedule', icon: CalendarDays,
     cards: ['Outcome Schedule', 'Outcome Library', 'Dry Run'],
@@ -206,7 +203,6 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
         {group.key === 'workflows' ? <WorkflowRouter /> :
          group.key === 'engine' ? <EngineRouter cards={group.cards} /> :
          group.key === 'brand' ? <BrandRouter cards={group.cards} /> :
-         group.key === 'playback' ? <PlaybackRouter cards={group.cards} /> :
          group.key === 'schedule' ? <ScheduleRouter cards={group.cards} /> :
          group.key === 'catalogue' ? <CatalogueRouter cards={group.cards} /> : (
         <>
@@ -312,34 +308,6 @@ function BrandRouter({ cards }: { cards: string[] }) {
       {active === 'Hook Queue' && <HookQueue />}
       {active === 'Location' && <StoreEditor />}
       {active === 'Location Associates' && <OperatorManager />}
-    </div>
-  )
-}
-
-// ── Playback router ────────────────────────────────────────────
-function PlaybackRouter({ cards }: { cards: string[] }) {
-  const [active, setActive] = useNavSub<string>('Live Location View')
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
-        {cards.map((c) => {
-          const on = active === c
-          return (
-            <button
-              key={c}
-              onClick={() => setActive(c)}
-              style={{
-                background: 'transparent', border: 'none',
-                borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
-                color: on ? T.text : T.textMuted,
-                padding: '8px 14px', cursor: 'pointer',
-                fontFamily: T.sans, fontSize: 14, fontWeight: on ? 500 : 400,
-                marginBottom: -1,
-              }}
-            >{c}</button>
-          )
-        })}
-      </div>
       {active === 'Live Location View' && <LiveStoreView />}
     </div>
   )

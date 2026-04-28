@@ -3,7 +3,7 @@ import { api, getToken } from '../../api.js'
 import type { StoreSummary, LiveStoreView as LiveStoreData, OutcomeWithPool, QueueEntry, PlaybackEventRow } from '../../api.js'
 import { T } from '../../tokens.js'
 import {
-  Button, Section, PanelHeader, StorePicker, Pill, S, useStoreSelection,
+  Button, Section, StorePicker, Pill, S, useStoreSelection,
 } from '../../ui/index.js'
 
 export function LiveStoreView() {
@@ -34,8 +34,6 @@ export function LiveStoreView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      <PanelHeader title="Live Location View" />
-
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
         {storeId && <Button variant="ghost" onClick={load}>Refresh</Button>}
