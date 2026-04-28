@@ -45,7 +45,7 @@ export function DryRun() {
     }
     const critical = data.byOutcome.filter((o) => o.poolStatus === 'critical' && o.totalMin > 0)
     if (critical.length > 0) {
-      out.push(`${critical.length} outcome(s) are scheduled but their pool is CRITICAL (< ${data.thresholds.critical} active LineageRows): ${critical.map((o) => o.outcomeDisplayTitle ?? o.outcomeTitle).join(', ')}.`)
+      out.push(`${critical.length} outcome(s) are scheduled but their pool is CRITICAL (< ${data.thresholds.critical} active Song Entries): ${critical.map((o) => o.outcomeDisplayTitle ?? o.outcomeTitle).join(', ')}.`)
     }
     const thin = data.byOutcome.filter((o) => o.poolStatus === 'thin' && o.totalMin > 0)
     if (thin.length > 0) {

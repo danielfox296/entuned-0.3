@@ -546,20 +546,20 @@ function ApprovedRow({ track, analyzing, onAnalyze, onOpen, onResolvedPreview }:
         <span>used {track.useCount}×</span>
         <span>·</span>
         <span style={{ color: analysis ? T.accent : T.textDim }}>
-          {analysis ? `analyzed (${analysis.status})` : 'not analyzed'}
+          {analysis ? `decomposed (${analysis.status})` : 'not decomposed'}
         </span>
       </div>
-      {/* Re-analyze lives inside the edit modal now. Only the first-time
-          "run style analysis" prompt is on the row, since opening the modal
-          for an unanalyzed track shows an empty state instead of the editor. */}
+      {/* Re-decompose lives inside the edit modal now. Only the first-time
+          "decompose" prompt is on the row, since opening the modal for an
+          undecomposed track shows an empty state instead of the editor. */}
       {!analysis && (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <Button onClick={() => onAnalyze(false)} disabled={analyzing}>
-            {analyzing ? 'analyzing…' : 'run style analysis'}
+            {analyzing ? 'decomposing…' : 'decompose'}
           </Button>
         </div>
       )}
-      {analyzing && <LlmProgress etaSeconds={30} label="analyzing track" />}
+      {analyzing && <LlmProgress etaSeconds={30} label="decomposing track" />}
     </div>
   )
 }
@@ -716,9 +716,9 @@ function StyleAnalysisModal({ track, onClose, onSaved, analyzing, onAnalyze, onR
             onClick={() => onAnalyze(true)}
             disabled={analyzing || saving}
             style={ghostBtnStyle}
-            title="discard the current analysis and run again"
+            title="discard the current decomposition and run again"
           >
-            {analyzing ? 'reanalyzing…' : 're-analyze'}
+            {analyzing ? 'decomposing…' : 're-decompose'}
           </button>
           <div style={{ flex: 1 }} />
           <button onClick={onClose} style={ghostBtnStyle} disabled={saving}>cancel</button>
@@ -752,14 +752,14 @@ function StyleAnalysisModal({ track, onClose, onSaved, analyzing, onAnalyze, onR
         {!analysis ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ fontFamily: T.sans, fontSize: 14, color: T.textMuted, lineHeight: 1.6 }}>
-              No style analysis yet for this track.
+              Not decomposed yet.
             </div>
             <div>
               <Button onClick={() => onAnalyze(false)} disabled={analyzing}>
-                {analyzing ? 'analyzing…' : 'run style analysis'}
+                {analyzing ? 'decomposing…' : 'decompose'}
               </Button>
             </div>
-            {analyzing && <LlmProgress etaSeconds={30} label="analyzing track" />}
+            {analyzing && <LlmProgress etaSeconds={30} label="decomposing track" />}
           </div>
         ) : (
           <>

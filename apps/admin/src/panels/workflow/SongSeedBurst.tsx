@@ -133,8 +133,8 @@ export function SongSeedBurst({ ctx }: { ctx: WorkflowContext }) {
         toast.error(`no seeds produced${reasonNote}`)
       }
     } catch (e: any) {
-      setErr(e.message ?? 'burst failed')
-      toast.error(e.message ?? 'burst failed')
+      setErr(e.message ?? 'batch failed')
+      toast.error(e.message ?? 'batch failed')
     } finally {
       setRunning((s) => { const next = new Set(s); next.delete(outcomeId); return next })
     }
@@ -196,7 +196,7 @@ export function SongSeedBurst({ ctx }: { ctx: WorkflowContext }) {
                   <div style={{
                     fontSize: 11, color: T.danger, marginTop: 4, fontFamily: T.mono,
                   }}>
-                    {r.approvedHooks === 0 ? 'no approved hooks' : 'no analyzed ref tracks'}
+                    {r.approvedHooks === 0 ? 'no approved hooks' : 'no decomposed ref tracks'}
                   </div>
                 )}
               </button>
@@ -267,7 +267,7 @@ function BurstSurface({ outcome, readiness, recentSeeds, n, setN, running, lastR
           <span style={{
             fontSize: S.label, color: T.textDim, fontFamily: T.sans,
             textTransform: 'uppercase', letterSpacing: '0.04em',
-          }}>burst size</span>
+          }}>batch size</span>
           <input
             type="number" min={1} max={20} value={n}
             onChange={(e) => setN(Math.max(1, Math.min(20, Number(e.target.value) || DEFAULT_N)))}
@@ -284,7 +284,7 @@ function BurstSurface({ outcome, readiness, recentSeeds, n, setN, running, lastR
             <span style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>
               {readiness.approvedHooks === 0
                 ? 'approve at least one hook for this outcome before seeding'
-                : 'analyze at least one reference track for this ICP before seeding'}
+                : 'decompose at least one reference track for this ICP before seeding'}
             </span>
           )}
         </div>
@@ -300,7 +300,7 @@ function BurstSurface({ outcome, readiness, recentSeeds, n, setN, running, lastR
             background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
             borderRadius: 3, padding: '6px 10px',
           }}>
-            last burst: {lastResult.producedN} / {lastResult.requestedN} produced · {lastResult.reason}
+            last batch: {lastResult.producedN} / {lastResult.requestedN} produced · {lastResult.reason}
             {lastResult.errors.length > 0 && (
               <span style={{ color: T.danger }}> · {lastResult.errors.length} error{lastResult.errors.length === 1 ? '' : 's'}</span>
             )}

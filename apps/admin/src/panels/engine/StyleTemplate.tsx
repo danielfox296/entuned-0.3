@@ -5,7 +5,7 @@ export function StyleTemplate() {
   return (
     <VersionedPromptEditor
       title="Style Template"
-      subtitle="Mars long-style assembly template (text/provenance — runtime logic stays code-backed)"
+      subtitle=""
       load={async () => {
         const token = getToken(); if (!token) throw new Error('not signed in')
         const r = await api.styleTemplate(token)

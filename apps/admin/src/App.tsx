@@ -50,13 +50,13 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Live Location View'],
     description: '' },
   { key: 'brand', label: 'Clients', short: 'Clients', icon: Sparkles,
-    cards: ['Client Detail', 'ICP Editor', 'Hook Queue', 'Location', 'Operator Manager'],
+    cards: ['Client Detail', 'ICP Editor', 'Hook Queue', 'Location', 'Location Associates'],
     description: '' },
   { key: 'schedule', label: 'Scheduling', short: 'Schedule', icon: CalendarDays,
     cards: ['Outcome Schedule', 'Outcome Library', 'Dry Run'],
     description: '' },
   { key: 'engine', label: 'Prompts & Rules', short: 'Prompts & Rules', icon: Settings,
-    cards: ['Hook Drafter', 'Track Analyzer Rules', 'Style Exclusion Rules', 'Lyric Prompts', 'Outcome Factor Prompt', 'Reference Track Suggester'],
+    cards: ['Hook Drafter', 'Decomposition', 'Style Exclusion Rules', 'Lyric Prompts', 'Outcome Style Factor', 'Reference Track Suggester'],
     description: '' },
   { key: 'catalogue', label: 'Library', short: 'Library', icon: Music2,
     cards: ['Song Browser', 'Flagged Review', 'Retired Songs', 'Pool Depth'],
@@ -239,10 +239,10 @@ function EngineRouter({ cards }: { cards: string[] }) {
         })}
       </div>
       {active === 'Hook Drafter' && <HookDrafterPrompt />}
-      {active === 'Track Analyzer Rules' && <DecomposerRules />}
+      {active === 'Decomposition' && <DecomposerRules />}
       {active === 'Style Exclusion Rules' && <FailureRules />}
       {active === 'Lyric Prompts' && <LyricPrompts />}
-      {active === 'Outcome Factor Prompt' && <OutcomeFactorPrompt />}
+      {active === 'Outcome Style Factor' && <OutcomeFactorPrompt />}
       {active === 'Reference Track Suggester' && <ReferenceTrackPrompt />}
     </div>
   )
@@ -277,7 +277,7 @@ function BrandRouter({ cards }: { cards: string[] }) {
       {active === 'ICP Editor' && <IcpEditor />}
       {active === 'Hook Queue' && <HookQueue />}
       {active === 'Location' && <StoreEditor />}
-      {active === 'Operator Manager' && <OperatorManager />}
+      {active === 'Location Associates' && <OperatorManager />}
     </div>
   )
 }

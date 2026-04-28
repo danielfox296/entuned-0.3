@@ -25,7 +25,7 @@ export function FlaggedReview() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
       <PanelHeader
         title="Flagged Review"
-        subtitle="Songs reported via the player. Reasons + counts come from song_report AudioEvents. Retiring a song deactivates every LineageRow that points at it."
+        subtitle=""
       />
 
       {err && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</div>}
@@ -143,7 +143,7 @@ function Card({ song, onChanged, muted }: { song: FlaggedSong; onChanged: () => 
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4, paddingTop: 8, borderTop: `1px solid ${T.borderSubtle}` }}>
         <div style={{ fontFamily: T.mono, fontSize: 12, color: T.textDim, textTransform: 'uppercase' }}>
-          lineage rows ({song.lineageRows.length})
+          Song Entries ({song.lineageRows.length})
         </div>
         {song.lineageRows.map((lr) => (
           <div key={lr.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: T.mono, fontSize: 13 }}>

@@ -287,7 +287,7 @@ function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent,
         <Input value={draft.title} onChange={(e) => set('title', e.target.value)} placeholder="Brand Reinforcement" />
       </div>
       <div>
-        <label style={labelStyle}>display title (operator UI)</label>
+        <label style={labelStyle}>display title (player UI)</label>
         <Input value={draft.displayTitle} onChange={(e) => set('displayTitle', e.target.value)} placeholder="Reinforce Brand" />
       </div>
       <div>

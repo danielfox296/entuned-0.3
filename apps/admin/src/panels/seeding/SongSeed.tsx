@@ -97,7 +97,7 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
 
       {/* Operator actions first — workflow order: claim → copy → paste → accept. */}
       {isQueued && (
-        <Section title="Operator actions">
+        <Section title="Actions">
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {!data.claimedById && (
               <Button onClick={() => action('claim', () => api.claimSongSeed(songSeedId, getToken()!))} disabled={busy !== null} busy={busy === 'claim'}>
@@ -159,7 +159,7 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
       </Section>
 
       {isQueued && (
-        <Section title="Accept takes" subtitle="Paste the Suno (or other) source URL(s). Server downloads and re-hosts on our R2 bucket; only the R2 URL is stored.">
+        <Section title="Accept takes" subtitle="Paste the Suno source URL(s). The server downloads and re-hosts the audio.">
           {takes.map((t, i) => (
             <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
               <Input
@@ -179,7 +179,7 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
             </Button>
             {accepted && (
               <span style={{ fontSize: S.small, fontFamily: T.sans, color: T.success }}>
-                ✓ takes received — lineage rows created
+                ✓ takes received — Song Entries created
               </span>
             )}
           </div>
@@ -191,15 +191,14 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
         <KV k="Outcome" v={(data.outcome?.displayTitle ?? data.outcome?.title) ?? '—'} />
         <KV k="Hook" v={data.hook.text} />
         <KV k="Reference track" v={data.referenceTrack ? `${data.referenceTrack.artist} — ${data.referenceTrack.title}${data.referenceTrack.year ? ` (${data.referenceTrack.year})` : ''}` : '—'} />
-        <KV k="Seed Batch" v={`${data.songSeedBatch?.id?.slice(0, 8)} · ${data.songSeedBatch?.triggeredBy} · ${data.songSeedBatch ? new Date(data.songSeedBatch.startedAt).toLocaleString() : ''}`} />
-        <KV k="Provenance" v={`prepend v${data.outcomeFactorPromptVersion ?? '—'} · mars v${data.styleTemplateVersion ?? '—'} · bernie draft v${data.lyricDraftPromptVersion ?? '—'}`} />
+        <KV k="Batch" v={`${data.songSeedBatch?.id?.slice(0, 8)} · ${data.songSeedBatch?.triggeredBy} · ${data.songSeedBatch ? new Date(data.songSeedBatch.startedAt).toLocaleString() : ''}`} />
       </Section>
 
       {data.lineageRows && data.lineageRows.length > 0 && (
-        <Section title="Lineage rows">
+        <Section title="Song Entries">
           {data.lineageRows.map((r: any) => (
             <div key={r.id} style={{ fontSize: S.small, fontFamily: T.sans, color: T.textMuted, padding: '4px 0' }}>
-              {r.r2Url} {r.active ? '' : '(retired)'}
+              entry {r.id.slice(0, 8)}{r.active ? '' : ' (retired)'}
             </div>
           ))}
         </Section>

@@ -31,7 +31,7 @@ export function OperatorManager() {
       const updated = await api.updateOperator(selected.id, body, token)
       setSelected(updated)
       await load()
-      toast.success(`operator ${updated.email} saved`)
+      toast.success(`${updated.email} saved`)
     } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'save failed') }
     finally { setBusy(false) }
   }
@@ -43,22 +43,19 @@ export function OperatorManager() {
       const created = await api.createOperator(body, token)
       setCreating(false)
       await load()
-      toast.success(`operator ${created.email} created`)
+      toast.success(`${created.email} created`)
     } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'create failed') }
     finally { setBusy(false) }
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      <PanelHeader
-        title="Operator Manager"
-        subtitle="Each operator login is bound to one location and can only see the catalogue, songs, and settings for that location."
-      />
+      <PanelHeader title="Location Associates" />
 
       {err && <div style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</div>}
 
       <div style={{ display: 'flex', gap: 8 }}>
-        <Button onClick={() => { setSelected(null); setCreating(true) }}>+ new operator</Button>
+        <Button onClick={() => { setSelected(null); setCreating(true) }}>+ new associate</Button>
       </div>
 
       {creating && stores && (
@@ -121,9 +118,9 @@ function CreateForm({ stores, onSubmit, onCancel, busy, err }: {
   const valid = email.includes('@') && password.length > 0
 
   return (
-    <Section title="New operator" columns={2}>
+    <Section title="New associate" columns={2}>
       {err && <div style={{ gridColumn: '1/-1', fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</div>}
-      <Field label="email"><Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="operator@store.com" /></Field>
+      <Field label="email"><Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="associate@location.com" /></Field>
       <Field label="password"><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="set initial password" /></Field>
       <Field label="display name (optional)"><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="e.g. Park Meadows" /></Field>
       <Field label="location" full>
@@ -131,7 +128,7 @@ function CreateForm({ stores, onSubmit, onCancel, busy, err }: {
       </Field>
       <div style={{ gridColumn: '1/-1', display: 'flex', gap: 8 }}>
         <Button onClick={() => onSubmit({ email, password, displayName: displayName || null, storeIds })} disabled={!valid || storeIds.length !== 1} busy={busy}>
-          {busy ? 'creating…' : 'create operator'}
+          {busy ? 'creating…' : 'create associate'}
         </Button>
         <Button variant="ghost" onClick={onCancel}>cancel</Button>
       </div>

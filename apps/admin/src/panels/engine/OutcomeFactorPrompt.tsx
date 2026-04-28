@@ -4,8 +4,8 @@ import { VersionedPromptEditor } from '../../ui/index.js'
 export function OutcomeFactorPrompt() {
   return (
     <VersionedPromptEditor
-      title="Outcome Factor Prompt"
-      subtitle="Prepended to the style string before Suno submission. Default: '{tempo_bpm}bpm, {mode}'. Tokens: {tempo_bpm}, {mode}, {dynamics}, {instrumentation}."
+      title="Outcome Style Factor"
+      subtitle=""
       load={async () => {
         const token = getToken(); if (!token) throw new Error('not signed in')
         const r = await api.outcomeFactorPrompt(token)

@@ -31,7 +31,7 @@ export function LyricPrompts() {
       <VersionedPromptEditor
         key={kind}
         title={`Lyric Prompt — ${kind}`}
-        subtitle="Bernie draft and edit prompts (Anthropic-side lyric generation)"
+        subtitle=""
         load={async () => {
           const token = getToken(); if (!token) throw new Error('not signed in')
           const r = await api.lyricPrompts(token)

@@ -395,7 +395,7 @@ function NewRefTrackRow({ icpId, draft, onChange, onCreated }: {
       <textarea
         rows={2}
         value={draft.operatorNotes ?? ''}
-        placeholder="operator notes (producer-ear hints — sidechain, flammed snare, etc.)"
+        placeholder="producer notes (sidechain, flammed snare, etc.)"
         onChange={(e) => onChange({ ...draft, operatorNotes: e.target.value || null })}
         style={{ ...inputStyle, gridColumn: '1 / -1', resize: 'vertical', lineHeight: 1.4 }}
       />
@@ -504,7 +504,7 @@ function RefTrackRow({ track, onChanged }: { track: ReferenceTrackRow; onChanged
                 onClick={() => runDecompose(verified)}
                 disabled={busy === 'decompose'}
                 style={ghostBtn}
-                title={verified ? 'overwrite verified decomposition' : 'run decomposer'}
+                title={verified ? 'overwrite verified decomposition' : 'decompose'}
               >{busy === 'decompose' ? '…' : 'Decompose'}</button>
               <button onClick={() => setExpanded(!expanded)} style={ghostBtn} title={expanded ? 'collapse' : 'expand'}>
                 {expanded ? 'Collapse' : 'Expand'}
@@ -536,7 +536,7 @@ function RefTrackRow({ track, onChanged }: { track: ReferenceTrackRow; onChanged
         <div style={{ borderTop: `1px solid ${T.borderSubtle}`, padding: 14, background: T.bg }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label style={{ fontSize: 13, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>operator notes</label>
+              <label style={{ fontSize: 13, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>producer notes</label>
               {!editing && (
                 <button onClick={() => setEditing(true)} style={ghostBtn}>edit</button>
               )}
@@ -593,7 +593,7 @@ function RefTrackRow({ track, onChanged }: { track: ReferenceTrackRow; onChanged
 }
 
 function DecompositionBadge({ dec }: { dec: StyleAnalysisRow | null }) {
-  if (!dec) return <Pill tone="dim" variant="soft" uppercase>no decomp</Pill>
+  if (!dec) return <Pill tone="dim" variant="soft" uppercase>not decomposed</Pill>
   const verified = dec.status === 'verified'
   const conf = dec.confidence
   return (
@@ -656,7 +656,7 @@ function DecompositionEditor({ dec, onChanged }: { dec: StyleAnalysisRow; onChan
         </div>
       )}
       <div style={{ fontSize: 13, color: T.textDim, fontFamily: T.mono }}>
-        rules v{dec.styleAnalyzerInstructionsVersion} · status {dec.status}
+        status {dec.status}
         {dec.verifiedAt && ` · verified ${new Date(dec.verifiedAt).toLocaleString()}`}
       </div>
       <label style={{ fontSize: 13, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>confidence</label>

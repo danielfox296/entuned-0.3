@@ -122,7 +122,7 @@ function Row({ row }: { row: SongSeedRow }) {
       <span style={trunc} title={row.hook?.text ?? ''}>{row.hook?.text ?? '—'}</span>
       <span style={{ color: T.textMuted, ...trunc }}>—</span>
       <span style={{ color: row.errorText ? T.danger : T.textDim, ...trunc }} title={row.errorText ?? ''}>
-        {row.errorText ?? (row.status === 'abandoned' ? 'operator abandoned' : row.status === 'skipped' ? 'operator skipped' : '—')}
+        {row.errorText ?? (row.status === 'abandoned' ? 'abandoned' : row.status === 'skipped' ? 'skipped' : '—')}
       </span>
       <span style={{ color: T.textMuted, fontFamily: T.sans, ...trunc }}>{row.title ?? '—'}</span>
     </div>

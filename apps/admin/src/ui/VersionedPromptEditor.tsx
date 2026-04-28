@@ -68,16 +68,15 @@ export function VersionedPromptEditor<TLatest extends { version: number; created
   const currentText = latest ? textFrom(latest as TLatest) : ''
   const dirty = text !== currentText || notes.trim() !== ''
 
+  const [showHistory, setShowHistory] = useState(false)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.lg }}>
       <PanelHeader title={title} subtitle={subtitle} />
 
       {latest && (
-        <div style={{
-          display: 'flex', gap: 12, fontSize: S.label, fontFamily: T.sans, color: T.textDim,
-        }}>
-          <span style={{ color: T.accentMuted }}>v{latest.version}</span>
-          <span>{new Date(latest.createdAt).toLocaleString()}</span>
+        <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.textDim }}>
+          last saved {new Date(latest.createdAt).toLocaleString()}
         </div>
       )}
 
@@ -94,21 +93,30 @@ export function VersionedPromptEditor<TLatest extends { version: number; created
           <Input
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="version notes (optional)"
+            placeholder="note (optional)"
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <Button onClick={onSave} disabled={!dirty || !text.trim()} busy={busy}>
-              {busy ? 'saving…' : 'save as new version'}
+              {busy ? 'saving…' : 'save'}
             </Button>
-            {latest && (
-              <span style={{ fontSize: S.small, color: T.textDim, fontFamily: T.sans }}>
-                current: v{latest.version}
-              </span>
-            )}
             {err && <span style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</span>}
           </div>
 
-          {history.length > 1 && <History rows={history} />}
+          {history.length > 1 && (
+            <div style={{ marginTop: 8 }}>
+              <button
+                onClick={() => setShowHistory((v) => !v)}
+                style={{
+                  background: 'transparent', border: 'none', padding: 0,
+                  color: T.textDim, fontFamily: T.sans, fontSize: S.small,
+                  cursor: 'pointer',
+                }}
+              >
+                {showHistory ? '▾ history' : `▸ history (${history.length})`}
+              </button>
+              {showHistory && <History rows={history} />}
+            </div>
+          )}
         </>
       )}
     </div>
@@ -120,19 +128,13 @@ export function History({ rows }: { rows: PromptVersion[] }) {
     <div style={{
       marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.borderSubtle}`,
     }}>
-      <div style={{
-        fontSize: S.small, color: T.textDim, fontFamily: T.sans, marginBottom: 8,
-      }}>
-        history ({rows.length})
-      </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {rows.map((r) => (
           <div key={r.id} style={{
             display: 'flex', gap: 12, fontSize: S.small, fontFamily: T.sans,
             color: T.textMuted, padding: '4px 0',
           }}>
-            <span style={{ color: T.accentMuted, width: 40 }}>v{r.version}</span>
-            <span style={{ color: T.textDim, width: 160 }}>
+            <span style={{ color: T.textDim, width: 200 }}>
               {new Date(r.createdAt).toLocaleString()}
             </span>
             <span style={{ flex: 1 }}>{r.notes ?? ''}</span>

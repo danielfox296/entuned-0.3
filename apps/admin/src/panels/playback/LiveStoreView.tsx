@@ -125,7 +125,12 @@ function ActiveAndOverride({ data, onChange }: { data: LiveStoreData; onChange: 
           <div style={{ fontSize: S.title, fontFamily: T.sans, fontWeight: 500, color: T.text }}>
             {a.outcomeDisplayTitle ?? a.outcomeTitle ?? a.outcomeId.slice(0, 8)}
           </div>
-          <Pill tone={sourceTone}>{a.source}</Pill>
+          <Pill tone={sourceTone}>{
+            a.source === 'selection' ? 'Outcome Selection' :
+            a.source === 'schedule' ? 'Schedule' :
+            a.source === 'default' ? 'Default' :
+            a.source
+          }</Pill>
           {a.expiresAt && (
             <span style={{ fontSize: S.small, fontFamily: T.sans, color: T.textMuted }}>
               expires {new Date(a.expiresAt).toLocaleString()}
@@ -260,7 +265,7 @@ function EventRow({ event }: { event: PlaybackEventRow }) {
       borderBottom: `1px solid ${T.borderSubtle}`,
     }}>
       <span style={{ color: T.textDim }}>{t}</span>
-      <span style={{ color }}>{event.eventType}</span>
+      <span style={{ color }}>{prettyEventType(event.eventType)}</span>
       <span style={{
         color: T.textMuted,
         overflow: 'hidden',
@@ -269,6 +274,28 @@ function EventRow({ event }: { event: PlaybackEventRow }) {
       }}>{detail}</span>
     </div>
   )
+}
+
+function prettyEventType(type: string): string {
+  // Humanize machine event names (song_start → 'Song Start',
+  // operator_login → 'Sign In', outcome_selection → 'Outcome Selection').
+  switch (type) {
+    case 'operator_login': return 'Sign In'
+    case 'operator_logout': return 'Sign Out'
+    case 'song_start': return 'Song Start'
+    case 'song_complete': return 'Song Complete'
+    case 'song_skip': return 'Song Skip'
+    case 'song_report': return 'Song Report'
+    case 'song_love': return 'Song Loved'
+    case 'outcome_selection': return 'Outcome Selection'
+    case 'outcome_selection_cleared': return 'Outcome Cleared'
+    case 'playback_starved': return 'Playback Starved'
+    default:
+      return type
+        .split('_')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ')
+  }
 }
 
 function eventColor(type: string): string {
@@ -284,7 +311,7 @@ function eventDetail(e: PlaybackEventRow): string {
   const label = e.outcomeDisplayTitle ?? e.outcomeTitle
   if (label) parts.push(label)
   if (e.reportReason) parts.push(`reason: ${e.reportReason}`)
-  if (e.operatorEmail) parts.push(`by ${e.operatorEmail}`)
+  if (e.operatorEmail) parts.push(e.operatorEmail)
   if (e.songId) parts.push(`song ${e.songId.slice(0, 8)}`)
   return parts.join(' · ')
 }

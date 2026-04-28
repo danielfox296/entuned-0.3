@@ -21,7 +21,7 @@ function dedupeActiveOutcomes(rows: OutcomeRowFull[]): OutcomeRowFull[] {
   return Array.from(byKey.values()).sort((a, b) => (a.displayTitle ?? a.title).localeCompare(b.displayTitle ?? b.title))
 }
 
-export function SongBrowser({ defaultActive = 'true' as ActiveFilter, headerLabel = 'Song Browser', headerHint = 'Every LineageRow Hendrix can pick. Retire a row to remove it from the pool without deleting the underlying song.' }: { defaultActive?: ActiveFilter; headerLabel?: string; headerHint?: string }) {
+export function SongBrowser({ defaultActive = 'true' as ActiveFilter, headerLabel = 'Song Browser', headerHint = '' }: { defaultActive?: ActiveFilter; headerLabel?: string; headerHint?: string }) {
   const [data, setData] = useState<LineageRowList | null>(null)
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
   const [icps, setIcps] = useState<IcpOption[] | null>(null)

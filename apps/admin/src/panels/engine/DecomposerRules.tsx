@@ -5,8 +5,8 @@ import type { PromptVersion } from '../../ui/index.js'
 export function DecomposerRules() {
   return (
     <VersionedPromptEditor
-      title="Decomposer Rules"
-      subtitle="Musicological rules-v4 prompt that drives reference-track decomposition"
+      title="Decomposition"
+      subtitle=""
       load={async () => {
         const token = getToken(); if (!token) throw new Error('not signed in')
         const r = await api.musicologicalRules(token)

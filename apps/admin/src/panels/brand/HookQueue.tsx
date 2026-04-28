@@ -343,7 +343,7 @@ function NewHookForm({ icpId, outcomes, onCreated }: {
             </button>
             {busy === 'draft' && (
               <span style={{ fontSize: 13, fontFamily: T.mono, color: T.textDim }}>
-                typically 1–3 min — Bernie writes voice notes, sonic anchor, then hooks
+                typically 1–3 min — Lyricist writes voice notes, sonic anchor, then hooks
               </span>
             )}
           </div>
@@ -461,14 +461,14 @@ function DrafterPromptEditor({ icpId }: { icpId: string }) {
             style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
           />
           <input
-            placeholder="version notes (optional — what changed and why)"
+            placeholder="note (optional)"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             style={inputStyle}
           />
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button onClick={save} disabled={busy || text === original} style={primaryBtn(text !== original, busy)}>
-              {busy ? 'saving…' : `save as v${version + 1}`}
+              {busy ? 'saving…' : 'save'}
             </button>
             <button onClick={() => setShowHistory(!showHistory)} style={ghostBtn}>
               {showHistory ? '▾ history' : `▸ history (${history.length})`}

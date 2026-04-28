@@ -150,17 +150,17 @@ function computeGates(args: {
     const analyzed = i.referenceTracks.filter(
       (t) => t.status === 'approved' && t.styleAnalysis,
     ).length
-    return { ok: analyzed > 0, label: `${i.name}: ${analyzed} analyzed` }
+    return { ok: analyzed > 0, label: `${i.name}: ${analyzed} decomposed` }
   })
   const allHaveTracks = trackItems.length > 0 && trackItems.every((x) => x.ok)
   out.push({
-    title: 'Reference tracks analyzed',
+    title: 'Reference tracks decomposed',
     status: trackItems.length === 0 ? 'fail' : allHaveTracks ? 'pass' : 'fail',
     detail: trackItems.length === 0
       ? 'no ICPs to evaluate'
       : allHaveTracks
-        ? `every ICP has at least one analyzed reference track`
-        : `${trackItems.filter((x) => !x.ok).length} ICP${trackItems.filter((x) => !x.ok).length === 1 ? '' : 's'} missing analyzed reference tracks`,
+        ? `every ICP has at least one decomposed reference track`
+        : `${trackItems.filter((x) => !x.ok).length} ICP${trackItems.filter((x) => !x.ok).length === 1 ? '' : 's'} missing decomposed reference tracks`,
     items: trackItems,
   })
 

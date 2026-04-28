@@ -145,7 +145,7 @@ export function ClientDetail() {
                 </Field>
               </Section>
 
-              <Section title="Brand voice (Bernie input)" columns={2}>
+              <Section title="Brand voice" columns={2}>
                 <Field label="brand lyric guidelines" full>
                   <Textarea
                     value={draft.brandLyricGuidelines ?? client.brandLyricGuidelines ?? ''}

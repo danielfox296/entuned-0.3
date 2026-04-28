@@ -57,7 +57,7 @@ export function PoolDepth() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
       <PanelHeader
         title="Pool Depth"
-        subtitle="Active LineageRow counts per (ICP × Outcome). Hendrix picks from these pools at runtime — thin pools mean less variety, empty pools mean nothing to play."
+        subtitle=""
       />
 
       {data && (
