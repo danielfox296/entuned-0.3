@@ -19,7 +19,7 @@ const W = {
 const ICP_FIELDS: { key: keyof IcpUpdate; label: string; rows: number; width: FieldWidth; hint?: string }[] = [
   { key: 'name', label: 'name', rows: 1, width: 'short', hint: 'short label for this customer profile (e.g. "Mindful Mover")' },
   { key: 'ageRange', label: 'age range', rows: 1, width: 'compact', hint: 'e.g. 28–45 (skews 32–40)' },
-  { key: 'location', label: 'location', rows: 1, width: 'short', hint: 'where they live, work, vacation' },
+  { key: 'location', label: 'geography', rows: 1, width: 'short', hint: 'where they live, work, vacation' },
   { key: 'politicalSpectrum', label: 'political spectrum', rows: 1, width: 'compact', hint: 'general lean; only as relevant to their tastes' },
   { key: 'openness', label: 'openness', rows: 2, width: 'prose', hint: 'how curious / experimental they are about new things' },
   { key: 'fears', label: 'fears', rows: 3, width: 'prose', hint: 'what they are quietly afraid of — invisibility, irrelevance, decline, exclusion' },
