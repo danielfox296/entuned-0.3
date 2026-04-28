@@ -189,6 +189,8 @@ model ReferenceTrack {
   approvedById        String?             @map("approved_by") @db.Uuid
   verifiedById        String?             @map("verified_by") @db.Uuid
   useCount            Int                 @default(0) @map("use_count")
+  previewUrl          String?             @map("preview_url")
+  previewSource       String?             @map("preview_source")
   createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
 
   icp           ICP            @relation(fields: [icpId], references: [id], onDelete: Cascade)

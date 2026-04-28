@@ -243,6 +243,8 @@ export interface ReferenceTrackRow {
   suggestedAt: string | null
   approvedAt: string | null
   useCount: number
+  previewUrl: string | null
+  previewSource: 'spotify' | 'itunes' | 'none' | null
   createdAt: string
   styleAnalysis: StyleAnalysisRow | null
 }
@@ -693,6 +695,12 @@ export const api = {
     req<ReferenceTrackRow>(`/admin/reference-tracks/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   deleteReferenceTrack: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/reference-tracks/${id}`, { method: 'DELETE' }, token),
+  resolveReferenceTrackPreview: (id: string, force: boolean, token: string) =>
+    req<{ previewUrl: string | null; previewSource: 'spotify' | 'itunes' | 'none' | null }>(
+      `/admin/reference-tracks/${id}/preview${force ? '?force=1' : ''}`,
+      { method: 'POST' },
+      token,
+    ),
   decomposeReferenceTrack: (id: string, force: boolean, token: string) =>
     req<StyleAnalysisRow>(`/admin/reference-tracks/${id}/decompose${force ? '?force=1' : ''}`, { method: 'POST' }, token),
   approveReferenceTrack: (id: string, token: string) =>

@@ -26,6 +26,7 @@ import { runEno } from '../lib/eno/eno.js'
 import { downloadAndUploadFromUrl } from '../lib/r2.js'
 import { draftHooks, getOrSeedHookWriterPrompt } from '../lib/hooks/drafter.js'
 import { suggestReferenceTracks } from '../lib/ref-tracks/suggester.js'
+import { resolvePreview } from '../lib/ref-tracks/preview.js'
 
 interface AuthedOp {
   operatorId: string
@@ -649,6 +650,26 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     } catch {
       return reply.code(404).send({ error: 'not_found' })
     }
+  })
+
+  // --- Resolve a 30s preview URL (Spotify → iTunes fallback) and cache on the row. ---
+  // Returns the existing cached value if previously resolved.
+  // ?force=1 retries even if a prior attempt set source='none'.
+  app.post('/reference-tracks/:id/preview', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const force = (req.query as any)?.force === '1'
+    const ref = await prisma.referenceTrack.findUnique({ where: { id } })
+    if (!ref) return reply.code(404).send({ error: 'not_found' })
+    if (!force && ref.previewSource) {
+      return { previewUrl: ref.previewUrl, previewSource: ref.previewSource }
+    }
+    const r = await resolvePreview(ref.artist, ref.title)
+    const updated = await prisma.referenceTrack.update({
+      where: { id },
+      data: { previewUrl: r.url, previewSource: r.source },
+    })
+    return { previewUrl: updated.previewUrl, previewSource: updated.previewSource }
   })
 
   // --- Approve a pending (suggested) reference track. Flips status to approved. ---

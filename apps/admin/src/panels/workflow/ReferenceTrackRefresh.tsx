@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { ReferenceTrackRow, StoreDetail, TasteCategory, RefTrackUpdate, StyleAnalysisRow, StyleAnalysisUpdate } from '../../api.js'
 import { T } from '../../tokens.js'
@@ -174,6 +174,7 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
                 onBlur={() => flushEdits(t.id)}
                 onApprove={() => approve(t)}
                 onDiscard={() => discard(t)}
+                onResolvedPreview={refetch}
               />
             ))
           )}
@@ -190,6 +191,7 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
                 analyzing={analyzing.has(t.id)}
                 onAnalyze={(force) => analyze(t, force)}
                 onOpen={() => setOpenTrackId(t.id)}
+                onResolvedPreview={refetch}
               />
             ))
           )}
@@ -207,7 +209,98 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
   )
 }
 
-function PendingRow({ track, edit, busy, onChange, onBlur, onApprove, onDiscard }: {
+const PREVIEW_STOP_EVENT = 'entuned-preview-stop'
+
+function PreviewButton({ track, onResolved }: {
+  track: ReferenceTrackRow
+  onResolved: () => void
+}) {
+  const toast = useToast()
+  const [resolving, setResolving] = useState(false)
+  const [playing, setPlaying] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  // When any other PreviewButton starts playback, stop ours.
+  useEffect(() => {
+    const onStop = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (audioRef.current && detail !== audioRef.current) {
+        audioRef.current.pause()
+        setPlaying(false)
+      }
+    }
+    window.addEventListener(PREVIEW_STOP_EVENT, onStop)
+    return () => window.removeEventListener(PREVIEW_STOP_EVENT, onStop)
+  }, [])
+
+  const ensureUrl = async (): Promise<string | null> => {
+    if (track.previewUrl) return track.previewUrl
+    if (track.previewSource === 'none') return null
+    const token = getToken(); if (!token) return null
+    setResolving(true)
+    try {
+      const r = await api.resolveReferenceTrackPreview(track.id, false, token)
+      onResolved()
+      if (r.previewSource === 'none') {
+        toast.error('no preview available')
+        return null
+      }
+      return r.previewUrl
+    } catch (e: any) {
+      toast.error(e.message ?? 'preview lookup failed')
+      return null
+    } finally {
+      setResolving(false)
+    }
+  }
+
+  const toggle = async () => {
+    if (playing) {
+      audioRef.current?.pause()
+      setPlaying(false)
+      return
+    }
+    const url = await ensureUrl()
+    if (!url) return
+    if (!audioRef.current) audioRef.current = new Audio(url)
+    else audioRef.current.src = url
+    audioRef.current.onended = () => setPlaying(false)
+    window.dispatchEvent(new CustomEvent(PREVIEW_STOP_EVENT, { detail: audioRef.current }))
+    try {
+      await audioRef.current.play()
+      setPlaying(true)
+    } catch (e: any) {
+      toast.error('playback failed')
+    }
+  }
+
+  const unavailable = track.previewSource === 'none'
+  const label = unavailable ? '⊘' : resolving ? '…' : playing ? '⏸' : '▶'
+  const title = unavailable
+    ? 'no preview available for this track'
+    : resolving
+      ? 'finding preview…'
+      : playing ? 'pause preview' : 'play preview'
+
+  return (
+    <button
+      onClick={toggle}
+      disabled={unavailable || resolving}
+      title={title}
+      style={{
+        background: unavailable ? 'transparent' : T.bg,
+        border: `1px solid ${unavailable ? T.borderSubtle : T.border}`,
+        color: unavailable ? T.textDim : T.text,
+        width: 28, height: 28, borderRadius: 14,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        cursor: unavailable ? 'default' : 'pointer',
+        fontFamily: T.sans, fontSize: 12, padding: 0, flexShrink: 0,
+      }}
+    >{label}</button>
+  )
+}
+
+function PendingRow({ track, edit, busy, onChange, onBlur, onApprove, onDiscard, onResolvedPreview }: {
   track: ReferenceTrackRow
   edit: RefTrackUpdate | undefined
   busy: boolean
@@ -215,6 +308,7 @@ function PendingRow({ track, edit, busy, onChange, onBlur, onApprove, onDiscard 
   onBlur: () => void
   onApprove: () => void
   onDiscard: () => void
+  onResolvedPreview: () => void
 }) {
   const v = (k: keyof RefTrackUpdate, fallback: any) =>
     edit?.[k] !== undefined ? (edit[k] as any) : fallback
@@ -282,7 +376,8 @@ function PendingRow({ track, edit, busy, onChange, onBlur, onApprove, onDiscard 
         />
       </Field>
 
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <PreviewButton track={track} onResolved={onResolvedPreview} />
         <Button onClick={onApprove} disabled={busy}>{busy ? '…' : 'approve'}</Button>
         <button
           onClick={onDiscard}
@@ -294,29 +389,34 @@ function PendingRow({ track, edit, busy, onChange, onBlur, onApprove, onDiscard 
   )
 }
 
-function ApprovedRow({ track, analyzing, onAnalyze, onOpen }: {
+function ApprovedRow({ track, analyzing, onAnalyze, onOpen, onResolvedPreview }: {
   track: ReferenceTrackRow
   analyzing: boolean
   onAnalyze: (force: boolean) => void
   onOpen: () => void
+  onResolvedPreview: () => void
 }) {
   const analysis = track.styleAnalysis
   return (
     <div style={cardStyle(true)}>
-      <button
-        onClick={onOpen}
-        title={analysis ? 'view & edit style analysis' : 'open track details'}
-        style={{
-          background: 'transparent', border: 'none', padding: 0, margin: 0,
-          textAlign: 'left', cursor: 'pointer',
-          fontFamily: T.sans, fontSize: 14, color: T.text, fontWeight: 500,
-        }}
-      >
-        <span style={{ borderBottom: `1px dashed ${T.borderSubtle}` }}>
-          {track.artist} — {track.title}
-        </span>
-        {track.year && <span style={{ color: T.textDim, fontWeight: 400 }}> ({track.year})</span>}
-      </button>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <PreviewButton track={track} onResolved={onResolvedPreview} />
+        <button
+          onClick={onOpen}
+          title={analysis ? 'view & edit style analysis' : 'open track details'}
+          style={{
+            background: 'transparent', border: 'none', padding: 0, margin: 0,
+            textAlign: 'left', cursor: 'pointer',
+            fontFamily: T.sans, fontSize: 14, color: T.text, fontWeight: 500,
+            flex: 1,
+          }}
+        >
+          <span style={{ borderBottom: `1px dashed ${T.borderSubtle}` }}>
+            {track.artist} — {track.title}
+          </span>
+          {track.year && <span style={{ color: T.textDim, fontWeight: 400 }}> ({track.year})</span>}
+        </button>
+      </div>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
         fontFamily: T.mono, fontSize: 12, color: T.textDim,
