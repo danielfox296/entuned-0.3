@@ -3,7 +3,7 @@ import { api, getToken } from '../../api.js'
 import type { StoreSummary, StoreDetail } from '../../api.js'
 import { T } from '../../tokens.js'
 import {
-  PanelHeader, StorePicker, S, useStoreSelection, useIcpSelection,
+  StorePicker, S, useStoreSelection, useIcpSelection,
 } from '../../ui/index.js'
 import { useNavSub } from '../../nav.js'
 import { HookRefresh } from './HookRefresh.js'
@@ -64,21 +64,16 @@ export function WorkflowRouter() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      <PanelHeader
-        title="Workflows"
-        subtitle="Multi-step actions for the selected client, store, and ICP."
-      />
-
-      {/* Persistent context selector */}
+      {/* Persistent context selector — single line. */}
       <div style={{
-        display: 'flex', flexDirection: 'column', gap: 12,
-        padding: 16, background: T.surfaceRaised,
+        display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 16,
+        padding: '10px 14px', background: T.surfaceRaised,
         border: `1px solid ${T.borderSubtle}`, borderRadius: 4,
       }}>
         <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
 
         {detail && detail.icps.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{
               fontSize: S.label, color: T.textDim, fontFamily: T.sans,
               textTransform: 'uppercase', letterSpacing: '0.04em',
@@ -87,19 +82,13 @@ export function WorkflowRouter() {
               value={icpId ?? ''}
               onChange={(e) => setIcpId(e.target.value || null)}
               style={{
-                minWidth: 320, background: T.bg, color: T.text,
+                minWidth: 220, background: T.bg, color: T.text,
                 border: `1px solid ${T.border}`, padding: '6px 10px',
                 fontFamily: T.sans, fontSize: 14,
               }}
             >
               {detail.icps.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
             </select>
-          </div>
-        )}
-
-        {detail && (
-          <div style={{ fontSize: S.small, color: T.textDim, fontFamily: T.mono }}>
-            client: {detail.store.clientName} · store: {detail.store.name} · tz: {detail.store.timezone}
           </div>
         )}
       </div>

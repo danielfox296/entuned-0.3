@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, getToken } from '../../api.js'
-import type { ReferenceTrackRow, StoreDetail, TasteCategory, RefTrackUpdate } from '../../api.js'
+import type { ReferenceTrackRow, StoreDetail, TasteCategory, RefTrackUpdate, StyleAnalysisRow, StyleAnalysisUpdate } from '../../api.js'
 import { T } from '../../tokens.js'
-import { Button, S, useToast, LlmProgress } from '../../ui/index.js'
+import { Button, S, useToast, LlmProgress, Modal } from '../../ui/index.js'
 import type { WorkflowContext } from './WorkflowRouter.js'
 
 const BUCKETS: TasteCategory[] = ['FormationEra', 'Subculture', 'Aspirational']
@@ -21,6 +21,7 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
   const [pendingMutation, setPendingMutation] = useState<Set<string>>(new Set())
   const [edits, setEdits] = useState<Record<string, RefTrackUpdate>>({})
   const [err, setErr] = useState<string | null>(null)
+  const [openTrackId, setOpenTrackId] = useState<string | null>(null)
 
   const refetch = async () => {
     if (!ctx.storeId) return
@@ -48,6 +49,7 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
 
   const pending = tracks.filter((t) => t.status === 'pending')
   const approved = tracks.filter((t) => t.status === 'approved')
+  const openTrack = openTrackId ? tracks.find((t) => t.id === openTrackId) ?? null : null
 
   const suggest = async () => {
     if (!ctx.icpId) return
@@ -187,6 +189,7 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
                 track={t}
                 analyzing={analyzing.has(t.id)}
                 onAnalyze={(force) => analyze(t, force)}
+                onOpen={() => setOpenTrackId(t.id)}
               />
             ))
           )}
@@ -194,6 +197,12 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
       </div>
 
       {err && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+
+      <StyleAnalysisModal
+        track={openTrack}
+        onClose={() => setOpenTrackId(null)}
+        onSaved={() => { refetch() }}
+      />
     </div>
   )
 }
@@ -285,18 +294,29 @@ function PendingRow({ track, edit, busy, onChange, onBlur, onApprove, onDiscard 
   )
 }
 
-function ApprovedRow({ track, analyzing, onAnalyze }: {
+function ApprovedRow({ track, analyzing, onAnalyze, onOpen }: {
   track: ReferenceTrackRow
   analyzing: boolean
   onAnalyze: (force: boolean) => void
+  onOpen: () => void
 }) {
   const analysis = track.styleAnalysis
   return (
     <div style={cardStyle(true)}>
-      <div style={{ fontFamily: T.sans, fontSize: 14, color: T.text, fontWeight: 500 }}>
-        {track.artist} — {track.title}
+      <button
+        onClick={onOpen}
+        title={analysis ? 'view & edit style analysis' : 'open track details'}
+        style={{
+          background: 'transparent', border: 'none', padding: 0, margin: 0,
+          textAlign: 'left', cursor: 'pointer',
+          fontFamily: T.sans, fontSize: 14, color: T.text, fontWeight: 500,
+        }}
+      >
+        <span style={{ borderBottom: `1px dashed ${T.borderSubtle}` }}>
+          {track.artist} — {track.title}
+        </span>
         {track.year && <span style={{ color: T.textDim, fontWeight: 400 }}> ({track.year})</span>}
-      </div>
+      </button>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
         fontFamily: T.mono, fontSize: 12, color: T.textDim,
@@ -384,6 +404,125 @@ const inputStyle: React.CSSProperties = {
   fontFamily: T.sans,
   fontSize: 14,
   outline: 'none',
+}
+
+const ANALYSIS_FIELDS: { key: keyof StyleAnalysisUpdate; label: string }[] = [
+  { key: 'vibePitch', label: 'Vibe Pitch' },
+  { key: 'eraProductionSignature', label: 'Era / Production Signature' },
+  { key: 'instrumentationPalette', label: 'Instrumentation Palette' },
+  { key: 'standoutElement', label: 'Standout Element' },
+  { key: 'arrangementShape', label: 'Arrangement Shape' },
+  { key: 'dynamicCurve', label: 'Dynamic Curve' },
+  { key: 'vocalCharacter', label: 'Vocal Character' },
+  { key: 'vocalArrangement', label: 'Vocal Arrangement' },
+  { key: 'harmonicAndGroove', label: 'Harmonic & Groove' },
+]
+
+function StyleAnalysisModal({ track, onClose, onSaved }: {
+  track: ReferenceTrackRow | null
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const toast = useToast()
+  const [draft, setDraft] = useState<StyleAnalysisUpdate>({})
+  const [saving, setSaving] = useState(false)
+
+  // Reset the draft whenever the modal opens for a different track or the
+  // underlying analysis is replaced (e.g. after re-analyze).
+  const analysis: StyleAnalysisRow | null = track?.styleAnalysis ?? null
+  const analysisKey = analysis?.id ?? null
+  useEffect(() => { setDraft({}) }, [analysisKey])
+
+  if (!track) return null
+
+  const v = (k: keyof StyleAnalysisUpdate, fallback: any) =>
+    draft[k] !== undefined ? (draft[k] as any) : fallback
+
+  const save = async () => {
+    if (!analysis) return
+    if (Object.keys(draft).length === 0) { onClose(); return }
+    const token = getToken(); if (!token) return
+    setSaving(true)
+    try {
+      await api.updateStyleAnalysis(analysis.id, draft, token)
+      toast.success('analysis saved')
+      onSaved()
+      onClose()
+    } catch (e: any) {
+      toast.error(e.message ?? 'save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal
+      open={!!track}
+      onClose={onClose}
+      title={`${track.artist} — ${track.title}${track.year ? ` (${track.year})` : ''}`}
+      footer={analysis ? (
+        <>
+          <button onClick={onClose} style={ghostBtnStyle} disabled={saving}>cancel</button>
+          <Button onClick={save} disabled={saving || Object.keys(draft).length === 0}>
+            {saving ? 'saving…' : 'save'}
+          </Button>
+        </>
+      ) : null}
+      width={760}
+    >
+      {!analysis ? (
+        <div style={{ fontFamily: T.sans, fontSize: 14, color: T.textMuted, lineHeight: 1.6 }}>
+          No style analysis yet. Close this and use the “Run style analysis” button on the track to generate one.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10,
+            paddingBottom: 10, borderBottom: `1px solid ${T.borderSubtle}`,
+          }}>
+            <Field label="status">
+              <select
+                value={v('status', analysis.status)}
+                onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as any }))}
+                style={inputStyle}
+              >
+                <option value="draft">draft</option>
+                <option value="verified">verified</option>
+              </select>
+            </Field>
+            <Field label="confidence">
+              <select
+                value={v('confidence', analysis.confidence) ?? ''}
+                onChange={(e) => setDraft((d) => ({ ...d, confidence: (e.target.value || null) as any }))}
+                style={inputStyle}
+              >
+                <option value="">—</option>
+                <option value="low">low</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+              </select>
+            </Field>
+          </div>
+
+          {ANALYSIS_FIELDS.map(({ key, label }) => (
+            <Field key={key} label={label}>
+              <textarea
+                value={v(key, (analysis as any)[key]) ?? ''}
+                onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value || null }))}
+                rows={3}
+                style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
+              />
+            </Field>
+          ))}
+
+          <div style={{ fontFamily: T.mono, fontSize: 12, color: T.textDim }}>
+            instructions v{analysis.styleAnalyzerInstructionsVersion}
+            {analysis.verifiedAt ? ` · verified ${new Date(analysis.verifiedAt).toLocaleDateString()}` : ''}
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
 }
 
 const ghostBtnStyle: React.CSSProperties = {
