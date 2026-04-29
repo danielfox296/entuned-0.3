@@ -6,9 +6,9 @@ import {
   FlaskConical, Lightbulb, Activity, ListChecks, Target,
 } from 'lucide-react'
 import { api, getToken, setToken, clearToken } from './api.js'
-import type { MeResponse, ClientListRow, StoreSummary } from './api.js'
+import type { MeResponse, ClientListRow, StoreSummary, StoreDetail } from './api.js'
 import { T } from './tokens.js'
-import { ToastProvider, useClientSelection, useStoreSelection, HeaderSelect } from './ui/index.js'
+import { ToastProvider, useClientSelection, useStoreSelection, useIcpSelection, HeaderSelect } from './ui/index.js'
 import { useClientLogo } from './ui/clientLogo.js'
 import { DecomposerRules } from './panels/engine/DecomposerRules.js'
 import { FailureRules } from './panels/engine/FailureRules.js'
@@ -276,8 +276,10 @@ function BrandRouter({ cards }: { cards: string[] }) {
   const [active, setActive] = useNavSub<string>('Details')
   const [clientId, setClientId] = useClientSelection()
   const [storeId, setStoreId] = useStoreSelection()
+  const [icpId, setIcpId] = useIcpSelection()
   const [clients, setClients] = useState<ClientListRow[] | null>(null)
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
+  const [storeDetail, setStoreDetail] = useState<StoreDetail | null>(null)
   const [, setTick] = useState(0)
   const reload = () => setTick((n) => n + 1)
 
@@ -298,6 +300,19 @@ function BrandRouter({ cards }: { cards: string[] }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, stores])
+
+  // Load store detail (for ICP list) when store changes; reconcile ICP.
+  useEffect(() => {
+    if (!storeId) { setStoreDetail(null); return }
+    const token = getToken(); if (!token) return
+    setStoreDetail(null)
+    api.storeDetail(storeId, token).then((d) => {
+      setStoreDetail(d)
+      const valid = d.icps.find((i) => i.id === icpId)
+      if (!valid) setIcpId(d.icps[0]?.id ?? null)
+    }).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId])
 
   const clientStores = stores && clientId
     ? stores.filter((s) => s.clientId === clientId)
@@ -335,6 +350,14 @@ function BrandRouter({ cards }: { cards: string[] }) {
             placeholder={!clientId ? '— pick a client first —' : (clientStores.length === 0 ? 'no locations' : '— pick a location —')}
             options={clientStores.map((s) => ({ value: s.id, label: s.name }))}
             disabled={!clientId || clientStores.length === 0}
+          />
+          <HeaderSelect
+            label="icp"
+            value={icpId ?? ''}
+            onChange={(v) => setIcpId(v || null)}
+            placeholder={!storeDetail ? '— pick a location —' : (storeDetail.icps.length === 0 ? 'no ICPs' : '— pick an ICP —')}
+            options={(storeDetail?.icps ?? []).map((i) => ({ value: i.id, label: i.name }))}
+            disabled={!storeDetail || storeDetail.icps.length === 0}
           />
         </div>
       </div>
