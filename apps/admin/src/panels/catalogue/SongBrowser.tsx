@@ -157,7 +157,7 @@ function FilterSelect({ label, value, onChange, options }: {
   )
 }
 
-const COLS = '1.4fr 1.2fr 1fr 2fr 90px 110px 110px'
+const COLS = '40px 2fr 1.2fr 1.4fr 130px 90px 110px'
 
 function Header() {
   return (
@@ -167,11 +167,11 @@ function Header() {
       borderBottom: `1px solid ${T.border}`,
       fontFamily: T.mono, fontSize: 13, color: T.textDim, textTransform: 'uppercase',
     }}>
-      <span>icp</span>
-      <span>outcome</span>
+      <span />
       <span>hook</span>
-      <span>song</span>
-      <span>date</span>
+      <span>outcome</span>
+      <span>icp</span>
+      <span>create date</span>
       <span style={{ textAlign: 'right' }}>status</span>
       <span />
     </div>
@@ -203,7 +203,9 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
     setAudio(a)
   }
 
-  const created = new Date(row.createdAt).toISOString().slice(0, 10)
+  const created = new Date(row.createdAt).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+  })
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: COLS, gap: 10,
@@ -211,6 +213,15 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
       fontFamily: T.mono, fontSize: 14, alignItems: 'center',
       opacity: row.active ? 1 : 0.55,
     }}>
+      <button
+        onClick={play}
+        style={playBtn(playing)}
+        title={playing ? 'pause' : `play — ${row.hook.text}`}
+      >
+        {playing ? '❚❚' : '▶'}
+      </button>
+      <span style={{ color: T.text, fontFamily: T.sans, ...trunc }} title={row.hook.text}>{row.hook.text}</span>
+      <span style={{ color: T.textMuted, ...trunc }}>{row.outcome.displayTitle ?? row.outcome.title}</span>
       <span style={{ ...trunc, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500, ...trunc }}>{row.icpName ?? row.icpId.slice(0, 8)}</span>
         {(row.clientName || row.storeName) && (
@@ -218,14 +229,6 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
             {[row.clientName, row.storeName].filter(Boolean).join(' · ')}
           </span>
         )}
-      </span>
-      <span style={{ color: T.textMuted, ...trunc }}>{row.outcome.displayTitle ?? row.outcome.title}</span>
-      <span style={{ color: T.textMuted, fontFamily: T.sans, ...trunc }} title={row.hook.text}>{row.hook.text}</span>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 6, ...trunc }}>
-        <button onClick={play} style={playBtn(playing)} title={playing ? 'pause' : 'play'}>
-          {playing ? '❚❚' : '▶'}
-        </button>
-        <a href={row.song.r2Url} target="_blank" rel="noreferrer" style={{ color: T.accent, fontSize: 13, ...trunc }}>{row.song.id.slice(0, 8)}</a>
       </span>
       <span style={{ color: T.textDim, fontSize: 13 }}>{created}</span>
       <span style={{ textAlign: 'right', color: row.active ? T.success : T.textDim, fontSize: 13, textTransform: 'uppercase' }}>

@@ -27,7 +27,6 @@ import { DryRun } from './panels/schedule/DryRun.js'
 import { PoolDepth } from './panels/catalogue/PoolDepth.js'
 import { SongBrowser } from './panels/catalogue/SongBrowser.js'
 import { FlaggedReview } from './panels/catalogue/FlaggedReview.js'
-import { RetiredSongs } from './panels/catalogue/RetiredSongs.js'
 import { WorkflowRouter } from './panels/workflow/WorkflowRouter.js'
 import { useNavGroup, useNavSub } from './nav.js'
 
@@ -54,7 +53,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Hook Drafter', 'Decomposition', 'Style Exclusion Rules', 'Lyric Prompts', 'Outcome Style Factor', 'Reference Track Suggester'],
     description: '' },
   { key: 'catalogue', label: 'Library', short: 'Library', icon: Music2,
-    cards: ['Song Browser', 'Flagged Review', 'Retired Songs', 'Pool Depth'],
+    cards: ['Song Browser', 'Flagged Review', 'Pool Depth'],
     description: '' },
   { key: 'experiments', label: 'Experiments', short: 'Experiments', icon: FlaskConical,
     cards: ['Experiment Editor', 'Experiment Detail', 'Results'],
@@ -466,7 +465,6 @@ function CatalogueRouter({ cards }: { cards: string[] }) {
       {active === 'Pool Depth' && <PoolDepth />}
       {active === 'Song Browser' && <SongBrowser />}
       {active === 'Flagged Review' && <FlaggedReview />}
-      {active === 'Retired Songs' && <RetiredSongs />}
     </div>
   )
 }
