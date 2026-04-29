@@ -92,13 +92,6 @@ export function SongSeed({ songSeedId, onClose, embedded }: { songSeedId: string
           color: statusColor,
           border: `1px solid ${statusColor}`, borderRadius: S.r3, padding: '2px 8px',
         }}>{data.status}</span>
-        {isQueued && (
-          <div style={{ marginLeft: 'auto' }}>
-            <Button variant="danger" onClick={del} busy={busy === 'delete'}>
-              delete
-            </Button>
-          </div>
-        )}
       </div>
 
       {err && <div style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</div>}
@@ -210,6 +203,17 @@ export function SongSeed({ songSeedId, onClose, embedded }: { songSeedId: string
             {data.errorText}
           </div>
         </Section>
+      )}
+
+      {isQueued && (
+        <div style={{
+          marginTop: 4, paddingTop: 14, borderTop: `1px solid ${T.borderSubtle}`,
+          display: 'flex', justifyContent: 'flex-start',
+        }}>
+          <Button variant="danger" onClick={del} busy={busy === 'delete'}>
+            delete song prompt
+          </Button>
+        </div>
       )}
     </div>
   )
