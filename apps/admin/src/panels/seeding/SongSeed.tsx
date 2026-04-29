@@ -5,7 +5,7 @@ import type { SongSeedDetail, StyleExclusionRuleRow } from '../../api.js'
 import { T } from '../../tokens.js'
 import { Button, Input, Textarea, Section, S } from '../../ui/index.js'
 
-export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose: () => void }) {
+export function SongSeed({ songSeedId, onClose, embedded }: { songSeedId: string; onClose: () => void; embedded?: boolean }) {
   const [data, setData] = useState<SongSeedDetail | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -69,7 +69,7 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
   if (!data) {
     return (
       <div>
-        <Button variant="ghost" onClick={onClose}>← back</Button>
+        {!embedded && <Button variant="ghost" onClick={onClose}>← back</Button>}
         {err
           ? <div style={{ marginTop: 12, color: T.danger, fontFamily: T.sans }}>{err}</div>
           : <div style={{ marginTop: 12, color: T.textMuted, fontFamily: T.sans }}>loading…</div>}
@@ -83,7 +83,7 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.lg }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <Button variant="ghost" onClick={onClose}>← back</Button>
+        {!embedded && <Button variant="ghost" onClick={onClose}>← back</Button>}
         <span style={{ fontSize: S.subhead, fontFamily: T.sans, color: T.text, fontWeight: 500 }}>
           {data.title ?? data.hook.text}
         </span>
@@ -103,12 +103,12 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
 
       {err && <div style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</div>}
 
-      <Section title="Song Prompt" subtitle="Copy these into Suno (style → Style; lyrics → Lyrics; vocal_gender → Persona/Gender; negative → Exclude Styles)">
-        <CopyBlock label="Style" value={data.style ?? ''} onCopy={() => copyToClipboard(data.style ?? '')} />
-        <CopyBlock label="Style exclusion" value={data.negativeStyle ?? ''} onCopy={() => copyToClipboard(data.negativeStyle ?? '')} />
-        <CopyBlock label="Vocal gender" value={data.vocalGender ?? ''} onCopy={() => copyToClipboard(data.vocalGender ?? '')} short />
-        <CopyBlock label="Title" value={data.title ?? ''} onCopy={() => copyToClipboard(data.title ?? '')} short />
+      <Section title="Song Prompt" subtitle="Copy each field into Suno, generate, then paste the result URLs below.">
         <CopyBlock label="Lyrics" value={data.lyrics ?? ''} onCopy={() => copyToClipboard(data.lyrics ?? '')} tall />
+        <CopyBlock label="Style" value={data.style ?? ''} onCopy={() => copyToClipboard(data.style ?? '')} />
+        <CopyBlock label="Style exclusions" value={data.negativeStyle ?? ''} onCopy={() => copyToClipboard(data.negativeStyle ?? '')} />
+        <CopyBlock label="Title" value={data.title ?? ''} onCopy={() => copyToClipboard(data.title ?? '')} short />
+        <CopyBlock label="Vocal gender" value={data.vocalGender ?? ''} onCopy={() => copyToClipboard(data.vocalGender ?? '')} short />
         {data.firedExclusionRuleIds.length > 0 && (
           <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.textDim, marginTop: 8 }}>
             <button
@@ -147,23 +147,43 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
       </Section>
 
       {isQueued && (
-        <Section title="Accept takes" subtitle="Paste the Suno source URL(s). The server downloads and re-hosts the audio.">
+        <div style={{
+          background: T.accentGlow, border: `2px solid ${T.accent}`,
+          borderRadius: 6, padding: 18,
+        }}>
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: S.subhead, fontFamily: T.heading, fontWeight: 700, color: T.text }}>
+              ⬇ Paste Suno result URLs here
+            </div>
+            <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.textMuted, marginTop: 3 }}>
+              The server will download and re-host the audio. One URL per take.
+            </div>
+          </div>
           {takes.map((t, i) => (
-            <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+            <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <Input
                 value={t.sourceUrl}
                 onChange={(e) => setTakes(takes.map((x, j) => j === i ? { sourceUrl: e.target.value } : x))}
-                placeholder={`take ${i + 1} — https://suno.com/s/... or https://suno.com/song/...`}
+                placeholder={`take ${i + 1} — paste https://suno.com/s/... or https://suno.com/song/...`}
+                style={{
+                  fontSize: 15, padding: '12px 14px',
+                  background: T.bg, borderColor: T.accentMuted,
+                } as CSSProperties}
               />
             </div>
           ))}
-          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Button
+              variant="tiny"
+              onClick={() => setTakes([...takes, { sourceUrl: '' }])}
+            >+ add take</Button>
+            <span style={{ flex: 1 }} />
             <Button
               onClick={accept}
               disabled={takes.every((t) => !t.sourceUrl.trim())}
               busy={busy === 'accept'}
             >
-              {busy === 'accept' ? 'downloading + uploading…' : 'accept'}
+              {busy === 'accept' ? 'downloading + uploading…' : 'accept takes'}
             </Button>
             {accepted && (
               <span style={{ fontSize: S.small, fontFamily: T.sans, color: T.success }}>
@@ -171,7 +191,7 @@ export function SongSeed({ songSeedId, onClose }: { songSeedId: string; onClose:
               </span>
             )}
           </div>
-        </Section>
+        </div>
       )}
 
       {data.lineageRows && data.lineageRows.length > 0 && (

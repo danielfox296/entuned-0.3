@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { SongSeedRow, OutcomeRowFull, SeedBuilderResult } from '../../api.js'
 import { T } from '../../tokens.js'
-import { S } from '../../ui/index.js'
+import { Modal, S } from '../../ui/index.js'
 import { SongSeed } from './SongSeed.js'
 import type { WorkflowContext } from '../workflow/WorkflowRouter.js'
 
@@ -48,10 +48,6 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
       reload()
     } catch (e: any) { setErr(e.message) }
     finally { setRunning(false) }
-  }
-
-  if (openId) {
-    return <SongSeed songSeedId={openId} onClose={() => { setOpenId(null); reload() }} />
   }
 
   if (!storeId) {
@@ -131,6 +127,21 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
           )}
         </>
       )}
+
+      <Modal
+        open={!!openId}
+        onClose={() => { setOpenId(null); reload() }}
+        title="Song Prompt"
+        width={920}
+      >
+        {openId && (
+          <SongSeed
+            songSeedId={openId}
+            onClose={() => { setOpenId(null); reload() }}
+            embedded
+          />
+        )}
+      </Modal>
     </div>
   )
 }
