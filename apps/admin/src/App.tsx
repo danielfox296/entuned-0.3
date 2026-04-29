@@ -48,10 +48,10 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Dayparting'],
     description: '' },
   { key: 'outcomes', label: 'Outcomes', short: 'Outcomes', icon: Target,
-    cards: ['Outcome Library', 'Dry Run'],
+    cards: ['Outcome Library', 'Style Rules', 'Lyric Rules', 'Dry Run'],
     description: '' },
   { key: 'engine', label: 'Prompts & Rules', short: 'Prompts & Rules', icon: Settings,
-    cards: ['Hook Drafter', 'Outcome Lyric Factor', 'Decomposition', 'Style Exclusion Rules', 'Lyric Prompts', 'Outcome Style Factor', 'Reference Track Suggester'],
+    cards: ['Hook Drafter', 'Decomposition', 'Style Exclusion Rules', 'Lyric Prompts', 'Reference Track Suggester'],
     description: '' },
   { key: 'catalogue', label: 'Library', short: 'Library', icon: Music2,
     cards: ['Song Browser', 'Flagged Review', 'Pool Depth'],
@@ -262,11 +262,9 @@ function EngineRouter({ cards }: { cards: string[] }) {
         })}
       </div>
       {active === 'Hook Drafter' && <HookDrafterPrompt />}
-      {active === 'Outcome Lyric Factor' && <OutcomeLyricFactor />}
       {active === 'Decomposition' && <DecomposerRules />}
       {active === 'Style Exclusion Rules' && <FailureRules />}
       {active === 'Lyric Prompts' && <LyricPrompts />}
-      {active === 'Outcome Style Factor' && <OutcomeFactorPrompt />}
       {active === 'Reference Track Suggester' && <ReferenceTrackPrompt />}
     </div>
   )
@@ -430,6 +428,8 @@ function OutcomesRouter({ cards }: { cards: string[] }) {
         })}
       </div>
       {active === 'Outcome Library' && <OutcomeLibrary />}
+      {active === 'Style Rules' && <OutcomeFactorPrompt />}
+      {active === 'Lyric Rules' && <OutcomeLyricFactor />}
       {active === 'Dry Run' && <DryRun />}
     </div>
   )
