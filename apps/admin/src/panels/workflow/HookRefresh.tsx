@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, getToken } from '../../api.js'
+import { api, getToken, outcomeLabel } from '../../api.js'
 import type { HookRowFull, OutcomeRowFull } from '../../api.js'
 import { T } from '../../tokens.js'
 import { Button, S, useToast, LlmProgress } from '../../ui/index.js'
@@ -388,7 +388,7 @@ function ApprovedRow({ hook }: { hook: HookRowFull }) {
       borderRadius: 4, padding: '10px 12px', display: 'flex',
       flexDirection: 'column', gap: 8,
     }}>
-      <OutcomeTag title={hook.outcome.title} />
+      <OutcomeTag title={outcomeLabel(hook.outcome)} />
       <div style={{
         fontFamily: T.sans, fontSize: 14, color: T.text,
         lineHeight: 1.5, whiteSpace: 'pre-wrap',
@@ -412,7 +412,7 @@ function DraftRow({ hook, pendingText, busy, onChange, onBlur, onApprove, onDisc
       background: T.surfaceRaised, border: `1px solid ${T.border}`,
       borderRadius: 4, padding: 10, display: 'flex', flexDirection: 'column', gap: 8,
     }}>
-      <OutcomeTag title={hook.outcome.title} />
+      <OutcomeTag title={outcomeLabel(hook.outcome)} />
       <textarea
         value={text}
         onChange={(e) => onChange(e.target.value)}
