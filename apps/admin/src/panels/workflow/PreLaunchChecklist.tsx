@@ -9,12 +9,29 @@ import type { WorkflowContext } from './WorkflowRouter.js'
 
 type Status = 'pass' | 'fail' | 'pending' | 'warn'
 
+type Remediation = {
+  group: string
+  sub: string
+  label: string
+}
+
 type Gate = {
   title: string
   status: Status
   detail: string
   /** Optional list of sub-items (e.g. per-ICP breakdown). */
   items?: { ok: boolean; label: string }[]
+  /** Where to send the operator to fix this gate. */
+  remediation?: Remediation
+}
+
+function navigateTo(group: string, sub: string) {
+  const h = sub
+    ? `${encodeURIComponent(group)}/${encodeURIComponent(sub)}`
+    : encodeURIComponent(group)
+  window.location.hash = h
+  // hashchange listeners pick this up; force-dispatch to be safe across browsers.
+  window.dispatchEvent(new HashChangeEvent('hashchange'))
 }
 
 const FRESH_PLAYER_HOURS = 24
@@ -118,6 +135,9 @@ function computeGates(args: {
       { ok: tzOk, label: tzOk ? `timezone: ${detail.store.timezone}` : 'timezone missing' },
       { ok: defOk, label: defOk ? 'default outcome set' : 'default outcome missing' },
     ],
+    remediation: !tzOk || !defOk
+      ? { group: 'brand', sub: 'Location', label: 'Open Location settings →' }
+      : undefined,
   })
 
   // 2. ICPs exist
@@ -126,6 +146,9 @@ function computeGates(args: {
     title: 'ICPs',
     status: icpCount > 0 ? 'pass' : 'fail',
     detail: icpCount === 1 ? '1 ICP at this location' : `${icpCount} ICPs at this location`,
+    remediation: icpCount === 0
+      ? { group: 'brand', sub: 'ICP Editor', label: 'Open ICP Editor →' }
+      : undefined,
   })
 
   // 3. Approved hooks per ICP
@@ -143,6 +166,9 @@ function computeGates(args: {
         ? `each ICP at this location has approved hooks`
         : `${hookItems.filter((x) => !x.ok).length} ICP${hookItems.filter((x) => !x.ok).length === 1 ? '' : 's'} at this location still need approved hooks`,
     items: hookItems,
+    remediation: !allHaveHooks
+      ? { group: 'workflows', sub: 'Hook Writing', label: 'Open Hook Writing →' }
+      : undefined,
   })
 
   // 4. Reference tracks analyzed per ICP
@@ -162,6 +188,9 @@ function computeGates(args: {
         ? `each ICP at this location has at least one decomposed reference track`
         : `${trackItems.filter((x) => !x.ok).length} ICP${trackItems.filter((x) => !x.ok).length === 1 ? '' : 's'} at this location still need decomposed reference tracks`,
     items: trackItems,
+    remediation: !allHaveTracks
+      ? { group: 'workflows', sub: 'Reference Tracks', label: 'Open Reference Tracks →' }
+      : undefined,
   })
 
   // 5. Pool depth — at least the default outcome must be non-critical for every ICP at this store.
@@ -171,6 +200,7 @@ function computeGates(args: {
       title: 'Pool depth (default outcome)',
       status: 'fail',
       detail: 'cannot evaluate — no default outcome',
+      remediation: { group: 'brand', sub: 'Location', label: 'Set default outcome →' },
     })
   } else if (!pool) {
     out.push({
@@ -199,6 +229,9 @@ function computeGates(args: {
           ? 'no critical pools'
           : `${items.filter((x) => !x.ok).length} ICP${items.filter((x) => !x.ok).length === 1 ? '' : 's'} below critical threshold`,
       items,
+      remediation: !allOk
+        ? { group: 'workflows', sub: 'Song Creation Queue', label: 'Open Song Creation Queue →' }
+        : undefined,
     })
   }
 
@@ -210,6 +243,9 @@ function computeGates(args: {
     detail: slotCount > 0
       ? `${slotCount} slot${slotCount === 1 ? '' : 's'} configured`
       : 'no schedule slots — location will fall back to the default outcome only',
+    remediation: slotCount === 0
+      ? { group: 'schedule', sub: 'Dayparting', label: 'Open Dayparting →' }
+      : undefined,
   })
 
   // 7. Player presence — is a player paired and pinging? Use most recent
@@ -220,6 +256,7 @@ function computeGates(args: {
       title: 'Player paired',
       status: 'warn',
       detail: 'no live response (endpoint unreachable or location has never had a player)',
+      remediation: { group: 'brand', sub: 'Event Stream', label: 'Check Event Stream →' },
     })
   } else {
     const latest = live.recentEvents
@@ -233,6 +270,9 @@ function computeGates(args: {
       detail: latest
         ? `last ping ${humanizeAge(latest)}`
         : 'no playback events yet — player has never pinged',
+      remediation: !ok
+        ? { group: 'brand', sub: 'Event Stream', label: 'Check Event Stream →' }
+        : undefined,
     })
   }
 
@@ -327,6 +367,18 @@ function GateRow({ gate }: { gate: Gate }) {
         <div style={{ fontFamily: T.sans, fontSize: S.small, color: T.textMuted }}>
           {gate.detail}
         </div>
+        <span style={{ flex: 1 }} />
+        {gate.remediation && gate.status !== 'pass' && (
+          <button
+            onClick={(e) => { e.stopPropagation(); navigateTo(gate.remediation!.group, gate.remediation!.sub) }}
+            style={{
+              background: 'transparent', border: `1px solid ${T.accentMuted}`,
+              color: T.accent, padding: '4px 10px', borderRadius: 3,
+              fontFamily: T.sans, fontSize: 12, cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >{gate.remediation.label}</button>
+        )}
       </div>
       {gate.items && gate.items.length > 0 && (
         <ul style={{

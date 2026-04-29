@@ -108,7 +108,10 @@ export function WorkflowRouter() {
       {err && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</div>}
 
       {/* Workflow tabs */}
-      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
+      <div style={{
+        display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-start',
+        borderBottom: `1px solid ${T.borderSubtle}`,
+      }}>
         {TABS.map((t) => {
           const on = active === t.key
           return (

@@ -1826,7 +1826,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       include: {
         hook: { select: { id: true, text: true } },
         outcome: { select: { id: true, title: true, displayTitle: true, version: true } },
-        referenceTrack: { select: { id: true, artist: true, title: true } },
+        referenceTrack: { select: { id: true, artist: true, title: true, coverUrl: true } },
         songSeedBatch: { select: { id: true, startedAt: true, triggeredBy: true } },
       },
     })

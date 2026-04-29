@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { ClientListRow, ClientFull, ClientPlan, ClientUpdate } from '../../api.js'
 import { T } from '../../tokens.js'
 import { Button, Input, Select, Textarea, Section, Field, S, useToast, useClientSelection } from '../../ui/index.js'
+import { useClientLogo, setClientLogo, fileToThumbnailDataUrl } from '../../ui/clientLogo.js'
 
 const PLANS: ClientPlan[] = ['mvp_pilot', 'trial', 'paid_pilot', 'production', 'paused', 'inactive']
 
@@ -163,6 +164,10 @@ export function ClientDetail({ onClientsChanged, selectedClient: _summary }: {
                 </div>
               </Section>
 
+              <Section title="Logo">
+                <ClientLogoField clientId={client.id} />
+              </Section>
+
               <Section title="Brand voice" columns={2}>
                 <Field label="brand lyric guidelines" full>
                   <Textarea
@@ -187,6 +192,67 @@ export function ClientDetail({ onClientsChanged, selectedClient: _summary }: {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function ClientLogoField({ clientId }: { clientId: string }) {
+  const logo = useClientLogo(clientId)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const toast = useToast()
+
+  const onPick = async (file: File | undefined) => {
+    if (!file) return
+    setBusy(true); setErr(null)
+    try {
+      const dataUrl = await fileToThumbnailDataUrl(file, 256)
+      setClientLogo(clientId, dataUrl)
+      toast.success('logo updated')
+    } catch (e: any) {
+      const msg = e?.message ?? 'failed to read image'
+      setErr(msg); toast.error(msg)
+    } finally {
+      setBusy(false)
+      if (inputRef.current) inputRef.current.value = ''
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div style={{
+        width: 80, height: 80, borderRadius: 4,
+        background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        overflow: 'hidden', flexShrink: 0,
+      }}>
+        {logo
+          ? <img src={logo} alt="client logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          : <span style={{ fontFamily: T.mono, fontSize: 11, color: T.textDim }}>no logo</span>
+        }
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          onChange={(e) => onPick(e.target.files?.[0])}
+          style={{ display: 'none' }}
+        />
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Button onClick={() => inputRef.current?.click()} busy={busy}>
+            {busy ? 'processing…' : (logo ? 'replace' : 'upload')}
+          </Button>
+          {logo && (
+            <Button variant="tiny" onClick={() => setClientLogo(clientId, null)}>remove</Button>
+          )}
+        </div>
+        <span style={{ fontFamily: T.sans, fontSize: 12, color: T.textDim }}>
+          PNG/JPG/SVG. Auto-resized to 256px square.
+        </span>
+        {err && <span style={{ fontFamily: T.sans, fontSize: 12, color: T.danger }}>{err}</span>}
+      </div>
     </div>
   )
 }

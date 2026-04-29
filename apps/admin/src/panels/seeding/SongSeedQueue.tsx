@@ -136,23 +136,58 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
 }
 
 function SeedListRow({ sub, onOpen }: { sub: SongSeedRow; onOpen: () => void }) {
+  const ref = sub.referenceTrack
   return (
     <div
       onClick={onOpen}
       style={{
         background: T.surface, border: `1px solid ${T.border}`,
-        borderRadius: 4, padding: '12px 14px', cursor: 'pointer',
-        display: 'grid', gridTemplateColumns: '1fr 1fr 110px', gap: 14, alignItems: 'center',
+        borderRadius: 4, padding: '10px 14px', cursor: 'pointer',
+        display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 14, alignItems: 'center',
       }}
     >
+      {/* Left: title */}
       <span style={{ fontSize: 14, fontFamily: T.sans, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {sub.title ?? sub.hook.text}
       </span>
-      <span style={{ fontSize: 13, fontFamily: T.mono, color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {(sub.outcome.displayTitle ?? sub.outcome.title)} · {sub.referenceTrack ? `${sub.referenceTrack.artist} — ${sub.referenceTrack.title}` : 'no ref'}
-      </span>
-      <span style={{ fontSize: 13, fontFamily: T.mono, color: T.textDim, textAlign: 'right' }}>
-        {new Date(sub.createdAt).toLocaleString()}
+
+      {/* Middle: album art for decomposed inspiration reference track */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
+        {ref?.coverUrl ? (
+          <img
+            src={ref.coverUrl}
+            alt={`${ref.artist} — ${ref.title}`}
+            title={`${ref.artist} — ${ref.title}`}
+            style={{
+              width: 40, height: 40, borderRadius: 3, objectFit: 'cover',
+              border: `1px solid ${T.borderSubtle}`, display: 'block',
+            }}
+          />
+        ) : (
+          <div
+            title={ref ? `${ref.artist} — ${ref.title}` : 'no reference track'}
+            style={{
+              width: 40, height: 40, borderRadius: 3,
+              background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: T.mono, fontSize: 10, color: T.textDim,
+            }}
+          >{ref ? '♪' : '—'}</div>
+        )}
+        <span style={{
+          fontSize: 12, fontFamily: T.mono, color: T.textDim,
+          maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {ref ? `${ref.artist} — ${ref.title}` : 'no ref'}
+        </span>
+      </div>
+
+      {/* Right: outcome */}
+      <span style={{
+        fontSize: 13, fontFamily: T.mono, color: T.textMuted, textAlign: 'right',
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>
+        {sub.outcome.displayTitle ?? sub.outcome.title}
       </span>
     </div>
   )

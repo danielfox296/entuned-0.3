@@ -382,7 +382,7 @@ export interface SongSeedRow {
   terminalAt: string | null
   hook: { id: string; text: string }
   outcome: { id: string; title: string; displayTitle: string | null; version: number }
-  referenceTrack: { id: string; artist: string; title: string } | null
+  referenceTrack: { id: string; artist: string; title: string; coverUrl: string | null } | null
   songSeedBatch: { id: string; startedAt: string; triggeredBy: string }
 }
 

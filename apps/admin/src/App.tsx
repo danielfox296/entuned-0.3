@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   Sparkles, CalendarDays, Settings, Music2,
-  FlaskConical, Lightbulb, Activity, ListChecks,
+  FlaskConical, Lightbulb, Activity, ListChecks, Target,
 } from 'lucide-react'
 import { api, getToken, setToken, clearToken } from './api.js'
 import type { MeResponse, ClientListRow, StoreSummary } from './api.js'
 import { T } from './tokens.js'
 import { ToastProvider, useClientSelection, useStoreSelection, S } from './ui/index.js'
+import { useClientLogo } from './ui/clientLogo.js'
 import { DecomposerRules } from './panels/engine/DecomposerRules.js'
 import { FailureRules } from './panels/engine/FailureRules.js'
 import { LyricPrompts } from './panels/engine/LyricPrompts.js'
@@ -43,7 +45,10 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Details', 'Location', 'ICP Editor', 'Account', 'Event Stream'],
     description: '' },
   { key: 'schedule', label: 'Scheduling', short: 'Schedule', icon: CalendarDays,
-    cards: ['Outcome Schedule', 'Outcome Library', 'Dry Run'],
+    cards: ['Dayparting'],
+    description: '' },
+  { key: 'outcomes', label: 'Outcomes', short: 'Outcomes', icon: Target,
+    cards: ['Outcome Library', 'Dry Run'],
     description: '' },
   { key: 'engine', label: 'Prompts & Rules', short: 'Prompts & Rules', icon: Settings,
     cards: ['Hook Drafter', 'Decomposition', 'Style Exclusion Rules', 'Lyric Prompts', 'Outcome Style Factor', 'Reference Track Suggester'],
@@ -203,6 +208,7 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
          group.key === 'engine' ? <EngineRouter cards={group.cards} /> :
          group.key === 'brand' ? <BrandRouter cards={group.cards} /> :
          group.key === 'schedule' ? <ScheduleRouter cards={group.cards} /> :
+         group.key === 'outcomes' ? <OutcomesRouter cards={group.cards} /> :
          group.key === 'catalogue' ? <CatalogueRouter cards={group.cards} /> : (
         <>
         <div style={{
@@ -247,23 +253,11 @@ function EngineRouter({ cards }: { cards: string[] }) {
   const [active, setActive] = useNavSub<string>(cards[0]!)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}`, paddingBottom: 0 }}>
+      <div style={subTabRowStyle}>
         {cards.map((c) => {
           const on = active === c
           return (
-            <button
-              key={c}
-              onClick={() => setActive(c)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
-                color: on ? T.text : T.textMuted,
-                padding: '8px 14px', cursor: 'pointer',
-                fontFamily: T.sans, fontSize: 14, fontWeight: on ? 500 : 400,
-                marginBottom: -1,
-              }}
-            >{c}</button>
+            <button key={c} onClick={() => setActive(c)} style={subTabBtnStyle(on)}>{c}</button>
           )
         })}
       </div>
@@ -326,6 +320,7 @@ function BrandRouter({ cards }: { cards: string[] }) {
         }}>Clients</h1>
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <ClientLogoThumb clientId={clientId} />
           <HeaderSelect
             label="client"
             value={clientId ?? ''}
@@ -345,23 +340,11 @@ function BrandRouter({ cards }: { cards: string[] }) {
       </div>
 
       <div style={{ padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
+        <div style={subTabRowStyle}>
           {cards.map((c) => {
             const on = active === c
             return (
-              <button
-                key={c}
-                onClick={() => setActive(c)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
-                  color: on ? T.text : T.textMuted,
-                  padding: '8px 14px', cursor: 'pointer',
-                  fontFamily: T.sans, fontSize: 14, fontWeight: on ? 500 : 400,
-                  marginBottom: -1,
-                }}
-              >{c}</button>
+              <button key={c} onClick={() => setActive(c)} style={subTabBtnStyle(on)}>{c}</button>
             )
           })}
         </div>
@@ -372,6 +355,22 @@ function BrandRouter({ cards }: { cards: string[] }) {
         {active === 'Event Stream' && <LiveStoreView />}
       </div>
     </div>
+  )
+}
+
+function ClientLogoThumb({ clientId }: { clientId: string | null }) {
+  const logo = useClientLogo(clientId)
+  if (!clientId || !logo) return null
+  return (
+    <img
+      src={logo}
+      alt="client logo"
+      style={{
+        width: 32, height: 32, borderRadius: 4, objectFit: 'contain',
+        background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
+        display: 'block',
+      }}
+    />
   )
 }
 
@@ -409,33 +408,55 @@ function HeaderSelect({ label, value, onChange, options, placeholder, disabled }
 
 // ── Schedule router ────────────────────────────────────────────
 function ScheduleRouter({ cards }: { cards: string[] }) {
-  const [active, setActive] = useNavSub<string>('Outcome Schedule')
+  const [active, setActive] = useNavSub<string>('Dayparting')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
+      <div style={subTabRowStyle}>
         {cards.map((c) => {
           const on = active === c
           return (
-            <button
-              key={c}
-              onClick={() => setActive(c)}
-              style={{
-                background: 'transparent', border: 'none',
-                borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
-                color: on ? T.text : T.textMuted,
-                padding: '8px 14px', cursor: 'pointer',
-                fontFamily: T.sans, fontSize: 14, fontWeight: on ? 500 : 400,
-                marginBottom: -1,
-              }}
-            >{c}</button>
+            <button key={c} onClick={() => setActive(c)} style={subTabBtnStyle(on)}>{c}</button>
           )
         })}
       </div>
-      {active === 'Outcome Schedule' && <OutcomeSchedule />}
+      {active === 'Dayparting' && <OutcomeSchedule />}
+    </div>
+  )
+}
+
+// ── Outcomes router ────────────────────────────────────────────
+function OutcomesRouter({ cards }: { cards: string[] }) {
+  const [active, setActive] = useNavSub<string>('Outcome Library')
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={subTabRowStyle}>
+        {cards.map((c) => {
+          const on = active === c
+          return (
+            <button key={c} onClick={() => setActive(c)} style={subTabBtnStyle(on)}>{c}</button>
+          )
+        })}
+      </div>
       {active === 'Outcome Library' && <OutcomeLibrary />}
       {active === 'Dry Run' && <DryRun />}
     </div>
   )
+}
+
+// ── Shared sub-tab styles (left-justified, wrap) ───────────────
+const subTabRowStyle: CSSProperties = {
+  display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-start',
+  borderBottom: `1px solid ${T.borderSubtle}`,
+}
+function subTabBtnStyle(on: boolean): CSSProperties {
+  return {
+    background: 'transparent', border: 'none',
+    borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
+    color: on ? T.text : T.textMuted,
+    padding: '8px 14px', cursor: 'pointer',
+    fontFamily: T.sans, fontSize: 14, fontWeight: on ? 500 : 400,
+    marginBottom: -1,
+  }
 }
 
 // ── Catalogue router ───────────────────────────────────────────
@@ -443,22 +464,11 @@ function CatalogueRouter({ cards }: { cards: string[] }) {
   const [active, setActive] = useNavSub<string>('Song Browser')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
+      <div style={subTabRowStyle}>
         {cards.map((c) => {
           const on = active === c
           return (
-            <button
-              key={c}
-              onClick={() => setActive(c)}
-              style={{
-                background: 'transparent', border: 'none',
-                borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
-                color: on ? T.text : T.textMuted,
-                padding: '8px 14px', cursor: 'pointer',
-                fontFamily: T.sans, fontSize: 14, fontWeight: on ? 500 : 400,
-                marginBottom: -1,
-              }}
-            >{c}</button>
+            <button key={c} onClick={() => setActive(c)} style={subTabBtnStyle(on)}>{c}</button>
           )
         })}
       </div>
