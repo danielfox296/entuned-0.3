@@ -101,60 +101,91 @@ export function ClientDetail() {
 
       {client && draft && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Section title="Company" columns={2}>
-            <Field label="company name">
-              <Input
-                value={draft.companyName ?? client.companyName ?? ''}
-                onChange={(e) => setDraft({ ...draft, companyName: e.target.value })}
-              />
-            </Field>
-            <Field label="plan">
-              <Select
-                value={draft.plan ?? client.plan}
-                onChange={(e) => setDraft({ ...draft, plan: e.target.value as ClientPlan })}
-              >
-                {PLANS.map((p) => <option key={p} value={p}>{p}</option>)}
-              </Select>
-            </Field>
-            <Field label="POS provider">
-              <Input
-                value={draft.posProvider ?? client.posProvider ?? ''}
-                onChange={(e) => setDraft({ ...draft, posProvider: e.target.value || null })}
-              />
-            </Field>
-          </Section>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+              <Section title="Company" columns={2}>
+                <Field label="company name">
+                  <Input
+                    value={draft.companyName ?? client.companyName ?? ''}
+                    onChange={(e) => setDraft({ ...draft, companyName: e.target.value })}
+                  />
+                </Field>
+                <Field label="plan">
+                  <Select
+                    value={draft.plan ?? client.plan}
+                    onChange={(e) => setDraft({ ...draft, plan: e.target.value as ClientPlan })}
+                  >
+                    {PLANS.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </Select>
+                </Field>
+                <Field label="POS provider">
+                  <Input
+                    value={draft.posProvider ?? client.posProvider ?? ''}
+                    onChange={(e) => setDraft({ ...draft, posProvider: e.target.value || null })}
+                  />
+                </Field>
+              </Section>
 
-          <Section title="Contact" columns={2}>
-            <Field label="contact name">
-              <Input
-                value={draft.contactName ?? client.contactName ?? ''}
-                onChange={(e) => setDraft({ ...draft, contactName: e.target.value || null })}
-              />
-            </Field>
-            <Field label="email">
-              <Input
-                type="email"
-                value={draft.contactEmail ?? client.contactEmail ?? ''}
-                onChange={(e) => setDraft({ ...draft, contactEmail: e.target.value || null })}
-              />
-            </Field>
-            <Field label="phone">
-              <Input
-                value={draft.contactPhone ?? client.contactPhone ?? ''}
-                onChange={(e) => setDraft({ ...draft, contactPhone: e.target.value || null })}
-              />
-            </Field>
-          </Section>
+              <Section title="Contact" columns={2}>
+                <Field label="contact name">
+                  <Input
+                    value={draft.contactName ?? client.contactName ?? ''}
+                    onChange={(e) => setDraft({ ...draft, contactName: e.target.value || null })}
+                  />
+                </Field>
+                <Field label="email">
+                  <Input
+                    type="email"
+                    value={draft.contactEmail ?? client.contactEmail ?? ''}
+                    onChange={(e) => setDraft({ ...draft, contactEmail: e.target.value || null })}
+                  />
+                </Field>
+                <Field label="phone">
+                  <Input
+                    value={draft.contactPhone ?? client.contactPhone ?? ''}
+                    onChange={(e) => setDraft({ ...draft, contactPhone: e.target.value || null })}
+                  />
+                </Field>
+              </Section>
+            </div>
 
-          <Section title="Brand voice" columns={2}>
-            <Field label="brand lyric guidelines" full>
-              <Textarea
-                value={draft.brandLyricGuidelines ?? client.brandLyricGuidelines ?? ''}
-                onChange={(e) => setDraft({ ...draft, brandLyricGuidelines: e.target.value || null })}
-                rows={6}
-              />
-            </Field>
-          </Section>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+              <Section title={`Locations (${client.stores.length})`}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {client.stores.map((s) => (
+                    <div key={s.id} style={listRow}>
+                      <span style={{ color: T.text, fontWeight: 500 }}>{s.name}</span>
+                      <span style={{ color: T.textMuted }}>{s.timezone}</span>
+                      <span style={{ color: s.icps.length > 0 ? T.textMuted : T.textDim }}>
+                        {s.icps.length === 0
+                          ? '(no ICPs)'
+                          : s.icps.length === 1
+                            ? s.icps[0]!.name
+                            : `${s.icps.length} ICPs`}
+                      </span>
+                      <span style={{ color: s.defaultOutcome ? T.text : T.textDim }}>
+                        {s.defaultOutcome ? `default: ${s.defaultOutcome.displayTitle ?? s.defaultOutcome.title}` : 'no default'}
+                      </span>
+                      <span style={{ color: T.textDim }}>{s.goLiveDate ? `live ${s.goLiveDate}` : '—'}</span>
+                    </div>
+                  ))}
+                  {client.stores.length === 0 && (
+                    <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>No locations yet — create one in Location</div>
+                  )}
+                </div>
+              </Section>
+
+              <Section title="Brand voice" columns={2}>
+                <Field label="brand lyric guidelines" full>
+                  <Textarea
+                    value={draft.brandLyricGuidelines ?? client.brandLyricGuidelines ?? ''}
+                    onChange={(e) => setDraft({ ...draft, brandLyricGuidelines: e.target.value || null })}
+                    rows={6}
+                  />
+                </Field>
+              </Section>
+            </div>
+          </div>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <Button onClick={save} disabled={!dirty} busy={busy}>
@@ -166,31 +197,6 @@ export function ClientDetail() {
               updated {new Date(client.updatedAt).toISOString().slice(0, 16).replace('T', ' ')}
             </span>
           </div>
-
-          <Section title={`Locations (${client.stores.length})`}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {client.stores.map((s) => (
-                <div key={s.id} style={listRow}>
-                  <span style={{ color: T.text, fontWeight: 500 }}>{s.name}</span>
-                  <span style={{ color: T.textMuted }}>{s.timezone}</span>
-                  <span style={{ color: s.icps.length > 0 ? T.textMuted : T.textDim }}>
-                    {s.icps.length === 0
-                      ? '(no ICPs)'
-                      : s.icps.length === 1
-                        ? s.icps[0]!.name
-                        : `${s.icps.length} ICPs`}
-                  </span>
-                  <span style={{ color: s.defaultOutcome ? T.text : T.textDim }}>
-                    {s.defaultOutcome ? `default: ${s.defaultOutcome.displayTitle ?? s.defaultOutcome.title}` : 'no default'}
-                  </span>
-                  <span style={{ color: T.textDim }}>{s.goLiveDate ? `live ${s.goLiveDate}` : '—'}</span>
-                </div>
-              ))}
-              {client.stores.length === 0 && (
-                <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>No locations yet — create one in Location</div>
-              )}
-            </div>
-          </Section>
         </div>
       )}
     </div>
