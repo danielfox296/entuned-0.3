@@ -884,6 +884,61 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
+  // ----- OutcomeLyricFactor (per-outcome guidance for Hook Drafter) -----
+  // Keyed by outcomeKey (the family) so iterating guidance doesn't spawn new
+  // Outcome versions and break version-pinned downstream rows.
+
+  app.get('/outcome-lyric-factors', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    // Return one row per active Outcome family with its current lyric factor
+    // (or null if never set), so the editor can render every outcome.
+    const [outcomes, factors] = await Promise.all([
+      prisma.outcome.findMany({
+        where: { supersededAt: null },
+        orderBy: [{ title: 'asc' }],
+        select: { id: true, outcomeKey: true, title: true, displayTitle: true, version: true },
+      }),
+      prisma.outcomeLyricFactor.findMany(),
+    ])
+    const factorByKey = new Map(factors.map((f) => [f.outcomeKey, f]))
+    return outcomes.map((o) => ({
+      outcomeId: o.id,
+      outcomeKey: o.outcomeKey,
+      title: o.title,
+      displayTitle: o.displayTitle,
+      version: o.version,
+      templateText: factorByKey.get(o.outcomeKey)?.templateText ?? '',
+      notes: factorByKey.get(o.outcomeKey)?.notes ?? null,
+      updatedAt: factorByKey.get(o.outcomeKey)?.updatedAt?.toISOString() ?? null,
+    }))
+  })
+
+  const OutcomeLyricFactorBody = z.object({
+    templateText: z.string(),
+    notes: z.string().nullable().optional(),
+  })
+
+  app.put('/outcome-lyric-factors/:outcomeKey', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const outcomeKey = (req.params as any).outcomeKey as string
+    const parsed = OutcomeLyricFactorBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    // Confirm the outcome family exists.
+    const exists = await prisma.outcome.findFirst({ where: { outcomeKey }, select: { id: true } })
+    if (!exists) return reply.code(404).send({ error: 'unknown_outcome' })
+    const row = await prisma.outcomeLyricFactor.upsert({
+      where: { outcomeKey },
+      update: { templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, updatedById: op.operatorId },
+      create: { outcomeKey, templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, updatedById: op.operatorId },
+    })
+    return {
+      outcomeKey: row.outcomeKey,
+      templateText: row.templateText,
+      notes: row.notes,
+      updatedAt: row.updatedAt.toISOString(),
+    }
+  })
+
   app.post('/outcomes/:id/supersede', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string

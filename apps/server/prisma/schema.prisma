@@ -474,6 +474,20 @@ model Outcome {
   @@map("outcomes")
 }
 
+// ---------- OutcomeLyricFactor ----------
+// Per-outcome editable guidance string injected into the Hook Drafter prompt.
+// Keyed by outcomeKey (not version-pinned id) so operators can iterate without
+// spawning new Outcome versions. Mutable in place; latest-wins.
+model OutcomeLyricFactor {
+  outcomeKey   String   @id @map("outcome_key") @db.Uuid
+  templateText String   @default("") @map("template_text")
+  notes        String?
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedById  String?  @map("updated_by") @db.Uuid
+
+  @@map("outcome_lyric_factors")
+}
+
 // ---------- Card 8 Dayparting (ScheduleSlot) ----------
 
 model ScheduleSlot {

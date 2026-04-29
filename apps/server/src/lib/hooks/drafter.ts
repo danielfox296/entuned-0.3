@@ -59,6 +59,14 @@ export async function buildHookDrafterContext(opts: {
     getOrSeedHookWriterPrompt(opts.icpId),
   ])
 
+  // Per-outcome operator guidance (keyed by outcomeKey so it survives across
+  // outcome versions). Optional — if not present or empty, the section is omitted.
+  const lyricFactor = await prisma.outcomeLyricFactor.findUnique({
+    where: { outcomeKey: outcome.outcomeKey },
+    select: { templateText: true },
+  })
+  const lyricGuidance = lyricFactor?.templateText?.trim() || null
+
   const existingHooks = await prisma.hook.findMany({
     where: { icpId: opts.icpId, outcomeId: opts.outcomeId },
     select: { text: true, status: true },
@@ -112,7 +120,7 @@ diction, density, and image vocabulary of the hook.
 
 ${outcomeDescriptor}
 
-${icp.client?.brandLyricGuidelines ? `# Brand lyric guidelines\n\n${icp.client.brandLyricGuidelines}\n\n` : ''}# Existing hooks (do not repeat)
+${lyricGuidance ? `# Lyric guidance for this outcome\n\nThis is operator-authored guidance specific to the **${emotionalTarget}** outcome. Treat it as authoritative on diction, imagery, and what to avoid for this emotional target.\n\n${lyricGuidance}\n\n` : ''}${icp.client?.brandLyricGuidelines ? `# Brand lyric guidelines\n\n${icp.client.brandLyricGuidelines}\n\n` : ''}# Existing hooks (do not repeat)
 
 ${existingHooks.length === 0 ? '(none)' : existingHooks.map((h) => `- "${h.text}" (${h.status})`).join('\n')}
 
