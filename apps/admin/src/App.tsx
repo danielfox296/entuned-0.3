@@ -5,9 +5,9 @@ import {
   FlaskConical, Lightbulb, Activity, ListChecks,
 } from 'lucide-react'
 import { api, getToken, setToken, clearToken } from './api.js'
-import type { MeResponse } from './api.js'
+import type { MeResponse, ClientListRow, StoreSummary } from './api.js'
 import { T } from './tokens.js'
-import { ToastProvider } from './ui/index.js'
+import { ToastProvider, useClientSelection, useStoreSelection, S } from './ui/index.js'
 import { DecomposerRules } from './panels/engine/DecomposerRules.js'
 import { FailureRules } from './panels/engine/FailureRules.js'
 import { LyricPrompts } from './panels/engine/LyricPrompts.js'
@@ -15,7 +15,6 @@ import { OutcomeFactorPrompt } from './panels/engine/OutcomeFactorPrompt.js'
 import { ReferenceTrackPrompt } from './panels/engine/ReferenceTrackPrompt.js'
 import { HookDrafterPrompt } from './panels/engine/HookDrafterPrompt.js'
 import { IcpEditor } from './panels/brand/IcpEditor.js'
-import { HookQueue } from './panels/brand/HookQueue.js'
 import { ClientDetail } from './panels/brand/ClientDetail.js'
 import { StoreEditor } from './panels/brand/StoreEditor.js'
 import { OperatorManager } from './panels/brand/OperatorManager.js'
@@ -41,7 +40,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Launch Checklist', 'Hook Writing', 'Reference Tracks', 'Hook → Prompt'],
     description: '' },
   { key: 'brand', label: 'Clients', short: 'Clients', icon: Sparkles,
-    cards: ['Client Detail', 'ICP Editor', 'Hook Queue', 'Location', 'Location Associates', 'Live Location View'],
+    cards: ['Details', 'Location', 'ICP Editor', 'Account', 'Event Stream'],
     description: '' },
   { key: 'schedule', label: 'Scheduling', short: 'Schedule', icon: CalendarDays,
     cards: ['Outcome Schedule', 'Outcome Library', 'Dry Run'],
@@ -175,9 +174,9 @@ function Sidebar({ active, onSelect, collapsed, onToggle, email, onLogout }: {
 
 // ── Panel shell ────────────────────────────────────────────────
 function PanelShell({ group }: { group: SurfaceGroup }) {
-  // Workflows owns its own header so it can render the persistent
-  // client/store/ICP selector inline with the title.
-  const ownsHeader = group.key === 'workflows'
+  // Workflows + Brand own their headers so they can render persistent
+  // selectors (client/store/ICP) inline with the title.
+  const ownsHeader = group.key === 'workflows' || group.key === 'brand'
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {!ownsHeader && (
@@ -280,35 +279,130 @@ function EngineRouter({ cards }: { cards: string[] }) {
 
 // ── Brand router ───────────────────────────────────────────────
 function BrandRouter({ cards }: { cards: string[] }) {
-  const [active, setActive] = useNavSub<string>('Client Detail')
+  const [active, setActive] = useNavSub<string>('Details')
+  const [clientId, setClientId] = useClientSelection()
+  const [storeId, setStoreId] = useStoreSelection()
+  const [clients, setClients] = useState<ClientListRow[] | null>(null)
+  const [stores, setStores] = useState<StoreSummary[] | null>(null)
+  const [, setTick] = useState(0)
+  const reload = () => setTick((n) => n + 1)
+
+  useEffect(() => {
+    const token = getToken(); if (!token) return
+    api.clients(token).then(setClients).catch(() => {})
+    api.stores(token).then(setStores).catch(() => {})
+  }, [])
+
+  // Reconcile store when client changes — if the persisted store doesn't
+  // belong to the selected client, snap to the first matching store.
+  useEffect(() => {
+    if (!clientId || !stores) return
+    const match = stores.filter((s) => s.clientId === clientId)
+    if (match.length === 0) { if (storeId) setStoreId(null); return }
+    if (!storeId || !match.some((s) => s.id === storeId)) {
+      setStoreId(match[0]!.id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, stores])
+
+  const clientStores = stores && clientId
+    ? stores.filter((s) => s.clientId === clientId)
+    : []
+  const selectedClient = clients?.find((c) => c.id === clientId) ?? null
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
-        {cards.map((c) => {
-          const on = active === c
-          return (
-            <button
-              key={c}
-              onClick={() => setActive(c)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
-                color: on ? T.text : T.textMuted,
-                padding: '8px 14px', cursor: 'pointer',
-                fontFamily: T.sans, fontSize: 14, fontWeight: on ? 500 : 400,
-                marginBottom: -1,
-              }}
-            >{c}</button>
-          )
-        })}
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {/* Header: title on the left, persistent client + location selectors on the right. */}
+      <div style={{
+        padding: '14px 28px', borderBottom: `1px solid ${T.borderSubtle}`,
+        display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0,
+      }}>
+        <span style={{ display: 'inline-flex', color: T.accent }}>
+          <Sparkles size={18} strokeWidth={1.75} />
+        </span>
+        <h1 style={{
+          fontSize: 21, fontFamily: T.heading, fontWeight: 700,
+          color: T.text, margin: 0, letterSpacing: '-0.02em',
+        }}>Clients</h1>
+        <div style={{ flex: 1 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <HeaderSelect
+            label="client"
+            value={clientId ?? ''}
+            onChange={(v) => setClientId(v || null)}
+            placeholder={clients ? '— pick a client —' : 'loading…'}
+            options={(clients ?? []).map((c) => ({ value: c.id, label: c.companyName }))}
+          />
+          <HeaderSelect
+            label="location"
+            value={storeId ?? ''}
+            onChange={(v) => setStoreId(v || null)}
+            placeholder={!clientId ? '— pick a client first —' : (clientStores.length === 0 ? 'no locations' : '— pick a location —')}
+            options={clientStores.map((s) => ({ value: s.id, label: s.name }))}
+            disabled={!clientId || clientStores.length === 0}
+          />
+        </div>
       </div>
-      {active === 'Client Detail' && <ClientDetail />}
-      {active === 'ICP Editor' && <IcpEditor />}
-      {active === 'Hook Queue' && <HookQueue />}
-      {active === 'Location' && <StoreEditor />}
-      {active === 'Location Associates' && <OperatorManager />}
-      {active === 'Live Location View' && <LiveStoreView />}
+
+      <div style={{ padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.borderSubtle}` }}>
+          {cards.map((c) => {
+            const on = active === c
+            return (
+              <button
+                key={c}
+                onClick={() => setActive(c)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: `2px solid ${on ? T.accent : 'transparent'}`,
+                  color: on ? T.text : T.textMuted,
+                  padding: '8px 14px', cursor: 'pointer',
+                  fontFamily: T.sans, fontSize: 14, fontWeight: on ? 500 : 400,
+                  marginBottom: -1,
+                }}
+              >{c}</button>
+            )
+          })}
+        </div>
+        {active === 'Details' && <ClientDetail onClientsChanged={() => { const tk = getToken(); if (tk) api.clients(tk).then(setClients).catch(() => {}); reload() }} selectedClient={selectedClient} />}
+        {active === 'Location' && <StoreEditor onStoresChanged={() => { const tk = getToken(); if (tk) api.stores(tk).then(setStores).catch(() => {}); reload() }} />}
+        {active === 'ICP Editor' && <IcpEditor />}
+        {active === 'Account' && <OperatorManager />}
+        {active === 'Event Stream' && <LiveStoreView />}
+      </div>
+    </div>
+  )
+}
+
+function HeaderSelect({ label, value, onChange, options, placeholder, disabled }: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  options: { value: string; label: string }[]
+  placeholder: string
+  disabled?: boolean
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{
+        fontSize: S.label, color: T.textDim, fontFamily: T.sans,
+        textTransform: 'uppercase', letterSpacing: '0.04em',
+      }}>{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        style={{
+          minWidth: 220, background: T.bg, color: T.text,
+          border: `1px solid ${T.border}`, padding: '6px 10px',
+          fontFamily: T.sans, fontSize: 14, borderRadius: S.r4,
+          opacity: disabled ? 0.6 : 1,
+        }}
+      >
+        <option value="">{placeholder}</option>
+        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
     </div>
   )
 }

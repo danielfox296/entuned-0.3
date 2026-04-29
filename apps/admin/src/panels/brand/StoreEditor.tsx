@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
-import type { ClientListRow, StoreSummary, OutcomeRowFull, StoreCreateBody, StoreUpdateBody } from '../../api.js'
+import type { ClientListRow, OutcomeRowFull, StoreCreateBody, StoreUpdateBody } from '../../api.js'
 import { T } from '../../tokens.js'
 import {
   Button, Input, Select, Section, Field, KV,
-  PanelHeader, StorePicker, S, useToast, useStoreSelection,
+  S, useToast, useStoreSelection,
 } from '../../ui/index.js'
 
 const COMMON_TZ = [
@@ -13,8 +13,7 @@ const COMMON_TZ = [
   'Europe/London', 'Europe/Paris', 'Asia/Tokyo', 'UTC',
 ]
 
-export function StoreEditor() {
-  const [stores, setStores] = useState<StoreSummary[] | null>(null)
+export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void } = {}) {
   const [clients, setClients] = useState<ClientListRow[] | null>(null)
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
   const [storeId, setStoreId] = useStoreSelection()
@@ -28,12 +27,13 @@ export function StoreEditor() {
   const reloadAll = async () => {
     const token = getToken(); if (!token) return
     try {
-      const [s, c, o] = await Promise.all([
+      const [, c, o] = await Promise.all([
         api.stores(token),
         api.clients(token),
         api.outcomeLibrary(token),
       ])
-      setStores(s); setClients(c); setOutcomes(o)
+      setClients(c); setOutcomes(o)
+      onStoresChanged?.()
     } catch (e: any) { setErr(e.message) }
   }
   useEffect(() => { void reloadAll() }, [])
@@ -84,10 +84,7 @@ export function StoreEditor() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      <PanelHeader title="Location" />
-
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <StorePicker stores={stores} storeId={storeId} onPick={(id) => { setStoreId(id); setCreating(null) }} />
         <Button
           onClick={() => {
             setStoreId(null)

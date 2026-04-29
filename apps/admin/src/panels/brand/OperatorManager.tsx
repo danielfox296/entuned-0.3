@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { OperatorRow, StoreSummary } from '../../api.js'
 import { T } from '../../tokens.js'
-import { Button, Input, Section, Field, PanelHeader, S, useToast } from '../../ui/index.js'
+import { Button, Input, Section, Field, S, useToast } from '../../ui/index.js'
 
 export function OperatorManager() {
   const [operators, setOperators] = useState<OperatorRow[] | null>(null)
@@ -50,8 +50,6 @@ export function OperatorManager() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      <PanelHeader title="Location Associates" />
-
       {err && <div style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</div>}
 
       <div style={{ display: 'flex', gap: 8 }}>

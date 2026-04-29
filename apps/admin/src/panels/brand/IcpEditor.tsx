@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type {
-  StoreSummary, StoreDetail, IcpUpdate, NewReferenceTrack, ReferenceTrackRow,
+  StoreDetail, IcpUpdate, NewReferenceTrack, ReferenceTrackRow,
   StyleAnalysisRow, StyleAnalysisUpdate, TasteCategory,
 } from '../../api.js'
 import { T } from '../../tokens.js'
-import { PanelHeader, StorePicker as UIStorePicker, S, Pill, ConfirmDelete, useToast, useStoreSelection } from '../../ui/index.js'
+import { S, Pill, ConfirmDelete, useToast, useStoreSelection } from '../../ui/index.js'
 
 // Width per field (px). Compact for short scalars, prose for paragraphs.
 type FieldWidth = 'compact' | 'short' | 'prose'
@@ -32,19 +32,13 @@ const ICP_FIELDS: { key: keyof IcpUpdate; label: string; rows: number; width: Fi
 const BUCKETS: TasteCategory[] = ['FormationEra', 'Subculture', 'Aspirational']
 
 export function IcpEditor() {
-  const [stores, setStores] = useState<StoreSummary[] | null>(null)
-  const [storeId, setStoreId] = useStoreSelection()
+  const [storeId] = useStoreSelection()
   const [detail, setDetail] = useState<StoreDetail | null>(null)
   const [icpId, setIcpId] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [newIcpName, setNewIcpName] = useState('')
   const [createBusy, setCreateBusy] = useState(false)
-
-  useEffect(() => {
-    const token = getToken(); if (!token) return
-    api.stores(token).then(setStores).catch((e) => setErr(e.message))
-  }, [])
 
   useEffect(() => {
     if (!storeId) { setDetail(null); setIcpId(null); return }
@@ -84,9 +78,7 @@ export function IcpEditor() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      <PanelHeader title="ICP Editor" />
-
-      <UIStorePicker stores={stores} storeId={storeId} onPick={(id) => { setStoreId(id); setCreating(false); setNewIcpName('') }} />
+      {!storeId && <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>pick a location to begin</div>}
 
       {err && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</div>}
 

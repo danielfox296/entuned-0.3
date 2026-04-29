@@ -1,21 +1,15 @@
 import { useEffect, useState, useCallback } from 'react'
 import { api, getToken } from '../../api.js'
-import type { StoreSummary, LiveStoreView as LiveStoreData, OutcomeWithPool, QueueEntry, PlaybackEventRow } from '../../api.js'
+import type { LiveStoreView as LiveStoreData, OutcomeWithPool, QueueEntry, PlaybackEventRow } from '../../api.js'
 import { T } from '../../tokens.js'
 import {
-  Button, Section, StorePicker, Pill, S, useStoreSelection,
+  Button, Section, Pill, S, useStoreSelection,
 } from '../../ui/index.js'
 
 export function LiveStoreView() {
-  const [stores, setStores] = useState<StoreSummary[] | null>(null)
-  const [storeId, setStoreId] = useStoreSelection()
+  const [storeId] = useStoreSelection()
   const [data, setData] = useState<LiveStoreData | null>(null)
   const [err, setErr] = useState<string | null>(null)
-
-  useEffect(() => {
-    const token = getToken(); if (!token) return
-    api.stores(token).then(setStores).catch((e) => setErr(e.message))
-  }, [])
 
   const load = useCallback(async () => {
     if (!storeId) return
@@ -35,7 +29,7 @@ export function LiveStoreView() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
+        {!storeId && <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>pick a location to begin</div>}
         {storeId && <Button variant="ghost" onClick={load}>Refresh</Button>}
       </div>
 

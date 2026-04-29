@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { ClientListRow, ClientFull, ClientPlan, ClientUpdate } from '../../api.js'
 import { T } from '../../tokens.js'
-import { Button, Input, Select, Textarea, Section, Field, S, useToast } from '../../ui/index.js'
+import { Button, Input, Select, Textarea, Section, Field, S, useToast, useClientSelection } from '../../ui/index.js'
 
 const PLANS: ClientPlan[] = ['mvp_pilot', 'trial', 'paid_pilot', 'production', 'paused', 'inactive']
 
-export function ClientDetail() {
-  const [list, setList] = useState<ClientListRow[] | null>(null)
-  const [clientId, setClientId] = useState<string | null>(null)
+export function ClientDetail({ onClientsChanged, selectedClient: _summary }: {
+  onClientsChanged?: () => void
+  selectedClient?: ClientListRow | null
+} = {}) {
+  const [clientId, setClientId] = useClientSelection()
   const [client, setClient] = useState<ClientFull | null>(null)
   const [draft, setDraft] = useState<ClientUpdate | null>(null)
   const [busy, setBusy] = useState(false)
@@ -18,12 +20,6 @@ export function ClientDetail() {
   const [newName, setNewName] = useState('')
   const [createBusy, setCreateBusy] = useState(false)
   const toast = useToast()
-
-  const reloadList = async () => {
-    const token = getToken(); if (!token) return
-    try { setList(await api.clients(token)) } catch (e: any) { setErr(e.message) }
-  }
-  useEffect(() => { void reloadList() }, [])
 
   useEffect(() => {
     if (!clientId) { setClient(null); setDraft(null); return }
@@ -40,8 +36,8 @@ export function ClientDetail() {
     setCreateBusy(true); setErr(null)
     try {
       const created = await api.createClient({ companyName: newName.trim() }, token)
-      await reloadList()
       setClientId(created.id)
+      onClientsChanged?.()
       setCreating(false)
       setNewName('')
       toast.success(`client "${created.companyName}" created`)
@@ -59,7 +55,7 @@ export function ClientDetail() {
       const updated = await api.updateClient(client.id, draft, token)
       setClient((cur) => cur ? { ...cur, ...updated } : cur)
       setDraft({})
-      reloadList()
+      onClientsChanged?.()
       toast.success(`client "${updated.companyName ?? client.companyName}" saved`)
     } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'failed to save client') }
     finally { setBusy(false) }
@@ -67,15 +63,7 @@ export function ClientDetail() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ flex: 1, minWidth: 0, maxWidth: 420 }}>
-          <ClientCombobox
-            list={list}
-            clientId={clientId}
-            onPick={(id) => { setClientId(id); setCreating(false) }}
-          />
-        </div>
-        <span style={{ flex: 1 }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {creating ? (
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <Input
@@ -197,112 +185,6 @@ export function ClientDetail() {
               updated {new Date(client.updatedAt).toISOString().slice(0, 16).replace('T', ' ')}
             </span>
           </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ClientCombobox({ list, clientId, onPick }: {
-  list: ClientListRow[] | null
-  clientId: string | null
-  onPick: (id: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState('')
-  const [highlight, setHighlight] = useState(0)
-  const wrapRef = useRef<HTMLDivElement | null>(null)
-  const inputRef = useRef<HTMLInputElement | null>(null)
-
-  const selected = clientId && list ? list.find((c) => c.id === clientId) ?? null : null
-
-  const filtered = useMemo(() => {
-    if (!list) return []
-    const q = query.trim().toLowerCase()
-    if (!q) return list
-    return list.filter((c) => c.companyName.toLowerCase().includes(q))
-  }, [list, query])
-
-  useEffect(() => {
-    if (!open) return
-    const onDoc = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
-    }
-    window.addEventListener('mousedown', onDoc)
-    return () => window.removeEventListener('mousedown', onDoc)
-  }, [open])
-
-  useEffect(() => { setHighlight(0) }, [query, open])
-
-  if (!list) {
-    return <div style={{ color: T.textMuted, fontFamily: T.sans, fontSize: S.small }}>loading…</div>
-  }
-
-  const displayValue = open ? query : (selected?.companyName ?? '')
-
-  return (
-    <div ref={wrapRef} style={{ position: 'relative', width: '100%' }}>
-      <input
-        ref={inputRef}
-        value={displayValue}
-        placeholder="search clients…"
-        onFocus={() => { setOpen(true); setQuery('') }}
-        onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
-        onKeyDown={(e) => {
-          if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); setHighlight((h) => Math.min(filtered.length - 1, h + 1)) }
-          else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlight((h) => Math.max(0, h - 1)) }
-          else if (e.key === 'Enter') {
-            const pick = filtered[highlight]
-            if (pick) { onPick(pick.id); setOpen(false); setQuery(''); inputRef.current?.blur() }
-          } else if (e.key === 'Escape') { setOpen(false); inputRef.current?.blur() }
-        }}
-        style={{
-          width: '100%',
-          background: T.surface,
-          border: `1px solid ${T.border}`,
-          color: T.text, padding: '8px 12px', borderRadius: S.r4,
-          fontFamily: T.sans, fontSize: S.small, outline: 'none',
-          boxSizing: 'border-box',
-        }}
-      />
-      {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-          maxHeight: 360, overflowY: 'auto', zIndex: 50,
-          background: T.surface, border: `1px solid ${T.border}`, borderRadius: S.r4,
-          boxShadow: '0 6px 24px rgba(0, 0, 0, 0.35)',
-        }}>
-          {filtered.length === 0 && (
-            <div style={{ padding: 12, color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>
-              no matches
-            </div>
-          )}
-          {filtered.map((c, i) => {
-            const on = i === highlight
-            const sel = c.id === clientId
-            return (
-              <button
-                key={c.id}
-                onMouseEnter={() => setHighlight(i)}
-                onMouseDown={(e) => { e.preventDefault(); onPick(c.id); setOpen(false); setQuery(''); inputRef.current?.blur() }}
-                style={{
-                  width: '100%', textAlign: 'left',
-                  background: on ? T.accentGlow : 'transparent',
-                  border: 'none', borderLeft: sel ? `2px solid ${T.accent}` : '2px solid transparent',
-                  color: T.text,
-                  padding: '8px 12px', cursor: 'pointer',
-                  fontFamily: T.sans, fontSize: S.small,
-                  display: 'flex', flexDirection: 'column', gap: 2,
-                  borderBottom: `1px solid ${T.borderSubtle}`,
-                }}
-              >
-                <span style={{ fontWeight: sel ? 500 : 400 }}>{c.companyName}</span>
-                <span style={{ fontSize: S.label, color: T.textDim }}>
-                  {c.plan} · {c.storeCount} location{c.storeCount === 1 ? '' : 's'}
-                </span>
-              </button>
-            )
-          })}
         </div>
       )}
     </div>
