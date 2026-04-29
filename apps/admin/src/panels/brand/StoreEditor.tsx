@@ -30,7 +30,7 @@ export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void 
       const [, c, o] = await Promise.all([
         api.stores(token),
         api.clients(token),
-        api.outcomeLibrary(token),
+        api.outcomes(token),
       ])
       setClients(c); setOutcomes(o)
       onStoresChanged?.()

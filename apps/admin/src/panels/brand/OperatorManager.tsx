@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { OperatorRow, StoreSummary } from '../../api.js'
 import { T } from '../../tokens.js'
-import { Button, Input, Section, Field, S, useToast } from '../../ui/index.js'
+import { Button, Input, Section, Field, S, useToast, useClientSelection, useStoreSelection } from '../../ui/index.js'
 
 export function OperatorManager() {
+  const [clientId] = useClientSelection()
+  const [storeId] = useStoreSelection()
   const [operators, setOperators] = useState<OperatorRow[] | null>(null)
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
   const [selected, setSelected] = useState<OperatorRow | null>(null)
@@ -65,38 +67,81 @@ export function OperatorManager() {
       )}
 
       {operators && (
-        <div style={{ border: `1px solid ${T.border}`, borderRadius: S.r4, overflow: 'hidden' }}>
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1.2fr 2fr 90px auto', gap: 16,
-            background: T.surfaceRaised, padding: '6px 12px',
-            fontSize: S.label, fontFamily: T.sans, color: T.textDim,
-            textTransform: 'uppercase', letterSpacing: 0.5,
-          }}>
-            <span>Email</span><span>Location</span><span>Status</span><span />
-          </div>
-          {operators.map((op) => (
-            <div key={op.id} style={{
-              display: 'grid', gridTemplateColumns: '1.2fr 2fr 90px auto', gap: 16,
-              padding: '10px 12px', borderTop: `1px solid ${T.border}`, alignItems: 'center',
-            }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: S.small, fontFamily: T.sans, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.email}</div>
-                {op.displayName && <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.textMuted }}>{op.displayName}</div>}
-                {op.isAdmin && <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.accent }}>admin</div>}
-              </div>
-              <div style={{ fontSize: S.small, fontFamily: T.sans, color: T.textMuted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={op.stores.map((s) => (s.clientName ? `${s.clientName} — ${s.name}` : s.name)).join(', ')}>
-                {op.stores.length === 0
-                  ? '—'
-                  : op.stores.map((s) => (s.clientName ? `${s.clientName} — ${s.name}` : s.name)).join(', ')}
-              </div>
-              <div style={{ fontSize: S.label, fontFamily: T.sans, color: op.disabledAt ? T.danger : T.success, whiteSpace: 'nowrap' }}>
-                {op.disabledAt ? 'disabled' : 'active'}
-              </div>
-              <Button variant="ghost" onClick={() => { setCreating(false); setSelected(op) }}>edit</Button>
-            </div>
-          ))}
+        <OperatorTable
+          operators={operators}
+          stores={stores}
+          clientId={clientId}
+          storeId={storeId}
+          onEdit={(op) => { setCreating(false); setSelected(op) }}
+        />
+      )}
+    </div>
+  )
+}
+
+function OperatorTable({ operators, stores, clientId, storeId, onEdit }: {
+  operators: OperatorRow[]
+  stores: StoreSummary[] | null
+  clientId: string | null
+  storeId: string | null
+  onEdit: (op: OperatorRow) => void
+}) {
+  // Scope the list to the selected client/location from the panel header.
+  // Admins (cross-client) are always shown so Daniel can find himself.
+  const clientStoreIds = new Set(
+    (stores ?? [])
+      .filter((s) => clientId == null || s.clientId === clientId)
+      .map((s) => s.id)
+  )
+  const filtered = operators.filter((op) => {
+    if (op.isAdmin) return true
+    if (op.stores.length === 0) return false
+    if (storeId) return op.stores.some((s) => s.id === storeId)
+    if (clientId) return op.stores.some((s) => clientStoreIds.has(s.id))
+    return true
+  })
+
+  return (
+    <div style={{ border: `1px solid ${T.border}`, borderRadius: S.r4, overflow: 'hidden' }}>
+      <div style={{
+        display: 'grid', gridTemplateColumns: '1.2fr 2fr 90px auto', gap: 16,
+        background: T.surfaceRaised, padding: '6px 12px',
+        fontSize: S.label, fontFamily: T.sans, color: T.textDim,
+        textTransform: 'uppercase', letterSpacing: 0.5,
+      }}>
+        <span>Email</span><span>Location</span><span>Status</span><span />
+      </div>
+      {filtered.length === 0 && (
+        <div style={{
+          padding: '12px 14px', color: T.textDim,
+          fontFamily: T.sans, fontSize: S.small,
+        }}>
+          {clientId
+            ? 'No associates for this selection.'
+            : 'Pick a client above to see associates.'}
         </div>
       )}
+      {filtered.map((op) => (
+        <div key={op.id} style={{
+          display: 'grid', gridTemplateColumns: '1.2fr 2fr 90px auto', gap: 16,
+          padding: '10px 12px', borderTop: `1px solid ${T.border}`, alignItems: 'center',
+        }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: S.small, fontFamily: T.sans, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.email}</div>
+            {op.displayName && <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.textMuted }}>{op.displayName}</div>}
+            {op.isAdmin && <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.accent }}>admin</div>}
+          </div>
+          <div style={{ fontSize: S.small, fontFamily: T.sans, color: T.textMuted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={op.stores.map((s) => (s.clientName ? `${s.clientName} — ${s.name}` : s.name)).join(', ')}>
+            {op.stores.length === 0
+              ? '—'
+              : op.stores.map((s) => (s.clientName ? `${s.clientName} — ${s.name}` : s.name)).join(', ')}
+          </div>
+          <div style={{ fontSize: S.label, fontFamily: T.sans, color: op.disabledAt ? T.danger : T.success, whiteSpace: 'nowrap' }}>
+            {op.disabledAt ? 'disabled' : 'active'}
+          </div>
+          <Button variant="ghost" onClick={() => onEdit(op)}>edit</Button>
+        </div>
+      ))}
     </div>
   )
 }
