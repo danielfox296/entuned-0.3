@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { ListChecks } from 'lucide-react'
 import { api, getToken } from '../../api.js'
-import type { StoreSummary, StoreDetail } from '../../api.js'
+import type { ClientListRow, StoreSummary, StoreDetail } from '../../api.js'
 import { T } from '../../tokens.js'
 import {
-  StorePicker, S, useStoreSelection, useIcpSelection,
+  S, HeaderSelect, useClientSelection, useStoreSelection, useIcpSelection,
 } from '../../ui/index.js'
 import { useNavSub } from '../../nav.js'
 import { HookRefresh } from './HookRefresh.js'
@@ -32,7 +32,9 @@ const TABS = [
 type TabKey = typeof TABS[number]['key']
 
 export function WorkflowRouter() {
+  const [clients, setClients] = useState<ClientListRow[] | null>(null)
   const [stores, setStores] = useState<StoreSummary[] | null>(null)
+  const [clientId, setClientId] = useClientSelection()
   const [storeId, setStoreId] = useStoreSelection()
   const [icpId, setIcpId] = useIcpSelection()
   const [detail, setDetail] = useState<StoreDetail | null>(null)
@@ -42,7 +44,19 @@ export function WorkflowRouter() {
   useEffect(() => {
     const token = getToken(); if (!token) return
     api.stores(token).then(setStores).catch((e) => setErr(e.message))
+    api.clients(token).then(setClients).catch((e) => setErr(e.message))
   }, [])
+
+  // Reconcile store when client changes.
+  useEffect(() => {
+    if (!clientId || !stores) return
+    const match = stores.filter((s) => s.clientId === clientId)
+    if (match.length === 0) { if (storeId) setStoreId(null); return }
+    if (!storeId || !match.some((s) => s.id === storeId)) {
+      setStoreId(match[0]!.id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, stores])
 
   useEffect(() => {
     if (!storeId) { setDetail(null); return }
@@ -56,6 +70,10 @@ export function WorkflowRouter() {
     }).catch((e) => setErr(e.message))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId])
+
+  const clientStores = stores && clientId
+    ? stores.filter((s) => s.clientId === clientId)
+    : []
 
   const ctx: WorkflowContext = {
     storeId,
@@ -81,26 +99,29 @@ export function WorkflowRouter() {
         }}>Workflows</h1>
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <StorePicker stores={stores} storeId={storeId} onPick={setStoreId} />
-          {detail && detail.icps.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{
-                fontSize: S.label, color: T.textDim, fontFamily: T.sans,
-                textTransform: 'uppercase', letterSpacing: '0.04em',
-              }}>icp</span>
-              <select
-                value={icpId ?? ''}
-                onChange={(e) => setIcpId(e.target.value || null)}
-                style={{
-                  minWidth: 200, background: T.bg, color: T.text,
-                  border: `1px solid ${T.border}`, padding: '6px 10px',
-                  fontFamily: T.sans, fontSize: 14,
-                }}
-              >
-                {detail.icps.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-              </select>
-            </div>
-          )}
+          <HeaderSelect
+            label="client"
+            value={clientId ?? ''}
+            onChange={(v) => setClientId(v || null)}
+            placeholder={clients ? '— pick a client —' : 'loading…'}
+            options={(clients ?? []).map((c) => ({ value: c.id, label: c.companyName }))}
+          />
+          <HeaderSelect
+            label="location"
+            value={storeId ?? ''}
+            onChange={(v) => setStoreId(v || null)}
+            placeholder={!clientId ? '— pick a client first —' : (clientStores.length === 0 ? 'no locations' : '— pick a location —')}
+            options={clientStores.map((s) => ({ value: s.id, label: s.name }))}
+            disabled={!clientId || clientStores.length === 0}
+          />
+          <HeaderSelect
+            label="icp"
+            value={icpId ?? ''}
+            onChange={(v) => setIcpId(v || null)}
+            placeholder={!detail ? '— pick a location —' : (detail.icps.length === 0 ? 'no ICPs' : '— pick an ICP —')}
+            options={(detail?.icps ?? []).map((i) => ({ value: i.id, label: i.name }))}
+            disabled={!detail || detail.icps.length === 0}
+          />
         </div>
       </div>
 

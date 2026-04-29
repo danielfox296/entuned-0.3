@@ -8,7 +8,7 @@ import {
 import { api, getToken, setToken, clearToken } from './api.js'
 import type { MeResponse, ClientListRow, StoreSummary } from './api.js'
 import { T } from './tokens.js'
-import { ToastProvider, useClientSelection, useStoreSelection, S } from './ui/index.js'
+import { ToastProvider, useClientSelection, useStoreSelection, HeaderSelect } from './ui/index.js'
 import { useClientLogo } from './ui/clientLogo.js'
 import { DecomposerRules } from './panels/engine/DecomposerRules.js'
 import { FailureRules } from './panels/engine/FailureRules.js'
@@ -371,38 +371,6 @@ function ClientLogoThumb({ clientId }: { clientId: string | null }) {
         display: 'block',
       }}
     />
-  )
-}
-
-function HeaderSelect({ label, value, onChange, options, placeholder, disabled }: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  options: { value: string; label: string }[]
-  placeholder: string
-  disabled?: boolean
-}) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{
-        fontSize: S.label, color: T.textDim, fontFamily: T.sans,
-        textTransform: 'uppercase', letterSpacing: '0.04em',
-      }}>{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        style={{
-          minWidth: 220, background: T.bg, color: T.text,
-          border: `1px solid ${T.border}`, padding: '6px 10px',
-          fontFamily: T.sans, fontSize: 14, borderRadius: S.r4,
-          opacity: disabled ? 0.6 : 1,
-        }}
-      >
-        <option value="">{placeholder}</option>
-        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    </div>
   )
 }
 
