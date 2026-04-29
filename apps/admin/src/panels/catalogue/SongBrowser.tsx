@@ -157,7 +157,7 @@ function FilterSelect({ label, value, onChange, options }: {
   )
 }
 
-const COLS = '40px 2fr 1.2fr 1.4fr 130px 90px 110px'
+const COLS = '1.6fr 1.6fr 1.2fr 1.4fr 130px 90px 110px'
 
 function Header() {
   return (
@@ -167,7 +167,7 @@ function Header() {
       borderBottom: `1px solid ${T.border}`,
       fontFamily: T.mono, fontSize: 13, color: T.textDim, textTransform: 'uppercase',
     }}>
-      <span />
+      <span>song</span>
       <span>hook</span>
       <span>outcome</span>
       <span>icp</span>
@@ -213,13 +213,20 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
       fontFamily: T.mono, fontSize: 14, alignItems: 'center',
       opacity: row.active ? 1 : 0.55,
     }}>
-      <button
-        onClick={play}
-        style={playBtn(playing)}
-        title={playing ? 'pause' : `play — ${row.hook.text}`}
-      >
-        {playing ? '❚❚' : '▶'}
-      </button>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8, ...trunc }}>
+        <button
+          onClick={play}
+          style={playBtn(playing)}
+          title={playing ? 'pause' : `play — ${row.songTitle ?? 'untitled'}`}
+        >
+          {playing ? '❚❚' : '▶'}
+        </button>
+        <span
+          onClick={play}
+          style={{ color: T.accent, cursor: 'pointer', fontFamily: T.sans, ...trunc }}
+          title={row.songTitle ?? undefined}
+        >{row.songTitle ?? '(untitled)'}</span>
+      </span>
       <span style={{ color: T.text, fontFamily: T.sans, ...trunc }} title={row.hook.text}>{row.hook.text}</span>
       <span style={{ color: T.textMuted, ...trunc }}>{row.outcome.displayTitle ?? row.outcome.title}</span>
       <span style={{ ...trunc, display: 'flex', flexDirection: 'column', gap: 2 }}>

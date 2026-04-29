@@ -973,6 +973,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           song: { select: { id: true, r2Url: true, byteSize: true } },
           hook: { select: { id: true, text: true } },
           outcome: { select: { id: true, title: true, displayTitle: true, version: true } },
+          songSeed: { select: { id: true, title: true } },
         },
       }),
       prisma.lineageRow.count({ where }),
@@ -1005,6 +1006,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           outcome: r.outcome,
           hook: r.hook,
           song: r.song,
+          songTitle: r.songSeed?.title ?? null,
         }
       }),
     }

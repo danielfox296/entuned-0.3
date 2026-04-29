@@ -474,6 +474,7 @@ export interface LineageRowFull {
   outcome: { id: string; title: string; displayTitle: string | null; version: number }
   hook: { id: string; text: string }
   song: { id: string; r2Url: string; byteSize: number | string | null }
+  songTitle: string | null
 }
 
 export interface LineageRowList {
