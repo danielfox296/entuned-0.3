@@ -52,7 +52,10 @@ export async function buildHookDrafterContext(opts: {
 }): Promise<{ systemPrompt: string; userMessage: string }> {
   const [icp, outcome, prompt] = await Promise.all([
     prisma.iCP.findUniqueOrThrow({ where: { id: opts.icpId }, include: { client: true } }),
-    prisma.outcome.findUniqueOrThrow({ where: { id: opts.outcomeId } }),
+    prisma.outcome.findUniqueOrThrow({
+      where: { id: opts.outcomeId },
+      include: { productionEra: true },
+    }),
     getOrSeedHookWriterPrompt(opts.icpId),
   ])
 
@@ -76,12 +79,23 @@ export async function buildHookDrafterContext(opts: {
     icp.turnOffs && `Turn-offs: ${icp.turnOffs}`,
   ].filter(Boolean).join('\n')
 
+  // The emotional target the brand chose for this outcome. `displayTitle` is
+  // the human/brand-facing label (e.g. "Calm"); `title` is an internal seed
+  // string (e.g. "arrows down") that on its own gives the LLM no signal.
+  const emotionalTarget = outcome.displayTitle ?? outcome.title
+  const era = outcome.productionEra
   const outcomeDescriptor = [
-    `Title: ${outcome.title}`,
+    `Emotional target: ${emotionalTarget}`,
+    outcome.displayTitle && outcome.displayTitle !== outcome.title
+      ? `Internal name: ${outcome.title}`
+      : null,
     `Tempo: ${outcome.tempoBpm} bpm`,
     `Mode: ${outcome.mode}`,
     outcome.dynamics && `Dynamics: ${outcome.dynamics}`,
     outcome.instrumentation && `Instrumentation: ${outcome.instrumentation}`,
+    outcome.familiarity && `Familiarity: ${outcome.familiarity}`,
+    era && `Production era: ${era.genreDisplayName ?? era.genreSlug} · ${era.decade}`,
+    era?.textureLanguage && `Era texture: ${era.textureLanguage}`,
   ].filter(Boolean).join('\n')
 
   const userMessage = `# ICP
@@ -89,6 +103,12 @@ export async function buildHookDrafterContext(opts: {
 ${icpDescriptor}
 
 # Outcome (the song's emotional target)
+
+The hooks you write must embody and pay off the **emotional target** below.
+Treat the emotional target as the controlling intent — every hook should land
+inside that feeling. The musical specs (tempo / mode / instrumentation / era)
+are constraints the song will be produced within; let them inform the
+diction, density, and image vocabulary of the hook.
 
 ${outcomeDescriptor}
 
