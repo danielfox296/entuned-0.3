@@ -435,35 +435,15 @@ function PendingRow({ track, edit, busy, onChange, onBlur, onApprove, onDiscard,
           </div>
         </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <Field label="artist">
-          <input
-            value={v('artist', track.artist) ?? ''}
-            onChange={(e) => onChange({ artist: e.target.value })}
-            onBlur={onBlur}
-            disabled={busy}
-            style={inputStyle}
-          />
-        </Field>
-        <Field label="title">
-          <input
-            value={v('title', track.title) ?? ''}
-            onChange={(e) => onChange({ title: e.target.value })}
-            onBlur={onBlur}
-            disabled={busy}
-            style={inputStyle}
-          />
-        </Field>
-        <Field label="year">
-          <input
-            type="number"
-            value={v('year', track.year) ?? ''}
-            onChange={(e) => onChange({ year: e.target.value === '' ? null : Number(e.target.value) })}
-            onBlur={onBlur}
-            disabled={busy}
-            style={inputStyle}
-          />
-        </Field>
+      {track.suggestedRationale && (
+        <div style={{
+          fontFamily: T.sans, fontSize: 12, color: T.textDim,
+          background: T.bg, border: `1px solid ${T.borderSubtle}`,
+          borderRadius: 3, padding: '6px 8px', lineHeight: 1.5,
+        }}>{track.suggestedRationale}</div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 12, alignItems: 'start' }}>
         <Field label="bucket">
           <select
             value={v('bucket', track.bucket)}
@@ -475,34 +455,22 @@ function PendingRow({ track, edit, busy, onChange, onBlur, onApprove, onDiscard,
             {BUCKETS.map((b) => <option key={b} value={b}>{BUCKET_LABEL[b]}</option>)}
           </select>
         </Field>
+        <Field label="notes">
+          <div style={{
+            fontFamily: T.sans, fontSize: 15, lineHeight: 1.55,
+            color: track.operatorNotes ? T.text : T.textDim,
+            whiteSpace: 'pre-wrap', padding: '4px 0',
+          }}>{track.operatorNotes ?? '(none)'}</div>
+        </Field>
       </div>
 
-      {track.suggestedRationale && (
-        <div style={{
-          fontFamily: T.sans, fontSize: 12, color: T.textDim,
-          background: T.bg, border: `1px solid ${T.borderSubtle}`,
-          borderRadius: 3, padding: '6px 8px', lineHeight: 1.5,
-        }}>{track.suggestedRationale}</div>
-      )}
-
-      <Field label="notes">
-        <textarea
-          value={v('operatorNotes', track.operatorNotes) ?? ''}
-          onChange={(e) => onChange({ operatorNotes: e.target.value || null })}
-          onBlur={onBlur}
-          disabled={busy}
-          rows={2}
-          style={{ ...inputStyle, resize: 'vertical' }}
-        />
-      </Field>
-
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <Button onClick={onApprove} disabled={busy}>{busy ? '…' : 'approve'}</Button>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end' }}>
         <button
           onClick={onDiscard}
           disabled={busy}
           style={ghostBtnStyle}
-        >remove</button>
+        >deny</button>
+        <Button onClick={onApprove} disabled={busy}>{busy ? '…' : 'approve'}</Button>
       </div>
     </div>
   )
