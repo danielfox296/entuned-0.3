@@ -303,13 +303,17 @@ export async function nextQueue(
   const poolsByIcp = await Promise.all(store.icps.map((icp) => fetchPool(icp.id, resolved.outcomeId)))
   const unfilteredPool = dedupeBySong(poolsByIcp.flat())
   if (unfilteredPool.length === 0) {
+    // Resolved outcome exists but has no songs — fall back to all-outcomes pool
+    // so the player always has something to play when songs exist under any outcome.
+    const pool = dedupeBySong(await fetchAllPool(icpIds))
+    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, store.timezone, now)
     return {
       storeId,
       decidedAt,
       activeOutcome: await serializeOutcome(resolved),
-      queue: [],
-      fallbackTier: 'none',
-      reason: 'no_pool',
+      queue,
+      fallbackTier,
+      reason: queue.length === 0 ? 'no_pool' : null,
     }
   }
 
