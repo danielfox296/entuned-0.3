@@ -55,7 +55,9 @@ export class CrossfadePlayer {
         onload: () => resolve(),
         onloaderror: (_id, err) => reject(err),
         onplayerror: (_id, err) => this.opts.onError?.(err),
-        onend: () => this.opts.onTrackEnded?.(),
+        // onend intentionally omitted: wired in startNext once this becomes current.
+        // Attaching onend here risks a spurious Howler "end" event on the idle preloaded
+        // Howl firing onTrackEnded before the track has ever played.
       });
       this.next = howl;
     });
@@ -68,6 +70,8 @@ export class CrossfadePlayer {
     const targetVol = this.muted ? 0 : this.volume;
 
     n.on("pause", () => this.opts.onPause?.());
+    // Wire onend here, not in loadNext, so only the playing track can advance the queue.
+    n.on("end", () => this.opts.onTrackEnded?.());
 
     if (this.current) {
       // Always start at target volume — no fade-in from 0. The crossfade effect
@@ -92,7 +96,10 @@ export class CrossfadePlayer {
   }
 
   pause(): void { this.current?.pause(); }
-  resume(): void { this.current?.play(); }
+  // Guard against calling play() on an already-playing Howl. With html5:true, a redundant
+  // play() creates a second <audio> element starting from position 0, which overlaps the
+  // main track and fires its own onend — causing the "sustain loop" symptom on iOS.
+  resume(): void { if (this.current && !this.current.playing()) this.current.play(); }
 
   setVolume(v: number): void {
     this.volume = Math.max(0, Math.min(1, v));
