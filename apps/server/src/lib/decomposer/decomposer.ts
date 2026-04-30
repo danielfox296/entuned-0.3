@@ -14,6 +14,7 @@ import { MUSICOLOGICAL_RULES_V1 } from './rules-v1.js'
 import { MUSICOLOGICAL_RULES_V2 } from './rules-v2.js'
 import { MUSICOLOGICAL_RULES_V3 } from './rules-v3.js'
 import { MUSICOLOGICAL_RULES_V4 } from './rules-v4.js'
+import { MUSICOLOGICAL_RULES_V5 } from './rules-v5.js'
 
 const MODEL = process.env.DECOMPOSER_MODEL ?? 'claude-sonnet-4-5'
 
@@ -23,8 +24,9 @@ const RULES_BY_VERSION: Record<number, string> = {
   2: MUSICOLOGICAL_RULES_V2,
   3: MUSICOLOGICAL_RULES_V3,
   4: MUSICOLOGICAL_RULES_V4,
+  5: MUSICOLOGICAL_RULES_V5,
 }
-const LATEST_RULES_VERSION = 4
+const LATEST_RULES_VERSION = 5
 
 export interface DecomposeInput {
   artist: string
