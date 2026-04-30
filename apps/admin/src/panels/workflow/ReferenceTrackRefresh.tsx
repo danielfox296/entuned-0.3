@@ -65,7 +65,9 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
   useEffect(() => {
     if (!ctx.icpId) return
     const queue = tracks.filter(
-      (t) => !t.previewSource && !prefetchedTrackIds.current.has(t.id),
+      (t) =>
+        (!t.previewSource || isPreviewStale(t.previewUrl)) &&
+        !prefetchedTrackIds.current.has(t.id),
     )
     if (queue.length === 0) return
     queue.forEach((t) => prefetchedTrackIds.current.add(t.id))
@@ -271,6 +273,18 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
 
 const PREVIEW_STOP_EVENT = 'entuned-preview-stop'
 
+/** Deezer signs preview URLs with `hdnea=exp=<unix>` (~24h TTL). iTunes URLs
+ *  don't expire. Returns true if the URL has an `exp=` token that's already
+ *  past or within the next 60s — in which case we should re-resolve before
+ *  trying to play, or the browser will hit a 403 and fail silently. */
+function isPreviewStale(url: string | null | undefined): boolean {
+  if (!url) return false
+  const m = url.match(/[?&~=]exp=(\d+)/)
+  if (!m) return false
+  const expSec = Number(m[1])
+  return !Number.isFinite(expSec) || expSec * 1000 <= Date.now() + 60_000
+}
+
 function PreviewButton({ track, onResolved }: {
   track: ReferenceTrackRow
   onResolved: () => void
@@ -293,13 +307,15 @@ function PreviewButton({ track, onResolved }: {
     return () => window.removeEventListener(PREVIEW_STOP_EVENT, onStop)
   }, [])
 
-  const ensureUrl = async (): Promise<string | null> => {
-    if (track.previewUrl) return track.previewUrl
-    if (track.previewSource === 'none') return null
+  const ensureUrl = async (forceRefresh = false): Promise<string | null> => {
+    if (!forceRefresh && track.previewUrl && !isPreviewStale(track.previewUrl)) {
+      return track.previewUrl
+    }
+    if (track.previewSource === 'none' && !forceRefresh) return null
     const token = getToken(); if (!token) return null
     setResolving(true)
     try {
-      const r = await api.resolveReferenceTrackPreview(track.id, false, token)
+      const r = await api.resolveReferenceTrackPreview(track.id, forceRefresh, token)
       onResolved()
       if (r.previewSource === 'none') {
         toast.error('no preview available')
@@ -327,29 +343,37 @@ function PreviewButton({ track, onResolved }: {
     audioRef.current.onended = () => setPlaying(false)
     window.dispatchEvent(new CustomEvent(PREVIEW_STOP_EVENT, { detail: audioRef.current }))
 
-    if (track.previewUrl) {
-      audioRef.current.src = track.previewUrl
+    const tryPlay = async (url: string): Promise<boolean> => {
+      audioRef.current!.src = url
       try {
-        await audioRef.current.play()
+        await audioRef.current!.play()
         setPlaying(true)
+        return true
       } catch {
-        toast.error('playback failed')
+        return false
       }
+    }
+
+    // Use cached URL only if it's not a stale signed Deezer link.
+    if (track.previewUrl && !isPreviewStale(track.previewUrl)) {
+      if (await tryPlay(track.previewUrl)) return
+      // Cached URL looked fresh but still failed (provider drift, transient
+      // 403, etc.). Force a re-resolve and try once more.
+      const refreshed = await ensureUrl(true)
+      if (refreshed && refreshed !== track.previewUrl) {
+        if (await tryPlay(refreshed)) return
+      }
+      toast.error('playback failed')
       return
     }
 
-    // Need to resolve the URL first. Some browsers may revoke the gesture
-    // across the await — if so, the user can click again and the second
-    // click hits the cached previewUrl path above.
+    // No cached URL or it's stale — resolve, then play. Some browsers may
+    // revoke the gesture across the await; if play() rejects, the user can
+    // click again and the second click hits the cached path above.
     const url = await ensureUrl()
     if (!url) return
-    audioRef.current.src = url
-    try {
-      await audioRef.current.play()
-      setPlaying(true)
-    } catch {
-      toast.error('preview ready — click again to play')
-    }
+    if (await tryPlay(url)) return
+    toast.error('preview ready — click again to play')
   }
 
   const unavailable = track.previewSource === 'none'
