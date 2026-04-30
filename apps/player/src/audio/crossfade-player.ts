@@ -66,21 +66,16 @@ export class CrossfadePlayer {
     if (!this.next) return false;
     const n = this.next;
     const targetVol = this.muted ? 0 : this.volume;
-    const isLoaded = n.state() === "loaded";
 
     n.on("pause", () => this.opts.onPause?.());
 
     if (this.current) {
-      if (isLoaded) {
-        // Fully buffered: crossfade in smoothly.
-        n.volume(0);
-        n.play();
-        n.fade(0, targetVol, this.crossfadeMs);
-      } else {
-        // Still loading: play immediately at target volume; no fade-in to avoid silence.
-        n.volume(targetVol);
-        n.play();
-      }
+      // Always start at target volume — no fade-in from 0. The crossfade effect
+      // comes entirely from fading the outgoing track out. Fading the incoming
+      // track in from 0 risks playing it silently if iOS suspends the setInterval
+      // that drives the fade (screen sleep, interruption, etc.).
+      n.volume(targetVol);
+      n.play();
       const c = this.current;
       c.off("pause");
       c.off("end"); // same: prevent double-advance if onend fires during fade-out window
