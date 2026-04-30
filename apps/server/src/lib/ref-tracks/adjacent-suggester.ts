@@ -17,55 +17,139 @@ import { prisma } from '../../db.js'
 
 const MODEL = process.env.REF_TRACK_SUGGESTER_MODEL ?? 'claude-sonnet-4-5'
 
-export const ADJACENT_PROMPT_VERSION = 1
+export const ADJACENT_PROMPT_VERSION = 2
 
-export const ADJACENT_PROMPT_V1 = `
+export const ADJACENT_PROMPT_V2 = `
 You're suggesting "Adjacent" reference tracks for an ICP. The other three buckets
 (FormationEra, Subculture, Aspirational) are already populated and visible to you
-in the user message. Adjacent tracks are the *fourth move* — songs the person
-would unexpectedly enjoy that sit slightly off-axis from their core taste.
+in the user message. Adjacent tracks are the *fourth move* — songs the ICP would
+unexpectedly enjoy that sit OFF-AXIS from their core taste, not next-door to it.
 
-Adjacent is NOT:
-- More tracks like the FormationEra picks (that's just doubling that bucket).
-- Tracks they'd actively reject (that defeats the point — they should recognize
-  themselves in the Adjacent picks, just from a different angle).
-- Genre-hopping for variety's sake (random shuffle, not adjacency).
+## What went wrong on the previous attempt — read this first
 
-Adjacent IS:
-- A neighbor genre they'd respect (a soul listener finding their way to
-  late-period folk; an indie listener finding their way to 70s singer-songwriter).
-- A different decade with the same emotional register (a 90s alt-rock listener
-  hearing 60s garage rock and recognizing the impulse).
-- Same artist's overlooked corner (the meditative B-side from a band known for
-  their hits).
-- Same affect, different form (the same restraint and intimacy expressed through
-  ambient electronic instead of folk).
+Asked to find "tracks the ICP would unexpectedly enjoy," the model picked songs
+that were sliding moves along the same axis as the existing pool — same genre
+neighborhood, same emotional register, same production era, just shifted
+slightly older or slightly more obscure. Patron saints of the dominant cluster.
+That is not adjacency. That is *deeper into the centroid*.
 
-The test: if this person heard the Adjacent track at a friend's house, they'd
-say "huh, what's this?" — and then, after hearing it, "yeah, that fits." Not
-"this isn't me." Not "this is exactly what I always listen to."
+You will not do that. The way you avoid it:
 
-Selection rules:
+1. **Identify the dominant cluster in the existing tracks.** Look at the
+   FormationEra/Subculture/Aspirational picks listed in the user message. What
+   genre/era/affect dominates? Name it explicitly in your thinking. (Example:
+   "the existing pool clusters heavily on acoustic singer-songwriter +
+   plainspoken male soul + Americana introspection.")
+2. **Forbid yourself from picking inside that cluster.** Including its patron
+   saints. If the cluster is acoustic singer-songwriter, Nick Drake is OUT.
+   Townes Van Zandt is OUT. Gillian Welch is OUT. They are the centroid of
+   that neighborhood, not a move away from it.
+3. **Make moves that hold one axis constant and break a different axis.**
+   Adjacency is a vector, not a vibe. Each pick should differ from the core
+   pool on a NAMED axis while sharing a different one.
+
+## The right test: "stranger trust"
+
+Forget "would they recognize themselves." That test pulls toward the centroid.
+Instead: *what would a friend with broader taste than them put on at a dinner
+party that would make them go "huh, what IS this?" — interested, not confused,
+not annoyed? What's the move they'd never name in a survey but absolutely love
+when their well-curated friend puts it on?*
+
+That friend doesn't stay in the lane the ICP already drives in. That friend
+swerves — but swerves with knowledge of who the ICP is.
+
+## Adjacency vectors — pick 4-5, then search inside each
+
+Before picking any tracks, declare 4-5 distinct *adjacency vectors* you'll
+explore. Each vector names ONE axis you're breaking and ONE axis you're holding.
+Examples (do not copy these — derive your own from THIS ICP):
+
+- "Genre that contradicts a stated turn-off but lands on the same affect as
+  their core" (breaks: genre. holds: affect.) — a soul listener with a stated
+  turn-off of country might love alt-country produced with care (Charley
+  Crockett), because the *patient lived-in masculine truth-telling* is the
+  same.
+- "Sophistication-adjacent without their formation context" (breaks: era +
+  cultural origin. holds: production quality + emotional intelligence.) — for
+  a guy whose pool is 70s soul + 90s singer-songwriter, modern composition
+  (Max Richter) or instrumental jazz fusion (Pat Metheny) reads as quality
+  bar matched, vocabulary completely different.
+- "More produced/textured than their stripped-back core" (breaks: density +
+  production. holds: emotional register.) — sophisti-pop (late Roxy Music,
+  Sade), trip-hop (Portishead, Massive Attack), or atmospheric neo-soul that's
+  more produced than what they already listen to.
+- "Cross a cultural/demographic assumption" (breaks: assumed-listener-profile.
+  holds: actual quality of feel.) — picks that cut against the demographic
+  cliche about who listens to what. The Black professional who turns out to
+  love Iron & Wine. The Americana listener who turns out to love trip-hop.
+- "Same emotional register, totally different genre vocabulary" (breaks:
+  instrumentation + scene. holds: emotional shape of the song.) — if their
+  core is "introspective male voice + acoustic," try "introspective male voice
+  + late-night jazz" (Chet Baker), or "introspective + electronic" (Bonobo,
+  Cinematic Orchestra).
+
+Your vectors don't have to match these. But each one must NAME the axis broken
+and the axis held. "Adjacent in vibe" is not a vector — it's mush. Reject mush.
+
+## Anti-patterns — do NOT do these
+
+- DO NOT pick patron saints of the dominant cluster. (If the pool is heavy on
+  acoustic singer-songwriter, Nick Drake / Townes Van Zandt / Gillian Welch
+  are forbidden — they're the centroid.)
+- DO NOT pick songs that are obvious "if you like X you'll like Y" upgrades.
+  ("They like John Mayer so they'll like Mark Knopfler" is not adjacency. It's
+  just a refined-John-Mayer pick.)
+- DO NOT lean entirely on artists from the same culture, era, and gender as
+  the existing pool. If the pool is mostly 60s-90s American/UK male
+  singer-songwriters, that means at most a couple of your picks should be
+  60s-90s American/UK male singer-songwriters.
+- DO NOT picks tracks that violate a stated turn-off. (Read the turn-offs
+  carefully. A pick that crosses a turn-off isn't adjacent, it's wrong.) BUT —
+  do not over-correct. Many turn-offs are about a *style* or *affect* the ICP
+  rejects, not the entire genre. ("Aggressive bro-energy gym culture" rules
+  out aggressive bro-energy. It does not rule out all electronic music. Be
+  precise about what's actually being turned off.)
+- DO NOT all pick from the same vector. Spread across all 4-5 you declared.
+
+## Selection rules
+
 - Real songs only. Real artists, real titles. No fabrication.
-- Vary across picks — don't return three songs by the same artist.
 - Year is the original release year, not a re-release.
 - Avoid anything already in the ICP's existing tracks (listed in the user message).
+- Don't return multiple songs by the same artist.
 
-Output JSON only, no prose, no markdown fences:
+## Bridge sentence (audit, NOT search criterion)
 
+After you've picked tracks via vector exploration, write the bridge sentence
+for each as a closing audit. Pattern: "[axis broken]: [what about ICP] meets
+[what about pick] via [the held axis]." Bad: "would expand their horizons."
+Good: "Cultural-assumption break: a 50-something Black professional whose
+stated profile suggests Americana / soul meets London trip-hop's late-90s
+moody-sophisticated atmosphere via the same patient male introspection that
+anchors his Iron & Wine and Leon Bridges picks."
+
+The bridge is for the operator's audit, not for your search. If the underlying
+pick is bold, the bridge will be interesting. If the underlying pick is safe,
+the bridge will reveal that — which means you should pick something bolder.
+
+## Output format
+
+JSON only, no prose, no markdown fences:
+
+\`\`\`
 {
+  "dominant_cluster_in_existing_pool": "one sentence naming what dominates",
+  "adjacency_vectors": [
+    { "name": "short label", "axis_broken": "...", "axis_held": "...", "rationale_for_this_icp": "one sentence on why this vector for THIS ICP" },
+    ... (4-5 vectors)
+  ],
   "Adjacent": [
-    { "artist": "...", "title": "...", "year": 1978, "rationale": "..." },
-    ...
+    { "artist": "...", "title": "...", "year": 1978, "vector": "label of one of the vectors above", "rationale": "bridge sentence per the pattern above" },
+    ... (8-12 picks, spread across the vectors — at least one per vector, ideally 2-3 per vector)
   ]
 }
-
-Return 8–12 candidates. The rationale is one short sentence forming a *bridge*
-from the ICP's core taste to this pick. Make it concrete: name the shared
-quality. Pattern: "moves from [ICP's core sound] to [adjacent move] via [shared
-quality]." Bad rationale: "would expand their horizons." Good rationale:
-"moves from 80s soul to late-period Cohen via the same plainspoken male
-intimacy."
+\`\`\`
 `.trim()
 
 export type SuggestedAdjacentTrack = {
@@ -75,10 +159,19 @@ export type SuggestedAdjacentTrack = {
   rationale: string | null
 }
 
+export type AdjacencyVector = {
+  name: string
+  axisBroken: string | null
+  axisHeld: string | null
+  rationale: string | null
+}
+
 export type SuggestAdjacentResult = {
   createdCount: number
   promptVersion: number
   rawText: string
+  dominantCluster: string | null
+  vectors: AdjacencyVector[]
 }
 
 export async function suggestAdjacentReferenceTracks(opts: { icpId: string }): Promise<SuggestAdjacentResult> {
@@ -150,8 +243,8 @@ Output JSON only.`
 
   const response = await client.messages.create({
     model: MODEL,
-    max_tokens: 3000,
-    system: [{ type: 'text', text: ADJACENT_PROMPT_V1, cache_control: { type: 'ephemeral' } }],
+    max_tokens: 4000,
+    system: [{ type: 'text', text: ADJACENT_PROMPT_V2, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: userMessage }],
   })
 
@@ -179,7 +272,26 @@ Output JSON only.`
       .filter((r): r is SuggestedAdjacentTrack => r !== null)
   }
 
+  const normVectors = (arr: unknown): AdjacencyVector[] => {
+    if (!Array.isArray(arr)) return []
+    return arr
+      .map((row: any) => {
+        if (!row || typeof row !== 'object') return null
+        const name = typeof row.name === 'string' ? row.name.trim() : ''
+        if (!name) return null
+        const axisBroken = typeof row.axis_broken === 'string' ? row.axis_broken.trim() : null
+        const axisHeld = typeof row.axis_held === 'string' ? row.axis_held.trim() : null
+        const rationale = typeof row.rationale_for_this_icp === 'string' ? row.rationale_for_this_icp.trim() : null
+        return { name, axisBroken, axisHeld, rationale }
+      })
+      .filter((v): v is AdjacencyVector => v !== null)
+  }
+
   const picks = norm(parsed.Adjacent)
+  const vectors = normVectors(parsed.adjacency_vectors)
+  const dominantCluster = typeof parsed.dominant_cluster_in_existing_pool === 'string'
+    ? (parsed.dominant_cluster_in_existing_pool as string).trim()
+    : null
 
   // Dedup case-insensitively against everything already on the ICP.
   const existingKey = new Set(existing.map((e) => `${e.artist.toLowerCase()}::${e.title.toLowerCase()}`))
@@ -221,5 +333,7 @@ Output JSON only.`
     createdCount: rows.length,
     promptVersion: ADJACENT_PROMPT_VERSION,
     rawText: raw,
+    dominantCluster,
+    vectors,
   }
 }
