@@ -718,6 +718,8 @@ export const api = {
     ),
   decomposeReferenceTrack: (id: string, force: boolean, token: string) =>
     req<StyleAnalysisRow>(`/admin/reference-tracks/${id}/decompose${force ? '?force=1' : ''}`, { method: 'POST' }, token),
+  decomposeAllReferenceTracks: (token: string) =>
+    req<{ total: number; processed: number; failed: number; errors: { id: string; artist: string; title: string; error: string }[] }>('/admin/reference-tracks/decompose-all', { method: 'POST' }, token),
   rejectReferenceTrack: (id: string, token: string) =>
     req<ReferenceTrackRow>(`/admin/reference-tracks/${id}/reject`, { method: 'POST' }, token),
   approveReferenceTrack: (id: string, token: string) =>

@@ -790,6 +790,55 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     harmonicAndGroove: z.string().nullable().optional(),
   })
 
+  // ----- Bulk: decompose every approved reference track across all ICPs -----
+
+  app.post('/reference-tracks/decompose-all', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const tracks = await prisma.referenceTrack.findMany({
+      where: { status: 'approved' },
+      include: { styleAnalysis: true },
+    })
+    let processed = 0
+    let failed = 0
+    const errors: { id: string; artist: string; title: string; error: string }[] = []
+    for (const ref of tracks) {
+      try {
+        const result = await decompose({
+          artist: ref.artist,
+          title: ref.title,
+          year: ref.year ?? undefined,
+          operatorNotes: ref.operatorNotes ?? undefined,
+        })
+        const data = {
+          styleAnalyzerInstructionsVersion: result.rulesVersion,
+          status: 'draft' as const,
+          verifiedAt: null,
+          verifiedById: null,
+          confidence: result.output.confidence,
+          vibePitch: result.output.vibe_pitch,
+          eraProductionSignature: result.output.era_production_signature,
+          instrumentationPalette: result.output.instrumentation_palette,
+          standoutElement: result.output.standout_element,
+          arrangementShape: result.output.arrangement_shape,
+          dynamicCurve: result.output.dynamic_curve,
+          vocalCharacter: result.output.vocal_character,
+          vocalArrangement: result.output.vocal_arrangement,
+          harmonicAndGroove: result.output.harmonic_and_groove,
+        }
+        await prisma.styleAnalysis.upsert({
+          where: { referenceTrackId: ref.id },
+          create: { referenceTrackId: ref.id, ...data },
+          update: data,
+        })
+        processed++
+      } catch (e: any) {
+        failed++
+        errors.push({ id: ref.id, artist: ref.artist, title: ref.title, error: e.message ?? 'unknown' })
+      }
+    }
+    return { total: tracks.length, processed, failed, errors }
+  })
+
   // ----- Outcomes (read-only list for hook picker etc.) -----
 
   app.get('/outcomes', async (req, reply) => {
