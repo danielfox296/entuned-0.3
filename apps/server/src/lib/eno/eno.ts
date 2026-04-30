@@ -7,6 +7,7 @@
 import { prisma } from '../../db.js'
 import { marsAssemble } from '../mars/mars.js'
 import { generateLyrics } from '../bernie/bernie.js'
+import { injectArrangement, type ArrangementSections } from '../arranger/arranger.js'
 
 export const OUTCOME_FACTOR_PROMPT_SEED = '{tempo_bpm}bpm, {mode}' // prepended to style string; tokens: {tempo_bpm} {mode} {dynamics} {instrumentation}
 
@@ -118,11 +119,19 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
     const outcomeFactorPrompt = await getOrSeedOutcomeFactorPrompt()
     const finalStyle = applyOutcomeFactorPrompt(mars.style, outcome, outcomeFactorPrompt.templateText)
 
-    const client = await prisma.client.findUnique({ where: { id: (await prisma.iCP.findUniqueOrThrow({ where: { id: icpId } })).clientId } })
-    const lyrics = await generateLyrics({
+    const [icpRow, arrangementTemplate] = await Promise.all([
+      prisma.iCP.findUniqueOrThrow({ where: { id: icpId }, select: { clientId: true } }),
+      prisma.arrangementTemplate.findUnique({ where: { icpId } }),
+    ])
+    const client = await prisma.client.findUnique({ where: { id: icpRow.clientId } })
+    const lyricsRaw = await generateLyrics({
       hookText: hook.text,
       brandLyricGuidelines: client?.brandLyricGuidelines ?? null,
     })
+
+    const finalLyrics = arrangementTemplate
+      ? injectArrangement(lyricsRaw.lyrics, arrangementTemplate.sections as ArrangementSections)
+      : lyricsRaw.lyrics
 
     await prisma.songSeed.update({
       where: { id: songSeed.id },
@@ -132,12 +141,13 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
         stylePortionRaw: mars.style,
         negativeStyle: mars.negativeStyle,
         vocalGender: mars.vocalGender,
-        lyrics: lyrics.lyrics,
-        title: lyrics.title,
+        lyrics: finalLyrics,
+        title: lyricsRaw.title,
         outcomeFactorPromptVersion: outcomeFactorPrompt.version,
         styleTemplateVersion: mars.styleTemplateVersion,
-        lyricDraftPromptVersion: lyrics.draftPromptVersion,
-        lyricEditPromptVersion: lyrics.editPromptVersion,
+        lyricDraftPromptVersion: lyricsRaw.draftPromptVersion,
+        lyricEditPromptVersion: lyricsRaw.editPromptVersion,
+        arrangementTemplateVersion: arrangementTemplate?.version ?? null,
         firedExclusionRuleIds: mars.firedExclusionRuleIds,
       },
     })

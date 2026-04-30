@@ -161,9 +161,10 @@ model ICP {
   store            Store             @relation("LocationIcp", fields: [storeId], references: [id])
 
   @@index([storeId])
-  hooks            Hook[]
-  referenceTracks  ReferenceTrack[]
-  hookWriterPrompt HookWriterPrompt?
+  hooks                Hook[]
+  referenceTracks      ReferenceTrack[]
+  hookWriterPrompt     HookWriterPrompt?
+  arrangementTemplate  ArrangementTemplate?
 
   @@index([clientId])
   @@map("icps")
@@ -328,6 +329,22 @@ model LyricEditPrompt {
   @@map("lyric_edit_prompts")
 }
 
+// ---------- Card 14 ArrangementTemplate (per-ICP, Arranger module) ----------
+
+model ArrangementTemplate {
+  id        String   @id @default(uuid()) @db.Uuid
+  icpId     String   @unique @map("icp_id") @db.Uuid
+  version   Int      @default(1)
+  sections  Json
+  notes     String?
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedById String? @map("updated_by") @db.Uuid
+
+  icp ICP @relation(fields: [icpId], references: [id], onDelete: Cascade)
+
+  @@map("arrangement_templates")
+}
+
 // ---------- Card 10 Hook Writer Prompt (per-ICP) ----------
 
 model HookWriterPrompt {
@@ -424,6 +441,7 @@ model SongSeed {
   styleTemplateVersion       Int?      @map("style_template_version")
   lyricDraftPromptVersion    Int?      @map("lyric_draft_prompt_version")
   lyricEditPromptVersion     Int?      @map("lyric_edit_prompt_version")
+  arrangementTemplateVersion Int?      @map("arrangement_template_version")
   firedExclusionRuleIds      String[]  @map("fired_exclusion_rule_ids") @db.Uuid
   errorText                  String?   @map("error_text")
 
