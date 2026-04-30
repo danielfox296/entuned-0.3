@@ -161,10 +161,9 @@ model ICP {
   store            Store             @relation("LocationIcp", fields: [storeId], references: [id])
 
   @@index([storeId])
-  hooks                Hook[]
-  referenceTracks      ReferenceTrack[]
-  hookWriterPrompt     HookWriterPrompt?
-  arrangementTemplate  ArrangementTemplate?
+  hooks            Hook[]
+  referenceTracks  ReferenceTrack[]
+  hookWriterPrompt HookWriterPrompt?
 
   @@index([clientId])
   @@map("icps")
@@ -268,6 +267,8 @@ model StyleAnalysis {
   vocalCharacter                   String?   @map("vocal_character")
   vocalArrangement                 String?   @map("vocal_arrangement")
   harmonicAndGroove                String?   @map("harmonic_and_groove")
+  arrangementSections              Json?     @map("arrangement_sections")
+  arrangementVersion               Int?      @map("arrangement_version")
   createdAt                        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -327,22 +328,6 @@ model LyricEditPrompt {
   createdById String?  @map("created_by") @db.Uuid
 
   @@map("lyric_edit_prompts")
-}
-
-// ---------- Card 14 ArrangementTemplate (per-ICP, Arranger module) ----------
-
-model ArrangementTemplate {
-  id        String   @id @default(uuid()) @db.Uuid
-  icpId     String   @unique @map("icp_id") @db.Uuid
-  version   Int      @default(1)
-  sections  Json
-  notes     String?
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  updatedById String? @map("updated_by") @db.Uuid
-
-  icp ICP @relation(fields: [icpId], references: [id], onDelete: Cascade)
-
-  @@map("arrangement_templates")
 }
 
 // ---------- Card 10 Hook Writer Prompt (per-ICP) ----------

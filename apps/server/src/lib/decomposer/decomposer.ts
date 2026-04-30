@@ -15,6 +15,7 @@ import { MUSICOLOGICAL_RULES_V2 } from './rules-v2.js'
 import { MUSICOLOGICAL_RULES_V3 } from './rules-v3.js'
 import { MUSICOLOGICAL_RULES_V4 } from './rules-v4.js'
 import { MUSICOLOGICAL_RULES_V5 } from './rules-v5.js'
+import { MUSICOLOGICAL_RULES_V6 } from './rules-v6.js'
 
 const MODEL = process.env.DECOMPOSER_MODEL ?? 'claude-sonnet-4-5'
 
@@ -25,8 +26,9 @@ const RULES_BY_VERSION: Record<number, string> = {
   3: MUSICOLOGICAL_RULES_V3,
   4: MUSICOLOGICAL_RULES_V4,
   5: MUSICOLOGICAL_RULES_V5,
+  6: MUSICOLOGICAL_RULES_V6,
 }
-const LATEST_RULES_VERSION = 5
+const LATEST_RULES_VERSION = 6
 
 export interface DecomposeInput {
   artist: string
@@ -61,6 +63,8 @@ export interface StyleAnalysisOutput {
   confidence: 'low' | 'medium' | 'high'
   // v3-only: explicit gender for Suno (always present in v3+)
   vocal_gender?: 'male' | 'female' | 'duet' | 'instrumental'
+  // v6+: per-section instrumentation map for the Arranger module.
+  arrangement_sections?: Record<string, { instruments: string[]; density?: string }>
 }
 
 function decadeFromYear(y: number): string {
@@ -129,7 +133,9 @@ export async function decompose(input: DecomposeInput): Promise<DecomposeResult>
 
   const client = new Anthropic({ apiKey })
 
-  const requiredKeys = rulesRow.version >= 3
+  const requiredKeys = rulesRow.version >= 6
+    ? 'verifiable_facts, confidence, vibe_pitch, era_production_signature, instrumentation_palette, standout_element, arrangement_shape, dynamic_curve, vocal_character, vocal_arrangement, harmonic_and_groove, vocal_gender, arrangement_sections'
+    : rulesRow.version >= 3
     ? 'verifiable_facts, confidence, vibe_pitch, era_production_signature, instrumentation_palette, standout_element, arrangement_shape, dynamic_curve, vocal_character, vocal_arrangement, harmonic_and_groove, vocal_gender'
     : rulesRow.version >= 2
     ? 'verifiable_facts, confidence, vibe_pitch, era_production_signature, instrumentation_palette, standout_element, arrangement_shape, dynamic_curve, vocal_character, vocal_arrangement, harmonic_and_groove'
@@ -261,5 +267,26 @@ function validate(o: any): asserts o is StyleAnalysisOutput {
   }
   if (!['low', 'medium', 'high'].includes(o.confidence)) {
     throw new Error(`Invalid confidence: ${o.confidence}`)
+  }
+  if (o.arrangement_sections !== undefined) {
+    if (typeof o.arrangement_sections !== 'object' || o.arrangement_sections === null || Array.isArray(o.arrangement_sections)) {
+      throw new Error('arrangement_sections must be an object')
+    }
+    for (const [sec, dir] of Object.entries(o.arrangement_sections)) {
+      const d = dir as any
+      if (!d || !Array.isArray(d.instruments)) {
+        throw new Error(`arrangement_sections.${sec} missing instruments array`)
+      }
+      if (d.instruments.length === 0) {
+        throw new Error(`arrangement_sections.${sec} has empty instruments array`)
+      }
+      if (d.instruments.length > 3) {
+        // Suno reliability cap. Trim rather than fail — model may overshoot.
+        d.instruments = d.instruments.slice(0, 3)
+      }
+      if (!d.instruments.every((s: any) => typeof s === 'string' && s.length > 0)) {
+        throw new Error(`arrangement_sections.${sec} instruments must be non-empty strings`)
+      }
+    }
   }
 }

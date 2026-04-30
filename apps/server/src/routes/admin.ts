@@ -766,6 +766,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       vocalCharacter: result.output.vocal_character,
       vocalArrangement: result.output.vocal_arrangement,
       harmonicAndGroove: result.output.harmonic_and_groove,
+      arrangementSections: result.output.arrangement_sections ?? Prisma.JsonNull,
+      arrangementVersion: result.output.arrangement_sections ? result.rulesVersion : null,
     }
     const row = await prisma.styleAnalysis.upsert({
       where: { referenceTrackId: id },
@@ -824,6 +826,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           vocalCharacter: result.output.vocal_character,
           vocalArrangement: result.output.vocal_arrangement,
           harmonicAndGroove: result.output.harmonic_and_groove,
+          arrangementSections: result.output.arrangement_sections ?? Prisma.JsonNull,
+          arrangementVersion: result.output.arrangement_sections ? result.rulesVersion : null,
         }
         await prisma.styleAnalysis.upsert({
           where: { referenceTrackId: ref.id },

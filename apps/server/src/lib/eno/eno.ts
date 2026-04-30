@@ -119,18 +119,23 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
     const outcomeFactorPrompt = await getOrSeedOutcomeFactorPrompt()
     const finalStyle = applyOutcomeFactorPrompt(mars.style, outcome, outcomeFactorPrompt.templateText)
 
-    const [icpRow, arrangementTemplate] = await Promise.all([
-      prisma.iCP.findUniqueOrThrow({ where: { id: icpId }, select: { clientId: true } }),
-      prisma.arrangementTemplate.findUnique({ where: { icpId } }),
-    ])
+    const icpRow = await prisma.iCP.findUniqueOrThrow({ where: { id: icpId }, select: { clientId: true } })
     const client = await prisma.client.findUnique({ where: { id: icpRow.clientId } })
     const lyricsRaw = await generateLyrics({
       hookText: hook.text,
       brandLyricGuidelines: client?.brandLyricGuidelines ?? null,
     })
 
-    const finalLyrics = arrangementTemplate
-      ? injectArrangement(lyricsRaw.lyrics, arrangementTemplate.sections as ArrangementSections)
+    // Arrangement comes from the reference track's StyleAnalysis. Decomposer rules-v6+
+    // populate arrangement_sections; older decompositions have null and the arranger
+    // is a no-op. Tracks naturally backfill as they're re-decomposed.
+    const arrangementSections = (styleAnalysis as { arrangementSections?: unknown }).arrangementSections as
+      | ArrangementSections
+      | null
+      | undefined
+    const arrangementVersion = (styleAnalysis as { arrangementVersion?: number | null }).arrangementVersion ?? null
+    const finalLyrics = arrangementSections
+      ? injectArrangement(lyricsRaw.lyrics, arrangementSections)
       : lyricsRaw.lyrics
 
     await prisma.songSeed.update({
@@ -147,7 +152,7 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
         styleTemplateVersion: mars.styleTemplateVersion,
         lyricDraftPromptVersion: lyricsRaw.draftPromptVersion,
         lyricEditPromptVersion: lyricsRaw.editPromptVersion,
-        arrangementTemplateVersion: arrangementTemplate?.version ?? null,
+        arrangementTemplateVersion: arrangementSections ? arrangementVersion : null,
         firedExclusionRuleIds: mars.firedExclusionRuleIds,
       },
     })
