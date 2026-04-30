@@ -190,7 +190,7 @@ export interface SuggestReferenceTracksResult {
 
 // --- Brand: stores, ICPs, reference tracks, style analyses ---
 
-export type TasteCategory = 'FormationEra' | 'Subculture' | 'Aspirational'
+export type TasteCategory = 'FormationEra' | 'Subculture' | 'Aspirational' | 'Adjacent'
 
 export interface StoreSummary {
   id: string
@@ -724,6 +724,12 @@ export const api = {
     req<ReferenceTrackRow>(`/admin/reference-tracks/${id}/reject`, { method: 'POST' }, token),
   approveReferenceTrack: (id: string, token: string) =>
     req<ReferenceTrackRow>(`/admin/reference-tracks/${id}/approve`, { method: 'POST' }, token),
+  approveAllPendingReferenceTracks: (icpId: string, bucket: TasteCategory | undefined, token: string) =>
+    req<{ approvedCount: number; ids: string[] }>(
+      `/admin/icps/${icpId}/reference-tracks/approve-all-pending${bucket ? `?bucket=${bucket}` : ''}`,
+      { method: 'POST' },
+      token,
+    ),
   updateStyleAnalysis: (id: string, body: StyleAnalysisUpdate, token: string) =>
     req<StyleAnalysisRow>(`/admin/decompositions/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
 

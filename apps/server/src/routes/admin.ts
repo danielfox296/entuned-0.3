@@ -722,6 +722,34 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
+  // --- Bulk-approve every pending reference track on an ICP. Optional `bucket`
+  // query param scopes the approval to one bucket; omit to approve all pending
+  // across all buckets on this ICP. ---
+  app.post('/icps/:id/reference-tracks/approve-all-pending', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const icpId = (req.params as any).id as string
+    const bucket = (req.query as any)?.bucket as string | undefined
+    const allowedBuckets = ['FormationEra', 'Subculture', 'Aspirational', 'Adjacent'] as const
+    if (bucket && !allowedBuckets.includes(bucket as any)) {
+      return reply.code(400).send({ error: 'bad_bucket', message: `bucket must be one of ${allowedBuckets.join(', ')}` })
+    }
+    const exists = await prisma.iCP.findUnique({ where: { id: icpId }, select: { id: true } })
+    if (!exists) return reply.code(404).send({ error: 'icp_not_found' })
+    const where: Prisma.ReferenceTrackWhereInput = {
+      icpId,
+      status: 'pending',
+      ...(bucket ? { bucket: bucket as (typeof allowedBuckets)[number] } : {}),
+    }
+    const targets = await prisma.referenceTrack.findMany({ where, select: { id: true } })
+    if (targets.length === 0) return { approvedCount: 0, ids: [] as string[] }
+    const ids = targets.map((t) => t.id)
+    await prisma.referenceTrack.updateMany({
+      where: { id: { in: ids } },
+      data: { status: 'approved', approvedAt: new Date(), approvedById: op.operatorId },
+    })
+    return { approvedCount: ids.length, ids }
+  })
+
   // --- Decompose now: runs Claude with web search; upserts StyleAnalysis row. ---
   // Always overwrites the existing draft; verified rows return 409 unless ?force=1.
   // Pending suggestions cannot be decomposed — approve first.

@@ -5,18 +5,20 @@ import { T } from '../../tokens.js'
 import { Button, S, useToast, LlmProgress, Modal } from '../../ui/index.js'
 import type { WorkflowContext } from './WorkflowRouter.js'
 
-const BUCKETS: TasteCategory[] = ['FormationEra', 'Subculture', 'Aspirational']
+const BUCKETS: TasteCategory[] = ['FormationEra', 'Subculture', 'Aspirational', 'Adjacent']
 
 const BUCKET_LABEL: Record<TasteCategory, string> = {
   FormationEra: 'Formation Era',
   Subculture: 'Subculture',
   Aspirational: 'Aspirational',
+  Adjacent: 'Adjacent',
 }
 
 export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
   const toast = useToast()
   const [detail, setDetail] = useState<StoreDetail | null>(null)
   const [suggesting, setSuggesting] = useState(false)
+  const [approvingAll, setApprovingAll] = useState(false)
   const [analyzing, setAnalyzing] = useState<Set<string>>(new Set())
   const [pendingMutation, setPendingMutation] = useState<Set<string>>(new Set())
   const [edits, setEdits] = useState<Record<string, RefTrackUpdate>>({})
@@ -152,6 +154,33 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
     }
   }
 
+  // Bulk-approve every pending track currently visible. Flushes in-flight
+  // edits first so any per-row bucket changes are persisted before approval.
+  const approveAll = async () => {
+    if (!ctx.icpId || pending.length === 0) return
+    const token = getToken(); if (!token) return
+    stopAllPreviews()
+    setApprovingAll(true)
+    try {
+      const dirty = pending.filter((t) => edits[t.id] && Object.keys(edits[t.id]!).length > 0)
+      if (dirty.length > 0) {
+        await Promise.all(dirty.map((t) => api.updateReferenceTrack(t.id, edits[t.id]!, token)))
+        setEdits((prev) => {
+          const next = { ...prev }
+          for (const t of dirty) delete next[t.id]
+          return next
+        })
+      }
+      const r = await api.approveAllPendingReferenceTracks(ctx.icpId, undefined, token)
+      await refetch()
+      toast.success(`approved ${r.approvedCount} reference track${r.approvedCount === 1 ? '' : 's'}`)
+    } catch (e: any) {
+      toast.error(e.message ?? 'bulk approve failed')
+    } finally {
+      setApprovingAll(false)
+    }
+  }
+
   // Soft-discard: flips status to 'rejected' so the suggester pulls it into
   // its "do not repeat" exclusion list on the next run. The pending column
   // filter (`status === 'pending'`) hides rejected rows from the UI, but
@@ -220,7 +249,19 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
 
       {/* Two columns: suggestions (left) | approved (right) */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <Column title={`Suggested (${pending.length})`}>
+        <Column
+          title={`Suggested (${pending.length})`}
+          action={pending.length > 0 ? (
+            <button
+              onClick={approveAll}
+              disabled={approvingAll}
+              title="approve every suggested reference track on this ICP"
+              style={ghostBtnStyle}
+            >
+              {approvingAll ? 'approving…' : `approve all (${pending.length})`}
+            </button>
+          ) : null}
+        >
           {pending.length === 0 ? (
             <Empty>click suggest to draft new candidates</Empty>
           ) : (
@@ -573,10 +614,13 @@ function Cover({ url, size, rounded = 4 }: { url: string | null; size: number; r
   )
 }
 
-function Column({ title, children }: { title: string; children: React.ReactNode }) {
+function Column({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <Heading>{title}</Heading>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 28 }}>
+        <Heading>{title}</Heading>
+        {action && <div style={{ marginLeft: 'auto' }}>{action}</div>}
+      </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{children}</div>
     </div>
   )
