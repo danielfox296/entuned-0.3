@@ -8,7 +8,7 @@ import { OutcomeModal } from "../components/OutcomeModal.js";
 import { ReportModal, type ReportReason } from "../components/ReportModal.js";
 import { saveSession, type Session } from "../lib/storage.js";
 import logoUrl from "/entuned_logo.png";
-import touchIconUrl from "/apple-touch-icon.png";
+import lockscreenArtUrl from "/lockscreen-art.png";
 
 const PRELOAD_SECONDS_BEFORE_END = 8;
 const CROSSFADE_MS = 800;
@@ -66,6 +66,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const intentionalPauseRef = useRef(false);
   const trackStartedAtRef = useRef<string | null>(null);
   const allOutcomesModeRef = useRef(false);
+  const lastResumeAttemptRef = useRef(0);
 
   const setAllOutcomesMode = useCallback((v: boolean) => {
     allOutcomesModeRef.current = v;
@@ -356,7 +357,22 @@ export function PlayerScreen({ session, onLogout }: Props) {
       onPause: () => {
         if (intentionalPauseRef.current) { intentionalPauseRef.current = false; return; }
         if (!wasPlayingRef.current) return;
-        playerRef.current?.resume();
+        // Debounce: ignore if we already tried within the last 2 seconds.
+        // Prevents rapid resume loops during phone calls or OS interruptions.
+        const now = Date.now();
+        if (now - lastResumeAttemptRef.current < 2000) return;
+        lastResumeAttemptRef.current = now;
+        // Small delay lets the OS finish its interruption (notification sound,
+        // etc.) before we poke the audio element.
+        window.setTimeout(() => {
+          if (!wasPlayingRef.current) return;
+          // Unlock Howler's AudioContext if the OS suspended it.
+          try {
+            const ctx = (window as unknown as { Howler?: { ctx?: AudioContext } }).Howler?.ctx;
+            if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+          } catch {}
+          playerRef.current?.resume();
+        }, 250);
       },
     });
     void refill();
@@ -409,6 +425,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
   useEffect(() => {
     const resume = () => {
       if (!wasPlayingRef.current) return;
+      // Unlock Howler's Web Audio context first — iOS suspends it on backgrounding.
+      try {
+        const ctx = (window as unknown as { Howler?: { ctx?: AudioContext } }).Howler?.ctx;
+        if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+      } catch {}
       const player = playerRef.current;
       if (!player || player.isPlaying()) return;
       player.resume();
@@ -448,13 +469,25 @@ export function PlayerScreen({ session, onLogout }: Props) {
 
   useEffect(() => {
     if (!("mediaSession" in navigator) || !currentItem) return;
+    // MediaSession requires absolute URLs for artwork on iOS.
+    const abs = (path: string) => new URL(path, window.location.href).href;
     navigator.mediaSession.metadata = new MediaMetadata({
       title: trackLabel(currentItem) || "Untitled",
       artist: "Entuned",
       album: session.storeName,
-      artwork: [{ src: touchIconUrl, sizes: "180x180", type: "image/png" }],
+      artwork: [
+        { src: abs(lockscreenArtUrl), sizes: "512x512", type: "image/png" },
+        { src: abs("/favicon-192x192.png"), sizes: "192x192", type: "image/png" },
+        { src: abs("/apple-touch-icon.png"), sizes: "180x180", type: "image/png" },
+      ],
     });
   }, [currentItem, session.storeName]);
+
+  // Keep the OS lock-screen play/pause button state in sync.
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+  }, [isPlaying]);
 
   useEffect(() => {
     if (!("mediaSession" in navigator) || !isPlaying) return;
@@ -587,6 +620,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
           >
             {currentItem ? trackLabel(currentItem) : reason === "no_pool" ? "Silent" : ""}
           </div>
+          {currentItem?.icpName ? (
+            <div style={{ fontSize: 10, fontWeight: 400, letterSpacing: 2, color: "rgba(212,225,229,0.28)", textTransform: "uppercase", marginTop: 8, textAlign: "center" }}>
+              {currentItem.icpName}
+            </div>
+          ) : null}
         </DarkHalo>
 
         {currentItem ? <ProgressBar getProgress={getProgress} /> : null}

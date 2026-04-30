@@ -12,6 +12,8 @@ export interface QueueItem {
   audioUrl: string
   hookId: string
   outcomeId: string
+  icpId: string
+  icpName: string | null
   title: string | null
   hookText: string | null
 }
@@ -31,21 +33,21 @@ interface PoolRow {
   r2Url: string
   hookId: string
   outcomeId: string
+  icpId: string
 }
 
 async function fetchPool(icpId: string, outcomeId: string): Promise<PoolRow[]> {
-  const rows = await prisma.lineageRow.findMany({
+  return prisma.lineageRow.findMany({
     where: { icpId, outcomeId, active: true },
-    select: { id: true, songId: true, r2Url: true, hookId: true, outcomeId: true },
+    select: { id: true, songId: true, r2Url: true, hookId: true, outcomeId: true, icpId: true },
   })
-  return rows
 }
 
 async function fetchAllPool(icpIds: string[]): Promise<PoolRow[]> {
   if (icpIds.length === 0) return []
   return prisma.lineageRow.findMany({
     where: { icpId: { in: icpIds }, active: true },
-    select: { id: true, songId: true, r2Url: true, hookId: true, outcomeId: true },
+    select: { id: true, songId: true, r2Url: true, hookId: true, outcomeId: true, icpId: true },
   })
 }
 
@@ -169,20 +171,25 @@ type PlaybackRules = { siblingSpacingMinutes: number; noRepeatWindowMinutes: num
 async function hydrateQueue(top: PoolRow[]): Promise<QueueItem[]> {
   const lineageIds = top.map((r) => r.id)
   const hookIds = [...new Set(top.map((r) => r.hookId))]
-  const [lineageMeta, hookMeta] = await Promise.all([
+  const icpIds = [...new Set(top.map((r) => r.icpId))]
+  const [lineageMeta, hookMeta, icpMeta] = await Promise.all([
     prisma.lineageRow.findMany({
       where: { id: { in: lineageIds } },
       select: { id: true, songSeed: { select: { title: true } } },
     }),
     prisma.hook.findMany({ where: { id: { in: hookIds } }, select: { id: true, text: true } }),
+    prisma.iCP.findMany({ where: { id: { in: icpIds } }, select: { id: true, name: true } }),
   ])
   const titleByLineage = new Map(lineageMeta.map((m) => [m.id, m.songSeed?.title ?? null]))
   const textByHook = new Map(hookMeta.map((h) => [h.id, h.text]))
+  const nameByIcp = new Map(icpMeta.map((i) => [i.id, i.name]))
   return top.map((r) => ({
     songId: r.songId,
     audioUrl: r.r2Url,
     hookId: r.hookId,
     outcomeId: r.outcomeId,
+    icpId: r.icpId,
+    icpName: nameByIcp.get(r.icpId) ?? null,
     title: titleByLineage.get(r.id) ?? null,
     hookText: textByHook.get(r.hookId) ?? null,
   }))

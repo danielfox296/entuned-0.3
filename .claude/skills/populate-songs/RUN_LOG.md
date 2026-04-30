@@ -4,6 +4,53 @@ Append a dated section per run. Newest at the top.
 
 ---
 
+## 2026-04-30 — Terrell ICP, Park Meadows / Untuckit (run 1)
+
+**ICP:** Terrell (`781505a1-220f-4894-a350-9a4344af1319`)
+**Goal:** 20+ songs from 40-prompt Song Creation Queue
+
+### Result
+
+**23 songs accepted · 18 prompts processed · 2 tabs parallel**
+
+9 songs had already been accepted in the earlier part of this session (before context compaction). 14 additional songs accepted in this context segment (p11–p18, 2 takes each).
+
+### Prompts processed this context segment (p11–p18)
+
+| Prompt | Title | Reference Track | Outcome |
+|---|---|---|---|
+| p11 | Quality When I Feel It | Moses Sumney — Plastic | Increase Order Value |
+| p12 | Mirror | D'Angelo — Brown Sugar | Reinforce Brand |
+| p13 | This Is the One I Keep | Kamasi Washington — The Rhythm Changes | Increase Order Value |
+| p14 | Worth the Investment | Kendrick Lamar — King Kunta | Increase Order Value |
+| p15 | Building Something That Lasts | Yebba — Evergreen | Increase Order Value |
+| p16 | This Is the One I Keep | Erykah Badu — On & On | Convert Browsers |
+| p17 | What I Came For | Outkast — Elevators (Me & You) | Convert Browsers |
+| p18 | Right Here | Hiatus Kaiyote — Nakamarra | Convert Browsers |
+
+### Failures / bugs
+
+1. **Chrome extension dropout** — dropped at ~09:28 mid-session, recovered after 90s retry wakeup. No songs lost; Tab A had already confirmed URLs before the drop.
+
+2. **"Just to Look Around" missing from queue** — was visible in queue at session start, disappeared mid-session after a modal was left open between context segments. Likely accepted with empty/wrong URLs during an earlier context. Recommend Dash validate that both take URL fields are non-empty (and valid suno.com URLs) before allowing accept.
+
+3. **Tab B JS Create false negative** — after every `navigate('https://suno.com/create')` + inject + JS click, checking `document.querySelectorAll('[class*="spin"]').length` returned 0 and `a[href*="/song/"]` returned []. Screenshot confirmed generation WAS firing. Root cause: shared sidebar takes several seconds to populate after a fresh page load — the DOM query runs before song cards appear. No fix needed; screenshot-verify became the reliable confirmation method.
+
+4. **Duplicate title in queue** — "This Is the One I Keep" appeared twice (different ref tracks, different outcomes). Both processed correctly; only one remained in queue after p13 was accepted. No collision.
+
+### UI observations
+
+- Dual-tab parallelism held throughout: ~6 min per 4 songs. Tab A reliable with JS Create. Tab B always required navigate + Advanced click + JS Create (no coordinate fallback needed this run).
+- Gender field: encountered "instrumental", "unknown", "duet" — all mapped to Male or Female based on style description, per skill rules. No edge cases broke generation.
+- The `setTimeout(400)` pattern for closing modal + opening next worked reliably in all 8 accepts.
+- Sidebar filter "Filters (3)" on Tab A was hiding newest songs from `slice(0,4)` — always use Tab B (unfilitered) for URL confirmation.
+
+### Next step
+
+Queue has 22+ prompts remaining (What I Came For, Right Here, I Trust the Choice I'm Making, Something Real, Own My Time, Claim the Light, Right Where I Belong, Let the Moment Rise, and more). Ready for next populate-songs run.
+
+---
+
 ## 2026-04-29 (run 3 — dual/triple-tab)
 
 **6 prompts processed / 6 total — SUCCESS**

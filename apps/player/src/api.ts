@@ -8,6 +8,8 @@ export interface QueueItem {
   audioUrl: string
   hookId: string
   outcomeId: string
+  icpId: string
+  icpName: string | null
   title: string | null
   hookText: string | null
 }
