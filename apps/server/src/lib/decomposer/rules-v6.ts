@@ -115,6 +115,9 @@ relevant fields, even if web search disagrees on those specific details.
 
 A single JSON object with these thirteen keys. No prose. No code fences.
 
+**Twelve of the keys are STRINGS. One key — \`arrangement_sections\` — is an OBJECT
+(a nested map). Do not collapse it to a string.**
+
 ### verifiable_facts
 Three concrete facts about *this exact track*, separated by " · ". Album, release
 date, runtime, signature opening, sample source, etc. (These can include names —
@@ -208,6 +211,10 @@ GOOD: "Modal interchange bVII chord color, blues-inflected dominant-7ths, loose 
 BAD: "Diatonic, mid-tempo groove" (too vague — gives Suno nothing to work with)
 
 ### arrangement_sections (NEW in v6)
+
+**TYPE: JSON OBJECT (not a string).** This is the only field in the output that is
+a nested object. All other fields are strings. Do not summarize this as a string.
+The validator will reject it.
 
 Per-section instrumentation map. The Arranger module injects these as Suno
 [Instrument: X, Y] tags after each section header in the lyrics field. These are
