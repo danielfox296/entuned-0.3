@@ -344,12 +344,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
     } catch {}
     playerRef.current = new CrossfadePlayer({
       crossfadeMs: CROSSFADE_MS,
-      onTrackEnded: () => {
-        if (!nextLoadedRef.current) {
-          wasPlayingRef.current = false;
-          setIsPlaying(false);
-        }
-      },
+      // Always advance when a track ends naturally. The preload timer (schedulePreload)
+      // normally fires advanceToNext 8s before end for a smooth crossfade, but iOS
+      // throttles JS timers when the screen sleeps — the timer may never fire. onend
+      // comes from the native audio element and is reliable even under throttling,
+      // so this is the fallback that keeps playback going. CrossfadePlayer strips
+      // onend from the old Howl during crossfade, so double-advance is not possible.
+      onTrackEnded: () => { void advanceToNext(); },
       onError: (err) => {
         console.error("[player] audio error", err);
         setError(`Audio error: ${String(err)}`);
@@ -357,16 +358,22 @@ export function PlayerScreen({ session, onLogout }: Props) {
       onPause: () => {
         if (intentionalPauseRef.current) { intentionalPauseRef.current = false; return; }
         if (!wasPlayingRef.current) return;
-        // Debounce: ignore if we already tried within the last 2 seconds.
-        // Prevents rapid resume loops during phone calls or OS interruptions.
         const now = Date.now();
         if (now - lastResumeAttemptRef.current < 2000) return;
         lastResumeAttemptRef.current = now;
-        // Small delay lets the OS finish its interruption (notification sound,
-        // etc.) before we poke the audio element.
+        // Synchronous attempt first: when the screen goes fully dark iOS may
+        // suspend the page and never fire the setTimeout below. An immediate
+        // resume call is no-op if audio is still running but saves us when the
+        // AudioContext was hard-suspended.
+        try {
+          const ctx = (window as unknown as { Howler?: { ctx?: AudioContext } }).Howler?.ctx;
+          if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+        } catch {}
+        playerRef.current?.resume();
+        // Delayed attempt for short OS interruptions (notification sounds, etc.)
+        // where we need to wait for the system sound to finish before resuming.
         window.setTimeout(() => {
           if (!wasPlayingRef.current) return;
-          // Unlock Howler's AudioContext if the OS suspended it.
           try {
             const ctx = (window as unknown as { Howler?: { ctx?: AudioContext } }).Howler?.ctx;
             if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});

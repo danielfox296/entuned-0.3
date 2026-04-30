@@ -37,6 +37,7 @@ export class CrossfadePlayer {
     if (this.current) {
       const c = this.current;
       c.off("pause");
+      c.off("end"); // prevent stale onend from firing after this crossfade triggers advanceToNext
       c.fade(c.volume() as number, 0, this.crossfadeMs);
       window.setTimeout(() => { c.stop(); c.unload(); }, this.crossfadeMs + 100);
     }
@@ -81,6 +82,8 @@ export class CrossfadePlayer {
         n.play();
       }
       const c = this.current;
+      c.off("pause");
+      c.off("end"); // same: prevent double-advance if onend fires during fade-out window
       c.fade(c.volume() as number, 0, this.crossfadeMs);
       window.setTimeout(() => { c.stop(); c.unload(); }, this.crossfadeMs + 100);
     } else {
