@@ -619,6 +619,14 @@ export function PlayerScreen({ session, onLogout }: Props) {
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", paddingBottom: 40, gap: 60 }}>
         <DarkHalo>
+          {allOutcomesMode && currentItem ? (() => {
+            const outcomeTitle = outcomes.find((o) => o.outcomeId === currentItem.outcomeId)?.title ?? null;
+            return outcomeTitle ? (
+              <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2.5, color: "rgba(94,162,182,0.65)", textTransform: "uppercase", textAlign: "center", marginBottom: 6 }}>
+                {outcomeTitle}
+              </div>
+            ) : null;
+          })() : null}
           <div
             style={{
               fontSize: 36,
