@@ -29,7 +29,6 @@ function trackLabel(item: QueueItem | null): string {
   if (!item) return "";
   if (item.title) return item.title;
   if (item.hookText) return item.hookText;
-  // Last-resort fallback if neither title nor hook text is hydrated.
   const tail = item.audioUrl.split("/").pop() ?? "";
   return tail.replace(/\.(mp3|wav|m4a|ogg)$/i, "").replace(/[_-]+/g, " ");
 }
@@ -55,6 +54,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const [networkError, setNetworkError] = useState<string | null>(null);
   const [online, setOnline] = useState(true);
   const [lovedIds, setLovedIds] = useState<Set<string>>(() => loadLoved());
+  const [allOutcomesMode, setAllOutcomesModeState] = useState(false);
 
   const queueRef = useRef<QueueItem[]>([]);
   queueRef.current = queue;
@@ -65,6 +65,12 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const wasPlayingRef = useRef(false);
   const intentionalPauseRef = useRef(false);
   const trackStartedAtRef = useRef<string | null>(null);
+  const allOutcomesModeRef = useRef(false);
+
+  const setAllOutcomesMode = useCallback((v: boolean) => {
+    allOutcomesModeRef.current = v;
+    setAllOutcomesModeState(v);
+  }, []);
 
   const emit = useCallback((event_type: AudioEventType, item?: QueueItem | null, extra?: { report_reason?: string; outcome_id?: string }) => {
     api.emit({
@@ -79,9 +85,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
     }).catch((e) => console.warn("[player] emit failed", e));
   }, [session.storeId, session.operatorId]);
 
-  const refill = useCallback(async () => {
+  // Returns the raw server queue so callers can use it immediately without
+  // waiting for React to flush the setQueue state update.
+  const refill = useCallback(async (): Promise<QueueItem[]> => {
     try {
-      const r = await api.next(session.storeId, session.token);
+      const r = await api.next(session.storeId, session.token, allOutcomesModeRef.current);
       setActiveOutcome(r.activeOutcome);
       setReason(r.reason);
       setNetworkError(null);
@@ -93,9 +101,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
         return [...prev, ...additions].slice(0, 6);
       });
       if (r.reason === "no_pool" && !currentRef.current) emit("playback_starved");
+      return r.queue;
     } catch (e) {
       console.warn("[player] refill failed", e);
       setNetworkError("Connection issue. Retrying…");
+      return [];
     }
   }, [session.storeId, session.token, emit]);
 
@@ -106,8 +116,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
     } catch (e) { console.warn("[player] outcomes failed", e); }
   }, [session.storeId, session.token]);
 
-  // Schedule a preload timer to start the next track ~PRELOAD_SECONDS_BEFORE_END
-  // before the current finishes, so the crossfade is seamless.
   const schedulePreload = useCallback((durationSec: number) => {
     if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
     if (!Number.isFinite(durationSec) || durationSec <= 0) return;
@@ -118,20 +126,40 @@ export function PlayerScreen({ session, onLogout }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Take the head of the queue and play it via createAndPlay (start-of-session
-  // or recovery path). Also kicks off preloading the following track.
+  const preloadFollowing = useCallback(async () => {
+    if (nextLoadedRef.current) return;
+    let candidate = queueRef.current[0];
+    if (!candidate) {
+      const fresh = await refill();
+      candidate = queueRef.current[0] ?? fresh[0];
+    }
+    if (!candidate) return;
+    nextLoadedRef.current = candidate;
+    setQueue((prev) => prev.filter((q) => q.songId !== candidate!.songId));
+    try {
+      await playerRef.current?.loadNext(candidate.audioUrl);
+    } catch (e) {
+      console.warn("[player] loadNext failed", e);
+      nextLoadedRef.current = null;
+    }
+  }, [refill]);
+
   const playFromQueue = useCallback(async () => {
     let head = queueRef.current[0];
     if (!head) {
-      await refill();
-      head = queueRef.current[0];
+      const fresh = await refill();
+      // queueRef.current may still be stale (React batch); use the server's raw
+      // response as a direct fallback so we never stall after an empty-queue refill.
+      head = queueRef.current[0] ?? fresh.find(
+        (q) => q.songId !== currentRef.current?.songId && q.songId !== nextLoadedRef.current?.songId
+      ) ?? null;
     }
     if (!head) {
       setIsPlaying(false);
       wasPlayingRef.current = false;
       return;
     }
-    setQueue((prev) => prev.slice(1));
+    setQueue((prev) => prev.filter((q) => q.songId !== head!.songId));
     setCurrentItem(head);
     trackStartedAtRef.current = new Date().toISOString();
     wasPlayingRef.current = true;
@@ -144,24 +172,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refill, schedulePreload, emit]);
 
-  // Preload the following track (queue head after current) into player.next.
-  const preloadFollowing = useCallback(async () => {
-    if (nextLoadedRef.current) return;
-    if (queueRef.current.length === 0) await refill();
-    const candidate = queueRef.current[0];
-    if (!candidate) return;
-    nextLoadedRef.current = candidate;
-    setQueue((prev) => prev.slice(1));
-    try {
-      await playerRef.current?.loadNext(candidate.audioUrl);
-    } catch (e) {
-      console.warn("[player] loadNext failed", e);
-      nextLoadedRef.current = null;
-    }
-  }, [refill]);
-
-  // Crossfade into the preloaded next track. Falls back to createAndPlay if
-  // nothing is preloaded (network slow or first track was very short).
   const advanceToNext = useCallback(async () => {
     const completed = currentRef.current;
     if (completed) emit("song_complete", completed);
@@ -169,19 +179,31 @@ export function PlayerScreen({ session, onLogout }: Props) {
     const queued = nextLoadedRef.current;
     if (queued) {
       nextLoadedRef.current = null;
+      const didStart = playerRef.current?.startNext() ?? false;
+      if (didStart) {
+        setCurrentItem(queued);
+        trackStartedAtRef.current = new Date().toISOString();
+        setIsPlaying(true);
+        wasPlayingRef.current = true;
+        emit("song_start", queued);
+        const p = playerRef.current?.getProgress();
+        if (p?.duration) schedulePreload(p.duration);
+        void preloadFollowing();
+        return;
+      }
+      // startNext returned false (this.next was null — race or load error).
+      // Fall through to createAndPlay using the queued item's URL directly.
       setCurrentItem(queued);
       trackStartedAtRef.current = new Date().toISOString();
-      playerRef.current?.startNext();
-      setIsPlaying(true);
       wasPlayingRef.current = true;
+      playerRef.current?.createAndPlay(queued.audioUrl, (durationSec) => {
+        schedulePreload(durationSec);
+      });
+      setIsPlaying(true);
       emit("song_start", queued);
-      // Howl 'onload' already fired when we called loadNext; pull duration now.
-      const p = playerRef.current?.getProgress();
-      if (p?.duration) schedulePreload(p.duration);
       void preloadFollowing();
       return;
     }
-    // No preload available — hard advance.
     await playFromQueue();
   }, [emit, playFromQueue, preloadFollowing, schedulePreload]);
 
@@ -221,14 +243,10 @@ export function PlayerScreen({ session, onLogout }: Props) {
   }, [isPlaying, playFromQueue, schedulePreload]);
 
   const handleSelectOutcome = useCallback(async (outcomeId: string) => {
-    // Empty-pool outcomes are disabled in OutcomeModal, so we don't need a
-    // silent-playback confirmation here — the modal won't fire onSelect.
     try {
       await api.outcomeSelection(session.storeId, outcomeId, session.token);
-      // Server logs the outcome_selection PlaybackEvent itself (see hendrix.ts);
-      // do not double-emit from the client.
+      setAllOutcomesMode(false);
       setShowOutcomeModal(false);
-      // Drain queue + reload next; if currently playing, let current finish into a refreshed pool.
       setQueue([]);
       nextLoadedRef.current = null;
       await refill();
@@ -238,12 +256,12 @@ export function PlayerScreen({ session, onLogout }: Props) {
       console.error(e);
       setError("Could not change outcome.");
     }
-  }, [outcomes, session.storeId, session.token, emit, refill, refreshOutcomes, playFromQueue]);
+  }, [session.storeId, session.token, refill, refreshOutcomes, playFromQueue, setAllOutcomesMode]);
 
   const handleClearOutcome = useCallback(async () => {
     try {
       await api.clearOutcomeSelection(session.storeId, session.token);
-      // Server logs the outcome_selection_cleared PlaybackEvent itself.
+      setAllOutcomesMode(false);
       setShowOutcomeModal(false);
       setQueue([]);
       nextLoadedRef.current = null;
@@ -253,10 +271,25 @@ export function PlayerScreen({ session, onLogout }: Props) {
       console.error(e);
       setError("Could not clear outcome selection.");
     }
-  }, [session.storeId, session.token, emit, refill, refreshOutcomes]);
+  }, [session.storeId, session.token, refill, refreshOutcomes, setAllOutcomesMode]);
 
-  // Love is write-once: server has no song_unlove event today, so once a
-  // song is loved it stays loved (and shows as such on every device).
+  const handleSelectAll = useCallback(async () => {
+    try {
+      // Clear any server-side operator selection so we're not overriding a schedule.
+      await api.clearOutcomeSelection(session.storeId, session.token).catch(() => {/* ok if already clear */});
+      setAllOutcomesMode(true);
+      setShowOutcomeModal(false);
+      setQueue([]);
+      nextLoadedRef.current = null;
+      await refill();
+      await refreshOutcomes();
+      if (!currentRef.current && wasPlayingRef.current) void playFromQueue();
+    } catch (e) {
+      console.error(e);
+      setError("Could not switch to all-outcomes mode.");
+    }
+  }, [session.storeId, session.token, refill, refreshOutcomes, playFromQueue, setAllOutcomesMode]);
+
   const handleLove = useCallback(() => {
     const cur = currentRef.current;
     if (!cur) return;
@@ -279,9 +312,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
 
   // ── Init / teardown ───────────────────────────────────────────────────────
   useEffect(() => {
-    // Defensive: kill any inherited HTML5 audio element state from a prior
-    // session before any user gesture. Howler's html5 pool can occasionally
-    // resume on page load if the underlying <audio> element was left playing.
     try {
       document.querySelectorAll("audio").forEach((el) => {
         try { el.pause(); el.removeAttribute("src"); el.load(); } catch {}
@@ -290,9 +320,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
     playerRef.current = new CrossfadePlayer({
       crossfadeMs: CROSSFADE_MS,
       onTrackEnded: () => {
-        // Crossfade preload timer normally handles advancement; this fires
-        // only if the timer didn't (very short track, or end reached without
-        // preload). Treat as a hard advance.
         if (!nextLoadedRef.current) {
           wasPlayingRef.current = false;
           setIsPlaying(false);
@@ -305,14 +332,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
       onPause: () => {
         if (intentionalPauseRef.current) { intentionalPauseRef.current = false; return; }
         if (!wasPlayingRef.current) return;
-        // External pause (audio focus loss, OS interrupt) — try to resume.
         playerRef.current?.resume();
       },
     });
     void refill();
     void refreshOutcomes();
-    // Hydrate loved set from server (cross-device source of truth). Merge with
-    // any local writes so optimistic UI from this session survives.
     api.loved(session.storeId, session.token).then((r) => {
       setLovedIds((prev) => {
         const merged = new Set(prev);
@@ -321,7 +345,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
         return merged;
       });
     }).catch((e) => console.warn("[player] loved hydrate failed", e));
-    // Emit operator_login once per session-start.
     emit("operator_login");
     return () => {
       if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
@@ -425,10 +448,8 @@ export function PlayerScreen({ session, onLogout }: Props) {
     return () => clearInterval(iv);
   }, [isPlaying]);
 
-  // activeOutcome.title comes hydrated from /hendrix/next; the outcomes list is
-  // only used by the picker modal.
-  const activeTitle = activeOutcome?.title ?? "—";
-  const expiresLabel = activeOutcome?.source === "selection" && activeOutcome.expiresAt
+  const activeTitle = allOutcomesMode ? "All" : (activeOutcome?.title ?? "—");
+  const expiresLabel = !allOutcomesMode && activeOutcome?.source === "selection" && activeOutcome.expiresAt
     ? `Selected · until ${new Date(activeOutcome.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
     : null;
 
@@ -483,7 +504,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
                   clientName: s.clientName ?? null,
                 };
                 saveSession(next);
-                // Full reload to reset queue/Howler state cleanly.
                 window.location.reload();
               }}
               style={{
@@ -656,9 +676,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
       {showOutcomeModal ? (
         <OutcomeModal
           outcomes={outcomes}
-          activeId={activeOutcome?.outcomeId ?? null}
+          activeId={allOutcomesMode ? null : (activeOutcome?.outcomeId ?? null)}
+          allOutcomesMode={allOutcomesMode}
           onSelect={handleSelectOutcome}
-          onClear={activeOutcome?.source === "selection" ? handleClearOutcome : null}
+          onSelectAll={handleSelectAll}
+          onClear={!allOutcomesMode && activeOutcome?.source === "selection" ? handleClearOutcome : null}
           onClose={() => setShowOutcomeModal(false)}
         />
       ) : null}

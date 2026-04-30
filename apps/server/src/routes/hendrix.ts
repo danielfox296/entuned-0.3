@@ -5,7 +5,7 @@ import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 import { verify, isOperatorAuthorizedForStore } from '../lib/auth.js'
 import { prisma } from '../db.js'
 
-const NextQuery = z.object({ store_id: z.string().uuid() })
+const NextQuery = z.object({ store_id: z.string().uuid(), all_outcomes: z.string().optional() })
 const OverrideBody = z.object({ store_id: z.string().uuid(), outcome_id: z.string().uuid() })
 const ClearBody = z.object({ store_id: z.string().uuid() })
 
@@ -35,7 +35,7 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
     if (!parsed.success) return reply.code(400).send({ error: 'bad_query', details: parsed.error.flatten() })
     const op = await requireOperatorForStore(req, reply, parsed.data.store_id)
     if (!op) return
-    return nextQueue(parsed.data.store_id)
+    return nextQueue(parsed.data.store_id, new Date(), { allOutcomes: parsed.data.all_outcomes === 'true' })
   })
 
   // GET /hendrix/outcomes?store_id=... — picker source for Oscar's override UI.

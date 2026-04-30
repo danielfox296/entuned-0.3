@@ -60,17 +60,26 @@ export class CrossfadePlayer {
     });
   }
 
-  startNext(): void {
-    if (!this.next) return;
+  // Returns true if a track was started, false if this.next was null (caller should fall back).
+  startNext(): boolean {
+    if (!this.next) return false;
     const n = this.next;
     const targetVol = this.muted ? 0 : this.volume;
+    const isLoaded = n.state() === "loaded";
 
     n.on("pause", () => this.opts.onPause?.());
 
     if (this.current) {
-      n.volume(0);
-      n.play();
-      n.fade(0, targetVol, this.crossfadeMs);
+      if (isLoaded) {
+        // Fully buffered: crossfade in smoothly.
+        n.volume(0);
+        n.play();
+        n.fade(0, targetVol, this.crossfadeMs);
+      } else {
+        // Still loading: play immediately at target volume; no fade-in to avoid silence.
+        n.volume(targetVol);
+        n.play();
+      }
       const c = this.current;
       c.fade(c.volume() as number, 0, this.crossfadeMs);
       window.setTimeout(() => { c.stop(); c.unload(); }, this.crossfadeMs + 100);
@@ -81,6 +90,7 @@ export class CrossfadePlayer {
 
     this.current = n;
     this.next = null;
+    return true;
   }
 
   pause(): void { this.current?.pause(); }

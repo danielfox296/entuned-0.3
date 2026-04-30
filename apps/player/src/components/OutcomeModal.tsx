@@ -3,12 +3,14 @@ import type { OutcomeOption } from "../api.js";
 type Props = {
   outcomes: OutcomeOption[];
   activeId: string | null;
+  allOutcomesMode: boolean;
   onSelect: (outcomeId: string) => void;
+  onSelectAll: () => void;
   onClear: (() => void) | null;
   onClose: () => void;
 };
 
-export function OutcomeModal({ outcomes, activeId, onSelect, onClear, onClose }: Props) {
+export function OutcomeModal({ outcomes, activeId, allOutcomesMode, onSelect, onSelectAll, onClear, onClose }: Props) {
   return (
     <div
       onClick={onClose}
@@ -52,9 +54,38 @@ export function OutcomeModal({ outcomes, activeId, onSelect, onClear, onClose }:
           </button>
         </div>
 
+        {/* All Outcomes option */}
+        <div style={{ marginBottom: 12 }}>
+          <button
+            type="button"
+            onClick={onSelectAll}
+            style={{
+              width: "100%",
+              textAlign: "left",
+              padding: "14px 16px",
+              borderRadius: 12,
+              border: `1px solid ${allOutcomesMode ? "rgba(94,162,182,0.55)" : "rgba(212,225,229,0.12)"}`,
+              background: allOutcomesMode ? "rgba(94,162,182,0.16)" : "rgba(212,225,229,0.04)",
+              color: "rgba(212,225,229,0.9)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
+            <span style={{ fontSize: 15, fontWeight: 500, letterSpacing: 0.5, textTransform: "uppercase", color: allOutcomesMode ? "rgba(94,162,182,1)" : "rgba(212,225,229,0.95)" }}>
+              All Outcomes
+            </span>
+            <span style={{ fontSize: 11, fontWeight: 400, letterSpacing: 1, color: "rgba(212,225,229,0.45)" }}>
+              {outcomes.reduce((sum, o) => sum + o.poolSize, 0)}
+            </span>
+          </button>
+        </div>
+
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {outcomes.map((o) => {
-            const active = activeId === o.outcomeId;
+            const active = !allOutcomesMode && activeId === o.outcomeId;
             const empty = o.poolSize === 0;
             return (
               <button

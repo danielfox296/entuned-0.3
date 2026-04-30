@@ -27,25 +27,34 @@ Fill the **Gary @ UNTUCKit Park Meadows** library in Dash. It's already partiall
 - To set: double-click the `%` label next to the slider — it becomes a direct text input. Type the value, press Enter. Do NOT try to drag sliders or dispatch keyboard events.
 - Verify these are still set on **both Suno tabs** at session start.
 
-## Setup (dual-tab)
+## Setup (multi-tab)
 
-Before starting the loop, open a second Suno tab and verify both are ready:
+Open 2–3 Suno tabs before starting. **Triple-tab is confirmed working on Suno Pro** (no rate limiting, no captchas). Use 2 tabs for short queues (≤3 prompts), 3 tabs for 4+ prompts.
+
+| Tabs | Net time for 6 prompts | Notes |
+|---|---|---|
+| 1 | ~18 min | Single submit→wait→accept cycle |
+| 2 | ~9 min | Recommended minimum |
+| 3 | ~6 min | Confirmed on Suno Pro; 3 is a reasonable ceiling before wakeup cadence gets complicated |
+
+Setup steps:
 
 1. Note the ID of the existing Suno tab — this is **tab A**.
-2. Call `tabs_create_mcp` to open a new tab and navigate it to `https://suno.com/create` — this is **tab B**.
-3. Verify tab B is logged in (same account as tab A). If either tab is logged out, stop and log it.
-4. On both tabs, verify Weirdness (~65%) and Style Influence (~80%) are set correctly.
-5. Verify the vocal toggle state on both tabs before any Create click (see friction notes).
-6. Initialize the in-flight tracker on the Dash tab:
+2. Call `tabs_create_mcp` to open a new tab → `https://suno.com/create` — this is **tab B**.
+3. (Optional, 4+ prompts) Open another tab → `https://suno.com/create` — this is **tab C**.
+4. Verify all tabs are logged in (same account). If any tab is logged out, stop and log it.
+5. On all tabs, verify Weirdness (~65%) and Style Influence (~80%) are set correctly.
+6. Verify the vocal toggle state on all tabs before any Create click (see friction notes).
+7. Initialize the in-flight tracker on the Dash tab:
    ```js
-   window.__flight = {}; // {sunoTabId: dashPromptTitle}
+   window.__flight = {}; // {sunoTabId: {title, expectedUrls}}
    ```
 
-> **Two Suno tabs double throughput. Net time for 6 prompts drops from ~18 min to ~9 min. Each tab needs its own vocal toggle verification before Create is clicked.**
+> **Each tab needs its own vocal toggle verification before Create is clicked. New tabs opened mid-session may not hydrate React immediately — see friction note 10.**
 
-## The loop (optimized — dual-tab)
+## The loop (optimized — multi-tab)
 
-Each cycle submits to both tabs in parallel, then accepts from both on wakeup. Basic structure: submit prompt 1 → tab A, submit prompt 2 → tab B, wait 180s, accept from tab A + submit prompt 3, accept from tab B + submit prompt 4, repeat.
+Each cycle submits to all active tabs in parallel, then accepts from all on wakeup. Basic structure with 2 tabs: submit prompt 1 → tab A, submit prompt 2 → tab B, wait 180s, accept from tab A + submit prompt 3, accept from tab B + submit prompt 4, repeat. With 3 tabs: submit prompts 1/2/3 upfront, then accept all 3 + submit 4/5/6 on first wakeup.
 
 ### Submit a prompt (two-call pattern — apply to each tab)
 
@@ -81,9 +90,9 @@ Use a **two-call pattern** to avoid stale-state bugs (see Friction notes below):
 On the **first iteration** (or any time both tabs are idle):
 
 1. Switch to Dash → open prompt N modal → read fields → switch to tab A → inject + set toggle (Call 1) → verify toggle + click Create (Call 2). Confirm spinners.
-2. Update tracker: `window.__flight[TAB_A_ID] = 'Prompt N title'`
+2. Update tracker: `window.__flight[TAB_A_ID] = {title: 'Prompt N title'}`
 3. Immediately switch back to Dash → open prompt N+1 modal → read fields → switch to tab B → inject + set toggle (Call 1) → verify toggle + click Create (Call 2). Confirm spinners.
-4. Update tracker: `window.__flight[TAB_B_ID] = 'Prompt N+1 title'`
+4. Update tracker: `window.__flight[TAB_B_ID] = {title: 'Prompt N+1 title'}`
 5. Both tabs are now generating. Close the Dash modal.
 
 **Do not wait between tab A submit and tab B submit.** The goal is both tabs generating simultaneously.
@@ -97,11 +106,38 @@ On the **first iteration** (or any time both tabs are idle):
 
 ### Accept completed tracks
 
-1. In Suno: `document.querySelectorAll('a[href*="/song/"]').slice(0,2).map(a=>a.href)` — the first 2 results are the newest tracks. No spinners = done.
-2. In Dash: close any open modal, then click the row for the prompt you just generated.
-3. Find take 1/take 2 inputs via `find` tool, paste URLs with `form_input`.
-4. Click "accept takes" via JS: `Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toLowerCase() === 'accept takes')?.click()`
-5. The server starts downloading. Close the modal — the queue will update when done.
+**Step 1 — Confirm generation is done (card-scoped, not global):**
+
+Do NOT rely on global `[class*="spin"]` count — non-generation UI spinners also match. Instead, check per card:
+```js
+Array.from(document.querySelectorAll('a[href*="/song/"]')).slice(0,4).map(a => {
+  const container = a.closest('li') || a.parentElement?.parentElement?.parentElement;
+  return {
+    href: a.href.slice(-8),
+    title: a.textContent?.trim(),
+    hasSpinner: !!container?.querySelector('[class*="spin"]')
+  }
+})
+```
+If the top 2 cards have `hasSpinner: false` and their titles match the prompt you submitted — generation is done.
+
+**Step 2 — Verify URLs before accepting (multi-tab runs):**
+
+All Suno tabs share the same account-wide sidebar. `slice(0,2)` on any tab returns the 2 most recently-started generations account-wide — not the 2 from that specific tab. In a 3-tab run, tab A's `slice(0,2)` may return tab C's URLs if tab C submitted after tab A.
+
+Always confirm song titles match `window.__flight[tabId].title` before pasting URLs into Dash. If unsure, take a screenshot of the sidebar.
+
+**Step 3 — Accept into Dash:**
+
+```js
+// Get URLs
+Array.from(document.querySelectorAll('a[href*="/song/"]')).slice(0,2).map(a=>a.href)
+```
+
+1. In Dash: close any open modal, then click the row for the prompt you just generated.
+2. Find take 1/take 2 inputs via `find` tool, paste URLs with `form_input`.
+3. Click "accept takes" via JS: `Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toLowerCase() === 'accept takes')?.click()`
+4. The server starts downloading. Close the modal — the queue will update when done.
 
 ### Check if queue is empty
 
@@ -179,6 +215,8 @@ These are the bugs / surprises that bit prior runs. Internalize them before star
 8. **Each Suno tab has independent vocal toggle state.** Verifying the toggle on tab A tells you nothing about tab B. Run the two-call pattern separately on each tab. A tab that was left on Female from a prior session will stay Female — don't assume it matches what you set on the other tab.
 
 9. **`window.__flight` lives on the Dash tab only.** It's a convenience tracker for the current run. Update it immediately after each successful Create click. If you lose track of which tab has which prompt, re-check via tab IDs in the wakeup message you scheduled.
+
+10. **JS `.click()` on Create silently no-ops if React hasn't fully hydrated the page** (most common on freshly-opened tabs). `Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()==='Create')?.click()` returns `{clicked:true}` but no spinners appear. Fix: use a visual coordinate click `computer.left_click([614, 681])` as a fallback after the page is fully rendered. **Always verify with spinners + new song URLs before assuming Create fired** — do not use the visual click pre-emptively, or you risk a double-submit (JS click registered silently + visual click fires a second generation).
 
 ## Captcha handling
 

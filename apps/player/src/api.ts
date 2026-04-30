@@ -81,8 +81,8 @@ export const api = {
     req<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   me: (token: string) =>
     req<MeResponse>('/auth/me', {}, token),
-  next: (storeId: string, token: string) =>
-    req<NextResponse>(`/hendrix/next?store_id=${encodeURIComponent(storeId)}`, {}, token),
+  next: (storeId: string, token: string, allOutcomes?: boolean) =>
+    req<NextResponse>(`/hendrix/next?store_id=${encodeURIComponent(storeId)}${allOutcomes ? '&all_outcomes=true' : ''}`, {}, token),
   outcomes: (storeId: string, token: string) =>
     req<OutcomeOption[]>(`/hendrix/outcomes?store_id=${encodeURIComponent(storeId)}`, {}, token),
   outcomeSelection: (storeId: string, outcomeId: string, token: string) =>
