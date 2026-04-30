@@ -207,12 +207,36 @@ export function PlayerScreen({ session, onLogout }: Props) {
     await playFromQueue();
   }, [emit, playFromQueue, preloadFollowing, schedulePreload]);
 
-  const skip = useCallback(() => {
+  // User-initiated skip: always use createAndPlay with the next URL rather than
+  // startNext. startNext relies on the preloaded Howl being in a playable state,
+  // which is not guaranteed at skip time (buffering, volume 0, race with timer).
+  // createAndPlay creates a fresh Howl and calls play() synchronously in the
+  // user-gesture call stack — the most reliable path on all browsers.
+  const skip = useCallback(async () => {
     const cur = currentRef.current;
     if (cur) emit("song_skip", cur);
-    if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
-    void advanceToNext();
-  }, [emit, advanceToNext]);
+    if (cur) emit("song_complete", cur);
+    if (preloadTimerRef.current) { clearTimeout(preloadTimerRef.current); preloadTimerRef.current = null; }
+
+    // Take preloaded item metadata first, then queue head.
+    const next = nextLoadedRef.current ?? queueRef.current[0] ?? null;
+    if (next) {
+      nextLoadedRef.current = null;
+      setQueue((prev) => prev.filter((q) => q.songId !== next.songId));
+      setCurrentItem(next);
+      trackStartedAtRef.current = new Date().toISOString();
+      wasPlayingRef.current = true;
+      // createAndPlay also unloads any this.next preloaded Howl and fades out current.
+      playerRef.current?.createAndPlay(next.audioUrl, (durationSec) => {
+        schedulePreload(durationSec);
+      });
+      setIsPlaying(true);
+      emit("song_start", next);
+      void preloadFollowing();
+    } else {
+      await playFromQueue();
+    }
+  }, [emit, playFromQueue, preloadFollowing, schedulePreload]);
 
   const togglePlayPause = useCallback(() => {
     const player = playerRef.current;
