@@ -122,6 +122,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
     if (!Number.isFinite(durationSec) || durationSec <= 0) return;
     const ms = Math.max(1000, (durationSec - PRELOAD_SECONDS_BEFORE_END - CROSSFADE_MS / 1000) * 1000);
     preloadTimerRef.current = window.setTimeout(() => {
+      preloadTimerRef.current = null; // mark as fired so onTrackEnded's clearTimeout is a no-op
       void advanceToNext();
     }, ms);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -350,7 +351,15 @@ export function PlayerScreen({ session, onLogout }: Props) {
       // comes from the native audio element and is reliable even under throttling,
       // so this is the fallback that keeps playback going. CrossfadePlayer strips
       // onend from the old Howl during crossfade, so double-advance is not possible.
-      onTrackEnded: () => { void advanceToNext(); },
+      //
+      // Cancel any pending preload timer first. If the timer was throttled and fires
+      // after this callback, it would pick up the *next* preloaded track (loaded by
+      // preloadFollowing inside advanceToNext) and immediately fade out the track that
+      // just started — causing the "shows playing but no audio" symptom.
+      onTrackEnded: () => {
+        if (preloadTimerRef.current) { clearTimeout(preloadTimerRef.current); preloadTimerRef.current = null; }
+        void advanceToNext();
+      },
       onError: (err) => {
         console.error("[player] audio error", err);
         setError(`Audio error: ${String(err)}`);
