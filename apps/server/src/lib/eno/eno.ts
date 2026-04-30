@@ -8,6 +8,7 @@ import { prisma } from '../../db.js'
 import { marsAssemble } from '../mars/mars.js'
 import { generateLyrics } from '../bernie/bernie.js'
 import { injectArrangement, type ArrangementSections } from '../arranger/arranger.js'
+import { resolveOutcomeParams } from '../variance/variance.js'
 
 export const OUTCOME_FACTOR_PROMPT_SEED = '{tempo_bpm}bpm, {mode}' // prepended to style string; tokens: {tempo_bpm} {mode} {dynamics} {instrumentation}
 
@@ -116,8 +117,21 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
     const styleAnalysis = refTrack.styleAnalysis
     const mars = await marsAssemble(styleAnalysis, outcome)
 
+    // Variance resolution — samples concrete tempo/mode from the Outcome's distribution
+    // when bands are configured. No-op (returns center values) when radius/weights are null.
+    const resolved = resolveOutcomeParams({
+      tempoBpm: outcome.tempoBpm,
+      tempoBpmRadius: outcome.tempoBpmRadius,
+      mode: outcome.mode,
+      modeWeights: outcome.modeWeights,
+    })
+
     const outcomeFactorPrompt = await getOrSeedOutcomeFactorPrompt()
-    const finalStyle = applyOutcomeFactorPrompt(mars.style, outcome, outcomeFactorPrompt.templateText)
+    const finalStyle = applyOutcomeFactorPrompt(
+      mars.style,
+      { tempoBpm: resolved.tempoBpm, mode: resolved.mode, dynamics: outcome.dynamics, instrumentation: outcome.instrumentation },
+      outcomeFactorPrompt.templateText,
+    )
 
     const icpRow = await prisma.iCP.findUniqueOrThrow({ where: { id: icpId }, select: { clientId: true } })
     const client = await prisma.client.findUnique({ where: { id: icpRow.clientId } })
@@ -153,6 +167,8 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
         lyricDraftPromptVersion: lyricsRaw.draftPromptVersion,
         lyricEditPromptVersion: lyricsRaw.editPromptVersion,
         arrangementTemplateVersion: arrangementSections ? arrangementVersion : null,
+        resolvedTempoBpm: resolved.tempoBpm,
+        resolvedMode: resolved.mode,
         firedExclusionRuleIds: mars.firedExclusionRuleIds,
       },
     })

@@ -427,6 +427,8 @@ model SongSeed {
   lyricDraftPromptVersion    Int?      @map("lyric_draft_prompt_version")
   lyricEditPromptVersion     Int?      @map("lyric_edit_prompt_version")
   arrangementTemplateVersion Int?      @map("arrangement_template_version")
+  resolvedTempoBpm           Int?      @map("resolved_tempo_bpm")
+  resolvedMode               String?   @map("resolved_mode")
   firedExclusionRuleIds      String[]  @map("fired_exclusion_rule_ids") @db.Uuid
   errorText                  String?   @map("error_text")
 
@@ -457,7 +459,9 @@ model Outcome {
   displayTitle    String?   @map("display_title")
   // Song Outcome Specs
   tempoBpm              Int       @map("tempo_bpm")
+  tempoBpmRadius        Int?      @map("tempo_bpm_radius")
   mode                  String
+  modeWeights           Json?     @map("mode_weights")
   dynamics              String?
   instrumentation       String?
   // Research-backed signals
