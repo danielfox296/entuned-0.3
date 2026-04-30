@@ -2163,4 +2163,131 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       throw e
     }
   })
+
+  // ── Card 21 POS Ingestion ─────────────────────────────────────
+
+  const POSEventRow = z.object({
+    occurredAt: z.string().datetime({ offset: true }),
+    transactionValueCents: z.number().int().nonnegative(),
+    currency: z.string().length(3).default('USD'),
+    itemCount: z.number().int().nonnegative(),
+    posExternalId: z.string().optional(),
+  })
+
+  const POSIngestBody = z.object({
+    posProvider: z.string().min(1).default('manual_csv'),
+    pullWindowStart: z.string().datetime({ offset: true }),
+    pullWindowEnd: z.string().datetime({ offset: true }),
+    events: z.array(POSEventRow).min(1).max(50000),
+  })
+
+  // POST /admin/stores/:storeId/pos/ingest
+  app.post('/stores/:storeId/pos/ingest', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const storeId = (req.params as any).storeId as string
+
+    const store = await prisma.store.findUnique({ where: { id: storeId }, select: { id: true, clientId: true } })
+    if (!store) return reply.code(404).send({ error: 'store_not_found' })
+
+    const parsed = POSIngestBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const { posProvider, pullWindowStart, pullWindowEnd, events } = parsed.data
+
+    const run = await prisma.pOSPullRun.create({
+      data: {
+        clientId: store.clientId,
+        storeId,
+        posProvider,
+        pullWindowStart: new Date(pullWindowStart),
+        pullWindowEnd: new Date(pullWindowEnd),
+        status: 'running',
+        triggeredBy: 'manual',
+        triggeredById: op.operatorId,
+      },
+    })
+
+    let ingested = 0
+    let skipped = 0
+    const errors: string[] = []
+
+    for (const evt of events) {
+      try {
+        await prisma.pOSEvent.upsert({
+          where: {
+            posProvider_posExternalId: {
+              posProvider,
+              posExternalId: evt.posExternalId ?? `${run.id}:${ingested + skipped}`,
+            },
+          },
+          create: {
+            storeId,
+            clientId: store.clientId,
+            posProvider,
+            posExternalId: evt.posExternalId ?? null,
+            occurredAt: new Date(evt.occurredAt),
+            transactionValueCents: BigInt(evt.transactionValueCents),
+            currency: evt.currency,
+            itemCount: evt.itemCount,
+            posPullRunId: run.id,
+          },
+          update: {},
+        })
+        ingested++
+      } catch (e: any) {
+        skipped++
+        if (errors.length < 10) errors.push(e.message ?? String(e))
+      }
+    }
+
+    await prisma.pOSPullRun.update({
+      where: { id: run.id },
+      data: {
+        status: errors.length > 0 && ingested === 0 ? 'failed' : 'success',
+        finishedAt: new Date(),
+        eventsIngested: ingested,
+        unmappedCount: 0,
+        errorText: errors.length > 0 ? errors.join('; ') : null,
+      },
+    })
+
+    return { runId: run.id, ingested, skipped, errors }
+  })
+
+  // GET /admin/stores/:storeId/pos/runs
+  app.get('/stores/:storeId/pos/runs', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const storeId = (req.params as any).storeId as string
+    const runs = await prisma.pOSPullRun.findMany({
+      where: { storeId },
+      orderBy: { startedAt: 'desc' },
+      take: 50,
+    })
+    return runs.map((r) => ({
+      id: r.id,
+      posProvider: r.posProvider,
+      pullWindowStart: r.pullWindowStart.toISOString(),
+      pullWindowEnd: r.pullWindowEnd.toISOString(),
+      startedAt: r.startedAt.toISOString(),
+      finishedAt: r.finishedAt?.toISOString() ?? null,
+      status: r.status,
+      eventsIngested: r.eventsIngested,
+      triggeredBy: r.triggeredBy,
+    }))
+  })
+
+  // GET /admin/stores/:storeId/pos/summary
+  app.get('/stores/:storeId/pos/summary', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const storeId = (req.params as any).storeId as string
+    const [totalEvents, earliest, latest] = await Promise.all([
+      prisma.pOSEvent.count({ where: { storeId } }),
+      prisma.pOSEvent.findFirst({ where: { storeId }, orderBy: { occurredAt: 'asc' }, select: { occurredAt: true } }),
+      prisma.pOSEvent.findFirst({ where: { storeId }, orderBy: { occurredAt: 'desc' }, select: { occurredAt: true } }),
+    ])
+    return {
+      totalEvents,
+      earliestAt: earliest?.occurredAt.toISOString() ?? null,
+      latestAt: latest?.occurredAt.toISOString() ?? null,
+    }
+  })
 }

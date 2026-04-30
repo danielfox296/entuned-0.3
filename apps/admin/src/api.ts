@@ -845,6 +845,36 @@ export const api = {
   acceptSongSeed: (id: string, body: { takes: { sourceUrl: string }[] }, token: string) =>
     req<{ songSeed: SongSeedRow; lineageRows: any[] }>(`/admin/song-seeds/${id}/accept`, { method: 'POST', body: JSON.stringify(body) }, token),
 
+  // --- POS Ingestion (Card 21) ---
+
+  posIngest: (
+    storeId: string,
+    body: {
+      posProvider: string
+      pullWindowStart: string
+      pullWindowEnd: string
+      events: { occurredAt: string; transactionValueCents: number; currency?: string; itemCount: number; posExternalId?: string }[]
+    },
+    token: string,
+  ) =>
+    req<{ runId: string; ingested: number; skipped: number; errors: string[] }>(
+      `/admin/stores/${storeId}/pos/ingest`,
+      { method: 'POST', body: JSON.stringify(body) },
+      token,
+    ),
+
+  posRuns: (storeId: string, token: string) =>
+    req<{
+      id: string; posProvider: string; pullWindowStart: string; pullWindowEnd: string
+      startedAt: string; finishedAt: string | null; status: string
+      eventsIngested: number | null; triggeredBy: string
+    }[]>(`/admin/stores/${storeId}/pos/runs`, {}, token),
+
+  posSummary: (storeId: string, token: string) =>
+    req<{ totalEvents: number; earliestAt: string | null; latestAt: string | null }>(
+      `/admin/stores/${storeId}/pos/summary`, {}, token,
+    ),
+
   // --- Operator management ---
   operators: (token: string) =>
     req<OperatorRow[]>('/admin/operators', {}, token),

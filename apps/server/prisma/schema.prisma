@@ -103,8 +103,9 @@ model Client {
   createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  stores Store[]
-  icps   ICP[]
+  stores      Store[]
+  icps        ICP[]
+  posPullRuns POSPullRun[]
 
   @@index([companyName])
   @@map("clients")
@@ -130,6 +131,8 @@ model Store {
   scheduleSlots       ScheduleSlot[]
   operatorAssignments OperatorStoreAssignment[]
   playbackEvents      PlaybackEvent[]
+  posEvents           POSEvent[]
+  posPullRuns         POSPullRun[]
 
   @@index([clientId])
   @@map("stores")
@@ -609,4 +612,54 @@ model PlaybackEvent {
   @@index([storeId, occurredAt(sort: Desc)])
   @@index([storeId, eventType, occurredAt(sort: Desc)])
   @@map("playback_events")
+}
+
+// ---------- Card 21 POS Ingestion ----------
+
+model POSPullRun {
+  id              String    @id @default(uuid()) @db.Uuid
+  clientId        String    @map("client_id") @db.Uuid
+  storeId         String    @map("store_id") @db.Uuid
+  posProvider     String    @map("pos_provider")
+  pullWindowStart DateTime  @map("pull_window_start") @db.Timestamptz(6)
+  pullWindowEnd   DateTime  @map("pull_window_end") @db.Timestamptz(6)
+  startedAt       DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  finishedAt      DateTime? @map("finished_at") @db.Timestamptz(6)
+  status          String    @default("running") // running | success | failed
+  eventsIngested  Int?      @map("events_ingested")
+  unmappedCount   Int?      @map("unmapped_count")
+  errorText       String?   @map("error_text")
+  triggeredBy     String    @default("manual") @map("triggered_by") // manual | scheduled
+  triggeredById   String?   @map("triggered_by_id") @db.Uuid
+
+  client    Client     @relation(fields: [clientId], references: [id])
+  store     Store      @relation(fields: [storeId], references: [id])
+  posEvents POSEvent[]
+
+  @@index([clientId, startedAt(sort: Desc)])
+  @@index([clientId, status])
+  @@index([storeId, startedAt(sort: Desc)])
+  @@map("pos_pull_runs")
+}
+
+model POSEvent {
+  id                     String   @id @default(uuid()) @db.Uuid
+  storeId                String   @map("store_id") @db.Uuid
+  clientId               String   @map("client_id") @db.Uuid
+  posProvider            String   @map("pos_provider")
+  posExternalId          String?  @map("pos_external_id")
+  occurredAt             DateTime @map("occurred_at") @db.Timestamptz(6)
+  transactionValueCents  BigInt   @map("transaction_value_cents")
+  currency               String   @default("USD")
+  itemCount              Int      @map("item_count")
+  posPullRunId           String   @map("pos_pull_run_id") @db.Uuid
+  receivedAt             DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  store      Store      @relation(fields: [storeId], references: [id])
+  posPullRun POSPullRun @relation(fields: [posPullRunId], references: [id])
+
+  @@unique([posProvider, posExternalId])
+  @@index([storeId, occurredAt(sort: Desc)])
+  @@index([clientId, occurredAt(sort: Desc)])
+  @@map("pos_events")
 }
