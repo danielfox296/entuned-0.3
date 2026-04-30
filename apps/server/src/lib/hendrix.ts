@@ -166,6 +166,21 @@ function dedupeBySong(pool: PoolRow[]): PoolRow[] {
   return out
 }
 
+// Keep only the best-ranked row per hook so siblings never appear in the
+// same queue batch. applyFilters handles the inter-batch spacing (blocks
+// hookIds played recently), but without this step two songs sharing a hook
+// can both rank into the top-3 slice and play back-to-back on the client.
+function dedupeByHook(pool: PoolRow[]): PoolRow[] {
+  const seen = new Set<string>()
+  const out: PoolRow[] = []
+  for (const r of pool) {
+    if (seen.has(r.hookId)) continue
+    seen.add(r.hookId)
+    out.push(r)
+  }
+  return out
+}
+
 type PlaybackRules = { siblingSpacingMinutes: number; noRepeatWindowMinutes: number; dailyCap: number }
 
 async function hydrateQueue(top: PoolRow[]): Promise<QueueItem[]> {
@@ -215,7 +230,7 @@ async function buildQueueFromPool(
     const eligible = await applyFilters(storeId, unfilteredPool, t.cap, t.sib, t.rep, rules, now, timezone)
     if (eligible.length > 0) {
       const ranked = await rankByPlayCount(storeId, eligible)
-      const top = ranked.slice(0, 3)
+      const top = dedupeByHook(ranked).slice(0, 3)
       const queue = await hydrateQueue(top)
       return { queue, fallbackTier: t.tier }
     }
