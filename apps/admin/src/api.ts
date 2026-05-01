@@ -942,6 +942,23 @@ export const api = {
       `/admin/stores/${storeId}/pos/summary`, {}, token,
     ),
 
+  // --- RetailNext Ingestion ---
+
+  retailNextIngest: (storeId: string, file: File, token: string) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return upload<{ runId: string; reportDate: string; rowsIngested: number }>(
+      `/admin/stores/${storeId}/retailnext/ingest-xls`, fd, token,
+    )
+  },
+
+  retailNextRuns: (storeId: string, token: string) =>
+    req<{
+      id: string; reportDate: string; filename: string | null
+      status: string; rowsIngested: number | null
+      startedAt: string; finishedAt: string | null; errorText: string | null
+    }[]>(`/admin/stores/${storeId}/retailnext/runs`, {}, token),
+
   // --- Campaigns ---
 
   campaigns: (storeId: string, token: string) =>
