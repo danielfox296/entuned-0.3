@@ -12,6 +12,10 @@ import lockscreenArtUrl from "/lockscreen-art.png";
 
 const PRELOAD_SECONDS_BEFORE_END = 8;
 const CROSSFADE_MS = 800;
+// Ads are mastered ~15-20% quieter than the music. HTML5 audio caps at 1.0 so we
+// can't boost ads; instead we bring songs down by the same margin so ads sit at full.
+const SONG_VOLUME = 0.82;
+const AD_VOLUME = 1.0;
 const LOVED_KEY = "entuned.loved.v1";
 
 function loadLoved(): Set<string> {
@@ -181,11 +185,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
     wasPlayingRef.current = true;
     if (head.type === "ad") {
       // Ads: full volume immediately, no preload timer — play to natural completion.
-      playerRef.current?.createAndPlay(head.audioUrl);
+      playerRef.current?.createAndPlay(head.audioUrl, { volume: AD_VOLUME });
     } else {
-      playerRef.current?.createAndPlay(head.audioUrl, (durationSec) => {
+      playerRef.current?.createAndPlay(head.audioUrl, { onDurationKnown: (durationSec) => {
         schedulePreload(durationSec);
-      });
+      } });
     }
     setIsPlaying(true);
     emit(head.type === "ad" ? "ad_play" : "song_start", head);
@@ -210,7 +214,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
       if (queued.type === "ad") {
         // Ads must always play via createAndPlay: full volume immediately, no preload
         // timer. createAndPlay also unloads any stale preloaded Howl (this.next).
-        playerRef.current?.createAndPlay(queued.audioUrl);
+        playerRef.current?.createAndPlay(queued.audioUrl, { volume: AD_VOLUME });
         emit("ad_play", queued);
         void preloadFollowing();
         return;
@@ -226,9 +230,9 @@ export function PlayerScreen({ session, onLogout }: Props) {
       }
       // startNext returned false (this.next was null — race or load error).
       // Fall through to createAndPlay using the queued item's URL directly.
-      playerRef.current?.createAndPlay(queued.audioUrl, (durationSec) => {
+      playerRef.current?.createAndPlay(queued.audioUrl, { onDurationKnown: (durationSec) => {
         schedulePreload(durationSec);
-      });
+      } });
       emit("song_start", queued);
       void preloadFollowing();
       return;
@@ -258,12 +262,12 @@ export function PlayerScreen({ session, onLogout }: Props) {
       wasPlayingRef.current = true;
       // createAndPlay also unloads any this.next preloaded Howl and fades out current.
       if (next.type === "ad") {
-        playerRef.current?.createAndPlay(next.audioUrl);
+        playerRef.current?.createAndPlay(next.audioUrl, { volume: AD_VOLUME });
         emit("ad_play", next);
       } else {
-        playerRef.current?.createAndPlay(next.audioUrl, (durationSec) => {
+        playerRef.current?.createAndPlay(next.audioUrl, { onDurationKnown: (durationSec) => {
           schedulePreload(durationSec);
-        });
+        } });
         emit("song_start", next);
       }
       setIsPlaying(true);
@@ -376,7 +380,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
         try { el.pause(); el.removeAttribute("src"); el.load(); } catch {}
       });
     } catch {}
-    playerRef.current = new CrossfadePlayer({
+    playerRef.current = new CrossfadePlayer({ volume: SONG_VOLUME,
       crossfadeMs: CROSSFADE_MS,
       // Always advance when a track ends naturally. The preload timer (schedulePreload)
       // normally fires advanceToNext 8s before end for a smooth crossfade, but iOS

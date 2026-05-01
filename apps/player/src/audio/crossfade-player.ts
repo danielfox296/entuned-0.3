@@ -2,6 +2,7 @@ import { Howl } from "howler";
 
 export type CrossfadePlayerOptions = {
   crossfadeMs?: number;
+  volume?: number;
   onTrackEnded?: () => void;
   onError?: (err: unknown) => void;
   onPause?: () => void;
@@ -17,16 +18,17 @@ export class CrossfadePlayer {
 
   constructor(opts: CrossfadePlayerOptions = {}) {
     this.crossfadeMs = opts.crossfadeMs ?? 4000;
+    this.volume = opts.volume ?? 1;
     this.opts = opts;
   }
 
-  createAndPlay(url: string, onDurationKnown?: (sec: number) => void): void {
-    const targetVol = this.muted ? 0 : this.volume;
+  createAndPlay(url: string, opts?: { onDurationKnown?: (sec: number) => void; volume?: number }): void {
+    const targetVol = this.muted ? 0 : (opts?.volume ?? this.volume);
     const howl = new Howl({
       src: [url],
       html5: true,
       volume: targetVol,
-      onload: () => onDurationKnown?.(howl.duration()),
+      onload: () => opts?.onDurationKnown?.(howl.duration()),
       onend: () => this.opts.onTrackEnded?.(),
       onloaderror: (_id, err) => this.opts.onError?.(err),
       onplayerror: (_id, err) => this.opts.onError?.(err),
