@@ -23,7 +23,8 @@ chasing. Operators feed these into a separate decomposer that extracts
 instrumentation, gear, era affects, and arrangement. You are NOT picking what
 will play — you are anchoring the sonic intent.
 
-Three buckets, each with a different relationship to the ICP:
+Four buckets. The first three describe *who the ICP is*. The fourth (Adjacent)
+is structurally different and requires extra reasoning — see its section below.
 
 - **FormationEra** — songs the ICP heard during their musical formation years
   (roughly ages 12–22). Nostalgic, identity-defining. Use the ICP's age range
@@ -37,23 +38,115 @@ Three buckets, each with a different relationship to the ICP:
   Often slightly outside their formation — a sound they admire, gravitate
   toward, or use to signal upward mobility / refinement / depth.
 
-Selection rules:
+- **Adjacent** — *the fourth move*. Songs the ICP would unexpectedly enjoy that
+  sit OFF-AXIS from their core taste, not next-door to it. These are NOT more
+  picks like the FormationEra/Subculture/Aspirational ones — they are texture
+  variation that resets the ear in a good way. See "Adjacent reasoning" below.
+
+## Selection rules (apply to all four buckets)
+
 - Real songs only. Real artists, real titles. No fabrication.
 - Vary across each bucket — don't return three songs by the same artist.
 - Lean specific over generic. "Steely Dan – Peg" beats "a yacht rock track."
 - Avoid the obvious clichés of the genre unless they genuinely fit this ICP.
 - Year is the original release year, not a re-release.
+- Avoid anything already in the ICP's existing tracks (listed in the user message).
 
-Output JSON only, no prose, no markdown fences:
+## Adjacent reasoning (mandatory if you produce any Adjacent picks)
+
+Adjacency is a vector, not a vibe. Naive prompts collapse Adjacent picks to the
+centroid: songs that slide along the same axis as the existing pool, just
+shifted slightly older or slightly more obscure. *Patron saints* of the
+dominant cluster. That is not adjacency — that is deeper into the centroid.
+
+You will not do that. Here's how:
+
+1. **Identify the dominant cluster** across both (a) the existing tracks listed
+   in the user message and (b) the FormationEra/Subculture/Aspirational picks
+   you are proposing in this same response. What genre/era/affect dominates?
+   Name it explicitly.
+
+2. **Forbid yourself from picking inside that cluster, including its patron
+   saints.** If the cluster is "acoustic singer-songwriter / Americana
+   introspection," then Nick Drake / Townes Van Zandt / Gillian Welch are OUT.
+   They're the centroid of that neighborhood, not a move away from it.
+
+3. **Make moves that hold one axis constant and break a different axis.** Each
+   Adjacent pick should differ from the cluster on a NAMED axis while sharing
+   a different one. Examples (do not copy — derive your own):
+
+   - Genre that contradicts a stated turn-off but lands on the same affect
+     (breaks: genre. holds: affect.)
+   - Sophistication-adjacent without their formation context (breaks: era +
+     cultural origin. holds: production quality + emotional intelligence.)
+   - More produced/textured than their stripped-back core (breaks: density.
+     holds: emotional register.)
+   - Cross a cultural/demographic assumption (breaks: assumed-listener-profile.
+     holds: actual quality of feel.)
+   - Same emotional register, totally different genre vocabulary (breaks:
+     instrumentation + scene. holds: emotional shape.)
+
+4. **The right test is "stranger trust," not "they'd recognize themselves."**
+   Forget "would they recognize themselves" — that pulls toward the centroid.
+   Instead: what would a friend with broader taste than them put on at a
+   dinner party that would make them go "huh, what IS this?" — interested,
+   not confused, not annoyed? That friend swerves but swerves with knowledge.
+
+## Adjacent anti-patterns — do NOT do these
+
+- DO NOT pick patron saints of the dominant cluster (see rule 2).
+- DO NOT pick songs that are obvious "if you like X you'll like Y" upgrades.
+  ("They like John Mayer so they'll like Mark Knopfler" is not adjacency.
+  It's just a refined-John-Mayer pick.)
+- DO NOT lean entirely on artists from the same culture, era, and gender as
+  the existing pool. Spread.
+- DO NOT pick tracks that violate a stated turn-off — but DO be precise about
+  what the turn-off actually rules out. ("Aggressive bro-energy gym culture"
+  rules out aggressive bro-energy. It does not rule out all electronic music.)
+- DO NOT have all Adjacent picks come from the same vector — spread across
+  the 4-5 vectors you declare.
+
+## Bridge sentence (Adjacent only — closing audit, not search criterion)
+
+For each Adjacent pick, write the rationale as a bridge sentence that names
+the axis broken and the axis held. Pattern: "[axis broken]: [what about ICP]
+meets [what about pick] via [the held axis]." Bad: "would expand their
+horizons." Good: "Cultural-assumption break: a 50-something Black professional
+whose stated profile suggests Americana / soul meets London trip-hop's
+late-90s moody-sophisticated atmosphere via the same patient male
+introspection that anchors his Iron & Wine and Leon Bridges picks."
+
+If the bridge sentence is boring, the underlying pick is too safe — pick
+something bolder.
+
+## Output
+
+JSON only, no prose, no markdown fences:
 
 {
   "FormationEra": [{ "artist": "...", "title": "...", "year": 1978, "rationale": "..." }, ...],
   "Subculture":   [{ "artist": "...", "title": "...", "year": 1995, "rationale": "..." }, ...],
-  "Aspirational": [{ "artist": "...", "title": "...", "year": 2015, "rationale": "..." }, ...]
+  "Aspirational": [{ "artist": "...", "title": "...", "year": 2015, "rationale": "..." }, ...],
+  "dominant_cluster_in_pool": "one sentence naming the cluster you identified across existing + your FormationEra/Subculture/Aspirational picks",
+  "adjacency_vectors": [
+    { "name": "short label", "axis_broken": "...", "axis_held": "...", "rationale_for_this_icp": "one sentence on why this vector for THIS ICP" },
+    ... (4-5 vectors)
+  ],
+  "Adjacent": [
+    { "artist": "...", "title": "...", "year": 1978, "vector": "label of one of the vectors above", "rationale": "bridge sentence" },
+    ... (8-12 picks, spread across the vectors)
+  ]
 }
 
-Return 4–6 candidates per bucket. Rationale is one short sentence — why this
-song for this ICP in this bucket.
+Return 4–6 candidates each for FormationEra / Subculture / Aspirational, and
+8–12 for Adjacent. Each rationale is one short sentence (the FormationEra /
+Subculture / Aspirational rationale = "why this song for this ICP in this
+bucket"; the Adjacent rationale = the bridge sentence pattern above).
+
+If the existing pool is empty (first run for this ICP), the dominant cluster
+is whatever forms across the FormationEra/Subculture/Aspirational picks
+you're proposing in this same response. Reason about that cluster and pick
+Adjacent picks off-axis from it.
 `.trim()
 
 export async function getOrSeedReferenceTrackPrompt(): Promise<{ id: string; version: number; templateText: string }> {
@@ -118,11 +211,15 @@ ${existingList}
 
 # Task
 
-Propose reference tracks for this ICP across all three buckets. Output JSON only.`
+Propose reference tracks for this ICP across all four buckets (FormationEra,
+Subculture, Aspirational, Adjacent). Identify the dominant cluster across the
+existing pool plus your FormationEra/Subculture/Aspirational picks, declare
+adjacency vectors, then pick Adjacent picks off-axis from that cluster. Output
+JSON only.`
 
   const response = await client.messages.create({
     model: MODEL,
-    max_tokens: 3000,
+    max_tokens: 4000,
     system: [{ type: 'text', text: prompt.templateText, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: userMessage }],
   })
@@ -151,10 +248,12 @@ Propose reference tracks for this ICP across all three buckets. Output JSON only
       .filter((r): r is SuggestedRefTrack => r !== null)
   }
 
-  const grouped: Record<'FormationEra' | 'Subculture' | 'Aspirational', SuggestedRefTrack[]> = {
+  type Bucket = 'FormationEra' | 'Subculture' | 'Aspirational' | 'Adjacent'
+  const grouped: Record<Bucket, SuggestedRefTrack[]> = {
     FormationEra: norm(parsed.FormationEra),
     Subculture: norm(parsed.Subculture),
     Aspirational: norm(parsed.Aspirational),
+    Adjacent: norm(parsed.Adjacent),
   }
 
   // Dedup against existing tracks (by case-insensitive artist+title), then persist
@@ -162,8 +261,8 @@ Propose reference tracks for this ICP across all three buckets. Output JSON only
   // suggestions.
   const existingKey = new Set(existing.map((e) => `${e.artist.toLowerCase()}::${e.title.toLowerCase()}`))
   const now = new Date()
-  const rows: { icpId: string; bucket: 'FormationEra' | 'Subculture' | 'Aspirational'; artist: string; title: string; year: number | null; suggestedRationale: string | null; suggestedPromptVer: number; suggestedAt: Date }[] = []
-  for (const bucket of ['FormationEra', 'Subculture', 'Aspirational'] as const) {
+  const rows: { icpId: string; bucket: Bucket; artist: string; title: string; year: number | null; suggestedRationale: string | null; suggestedPromptVer: number; suggestedAt: Date }[] = []
+  for (const bucket of ['FormationEra', 'Subculture', 'Aspirational', 'Adjacent'] as const) {
     for (const s of grouped[bucket]) {
       const key = `${s.artist.toLowerCase()}::${s.title.toLowerCase()}`
       if (existingKey.has(key)) continue
