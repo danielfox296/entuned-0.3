@@ -141,6 +141,12 @@ export function PlayerScreen({ session, onLogout }: Props) {
       candidate = queueRef.current[0] ?? fresh[0];
     }
     if (!candidate) return;
+    // Never preload ad items — ads must start at full volume via createAndPlay, not the
+    // loadNext/startNext path which initialises the Howl at volume 0.
+    if (candidate.type === "ad") return;
+    // Guard against stale queueRef: if the candidate is the item currently playing
+    // (ref hasn't been updated by React yet), skip it to avoid preloading the same track.
+    if (candidate.songId === currentRef.current?.songId) return;
     nextLoadedRef.current = candidate;
     setQueue((prev) => prev.filter((q) => q.songId !== candidate!.songId));
     try {
@@ -168,11 +174,19 @@ export function PlayerScreen({ session, onLogout }: Props) {
     }
     setQueue((prev) => prev.filter((q) => q.songId !== head!.songId));
     setCurrentItem(head);
+    // Sync currentRef so preloadFollowing (called below in the same tick) sees the
+    // correct playing item and doesn't re-grab it from the stale queueRef.
+    currentRef.current = head;
     trackStartedAtRef.current = new Date().toISOString();
     wasPlayingRef.current = true;
-    playerRef.current?.createAndPlay(head.audioUrl, (durationSec) => {
-      schedulePreload(durationSec);
-    });
+    if (head.type === "ad") {
+      // Ads: full volume immediately, no preload timer — play to natural completion.
+      playerRef.current?.createAndPlay(head.audioUrl);
+    } else {
+      playerRef.current?.createAndPlay(head.audioUrl, (durationSec) => {
+        schedulePreload(durationSec);
+      });
+    }
     setIsPlaying(true);
     emit(head.type === "ad" ? "ad_play" : "song_start", head);
     void preloadFollowing();
@@ -186,13 +200,25 @@ export function PlayerScreen({ session, onLogout }: Props) {
     const queued = nextLoadedRef.current;
     if (queued) {
       nextLoadedRef.current = null;
+      setCurrentItem(queued);
+      // Sync currentRef before preloadFollowing so it sees the new playing item.
+      currentRef.current = queued;
+      trackStartedAtRef.current = new Date().toISOString();
+      setIsPlaying(true);
+      wasPlayingRef.current = true;
+
+      if (queued.type === "ad") {
+        // Ads must always play via createAndPlay: full volume immediately, no preload
+        // timer. createAndPlay also unloads any stale preloaded Howl (this.next).
+        playerRef.current?.createAndPlay(queued.audioUrl);
+        emit("ad_play", queued);
+        void preloadFollowing();
+        return;
+      }
+
       const didStart = playerRef.current?.startNext() ?? false;
       if (didStart) {
-        setCurrentItem(queued);
-        trackStartedAtRef.current = new Date().toISOString();
-        setIsPlaying(true);
-        wasPlayingRef.current = true;
-        emit(queued.type === "ad" ? "ad_play" : "song_start", queued);
+        emit("song_start", queued);
         const p = playerRef.current?.getProgress();
         if (p?.duration) schedulePreload(p.duration);
         void preloadFollowing();
@@ -200,14 +226,10 @@ export function PlayerScreen({ session, onLogout }: Props) {
       }
       // startNext returned false (this.next was null — race or load error).
       // Fall through to createAndPlay using the queued item's URL directly.
-      setCurrentItem(queued);
-      trackStartedAtRef.current = new Date().toISOString();
-      wasPlayingRef.current = true;
       playerRef.current?.createAndPlay(queued.audioUrl, (durationSec) => {
         schedulePreload(durationSec);
       });
-      setIsPlaying(true);
-      emit(queued.type === "ad" ? "ad_play" : "song_start", queued);
+      emit("song_start", queued);
       void preloadFollowing();
       return;
     }
@@ -231,14 +253,20 @@ export function PlayerScreen({ session, onLogout }: Props) {
       nextLoadedRef.current = null;
       setQueue((prev) => prev.filter((q) => q.songId !== next.songId));
       setCurrentItem(next);
+      currentRef.current = next;
       trackStartedAtRef.current = new Date().toISOString();
       wasPlayingRef.current = true;
       // createAndPlay also unloads any this.next preloaded Howl and fades out current.
-      playerRef.current?.createAndPlay(next.audioUrl, (durationSec) => {
-        schedulePreload(durationSec);
-      });
+      if (next.type === "ad") {
+        playerRef.current?.createAndPlay(next.audioUrl);
+        emit("ad_play", next);
+      } else {
+        playerRef.current?.createAndPlay(next.audioUrl, (durationSec) => {
+          schedulePreload(durationSec);
+        });
+        emit("song_start", next);
+      }
       setIsPlaying(true);
-      emit("song_start", next);
       void preloadFollowing();
     } else {
       await playFromQueue();
