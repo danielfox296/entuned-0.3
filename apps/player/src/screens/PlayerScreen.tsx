@@ -401,6 +401,18 @@ export function PlayerScreen({ session, onLogout }: Props) {
         console.error("[player] audio error", err);
         setError(`Audio error: ${String(err)}`);
       },
+      // play() was rejected (autoplay policy, Chrome/iOS). Don't show a UI error —
+      // the track isn't broken, the browser just refused the play() call. Try to
+      // unlock the AudioContext first, then advance past the stalled track.
+      onPlayError: (err) => {
+        console.warn("[player] play error, advancing to next track", err);
+        try {
+          const ctx = (window as unknown as { Howler?: { ctx?: AudioContext } }).Howler?.ctx;
+          if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+        } catch {}
+        if (preloadTimerRef.current) { clearTimeout(preloadTimerRef.current); preloadTimerRef.current = null; }
+        void advanceToNext();
+      },
       onPause: () => {
         if (intentionalPauseRef.current) { intentionalPauseRef.current = false; return; }
         if (!wasPlayingRef.current) return;

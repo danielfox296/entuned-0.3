@@ -5,6 +5,10 @@ export type CrossfadePlayerOptions = {
   volume?: number;
   onTrackEnded?: () => void;
   onError?: (err: unknown) => void;
+  // Fired when play() is rejected (e.g. autoplay policy on Chrome/iOS).
+  // Distinct from onError (load failures) so the caller can auto-advance
+  // rather than just displaying an error and stalling.
+  onPlayError?: (err: unknown) => void;
   onPause?: () => void;
 };
 
@@ -31,7 +35,7 @@ export class CrossfadePlayer {
       onload: () => opts?.onDurationKnown?.(howl.duration()),
       onend: () => this.opts.onTrackEnded?.(),
       onloaderror: (_id, err) => this.opts.onError?.(err),
-      onplayerror: (_id, err) => this.opts.onError?.(err),
+      onplayerror: (_id, err) => this.opts.onPlayError?.(err),
     });
     howl.on("pause", () => this.opts.onPause?.());
     howl.play();
@@ -56,7 +60,7 @@ export class CrossfadePlayer {
         volume: 0,
         onload: () => resolve(),
         onloaderror: (_id, err) => reject(err),
-        onplayerror: (_id, err) => this.opts.onError?.(err),
+        onplayerror: (_id, err) => this.opts.onPlayError?.(err),
         // onend intentionally omitted: wired in startNext once this becomes current.
         // Attaching onend here risks a spurious Howler "end" event on the idle preloaded
         // Howl firing onTrackEnded before the track has ever played.
