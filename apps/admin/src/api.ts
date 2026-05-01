@@ -31,6 +31,19 @@ async function req<T>(path: string, init: RequestInit = {}, token?: string): Pro
   return res.json() as Promise<T>
 }
 
+async function upload<T>(path: string, formData: FormData, token: string): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    body: formData,
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`${res.status} ${res.statusText}: ${body}`)
+  }
+  return res.json() as Promise<T>
+}
+
 // --- Types matching Prisma schema ---
 
 export interface AuthResponse {
@@ -951,6 +964,19 @@ export const api = {
 
   moveAdAsset: (id: string, direction: 'up' | 'down', token: string) =>
     req<{ ok: true }>(`/admin/ad-assets/${id}/move`, { method: 'PUT', body: JSON.stringify({ direction }) }, token),
+
+  uploadAdAsset: (campaignId: string, file: File, label: string | undefined, token: string) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    if (label) fd.append('label', label)
+    return upload<AdAssetRow>(`/admin/campaigns/${campaignId}/assets/upload`, fd, token)
+  },
+
+  uploadSongSeedFiles: (id: string, files: File[], token: string) => {
+    const fd = new FormData()
+    for (const f of files) fd.append('files', f)
+    return upload<{ songSeed: SongSeedRow; lineageRows: any[] }>(`/admin/song-seeds/${id}/accept-files`, fd, token)
+  },
 
   // --- Operator management ---
   operators: (token: string) =>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { useRef } from 'react'
 import { api, getToken } from '../../api.js'
 import type { SongSeedDetail, StyleExclusionRuleRow } from '../../api.js'
 import { T } from '../../tokens.js'
@@ -13,6 +14,9 @@ export function SongSeed({ songSeedId, onClose, embedded }: { songSeedId: string
   const [accepted, setAccepted] = useState(false)
   const [exclusionRules, setExclusionRules] = useState<StyleExclusionRuleRow[] | null>(null)
   const [showFiredRules, setShowFiredRules] = useState(false)
+  const [uploadMode, setUploadMode] = useState<'urls' | 'files'>('urls')
+  const [droppedFiles, setDroppedFiles] = useState<File[]>([])
+  const [dragOver, setDragOver] = useState(false)
 
   const load = async () => {
     const token = getToken(); if (!token) return
@@ -37,15 +41,28 @@ export function SongSeed({ songSeedId, onClose, embedded }: { songSeedId: string
 
   const accept = async () => {
     const token = getToken(); if (!token) return
-    const validTakes = takes.filter((t) => t.sourceUrl.trim())
-    if (validTakes.length === 0) { setErr('Add at least one source URL.'); return }
     setBusy('accept'); setErr(null); setAccepted(false)
     try {
-      await api.acceptSongSeed(songSeedId, { takes: validTakes }, token)
+      if (uploadMode === 'files') {
+        if (droppedFiles.length === 0) { setErr('Drop at least one MP3 file.'); setBusy(null); return }
+        await api.uploadSongSeedFiles(songSeedId, droppedFiles, token)
+      } else {
+        const validTakes = takes.filter((t) => t.sourceUrl.trim())
+        if (validTakes.length === 0) { setErr('Add at least one source URL.'); setBusy(null); return }
+        await api.acceptSongSeed(songSeedId, { takes: validTakes }, token)
+      }
       setAccepted(true)
       await load()
     } catch (e: any) { setErr(e.message) }
     finally { setBusy(null) }
+  }
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault(); setDragOver(false)
+    const files = Array.from(e.dataTransfer.files).filter((f) => f.type === 'audio/mpeg' || f.name.endsWith('.mp3'))
+    if (files.length) setDroppedFiles((prev) => [...prev, ...files])
   }
 
   const copyToClipboard = (text: string) => {
@@ -144,39 +161,103 @@ export function SongSeed({ songSeedId, onClose, embedded }: { songSeedId: string
           background: T.accentGlow, border: `2px solid ${T.accent}`,
           borderRadius: 6, padding: 18,
         }}>
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: S.subhead, fontFamily: T.heading, fontWeight: 700, color: T.text }}>
-              ⬇ Paste Suno result URLs here
+          <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontSize: S.subhead, fontFamily: T.heading, fontWeight: 700, color: T.text, flex: 1 }}>
+              ⬇ Accept takes
             </div>
-            <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.textMuted, marginTop: 3 }}>
-              The server will download and re-host the audio. One URL per take.
+            <div style={{ display: 'flex', gap: 0, borderRadius: 4, overflow: 'hidden', border: `1px solid ${T.accentMuted}` }}>
+              {(['urls', 'files'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setUploadMode(m)}
+                  style={{
+                    padding: '4px 12px', fontFamily: T.sans, fontSize: S.label,
+                    background: uploadMode === m ? T.accent : 'transparent',
+                    color: uploadMode === m ? T.bg : T.textMuted,
+                    border: 'none', cursor: 'pointer',
+                  }}
+                >{m === 'urls' ? 'paste URLs' : 'upload files'}</button>
+              ))}
             </div>
           </div>
-          {takes.map((t, i) => (
-            <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <Input
-                value={t.sourceUrl}
-                onChange={(e) => setTakes(takes.map((x, j) => j === i ? { sourceUrl: e.target.value } : x))}
-                placeholder={`take ${i + 1} — paste https://suno.com/s/... or https://suno.com/song/...`}
+
+          {uploadMode === 'urls' ? (
+            <>
+              <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.textMuted, marginBottom: 10 }}>
+                The server will download and re-host the audio. One URL per take.
+              </div>
+              {takes.map((t, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <Input
+                    value={t.sourceUrl}
+                    onChange={(e) => setTakes(takes.map((x, j) => j === i ? { sourceUrl: e.target.value } : x))}
+                    placeholder={`take ${i + 1} — paste https://suno.com/s/... or https://suno.com/song/...`}
+                    style={{ fontSize: 15, padding: '12px 14px', background: T.bg, borderColor: T.accentMuted } as CSSProperties}
+                  />
+                </div>
+              ))}
+              <Button variant="tiny" onClick={() => setTakes([...takes, { sourceUrl: '' }])}>+ add take</Button>
+            </>
+          ) : (
+            <>
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={onDrop}
+                onClick={() => fileInputRef.current?.click()}
                 style={{
-                  fontSize: 15, padding: '12px 14px',
-                  background: T.bg, borderColor: T.accentMuted,
-                } as CSSProperties}
-              />
-            </div>
-          ))}
-          <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Button
-              variant="tiny"
-              onClick={() => setTakes([...takes, { sourceUrl: '' }])}
-            >+ add take</Button>
+                  border: `2px dashed ${dragOver ? T.accent : T.accentMuted}`,
+                  borderRadius: 6, padding: '28px 20px', textAlign: 'center',
+                  cursor: 'pointer', marginBottom: 10,
+                  background: dragOver ? T.accentGlow : 'transparent',
+                  transition: 'background 0.15s',
+                }}
+              >
+                <div style={{ fontFamily: T.sans, fontSize: S.body, color: T.textMuted }}>
+                  drag & drop MP3 files here, or click to browse
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".mp3,audio/mpeg"
+                  multiple
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files ?? [])
+                    if (files.length) setDroppedFiles((prev) => [...prev, ...files])
+                    e.target.value = ''
+                  }}
+                />
+              </div>
+              {droppedFiles.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+                  {droppedFiles.map((f, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: T.sans, fontSize: S.small, color: T.textMuted }}>
+                      <span style={{ flex: 1 }}>{f.name}</span>
+                      <span style={{ color: T.textDim }}>{(f.size / 1024 / 1024).toFixed(1)} MB</span>
+                      <button
+                        type="button"
+                        onClick={() => setDroppedFiles((prev) => prev.filter((_, j) => j !== i))}
+                        style={{ background: 'none', border: 'none', color: T.danger, cursor: 'pointer', padding: '0 4px' }}
+                      >×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ flex: 1 }} />
             <Button
               onClick={accept}
-              disabled={takes.every((t) => !t.sourceUrl.trim())}
+              disabled={uploadMode === 'urls' ? takes.every((t) => !t.sourceUrl.trim()) : droppedFiles.length === 0}
               busy={busy === 'accept'}
             >
-              {busy === 'accept' ? 'downloading + uploading…' : 'accept takes'}
+              {busy === 'accept'
+                ? (uploadMode === 'files' ? 'uploading…' : 'downloading + uploading…')
+                : 'accept takes'}
             </Button>
             {accepted && (
               <span style={{ fontSize: S.small, fontFamily: T.sans, color: T.success }}>

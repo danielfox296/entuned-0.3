@@ -23,7 +23,7 @@ import { decompose } from '../lib/decomposer/decomposer.js'
 import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 import { runEno } from '../lib/eno/eno.js'
-import { downloadAndUploadFromUrl } from '../lib/r2.js'
+import { downloadAndUploadFromUrl, uploadBuffer } from '../lib/r2.js'
 import { draftHooks, getOrSeedHookWriterPrompt, buildHookDrafterContext } from '../lib/hooks/drafter.js'
 import { suggestReferenceTracks } from '../lib/ref-tracks/suggester.js'
 import { resolvePreview } from '../lib/ref-tracks/preview.js'
@@ -2127,6 +2127,72 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
+  // POST /admin/song-seeds/:id/accept-files — multipart file upload alternative to URL-paste accept
+  app.post('/song-seeds/:id/accept-files', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+
+    const existing = await prisma.songSeed.findUnique({ where: { id } })
+    if (!existing) return reply.code(404).send({ error: 'not_found' })
+    if (existing.status !== 'queued') return reply.code(409).send({ error: 'not_queued', message: `SongSeed is ${existing.status}` })
+
+    const uploaded: { url: string; key: string; byteSize: number; contentType: string }[] = []
+    let i = 0
+    try {
+      for await (const part of req.files()) {
+        const buf = await part.toBuffer()
+        const key = `song-seeds/${id}/take-${++i}-${Date.now()}.mp3`
+        const obj = await uploadBuffer(key, buf, 'audio/mpeg')
+        uploaded.push(obj)
+      }
+    } catch (e: any) {
+      return reply.code(502).send({ error: 'r2_upload_failed', message: e.message ?? 'unknown' })
+    }
+
+    if (uploaded.length === 0) return reply.code(400).send({ error: 'no_files' })
+
+    const outcome = await prisma.outcome.findUnique({ where: { id: existing.outcomeId }, select: { version: true } })
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const lineage: any[] = []
+        for (const obj of uploaded) {
+          const song = await tx.song.upsert({
+            where: { r2Url: obj.url },
+            create: { r2Url: obj.url, r2ObjectKey: obj.key, byteSize: BigInt(obj.byteSize), contentType: obj.contentType },
+            update: {},
+          })
+          const row = await tx.lineageRow.create({
+            data: {
+              songId: song.id,
+              r2Url: obj.url,
+              icpId: existing.icpId,
+              outcomeId: existing.outcomeId,
+              outcomeVersion: outcome?.version ?? null,
+              hookId: existing.hookId,
+              songSeedId: existing.id,
+              active: true,
+            },
+          })
+          lineage.push(row)
+        }
+        const updated = await tx.songSeed.update({
+          where: { id }, data: { status: 'accepted', terminalAt: new Date() },
+        })
+        if (existing.referenceTrackId) {
+          await tx.referenceTrack.update({ where: { id: existing.referenceTrackId }, data: { useCount: { increment: 1 } } })
+        }
+        await tx.hook.update({ where: { id: existing.hookId }, data: { useCount: { increment: 1 } } })
+        return { songSeed: updated, lineageRows: lineage }
+      })
+      return result
+    } catch (e: any) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        return reply.code(409).send({ error: 'hook_already_accepted', message: 'Another song seed for this hook has already been accepted.' })
+      }
+      return reply.code(500).send({ error: 'accept_failed', message: e.message ?? 'unknown' })
+    }
+  })
+
   app.put('/decompositions/:id', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
@@ -2523,6 +2589,61 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         r2Url: uploaded.url,
         r2ObjectKey: key,
         label: body.label ?? null,
+        position: nextPosition,
+        byteSize: uploaded.byteSize,
+        contentType: uploaded.contentType,
+      },
+    })
+
+    return reply.code(201).send({
+      id: asset.id,
+      campaignId: asset.campaignId,
+      r2Url: asset.r2Url,
+      label: asset.label,
+      position: asset.position,
+      byteSize: asset.byteSize ? Number(asset.byteSize) : null,
+      contentType: asset.contentType,
+      createdAt: asset.createdAt.toISOString(),
+    })
+  })
+
+  // POST /admin/campaigns/:campaignId/assets/upload — direct file upload to R2
+  app.post('/campaigns/:campaignId/assets/upload', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const campaignId = (req.params as any).campaignId as string
+
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: campaignId },
+      include: { adAssets: { select: { position: true } } },
+    })
+    if (!campaign) return reply.code(404).send({ error: 'not_found' })
+
+    const file = await req.file()
+    if (!file) return reply.code(400).send({ error: 'no_file' })
+
+    const label = (file.fields as any)?.label?.value as string | undefined
+    const buf = await file.toBuffer()
+    const assetId = crypto.randomUUID()
+    const key = `ads/${assetId}.mp3`
+
+    let uploaded: { url: string; byteSize: number; contentType: string }
+    try {
+      uploaded = await uploadBuffer(key, buf, 'audio/mpeg')
+    } catch (e: any) {
+      return reply.code(502).send({ error: 'upload_failed', message: e.message ?? 'unknown' })
+    }
+
+    const nextPosition = campaign.adAssets.length > 0
+      ? Math.max(...campaign.adAssets.map((a) => a.position)) + 1
+      : 0
+
+    const asset = await prisma.adAsset.create({
+      data: {
+        id: assetId,
+        campaignId,
+        r2Url: uploaded.url,
+        r2ObjectKey: key,
+        label: label ?? null,
         position: nextPosition,
         byteSize: uploaded.byteSize,
         contentType: uploaded.contentType,

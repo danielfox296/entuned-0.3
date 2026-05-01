@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { CampaignRow, AdAssetRow } from '../../api.js'
@@ -287,7 +287,16 @@ function AdAssetList({ campaign, onUpdated }: { campaign: CampaignRow; onUpdated
   const [label, setLabel] = useState('')
   const [adding, setAdding] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const toast = useToast()
+
+  const refreshCampaign = async () => {
+    const token = getToken()!
+    const updated = await api.campaigns(campaign.storeId, token)
+    const fresh = updated.find((c) => c.id === campaign.id)
+    if (fresh) onUpdated(fresh)
+  }
 
   const addAsset = async () => {
     if (!sourceUrl.trim()) return
@@ -297,12 +306,26 @@ function AdAssetList({ campaign, onUpdated }: { campaign: CampaignRow; onUpdated
       await api.addAdAsset(campaign.id, { sourceUrl: sourceUrl.trim(), label: label.trim() || undefined }, token)
       toast.success('Asset added')
       setSourceUrl(''); setLabel('')
-      const token2 = getToken()!
-      const updated = await api.campaigns(campaign.storeId, token2)
-      const fresh = updated.find((c) => c.id === campaign.id)
-      if (fresh) onUpdated(fresh)
+      await refreshCampaign()
     } catch (e: any) { toast.error(e.message ?? 'upload failed') }
     finally { setAdding(false) }
+  }
+
+  const uploadFile = async (file: File) => {
+    const token = getToken(); if (!token) return
+    setAdding(true)
+    try {
+      await api.uploadAdAsset(campaign.id, file, undefined, token)
+      toast.success(`${file.name} uploaded`)
+      await refreshCampaign()
+    } catch (e: any) { toast.error(e.message ?? 'upload failed') }
+    finally { setAdding(false) }
+  }
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault(); setDragOver(false)
+    const files = Array.from(e.dataTransfer.files).filter((f) => f.type === 'audio/mpeg' || f.name.endsWith('.mp3'))
+    for (const f of files) uploadFile(f)
   }
 
   const deleteAsset = async (asset: AdAssetRow) => {
@@ -311,10 +334,7 @@ function AdAssetList({ campaign, onUpdated }: { campaign: CampaignRow; onUpdated
     try {
       await api.deleteAdAsset(asset.id, token)
       toast.success('Asset removed')
-      const token2 = getToken()!
-      const updated = await api.campaigns(campaign.storeId, token2)
-      const fresh = updated.find((c) => c.id === campaign.id)
-      if (fresh) onUpdated(fresh)
+      await refreshCampaign()
     } catch (e: any) { toast.error(e.message ?? 'delete failed') }
     finally { setBusyId(null) }
   }
@@ -324,10 +344,7 @@ function AdAssetList({ campaign, onUpdated }: { campaign: CampaignRow; onUpdated
     setBusyId(asset.id)
     try {
       await api.moveAdAsset(asset.id, direction, token)
-      const token2 = getToken()!
-      const updated = await api.campaigns(campaign.storeId, token2)
-      const fresh = updated.find((c) => c.id === campaign.id)
-      if (fresh) onUpdated(fresh)
+      await refreshCampaign()
     } catch (e: any) { toast.error(e.message ?? 'move failed') }
     finally { setBusyId(null) }
   }
@@ -382,14 +399,45 @@ function AdAssetList({ campaign, onUpdated }: { campaign: CampaignRow; onUpdated
         </div>
       ))}
 
-      {/* Add asset form */}
+      {/* Drag-drop zone */}
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={onDrop}
+        onClick={() => fileInputRef.current?.click()}
+        style={{
+          border: `2px dashed ${dragOver ? T.accent : T.borderSubtle}`,
+          borderRadius: 6, padding: '20px 16px', textAlign: 'center',
+          cursor: adding ? 'default' : 'pointer', marginTop: 4,
+          background: dragOver ? T.accentGlow : 'transparent',
+          transition: 'background 0.15s',
+          opacity: adding ? 0.5 : 1,
+        }}
+      >
+        <div style={{ fontFamily: T.sans, fontSize: S.small, color: T.textMuted }}>
+          {adding ? 'uploading…' : 'drag & drop MP3 files here, or click to browse'}
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".mp3,audio/mpeg"
+          multiple
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? [])
+            for (const f of files) uploadFile(f)
+            e.target.value = ''
+          }}
+        />
+      </div>
+
+      {/* Add asset via URL */}
       <div style={{
         display: 'flex', flexDirection: 'column', gap: 8,
         background: T.surface, borderRadius: 4, padding: '12px 14px',
         border: `1px dashed ${T.borderSubtle}`,
-        marginTop: 4,
       }}>
-        <div style={{ fontSize: 12, fontFamily: T.sans, color: T.textDim, marginBottom: 2 }}>Add asset via URL</div>
+        <div style={{ fontSize: 12, fontFamily: T.sans, color: T.textDim, marginBottom: 2 }}>or add via URL</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Input
             value={sourceUrl}
