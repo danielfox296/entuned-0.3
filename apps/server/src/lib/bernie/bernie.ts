@@ -8,12 +8,37 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../db.js'
 import { DRAFT_PROMPT_SEED, EDIT_PROMPT_SEED } from '../proto-bernie/lyrics.js'
+import type { ArrangementSections } from '../arranger/arranger.js'
 
 const MODEL = process.env.LYRICIST_MODEL ?? 'claude-sonnet-4-5'
 
 export interface BernieInput {
   hookText: string
   brandLyricGuidelines?: string | null
+  arrangementSections?: ArrangementSections | null
+}
+
+const SECTION_ORDER = ['intro', 'verse', 'pre_chorus', 'chorus', 'bridge', 'outro'] as const
+
+// Serializes the decomposer's per-section instrumentation map into a brief prose
+// brief for Bernie. Bernie uses this to match lyric density, phrasing, and energy
+// to the arrangement shape — denser sections want more word weight, minimal
+// sections want breathing room. Bernie should NOT name instruments in the lyrics
+// themselves (that's the Arranger's job via [Instrument: ...] tags).
+function formatArrangementBrief(sections: ArrangementSections): string {
+  const lines: string[] = []
+  for (const key of SECTION_ORDER) {
+    const directive = sections[key]
+    if (!directive || directive.instruments.length === 0) continue
+    const density = directive.density ?? 'medium'
+    const instruments = directive.instruments.slice(0, 3).join(', ')
+    const label = key === 'pre_chorus' ? 'pre-chorus' : key
+    lines.push(`- ${label}: ${density} — ${instruments}`)
+  }
+  if (lines.length === 0) return ''
+  return `Arrangement (per section — match lyric density and energy to this; do NOT name instruments in the lyric lines):
+${lines.join('\n')}
+`
 }
 
 export interface BernieOutput {
@@ -61,12 +86,13 @@ export async function generateLyrics(input: BernieInput): Promise<BernieOutput> 
     getOrSeedEditPrompt(),
   ])
 
+  const arrangementBrief = input.arrangementSections ? formatArrangementBrief(input.arrangementSections) : ''
+
   // Pass 1 — draft
   const draftUserMessage = `Hook (becomes the chorus, used verbatim):
 "${input.hookText}"
 
-${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n` : ''}
-Write the lyrics now. Output the JSON only.`
+${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n\n` : ''}${arrangementBrief ? `${arrangementBrief}\n` : ''}Write the lyrics now. Output the JSON only.`
 
   const draftResponse = await client.messages.create({
     model: MODEL,
@@ -82,8 +108,7 @@ Write the lyrics now. Output the JSON only.`
   const editUserMessage = `Hook (must remain verbatim in every chorus instance):
 "${input.hookText}"
 
-${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n` : ''}
-Draft to polish:
+${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n\n` : ''}${arrangementBrief ? `${arrangementBrief}\n` : ''}Draft to polish:
 
 Title: ${draft.title}
 

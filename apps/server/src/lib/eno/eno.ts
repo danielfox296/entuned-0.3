@@ -143,19 +143,26 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
 
     const icpRow = await prisma.iCP.findUniqueOrThrow({ where: { id: icpId }, select: { clientId: true } })
     const client = await prisma.client.findUnique({ where: { id: icpRow.clientId } })
-    const lyricsRaw = await generateLyrics({
-      hookText: hook.text,
-      brandLyricGuidelines: client?.brandLyricGuidelines ?? null,
-    })
 
     // Arrangement comes from the reference track's StyleAnalysis. Decomposer rules-v6+
     // populate arrangement_sections; older decompositions have null and the arranger
     // is a no-op. Tracks naturally backfill as they're re-decomposed.
+    //
+    // Bernie receives the arrangement as a brief so it can match lyric density and
+    // energy per section. The post-Bernie injectArrangement step then staples the
+    // [Instrument: ...] tags onto the section headers for Suno.
     const arrangementSections = (styleAnalysis as { arrangementSections?: unknown }).arrangementSections as
       | ArrangementSections
       | null
       | undefined
     const arrangementVersion = (styleAnalysis as { arrangementVersion?: number | null }).arrangementVersion ?? null
+
+    const lyricsRaw = await generateLyrics({
+      hookText: hook.text,
+      brandLyricGuidelines: client?.brandLyricGuidelines ?? null,
+      arrangementSections: arrangementSections ?? null,
+    })
+
     const finalLyrics = arrangementSections
       ? injectArrangement(lyricsRaw.lyrics, arrangementSections)
       : lyricsRaw.lyrics
