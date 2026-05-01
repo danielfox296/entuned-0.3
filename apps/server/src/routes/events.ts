@@ -16,6 +16,7 @@ const EventSchema = z.object({
     'playback_starved',
     'operator_login',
     'operator_logout',
+    'ad_play',
   ]),
   store_id: z.string().uuid(),
   occurred_at: z.string().datetime(),
@@ -63,6 +64,41 @@ export const eventsRoutes: FastifyPluginAsync = async (app) => {
         extra: e.extra ?? undefined,
       })),
     })
+
+    // Update campaign play state counters.
+    // song_complete → increment songs_played_since_ad for the store.
+    const songCompleteStores = [...new Set(
+      events.filter((e) => e.event_type === 'song_complete').map((e) => e.store_id),
+    )]
+    await Promise.all(songCompleteStores.map((storeId) =>
+      prisma.campaignPlayState.upsert({
+        where: { storeId },
+        update: { songsPlayedSinceAd: { increment: 1 } },
+        create: { storeId, songsPlayedSinceAd: 1 },
+      }),
+    ))
+
+    // ad_play → reset songs_played_since_ad, advance nextAssetIndex for that campaign.
+    for (const e of events.filter((e) => e.event_type === 'ad_play')) {
+      await prisma.campaignPlayState.upsert({
+        where: { storeId: e.store_id },
+        update: { songsPlayedSinceAd: 0 },
+        create: { storeId: e.store_id, songsPlayedSinceAd: 0 },
+      })
+      const campaignId = (e.extra as any)?.campaignId as string | undefined
+      if (campaignId) {
+        const assetCount = await prisma.adAsset.count({ where: { campaignId } })
+        if (assetCount > 0) {
+          const cur = await prisma.campaignAssetState.findUnique({ where: { campaignId } })
+          const next = ((cur?.nextAssetIndex ?? 0) + 1) % assetCount
+          await prisma.campaignAssetState.upsert({
+            where: { campaignId },
+            update: { nextAssetIndex: next },
+            create: { campaignId, nextAssetIndex: next },
+          })
+        }
+      }
+    }
 
     return reply.code(201).send({ accepted: created.count })
   })

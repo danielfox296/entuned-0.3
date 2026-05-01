@@ -638,6 +638,40 @@ export type StyleAnalysisUpdate = Partial<{
   harmonicAndGroove: string | null
 }>
 
+// --- Campaigns ---
+
+export interface AdAssetRow {
+  id: string
+  campaignId: string
+  r2Url: string
+  label: string | null
+  position: number
+  byteSize: number | null
+  contentType: string | null
+  createdAt: string
+}
+
+export interface CampaignRow {
+  id: string
+  storeId: string
+  name: string
+  startsAt: string
+  endsAt: string
+  songsPerAd: number
+  createdAt: string
+  updatedAt: string
+  adAssets: AdAssetRow[]
+}
+
+export interface CampaignCreateBody {
+  name: string
+  startsAt: string
+  endsAt: string
+  songsPerAd: number
+}
+
+export type CampaignUpdateBody = Partial<CampaignCreateBody>
+
 // --- API methods ---
 
 export const api = {
@@ -894,6 +928,29 @@ export const api = {
     req<{ totalEvents: number; earliestAt: string | null; latestAt: string | null }>(
       `/admin/stores/${storeId}/pos/summary`, {}, token,
     ),
+
+  // --- Campaigns ---
+
+  campaigns: (storeId: string, token: string) =>
+    req<CampaignRow[]>(`/admin/stores/${storeId}/campaigns`, {}, token),
+
+  createCampaign: (storeId: string, body: CampaignCreateBody, token: string) =>
+    req<CampaignRow>(`/admin/stores/${storeId}/campaigns`, { method: 'POST', body: JSON.stringify(body) }, token),
+
+  updateCampaign: (id: string, body: CampaignUpdateBody, token: string) =>
+    req<CampaignRow>(`/admin/campaigns/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+
+  deleteCampaign: (id: string, token: string) =>
+    req<{ ok: true }>(`/admin/campaigns/${id}`, { method: 'DELETE' }, token),
+
+  addAdAsset: (campaignId: string, body: { sourceUrl: string; label?: string }, token: string) =>
+    req<AdAssetRow>(`/admin/campaigns/${campaignId}/assets`, { method: 'POST', body: JSON.stringify(body) }, token),
+
+  deleteAdAsset: (id: string, token: string) =>
+    req<{ ok: true }>(`/admin/ad-assets/${id}`, { method: 'DELETE' }, token),
+
+  moveAdAsset: (id: string, direction: 'up' | 'down', token: string) =>
+    req<{ ok: true }>(`/admin/ad-assets/${id}/move`, { method: 'PUT', body: JSON.stringify({ direction }) }, token),
 
   // --- Operator management ---
   operators: (token: string) =>

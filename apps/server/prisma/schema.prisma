@@ -32,6 +32,7 @@ enum PlaybackEventType {
   playback_starved
   operator_login
   operator_logout
+  ad_play
 }
 
 enum ReportReason {
@@ -134,6 +135,8 @@ model Store {
   playbackEvents      PlaybackEvent[]
   posEvents           POSEvent[]
   posPullRuns         POSPullRun[]
+  campaigns           Campaign[]
+  campaignPlayState   CampaignPlayState?
 
   @@index([clientId])
   @@map("stores")
@@ -671,4 +674,61 @@ model POSEvent {
   @@index([storeId, occurredAt(sort: Desc)])
   @@index([clientId, occurredAt(sort: Desc)])
   @@map("pos_events")
+}
+
+// ---------- Card 22 Campaigns (Interstitial Ads) ----------
+
+model Campaign {
+  id         String   @id @default(uuid()) @db.Uuid
+  storeId    String   @map("store_id") @db.Uuid
+  name       String
+  startsAt   DateTime @map("starts_at") @db.Timestamptz(6)
+  endsAt     DateTime @map("ends_at") @db.Timestamptz(6)
+  songsPerAd Int      @default(3) @map("songs_per_ad")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  store      Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  adAssets   AdAsset[]
+  assetState CampaignAssetState?
+
+  @@index([storeId, startsAt])
+  @@map("campaigns")
+}
+
+model AdAsset {
+  id          String   @id @default(uuid()) @db.Uuid
+  campaignId  String   @map("campaign_id") @db.Uuid
+  r2Url       String   @map("r2_url")
+  r2ObjectKey String   @map("r2_object_key")
+  label       String?
+  position    Int
+  byteSize    BigInt?  @map("byte_size")
+  contentType String?  @map("content_type")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, position])
+  @@map("ad_assets")
+}
+
+model CampaignPlayState {
+  storeId            String   @id @map("store_id") @db.Uuid
+  songsPlayedSinceAd Int      @default(0) @map("songs_played_since_ad")
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@map("campaign_play_states")
+}
+
+model CampaignAssetState {
+  campaignId     String   @id @map("campaign_id") @db.Uuid
+  nextAssetIndex Int      @default(0) @map("next_asset_index")
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("campaign_asset_states")
 }

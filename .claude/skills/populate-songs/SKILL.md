@@ -1,256 +1,249 @@
 ---
 name: populate-songs
-description: Populate a library in Dash (dash.entuned.co) by round-tripping prompts to Suno and pasting the share link back. Use when Daniel asks to fill out a library, generate songs for a store/entity, or "run Dash → Suno → Dash" loop. Specifically scoped to Gary @ UNTUCKit Park Meadows on first run.
+description: Populate a library in Dash (dash.entuned.co) by round-tripping prompts to Suno and pasting the share link back. Use when Daniel asks to fill out a library, generate songs for a store/entity, or "run Dash → Suno → Dash" loop.
 ---
 
 # populate-songs
 
-Round-trip song generation: Dash gives you a prompt, you paste it into Suno, wait for Suno to finish, copy the share link, paste back into Dash. Repeat until library is full or something breaks.
-
-## Mission
-
-Fill the **Gary @ UNTUCKit Park Meadows** library in Dash. It's already partially started. Continue from wherever it left off and go until:
-- The library is complete (no more empty prompts), OR
-- You hit a Suno captcha (Daniel is asleep — log it and stop), OR
-- Anything in Dash breaks (this is desired — log it, suggest a redesign).
+Round-trip song generation: read all queued prompts from Dash, generate in Suno, accept URLs back into Dash.
 
 ## Tools
 
-- **Chrome MCP** (`mcp__Claude_in_Chrome__*`) for everything in the browser. Both Dash and Suno are pre-logged-in and persist.
-- Do NOT use computer-use for browser actions — Chrome MCP is faster and DOM-aware.
-- Load Chrome MCP tools at the start of each new context segment via ToolSearch before doing anything else.
+- **Chrome MCP** (`mcp__Claude_in_Chrome__*`) for all browser actions. Both Dash and Suno are pre-logged-in.
+- Load Chrome MCP tools at the start of each session via ToolSearch before doing anything.
+- Use `browser_batch` for visual coordinate clicks when JS `.click()` silently no-ops (see friction notes).
 
-## Suno settings (set these once per session, then leave alone)
+## Suno mode
 
-- **Weirdness:** ~65%
-- **Style influence:** ~80%
-- To set: double-click the `%` label next to the slider — it becomes a direct text input. Type the value, press Enter. Do NOT try to drag sliders or dispatch keyboard events.
-- Verify these are still set on **both Suno tabs** at session start.
+The lyrics/style input mode is called **"Advanced"** in Suno v5.5 (previously "Custom"). Click the "Advanced" button in the top bar to activate it. Textareas won't be present in Simple mode.
 
-## Setup (multi-tab)
+## Tab count
 
-Open 2–3 Suno tabs before starting. **Triple-tab is confirmed working on Suno Pro** (no rate limiting, no captchas). Use 2 tabs for short queues (≤3 prompts), 3 tabs for 4+ prompts.
+| Queue size | Tabs | Batches | ~Time |
+|---|---|---|---|
+| 1–2 | 2 | 1 | ~2 min |
+| 3–4 | 4 | 1 | ~2 min |
+| 5–8 | 4 | 2 | ~4 min |
+| 9+ | 4 | ceil(N/4) | ~2 min/batch |
 
-| Tabs | Net time for 6 prompts | Notes |
-|---|---|---|
-| 1 | ~18 min | Single submit→wait→accept cycle |
-| 2 | ~9 min | Recommended minimum |
-| 3 | ~6 min | Confirmed on Suno Pro; 3 is a reasonable ceiling before wakeup cadence gets complicated |
+**Default to 4 tabs.** Suno Pro has no rate limiting at 4 parallel. Open all 4 before touching Dash.
 
-Setup steps:
+## Session setup (do this once, upfront)
 
-1. Note the ID of the existing Suno tab — this is **tab A**.
-2. Call `tabs_create_mcp` to open a new tab → `https://suno.com/create` — this is **tab B**.
-3. (Optional, 4+ prompts) Open another tab → `https://suno.com/create` — this is **tab C**.
-4. Verify all tabs are logged in (same account). If any tab is logged out, stop and log it.
-5. On all tabs, verify Weirdness (~65%) and Style Influence (~80%) are set correctly.
-6. Verify the vocal toggle state on all tabs before any Create click (see friction notes).
-7. Initialize the in-flight tracker on the Dash tab:
-   ```js
-   window.__flight = {}; // {sunoTabId: {title, expectedUrls}}
-   ```
-
-> **Each tab needs its own vocal toggle verification before Create is clicked. New tabs opened mid-session may not hydrate React immediately — see friction note 10.**
-
-## The loop (optimized — multi-tab)
-
-Each cycle submits to all active tabs in parallel, then accepts from all on wakeup. Basic structure with 2 tabs: submit prompt 1 → tab A, submit prompt 2 → tab B, wait 180s, accept from tab A + submit prompt 3, accept from tab B + submit prompt 4, repeat. With 3 tabs: submit prompts 1/2/3 upfront, then accept all 3 + submit 4/5/6 on first wakeup.
-
-### Submit a prompt (two-call pattern — apply to each tab)
-
-The two-call pattern is unchanged. Apply it once per tab, back-to-back, without waiting between them.
-
-Use a **two-call pattern** to avoid stale-state bugs (see Friction notes below):
-
-**Call 1 — read fields from Dash, then inject into Suno + set vocal toggle:**
-1. Open the prompt modal in Dash (click its row in Song Creation Queue).
-2. Read all five fields from Dash's textareas via JS:
-   ```js
-   const tas = document.querySelectorAll('textarea');
-   // tas[0]=lyrics, tas[1]=style, tas[2]=exclusions, tas[3]=title, tas[4]=gender
-   ```
-3. Inject lyrics, style, exclusions, title into Suno (React native setter — see Proven JS patterns).
-4. Set vocal selector. **Suno requires exactly one of {Male, Female, Instrumental} to be `data-selected="true"` for Create to fire.** If none is selected, Create silently no-ops.
-   - `gender === 'male'` → if Male not selected, click it.
-   - `gender === 'female'` → if Female not selected, click it.
-   - `gender === 'instrumental'`:
-     - **If lyrics are non-empty** (typical case in Dash — gender="instrumental" is misleading), keep Male selected. The lyrics + style description drive the actual vocal sound.
-     - **If lyrics are empty**, click the `Instrumental` button.
-
-**Call 2 — verify vocal toggle, click Create:**
-5. Re-read Male/Female/Instrumental `data-selected` state (in a new JS call so React has settled).
-6. Confirm exactly one is `true`. If none, click your intended target now.
-7. Click Create.
-8. Verify generation started: `document.querySelectorAll('a[href*="/song/"]')` first 2 entries should be NEW URLs (not the previous prompt's), and `[class*="spin"]` count should be > 0. If neither — Create didn't fire; recover the vocal toggle and retry.
-
-**Why two calls:** within a single JS turn, React state updates are batched. A click on Male and a click on Create in the same turn can have Create read the pre-click state.
-
-### Dual-tab submit sequence (start of loop or after each wakeup)
-
-On the **first iteration** (or any time both tabs are idle):
-
-1. Switch to Dash → open prompt N modal → read fields → switch to tab A → inject + set toggle (Call 1) → verify toggle + click Create (Call 2). Confirm spinners.
-2. Update tracker: `window.__flight[TAB_A_ID] = {title: 'Prompt N title'}`
-3. Immediately switch back to Dash → open prompt N+1 modal → read fields → switch to tab B → inject + set toggle (Call 1) → verify toggle + click Create (Call 2). Confirm spinners.
-4. Update tracker: `window.__flight[TAB_B_ID] = {title: 'Prompt N+1 title'}`
-5. Both tabs are now generating. Close the Dash modal.
-
-**Do not wait between tab A submit and tab B submit.** The goal is both tabs generating simultaneously.
-
-### Wait for generation (~3 min)
-
-- Schedule **one wakeup for 180s** covering both in-flight prompts.
-- The wakeup message must state: both prompt titles, both Suno tab IDs, and the `window.__flight` state at submit time. Example: `"Tab A (id=123) generating 'Prompt Title X'; Tab B (id=456) generating 'Prompt Title Y'. Check tab A first (oldest)."`
-- Re-fetch everything live from Dash on wakeup — Dash always has the data. Do not rely on stale in-wakeup state.
-- On wakeup: check **tab A first** (it was submitted first). Accept its takes into Dash prompt N, then immediately submit prompt N+2 to tab A. Then check tab B, accept its takes into Dash prompt N+1, then immediately submit prompt N+3 to tab B. Both tabs are generating again — schedule the next 180s wakeup.
-
-### Accept completed tracks
-
-**Step 1 — Confirm generation is done (card-scoped, not global):**
-
-Do NOT rely on global `[class*="spin"]` count — non-generation UI spinners also match. Instead, check per card:
-```js
-Array.from(document.querySelectorAll('a[href*="/song/"]')).slice(0,4).map(a => {
-  const container = a.closest('li') || a.parentElement?.parentElement?.parentElement;
-  return {
-    href: a.href.slice(-8),
-    title: a.textContent?.trim(),
-    hasSpinner: !!container?.querySelector('[class*="spin"]')
-  }
-})
-```
-If the top 2 cards have `hasSpinner: false` and their titles match the prompt you submitted — generation is done.
-
-**Step 2 — Verify URLs before accepting (multi-tab runs):**
-
-All Suno tabs share the same account-wide sidebar. `slice(0,2)` on any tab returns the 2 most recently-started generations account-wide — not the 2 from that specific tab. In a 3-tab run, tab A's `slice(0,2)` may return tab C's URLs if tab C submitted after tab A.
-
-Always confirm song titles match `window.__flight[tabId].title` before pasting URLs into Dash. If unsure, take a screenshot of the sidebar.
-
-**Step 3 — Accept into Dash:**
+### Step 1 — Open 4 Suno tabs
 
 ```js
-// Get URLs
-Array.from(document.querySelectorAll('a[href*="/song/"]')).slice(0,2).map(a=>a.href)
+// You'll have one existing tab. Open 3 more:
+// tabs_create_mcp × 3, navigate each to https://suno.com/create
 ```
 
-1. In Dash: close any open modal, then click the row for the prompt you just generated.
-2. Find take 1/take 2 inputs via `find` tool, paste URLs with `form_input`.
-3. Click "accept takes" via JS: `Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toLowerCase() === 'accept takes')?.click()`
-4. The server starts downloading. Close the modal — the queue will update when done.
+Note tab IDs: A, B, C, D.
 
-### Check if queue is empty
+### Step 2 — Click Advanced + set sliders on all 4 tabs
 
-If Dash shows "No Song Prompts" but you expected more:
-- Check if hooks have been accepted: go to Workflows → Hook → Prompt and look for outcomes with "0 to work / 0 accepted".
-- If hooks are unreviewed, you must accept them and run Hook → Prompt before songs can be queued. The Suno loop cannot unblock this — surface it to Daniel.
+Do each tab sequentially (sliders are per-tab state):
 
-## Proven JS patterns
-
-**Read all Dash fields at once:**
 ```js
+// On each tab:
+Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Advanced')?.click();
+```
+
+Then set **Weirdness to 75%** and **Style Influence to 62%** on each tab. These must be set in **two separate JS calls per slider** — batching both in one setTimeout causes both to target the same input:
+
+```js
+// Call 1 — open Weirdness input (pctEls[0] = Weirdness, pctEls[1] = Style Influence)
+const pctEls = Array.from(document.querySelectorAll('*')).filter(el =>
+  el.children.length === 0 && el.textContent.trim().match(/^\d+%$/)
+);
+pctEls[0].dispatchEvent(new MouseEvent('dblclick', {bubbles: true}));
+
+// Call 2 — set value
+function setReactValue(el, value) {
+  const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+  Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);
+  el.dispatchEvent(new Event('input', {bubbles: true}));
+  el.dispatchEvent(new Event('change', {bubbles: true}));
+}
+const inp = Array.from(document.querySelectorAll('input[type="text"]')).find(i => i.placeholder === '');
+setReactValue(inp, '75');
+inp.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter',keyCode:13,bubbles:true}));
+inp.dispatchEvent(new KeyboardEvent('keypress',{key:'Enter',keyCode:13,bubbles:true}));
+inp.dispatchEvent(new KeyboardEvent('keyup',  {key:'Enter',keyCode:13,bubbles:true}));
+inp.blur();
+// Repeat for pctEls[1] → '62'
+```
+
+Verify: both % labels show correct values before continuing.
+
+### Step 3 — Front-load ALL Dash prompt reads
+
+**Read every queued prompt into `window.__prompts` on the Dash tab before injecting anything into Suno.** This eliminates mid-inject tab-switching.
+
+```js
+// In Dash — Song Creation Queue
+window.__prompts = [];
+```
+
+For each prompt row in the queue, click to open modal, read all 5 fields, close, store:
+
+```js
+// Read fields
 const tas = document.querySelectorAll('textarea');
-({lyrics: tas[0].value, style: tas[1].value, exclusions: tas[2].value, title: tas[3].value, gender: tas[4].value})
+// tas[0]=lyrics, tas[1]=style, tas[2]=exclusions, tas[3]=title, tas[4]=gender
+window.__prompts.push({
+  lyrics: tas[0].value,
+  style: tas[1].value,
+  exclusions: tas[2].value,
+  title: tas[3].value,
+  gender: tas[4].value
+});
+// Close modal
+Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('✕'))?.click();
 ```
 
-**Inject into a Suno field (React-safe):**
+Repeat for all prompts you intend to generate this batch (up to 4 = one full tab cycle).
+
+> **Lyrics and style can be long.** If a field value is truncated in the JS response, read the tail with `tas[0].value.slice(700)` in a second call and concatenate before storing.
+
+---
+
+## The loop
+
+### Inject batch (after all prompts are read into `window.__prompts`)
+
+For each tab A/B/C/D, inject `__prompts[0]`, `__prompts[1]`, etc. No Dash tab-switching needed — all data is in `window.__prompts`.
+
+**Inject pattern (React-safe):**
 ```js
 function setReactValue(el, value) {
-  const proto = el.tagName === 'TEXTAREA'
-    ? window.HTMLTextAreaElement.prototype
-    : window.HTMLInputElement.prototype;
+  const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
   Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);
-  el.dispatchEvent(new Event('input', { bubbles: true }));
-  el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.dispatchEvent(new Event('input', {bubbles: true}));
+  el.dispatchEvent(new Event('change', {bubbles: true}));
 }
-// Usage:
-setReactValue(document.querySelectorAll('textarea')[0], lyricsText); // lyrics
-setReactValue(document.querySelectorAll('textarea')[1], styleText);  // style
-setReactValue(document.querySelectorAll('input,textarea')[find el with placeholder==='Exclude styles'], exclusionsText);
-setReactValue(Array.from(document.querySelectorAll('input')).filter(el => el.placeholder === 'Song Title (Optional)').at(-1), titleText);
+const p = window.__prompts[N]; // N = 0,1,2,3
+const tas = document.querySelectorAll('textarea');
+setReactValue(tas[0], p.lyrics);
+setReactValue(tas[1], p.style);
+const exclInput = Array.from(document.querySelectorAll('input')).find(i => i.placeholder === 'Exclude styles');
+setReactValue(exclInput, p.exclusions);
+const titleInput = Array.from(document.querySelectorAll('input')).filter(i => i.placeholder === 'Song Title (Optional)').at(-1);
+setReactValue(titleInput, p.title);
+
+// Vocal toggle
+// gender=male → Male; gender=female → Female; gender=instrumental + non-empty lyrics → Male; gender=instrumental + empty lyrics → Instrumental
+const vocal = p.gender === 'female' ? 'Female' : 'Male';
+const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === vocal);
+if (btn && btn.getAttribute('data-selected') !== 'true') btn.click();
 ```
 
-**Extract completed Suno URLs:**
+### Create (two-call pattern per tab)
+
+**Call 1** injects fields + sets vocal (above).
+
+**Call 2** verifies vocal is selected, then clicks Create:
 ```js
-Array.from(document.querySelectorAll('a[href*="/song/"]')).slice(0,2).map(a=>a.href)
+// Verify vocal
+const maleBtn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Male');
+const femaleBtn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Female');
+const vocalOk = maleBtn?.getAttribute('data-selected') === 'true' || femaleBtn?.getAttribute('data-selected') === 'true';
+
+// Click Create
+Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Create')?.click();
 ```
 
-**Check Male/Female button state:**
+After clicking, **check the Create button's loading state** (not the sidebar) to confirm it fired:
 ```js
-document.querySelectorAll('button')[N].getAttribute('data-selected') // 'true' or null
+// The button enters a loading/disabled state immediately on success — sidebar lags 2-3s
+const createBtn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Create');
+({disabled: createBtn?.disabled, loading: createBtn?.getAttribute('aria-busy')})
 ```
 
-**Open a prompt modal by title:**
-```js
-Array.from(document.querySelectorAll('*'))
-  .find(el => el.textContent.trim() === 'Prompt Title Here' && el.children.length === 0)
-  ?.click()
-```
+If the button is still in its normal enabled state after 3s, Create didn't fire. Use a visual coordinate click as fallback (`browser_batch` → `computer` → `left_click` on the button coordinates from a screenshot). **Never fall back to visual click before verifying button state** — doing so risks double-submit (JS click registered but sidebar hadn't updated yet).
 
-**Close modal:**
-```js
-Array.from(document.querySelectorAll('button'))
-  .find(b => b.textContent.includes('close') || b.textContent.includes('✕'))
-  ?.click()
-```
+### Wait (~2 min)
 
-## Friction notes (verified in test runs)
+Schedule **one wakeup for 120s** for the whole batch. Wakeup prompt needs: tab IDs, prompt titles, that's it.
 
-These are the bugs / surprises that bit prior runs. Internalize them before starting.
+### Accept batch
 
-1. **Suno's Create button silently no-ops when no vocal selector is active.** No error toast, no disabled state, the click just does nothing. Always verify `data-selected="true"` on at least one of Male/Female/Instrumental before clicking Create. If you submit and see no spinners + no new song URLs after 2 seconds, this is your bug.
+On wakeup, for each tab:
 
-2. **Dash gender="instrumental" is a misnomer.** It does not mean the song should have no vocals. The Hook → Prompt seeder writes `gender=instrumental` for some prompts that have full lyrics with vocal sections AND style descriptions like "Earnest plaintive male lead with conversational intimacy, no vibrato or affectation, tender female harmony weaving through". In practice: if lyrics are non-empty, default to Male in Suno; if lyrics are truly empty, click Suno's Instrumental.
+1. Get top-2 URLs — verify titles match what you submitted. Use **two-pass approach** (sidebar may use `href` attributes OR React fiber state depending on tab):
 
-3. **React state read in the same JS turn as a click is stale.** Set values, click toggles, then return. Read state and click Create in a separate call.
+   **Pass 1 — attribute selector (fast):**
+   ```js
+   Array.from(document.querySelectorAll('[href]')).filter(el=>el.getAttribute('href')?.includes('/song/')).slice(0,4).map(el=>{const c=el.closest('li')||el.parentElement?.parentElement?.parentElement||el.parentElement;return{path:el.getAttribute('href'),text:(c?.textContent||'').trim().slice(0,50)}})
+   ```
 
-4. **Cross-tab data ferrying requires multiple round trips.** A single javascript_tool response truncates around 2KB; lyrics + style routinely exceed that. Read fields in piecewise calls (`window.__cur.lyrics`, then `window.__cur.style.substring(0, 1000)`, etc.) and assemble in your inject call. There is no localStorage bridge — Dash and Suno are different origins.
+   **Pass 2 — fiber scan (fallback when Pass 1 returns []):**
+   ```js
+   const uuids=new Set();const texts={};document.querySelectorAll('*').forEach(el=>{const key=Object.keys(el).find(k=>k.startsWith('__reactFiber')||k.startsWith('__reactProps'));if(!key)return;const fiber=el[key];if(!fiber)return;const props=fiber.memoizedProps||fiber;const href=props?.href||props?.to;if(href&&typeof href==='string'&&href.includes('/song/')){const m=href.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);if(m){uuids.add(m[0]);texts[m[0]]=(el.textContent||'').trim().slice(0,50);}}});Array.from(uuids).slice(0,4).map(u=>({uuid:u,text:texts[u]}))
+   ```
 
-5. **Style text appears templated by outcome, not per-hook.** Multiple prompts in the same outcome share most of the style language. Worth flagging back to Daniel if diversity matters.
+   Check per-card spinner (not global spinner count):
+   ```js
+   Array.from(document.querySelectorAll('a[href*="/song/"]')).slice(0,2).map(a => {
+     const c = a.closest('li') || a.parentElement?.parentElement?.parentElement;
+     return {title: a.textContent?.trim(), hasSpinner: !!c?.querySelector('[class*="spin"]')};
+   })
+   ```
 
-6. **Modal ref IDs change across modal opens but field placeholders are stable.** Don't reuse ref IDs from a prior modal — re-find each time. Use placeholder-based queries when possible.
+2. In Dash: open the matching prompt row → find take inputs via `find` tool → paste URLs via `form_input` → click "accept takes" → close modal.
 
-7. **Modal does not auto-close after "accept takes".** It shows "downloading + uploading…" indefinitely from the user's perspective. Close it manually after clicking accept.
+3. Repeat for all tabs in the batch.
 
-8. **Each Suno tab has independent vocal toggle state.** Verifying the toggle on tab A tells you nothing about tab B. Run the two-call pattern separately on each tab. A tab that was left on Female from a prior session will stay Female — don't assume it matches what you set on the other tab.
+If any tab is still spinning on wakeup, reschedule 60s for just that tab.
 
-9. **`window.__flight` lives on the Dash tab only.** It's a convenience tracker for the current run. Update it immediately after each successful Create click. If you lose track of which tab has which prompt, re-check via tab IDs in the wakeup message you scheduled.
+---
 
-10. **JS `.click()` on Create silently no-ops if React hasn't fully hydrated the page** (most common on freshly-opened tabs). `Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()==='Create')?.click()` returns `{clicked:true}` but no spinners appear. Fix: use a visual coordinate click `computer.left_click([614, 681])` as a fallback after the page is fully rendered. **Always verify with spinners + new song URLs before assuming Create fired** — do not use the visual click pre-emptively, or you risk a double-submit (JS click registered silently + visual click fires a second generation).
+## Vocal toggle rules
+
+| Dash gender | Lyrics | → Suno |
+|---|---|---|
+| `male` | any | Male |
+| `female` | any | Female |
+| `instrumental` | non-empty | Male |
+| `instrumental` | empty | Instrumental |
+
+**Suno requires exactly one of {Male, Female, Instrumental} to have `data-selected="true"` — if none is selected, Create silently no-ops.**
+
+---
 
 ## Captcha handling
 
-If Suno shows a captcha at any step:
-- Stop immediately.
-- Log: timestamp, which prompt # you were on, the prompt text.
-- Append to the failure log (see below).
-- Exit gracefully — don't keep retrying.
+Stop immediately. Ask Daniel before retrying.
 
-## Failure logging — DO NOT SKIP
-
-Write findings to: `/Users/fox296/Desktop/entuned/entuned-0.3/.claude/skills/populate-songs/RUN_LOG.md`
-
-For every run, prepend a section dated with today's date (newest at top). Include:
-- How many prompts processed successfully
-- The first failure (what broke, where in the flow, exact error / DOM state)
-- Suggested redesign for that failure point
-- Any Dash UX papercuts noticed even if non-blocking
-
-This log is the deliverable. Daniel cares more about the bug list than the songs.
-
-## Important reminders
-
-- Daniel runs everything live — there is no staging. Don't "test" by clicking Delete on real data.
-- The receptacle takes the share URL **as-is** (don't strip query params unless you've confirmed Dash needs it stripped).
-- If a prompt has only 1 successful Suno track (the other failed), note it in the log; ask whether to paste 1 link or regenerate. Default: paste the 1 good link and continue.
-- Dash and Suno persist login. If either logs out, stop and log it.
+---
 
 ## Done condition
 
-- All Gary @ UNTUCKit Park Meadows prompts have share links accepted, OR
-- A failure was logged with reproduction steps and a redesign suggestion.
+All queued prompts have accepted Suno URLs. Report: N songs added, ICP(s) affected, any failures.
 
-When done, output a 3-line summary to chat:
-1. N prompts completed / M total
-2. First failure (or "no failures")
-3. Path to RUN_LOG.md
+---
+
+## Friction notes
+
+1. **Create silently no-ops with no vocal selected.** Always verify toggle before clicking Create.
+
+2. **Dash gender="instrumental" with non-empty lyrics means Male**, not instrumental. The seeder writes this for fully-voiced songs.
+
+3. **React state is stale within the same JS turn.** Inject in Call 1, verify + Create in Call 2.
+
+4. **Lyrics + style often exceed the JS response truncation limit (~2KB).** Read long fields in two calls: `tas[0].value.slice(0, 700)` then `tas[0].value.slice(700)`.
+
+5. **Style text is outcome-templated, not per-hook.** Multiple prompts in the same outcome share most of the style string. Expected behavior.
+
+6. **Modal placeholder-based queries are stable; ref IDs are not.** Re-find inputs by placeholder on each modal open.
+
+7. **Modal stays open after "accept takes"** — shows "downloading…" forever. Close it manually.
+
+8. **Each Suno tab has independent vocal toggle state.** Set and verify per-tab.
+
+9. **All Suno tabs share one account-wide sidebar.** `slice(0,2)` on tab A returns the 2 newest account-wide, not tab-A-specific. Confirm titles match before accepting.
+
+10. **JS Create click can fire but sidebar lags 2-3s.** Check the Create button's loading/disabled state immediately after clicking — it updates before the sidebar does. Don't use visual click until you've confirmed the button is *not* in loading state after 3s.
+
+11. **Queue display can be stale after accept.** If a prompt stays visible after accepting, open it — a green "accepted" badge means it worked. Click the refresh button to force queue to re-render. Don't re-accept blindly.
+
+12. **Sliders must be set in separate JS calls.** Batching Weirdness + Style Influence dblclick+set in one setTimeout causes both to target the same newly-appeared input. Set Weirdness (verify 75%), then set Style Influence (verify 62%).

@@ -27,6 +27,7 @@ function saveLoved(s: Set<string>) {
 
 function trackLabel(item: QueueItem | null): string {
   if (!item) return "";
+  if (item.type === "ad") return item.title ?? "Advertisement";
   if (item.title) return item.title;
   if (item.hookText) return item.hookText;
   const tail = item.audioUrl.split("/").pop() ?? "";
@@ -74,15 +75,17 @@ export function PlayerScreen({ session, onLogout }: Props) {
   }, []);
 
   const emit = useCallback((event_type: AudioEventType, item?: QueueItem | null, extra?: { report_reason?: string; outcome_id?: string }) => {
+    const isAd = item?.type === "ad";
     api.emit({
       event_type,
       store_id: session.storeId,
       occurred_at: new Date().toISOString(),
       operator_id: session.operatorId,
-      song_id: item?.songId ?? null,
-      hook_id: item?.hookId ?? null,
+      song_id: isAd ? null : (item?.songId ?? null),
+      hook_id: isAd ? null : (item?.hookId ?? null),
       report_reason: extra?.report_reason ?? null,
-      outcome_id: extra?.outcome_id ?? item?.outcomeId ?? null,
+      outcome_id: extra?.outcome_id ?? (isAd ? null : item?.outcomeId ?? null),
+      extra: isAd ? { assetId: item.assetId, campaignId: item.campaignId } : undefined,
     }).catch((e) => console.warn("[player] emit failed", e));
   }, [session.storeId, session.operatorId]);
 
@@ -95,10 +98,12 @@ export function PlayerScreen({ session, onLogout }: Props) {
       setReason(r.reason);
       setNetworkError(null);
       setQueue((prev) => {
-        const have = new Set(prev.map((q) => q.songId));
-        if (currentRef.current) have.add(currentRef.current.songId);
-        if (nextLoadedRef.current) have.add(nextLoadedRef.current.songId);
-        const additions = r.queue.filter((q) => !have.has(q.songId));
+        const have = new Set(prev.filter((q) => q.type !== "ad").map((q) => q.songId));
+        if (currentRef.current?.type !== "ad") have.add(currentRef.current?.songId ?? "");
+        if (nextLoadedRef.current?.type !== "ad") have.add(nextLoadedRef.current?.songId ?? "");
+        have.delete("");
+        // Always allow ad items through; dedup songs only.
+        const additions = r.queue.filter((q) => q.type === "ad" || !have.has(q.songId));
         return [...prev, ...additions].slice(0, 6);
       });
       if (r.reason === "no_pool" && !currentRef.current) emit("playback_starved");
@@ -169,14 +174,14 @@ export function PlayerScreen({ session, onLogout }: Props) {
       schedulePreload(durationSec);
     });
     setIsPlaying(true);
-    emit("song_start", head);
+    emit(head.type === "ad" ? "ad_play" : "song_start", head);
     void preloadFollowing();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refill, schedulePreload, emit]);
 
   const advanceToNext = useCallback(async () => {
     const completed = currentRef.current;
-    if (completed) emit("song_complete", completed);
+    if (completed && completed.type !== "ad") emit("song_complete", completed);
 
     const queued = nextLoadedRef.current;
     if (queued) {
@@ -187,7 +192,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
         trackStartedAtRef.current = new Date().toISOString();
         setIsPlaying(true);
         wasPlayingRef.current = true;
-        emit("song_start", queued);
+        emit(queued.type === "ad" ? "ad_play" : "song_start", queued);
         const p = playerRef.current?.getProgress();
         if (p?.duration) schedulePreload(p.duration);
         void preloadFollowing();
@@ -202,7 +207,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
         schedulePreload(durationSec);
       });
       setIsPlaying(true);
-      emit("song_start", queued);
+      emit(queued.type === "ad" ? "ad_play" : "song_start", queued);
       void preloadFollowing();
       return;
     }
@@ -216,8 +221,8 @@ export function PlayerScreen({ session, onLogout }: Props) {
   // user-gesture call stack — the most reliable path on all browsers.
   const skip = useCallback(async () => {
     const cur = currentRef.current;
-    if (cur) emit("song_skip", cur);
-    if (cur) emit("song_complete", cur);
+    if (cur && cur.type !== "ad") emit("song_skip", cur);
+    if (cur && cur.type !== "ad") emit("song_complete", cur);
     if (preloadTimerRef.current) { clearTimeout(preloadTimerRef.current); preloadTimerRef.current = null; }
 
     // Take preloaded item metadata first, then queue head.

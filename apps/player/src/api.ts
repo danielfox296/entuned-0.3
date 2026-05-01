@@ -4,6 +4,7 @@
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
 export interface QueueItem {
+  type?: 'song' | 'ad'
   songId: string
   audioUrl: string
   hookId: string
@@ -12,6 +13,9 @@ export interface QueueItem {
   icpName: string | null
   title: string | null
   hookText: string | null
+  // Present when type === 'ad'
+  assetId?: string
+  campaignId?: string
 }
 
 export interface ActiveOutcome {
@@ -54,7 +58,7 @@ export interface MeResponse {
 export type AudioEventType =
   | 'song_start' | 'song_complete' | 'song_skip' | 'song_report' | 'song_love'
   | 'outcome_selection' | 'outcome_selection_cleared' | 'playback_starved'
-  | 'operator_login' | 'operator_logout'
+  | 'operator_login' | 'operator_logout' | 'ad_play'
 
 export interface OutgoingEvent {
   event_type: AudioEventType
@@ -65,6 +69,7 @@ export interface OutgoingEvent {
   hook_id?: string | null
   report_reason?: string | null
   outcome_id?: string | null
+  extra?: Record<string, unknown> | null
 }
 
 async function req<T>(path: string, init: RequestInit = {}, token?: string): Promise<T> {

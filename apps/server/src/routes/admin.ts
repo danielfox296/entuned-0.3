@@ -2386,4 +2386,201 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       latestAt: latest?.occurredAt.toISOString() ?? null,
     }
   })
+
+  // ── Card 22 Campaigns ──────────────────────────────────────────
+
+  function serializeCampaign(c: {
+    id: string; storeId: string; name: string; startsAt: Date; endsAt: Date
+    songsPerAd: number; createdAt: Date; updatedAt: Date
+    adAssets: { id: string; campaignId: string; r2Url: string; r2ObjectKey: string; label: string | null; position: number; byteSize: bigint | null; contentType: string | null; createdAt: Date }[]
+  }) {
+    return {
+      id: c.id,
+      storeId: c.storeId,
+      name: c.name,
+      startsAt: c.startsAt.toISOString(),
+      endsAt: c.endsAt.toISOString(),
+      songsPerAd: c.songsPerAd,
+      createdAt: c.createdAt.toISOString(),
+      updatedAt: c.updatedAt.toISOString(),
+      adAssets: c.adAssets
+        .sort((a, b) => a.position - b.position)
+        .map((a) => ({
+          id: a.id,
+          campaignId: a.campaignId,
+          r2Url: a.r2Url,
+          label: a.label,
+          position: a.position,
+          byteSize: a.byteSize ? Number(a.byteSize) : null,
+          contentType: a.contentType,
+          createdAt: a.createdAt.toISOString(),
+        })),
+    }
+  }
+
+  const campaignInclude = {
+    adAssets: true,
+  } as const
+
+  // GET /admin/stores/:storeId/campaigns
+  app.get('/stores/:storeId/campaigns', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const storeId = (req.params as any).storeId as string
+    const campaigns = await prisma.campaign.findMany({
+      where: { storeId },
+      include: campaignInclude,
+      orderBy: { startsAt: 'asc' },
+    })
+    return campaigns.map(serializeCampaign)
+  })
+
+  // POST /admin/stores/:storeId/campaigns
+  app.post('/stores/:storeId/campaigns', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const storeId = (req.params as any).storeId as string
+    const body = z.object({
+      name: z.string().min(1),
+      startsAt: z.string().datetime(),
+      endsAt: z.string().datetime(),
+      songsPerAd: z.number().int().min(1).default(3),
+    }).parse(req.body)
+    const campaign = await prisma.campaign.create({
+      data: {
+        storeId,
+        name: body.name,
+        startsAt: new Date(body.startsAt),
+        endsAt: new Date(body.endsAt),
+        songsPerAd: body.songsPerAd,
+      },
+      include: campaignInclude,
+    })
+    return reply.code(201).send(serializeCampaign(campaign))
+  })
+
+  // PUT /admin/campaigns/:id
+  app.put('/campaigns/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const body = z.object({
+      name: z.string().min(1).optional(),
+      startsAt: z.string().datetime().optional(),
+      endsAt: z.string().datetime().optional(),
+      songsPerAd: z.number().int().min(1).optional(),
+    }).parse(req.body)
+    const campaign = await prisma.campaign.update({
+      where: { id },
+      data: {
+        ...(body.name !== undefined && { name: body.name }),
+        ...(body.startsAt !== undefined && { startsAt: new Date(body.startsAt) }),
+        ...(body.endsAt !== undefined && { endsAt: new Date(body.endsAt) }),
+        ...(body.songsPerAd !== undefined && { songsPerAd: body.songsPerAd }),
+      },
+      include: campaignInclude,
+    })
+    return serializeCampaign(campaign)
+  })
+
+  // DELETE /admin/campaigns/:id
+  app.delete('/campaigns/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    await prisma.campaign.delete({ where: { id } })
+    return { ok: true }
+  })
+
+  // POST /admin/campaigns/:campaignId/assets — paste a source URL, server downloads + re-hosts to R2
+  app.post('/campaigns/:campaignId/assets', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const campaignId = (req.params as any).campaignId as string
+    const body = z.object({
+      sourceUrl: z.string().url(),
+      label: z.string().optional(),
+    }).parse(req.body)
+
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: campaignId },
+      include: { adAssets: { select: { position: true } } },
+    })
+    if (!campaign) return reply.code(404).send({ error: 'not_found' })
+
+    const nextPosition = campaign.adAssets.length > 0
+      ? Math.max(...campaign.adAssets.map((a) => a.position)) + 1
+      : 0
+
+    const assetId = crypto.randomUUID()
+    const key = `ads/${assetId}.mp3`
+    let uploaded: { url: string; byteSize: number; contentType: string }
+    try {
+      uploaded = await downloadAndUploadFromUrl(body.sourceUrl, key)
+    } catch (e: any) {
+      return reply.code(502).send({ error: 'upload_failed', message: e.message ?? 'unknown' })
+    }
+
+    const asset = await prisma.adAsset.create({
+      data: {
+        id: assetId,
+        campaignId,
+        r2Url: uploaded.url,
+        r2ObjectKey: key,
+        label: body.label ?? null,
+        position: nextPosition,
+        byteSize: uploaded.byteSize,
+        contentType: uploaded.contentType,
+      },
+    })
+
+    return reply.code(201).send({
+      id: asset.id,
+      campaignId: asset.campaignId,
+      r2Url: asset.r2Url,
+      label: asset.label,
+      position: asset.position,
+      byteSize: asset.byteSize ? Number(asset.byteSize) : null,
+      contentType: asset.contentType,
+      createdAt: asset.createdAt.toISOString(),
+    })
+  })
+
+  // DELETE /admin/ad-assets/:id
+  app.delete('/ad-assets/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const asset = await prisma.adAsset.findUnique({ where: { id }, select: { campaignId: true, position: true } })
+    if (!asset) return reply.code(404).send({ error: 'not_found' })
+    await prisma.adAsset.delete({ where: { id } })
+    // Re-sequence positions so they remain contiguous
+    const remaining = await prisma.adAsset.findMany({
+      where: { campaignId: asset.campaignId },
+      orderBy: { position: 'asc' },
+    })
+    await Promise.all(remaining.map((a, i) =>
+      prisma.adAsset.update({ where: { id: a.id }, data: { position: i } }),
+    ))
+    return { ok: true }
+  })
+
+  // PUT /admin/ad-assets/:id/move — shift position up or down by one
+  app.put('/ad-assets/:id/move', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const { direction } = z.object({ direction: z.enum(['up', 'down']) }).parse(req.body)
+
+    const asset = await prisma.adAsset.findUnique({ where: { id } })
+    if (!asset) return reply.code(404).send({ error: 'not_found' })
+
+    const siblings = await prisma.adAsset.findMany({
+      where: { campaignId: asset.campaignId },
+      orderBy: { position: 'asc' },
+    })
+    const idx = siblings.findIndex((a) => a.id === id)
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= siblings.length) return { ok: true }
+
+    const swapWith = siblings[swapIdx]!
+    await Promise.all([
+      prisma.adAsset.update({ where: { id: asset.id }, data: { position: swapWith.position } }),
+      prisma.adAsset.update({ where: { id: swapWith.id }, data: { position: asset.position } }),
+    ])
+    return { ok: true }
+  })
 }

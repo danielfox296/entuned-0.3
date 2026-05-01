@@ -21,6 +21,7 @@ import { IcpEditor } from './panels/brand/IcpEditor.js'
 import { ClientDetail } from './panels/brand/ClientDetail.js'
 import { StoreEditor } from './panels/brand/StoreEditor.js'
 import { OperatorManager } from './panels/brand/OperatorManager.js'
+import { Campaigns } from './panels/brand/Campaigns.js'
 import { LiveStoreView } from './panels/playback/LiveStoreView.js'
 import { OutcomeSchedule } from './panels/schedule/OutcomeSchedule.js'
 import { OutcomeLibrary } from './panels/schedule/OutcomeLibrary.js'
@@ -43,7 +44,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Launch Checklist', 'Hook Writing', 'Reference Tracks', 'Hook → Prompt'],
     description: '' },
   { key: 'brand', label: 'Clients', short: 'Clients', icon: Sparkles,
-    cards: ['Details', 'Location', 'ICP Editor', 'Account', 'Event Stream'],
+    cards: ['Details', 'Location', 'ICP Editor', 'Account', 'Campaigns', 'Event Stream'],
     description: '' },
   { key: 'schedule', label: 'Scheduling', short: 'Schedule', icon: CalendarDays,
     cards: ['Dayparting'],
@@ -379,6 +380,7 @@ function BrandRouter({ cards }: { cards: string[] }) {
         {active === 'Location' && <StoreEditor onStoresChanged={() => { const tk = getToken(); if (tk) api.stores(tk).then(setStores).catch(() => {}); reload() }} />}
         {active === 'ICP Editor' && <IcpEditor />}
         {active === 'Account' && <OperatorManager />}
+        {active === 'Campaigns' && <Campaigns />}
         {active === 'Event Stream' && <LiveStoreView />}
       </div>
     </div>

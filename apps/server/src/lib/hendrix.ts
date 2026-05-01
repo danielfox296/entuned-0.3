@@ -8,6 +8,7 @@ export type FallbackTier = 'none' | 'daily_cap' | 'sibling_spacing' | 'no_repeat
 export type EmptyReason = 'no_pool' | null
 
 export interface QueueItem {
+  type?: 'song' | 'ad'
   songId: string
   audioUrl: string
   hookId: string
@@ -16,6 +17,9 @@ export interface QueueItem {
   icpName: string | null
   title: string | null
   hookText: string | null
+  // Present when type === 'ad'
+  assetId?: string
+  campaignId?: string
 }
 
 export interface HendrixResponse {
@@ -239,6 +243,40 @@ async function buildQueueFromPool(
   return { queue: [], fallbackTier: 'no_repeat_window' }
 }
 
+async function injectAdIfDue(storeId: string, queue: QueueItem[], now: Date): Promise<QueueItem[]> {
+  if (queue.length === 0) return queue
+
+  const campaigns = await prisma.campaign.findMany({
+    where: { storeId, startsAt: { lte: now }, endsAt: { gte: now } },
+    include: { adAssets: { orderBy: { position: 'asc' } }, assetState: true },
+    orderBy: { startsAt: 'asc' },
+  })
+  const campaign = campaigns.find((c) => c.adAssets.length > 0)
+  if (!campaign) return queue
+
+  const playState = await prisma.campaignPlayState.findUnique({ where: { storeId } })
+  if ((playState?.songsPlayedSinceAd ?? 0) < campaign.songsPerAd) return queue
+
+  const nextIdx = (campaign.assetState?.nextAssetIndex ?? 0) % campaign.adAssets.length
+  const asset = campaign.adAssets[nextIdx]
+  if (!asset) return queue
+
+  const adItem: QueueItem = {
+    type: 'ad',
+    songId: asset.id,
+    audioUrl: asset.r2Url,
+    hookId: '',
+    outcomeId: '',
+    icpId: '',
+    icpName: null,
+    title: asset.label ?? null,
+    hookText: null,
+    assetId: asset.id,
+    campaignId: campaign.id,
+  }
+  return [adItem, ...queue]
+}
+
 async function serializeOutcome(r: { outcomeId: string; source: 'selection' | 'schedule' | 'default'; expiresAt?: Date }) {
   const o = await prisma.outcome.findUnique({ where: { id: r.outcomeId }, select: { title: true } })
   return { outcomeId: r.outcomeId, title: o?.title ?? r.outcomeId, source: r.source, expiresAt: r.expiresAt?.toISOString() }
@@ -278,7 +316,7 @@ export async function nextQueue(
       storeId,
       decidedAt,
       activeOutcome: null,
-      queue,
+      queue: await injectAdIfDue(storeId, queue, now),
       fallbackTier,
       reason: queue.length === 0 ? 'no_pool' : null,
     }
@@ -294,7 +332,7 @@ export async function nextQueue(
       storeId,
       decidedAt,
       activeOutcome: null,
-      queue,
+      queue: await injectAdIfDue(storeId, queue, now),
       fallbackTier,
       reason: queue.length === 0 ? 'no_pool' : null,
     }
@@ -311,7 +349,7 @@ export async function nextQueue(
       storeId,
       decidedAt,
       activeOutcome: await serializeOutcome(resolved),
-      queue,
+      queue: await injectAdIfDue(storeId, queue, now),
       fallbackTier,
       reason: queue.length === 0 ? 'no_pool' : null,
     }
@@ -322,7 +360,7 @@ export async function nextQueue(
     storeId,
     decidedAt,
     activeOutcome: await serializeOutcome(resolved),
-    queue,
+    queue: await injectAdIfDue(storeId, queue, now),
     fallbackTier,
     reason: queue.length === 0 ? 'no_pool' : null,
   }

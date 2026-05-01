@@ -4,6 +4,102 @@ Append a dated section per run. Newest at the top.
 
 ---
 
+## 2026-05-01 — Terrell ICP, Park Meadows / Untuckit (batches 5–8)
+
+**ICP:** Terrell (`781505a1-220f-4894-a350-9a4344af1319`)
+**Goal:** Clear remaining Song Creation Queue (27 prompts carried over from prior sessions)
+**Result:** Queue drained to "No Song Prompts" ✓
+
+### Prompts processed (batches 5–8, this context segment)
+
+| Batch | Tab | Title | Outcome | Suno UUIDs |
+|---|---|---|---|---|
+| 5 | A | Let the Moment Rise | Linger | (prior context) |
+| 5 | B | Own My Time | Linger | (prior context) |
+| 5 | C | Claim the Light | Convert Browsers | (prior context) |
+| 5 | D | Right Where I Belong | Linger | (prior context) |
+| 6 | A | Something Real | Increase Order Value | (prior context) |
+| 6 | B | Nothing Loud | Reinforce Brand | (prior context) |
+| 6 | C | The Fit Speaks Before I Do | Reinforce Brand | (prior context) |
+| 6 | D | The Room I Keep | Reinforce Brand | (prior context) |
+| 7 | A | Their Own Way Home | Linger | ff947c72, e9118fa1 |
+| 7 | B | Chose to Stay Awhile | Linger | 8c514787, e5ae98c6 |
+| 7 | C | Where It Belongs | Calm | d2457627, ca8c8599 |
+| 7 | D | Nothing Left to Prove | Calm | 15b91621, 28879117 |
+| 8 | A | Settle In My Chest | Calm | f3cb12f0, 35ebc8ac |
+| 8 | B | Sky Goes Quiet | Calm | 9468d484, 3938a0c1 |
+| 8 | C | Hold the Stillness | Calm | f3e3bc8c, 5fd072c5 |
+
+### Bugs / issues
+
+**1. Suno sidebar [href] DOM query inconsistent across tabs**
+- `document.querySelectorAll('a').filter(a=>a.href.includes('/song/'))` returns [] on some tabs even when songs are visible in screenshot.
+- Root cause: Suno renders sidebar with React elements that use attribute-level `href` (not `a.href` property). `[href]` attribute selector works on some tabs, fiber traversal works on others.
+- Fix: use both approaches — try `[href]` first, fall back to React fiber scan (`__reactFiber*` / `__reactProps*` → `memoizedProps.href`).
+
+**2. "Sky Goes Quiet" accept appeared to fail (still in queue after accept)**
+- Accept call returned "accepted" but prompt remained in queue on next screenshot.
+- Opening modal revealed green "accepted" badge — previous accept had worked; queue display was stale.
+- Fix: click refresh button after accepting final batch, or open modal to verify accepted state before re-attempting.
+
+**3. Row coordinate drift after accepts**
+- Queue rows shift up after each accept, so y-coordinates from screenshots become stale immediately.
+- Fix (already applied): always take a fresh screenshot before clicking, or use title-check in JS to verify modal opened for correct prompt.
+
+**4. "Every Stitch Knows Where It Belongs" — not present in queue this session**
+- Prompt had been stuck in prior sessions (server-side download failure). Did not reappear this session — likely resolved or already cleared.
+
+### Timing
+- Batches 7–8: ~2 min generation per batch (Suno v5.5)
+- Total prompts this session: ~27 prompts across batches 5–8 (batches 5–6 in prior context)
+- Queue fully drained at end of session
+
+### New technique discovered
+- **Fiber URL scan**: when `[href]` selector and `a.href` both return [], traverse all DOM elements checking `__reactFiber*`/`__reactProps*` for `memoizedProps.href` containing `/song/`. Reliable across all tab states.
+
+---
+
+## 2026-04-30 — Gary + Terrell ICPs, Park Meadows / Untuckit (run 2)
+
+**ICPs:** Gary (`1eaf3d99-8bc7-4a37-beaa-14483ea5517f`) + Terrell (`781505a1-220f-4894-a350-9a4344af1319`)
+**Goal:** 2 new songs each for Gary and Terrell, whatever outcome
+**Result:** 4 songs accepted ✓
+
+### Prompts processed
+
+| ICP | Title | Reference Track | Outcome | Suno URLs |
+|---|---|---|---|---|
+| Gary | Nothing Left to Chase | Pearl Jam — Better Man | Calm | 36b51fc0, bfea8e6f |
+| Gary | Let Things Settle | Kacey Musgraves — Slow Burn | Calm | c146cee1, 6fe5f3b6 |
+| Terrell | What I Came For | Outkast — Elevators (Me & You) | Convert Browsers | 8d4e6fc0, 9b7256a9 |
+| Terrell | I Trust the Choice I'm Making | Anderson .Paak — Come Down | Convert Browsers | df1316c8, 23cd2102 |
+
+### Bugs / issues
+
+**1. Double-submit on "What I Came For" (tab A)**
+- JS `.click()` on Create registered successfully, but the sidebar took ~2-3s to reflect new cards.
+- Checked sidebar immediately, saw no new URLs, assumed Create failed.
+- Fell back to visual coordinate click → second generation fired → 4 cards instead of 2.
+- Resolved by using only the top 2 URLs for Dash acceptance.
+- **Fix added to skill (friction note 11):** Wait at least 3s after JS Create click before checking sidebar, or verify via the Create button's loading state (goes to loading immediately even before sidebar updates).
+
+**2. Suno "Advanced" mode (was "Custom")**
+- Suno v5.5 renamed the Custom tab to "Advanced". Skill updated.
+
+**3. Slider setting requires separate JS calls per slider**
+- Batching both Weirdness + Style Influence dblclick+set in one setTimeout caused both to target the same input. Fixed by setting each in a separate call using `pctEls[0]` / `pctEls[1]` by index.
+- Skill updated with proven two-call pattern.
+
+### Timing
+- Gary pair: ~2 min generation (Suno v5.5 faster than expected)
+- Terrell pair: ~2 min generation
+- Total elapsed: ~25 min including prompt generation, slider setup, and skill updates
+
+### Path to RUN_LOG
+`/Users/fox296/Desktop/entuned/entuned-0.3/.claude/skills/populate-songs/RUN_LOG.md`
+
+---
+
 ## 2026-04-30 — Terrell ICP, Park Meadows / Untuckit (run 1)
 
 **ICP:** Terrell (`781505a1-220f-4894-a350-9a4344af1319`)
