@@ -27,6 +27,7 @@ import { downloadAndUploadFromUrl, uploadBuffer } from '../lib/r2.js'
 import { draftHooks, getOrSeedHookWriterPrompt, buildHookDrafterContext } from '../lib/hooks/drafter.js'
 import { suggestReferenceTracks } from '../lib/ref-tracks/suggester.js'
 import { resolvePreview } from '../lib/ref-tracks/preview.js'
+import { parseRetailNextXls } from '../lib/retailnext/parser.js'
 
 interface AuthedOp {
   operatorId: string
@@ -2451,6 +2452,149 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       earliestAt: earliest?.occurredAt.toISOString() ?? null,
       latestAt: latest?.occurredAt.toISOString() ?? null,
     }
+  })
+
+  // ── RetailNext Ingestion ────────────────────────────────────────
+
+  // POST /admin/stores/:storeId/retailnext/ingest-xls
+  // Accepts a multipart XLS file (RetailNext "Daily Comprehensive Traffic Report").
+  // Parses Sheet1 (daily summary) and Sheet2 (hourly breakdown) and upserts snapshots.
+  app.post('/stores/:storeId/retailnext/ingest-xls', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const storeId = (req.params as any).storeId as string
+
+    const store = await prisma.store.findUnique({ where: { id: storeId }, select: { id: true } })
+    if (!store) return reply.code(404).send({ error: 'store_not_found' })
+
+    const file = await req.file()
+    if (!file) return reply.code(400).send({ error: 'no_file' })
+
+    const buf = await file.toBuffer()
+    let parsed: Awaited<ReturnType<typeof parseRetailNextXls>>
+    try {
+      parsed = parseRetailNextXls(buf)
+    } catch (e: any) {
+      return reply.code(422).send({ error: 'parse_failed', message: e.message ?? String(e) })
+    }
+
+    const { daily, hourly } = parsed
+    const run = await prisma.retailNextIngestRun.create({
+      data: {
+        storeId,
+        reportDate: daily.reportDate,
+        filename: file.filename || null,
+        status: 'running',
+        triggeredById: op.operatorId,
+      },
+    })
+
+    let rowsIngested = 0
+    try {
+      await prisma.retailNextDailySnapshot.upsert({
+        where: { storeId_date: { storeId, date: daily.reportDate } },
+        create: {
+          storeId,
+          date: daily.reportDate,
+          retailNextStoreId: daily.retailNextStoreId,
+          traffic: daily.traffic,
+          salesCents: daily.salesCents,
+          saleTrxCount: daily.saleTrxCount,
+          returnTrxCount: daily.returnTrxCount,
+          convRate: daily.convRate,
+          atv: daily.atv,
+          shopperYield: daily.shopperYield,
+          captureRate: daily.captureRate,
+          newShopperPct: daily.newShopperPct,
+          visitDurationSecs: daily.visitDurationSecs,
+          weather: daily.weather,
+          ingestRunId: run.id,
+        },
+        update: {
+          retailNextStoreId: daily.retailNextStoreId,
+          traffic: daily.traffic,
+          salesCents: daily.salesCents,
+          saleTrxCount: daily.saleTrxCount,
+          returnTrxCount: daily.returnTrxCount,
+          convRate: daily.convRate,
+          atv: daily.atv,
+          shopperYield: daily.shopperYield,
+          captureRate: daily.captureRate,
+          newShopperPct: daily.newShopperPct,
+          visitDurationSecs: daily.visitDurationSecs,
+          weather: daily.weather,
+          ingestRunId: run.id,
+        },
+      })
+      rowsIngested++
+
+      for (const h of hourly) {
+        await prisma.retailNextHourlySnapshot.upsert({
+          where: { storeId_date_hourStart: { storeId, date: h.date, hourStart: h.hourStart } },
+          create: {
+            storeId,
+            date: h.date,
+            hourStart: h.hourStart,
+            traffic: h.traffic,
+            salesCents: h.salesCents,
+            saleTrxCount: h.saleTrxCount,
+            returnTrxCount: h.returnTrxCount,
+            convRate: h.convRate,
+            atv: h.atv,
+            shopperYield: h.shopperYield,
+            captureRate: h.captureRate,
+            visitDurationSecs: h.visitDurationSecs,
+            ingestRunId: run.id,
+          },
+          update: {
+            traffic: h.traffic,
+            salesCents: h.salesCents,
+            saleTrxCount: h.saleTrxCount,
+            returnTrxCount: h.returnTrxCount,
+            convRate: h.convRate,
+            atv: h.atv,
+            shopperYield: h.shopperYield,
+            captureRate: h.captureRate,
+            visitDurationSecs: h.visitDurationSecs,
+            ingestRunId: run.id,
+          },
+        })
+        rowsIngested++
+      }
+
+      await prisma.retailNextIngestRun.update({
+        where: { id: run.id },
+        data: { status: 'success', finishedAt: new Date(), rowsIngested },
+      })
+
+      return { runId: run.id, reportDate: daily.reportDate.toISOString().slice(0, 10), rowsIngested }
+    } catch (e: any) {
+      await prisma.retailNextIngestRun.update({
+        where: { id: run.id },
+        data: { status: 'failed', finishedAt: new Date(), errorText: e.message ?? String(e) },
+      })
+      return reply.code(500).send({ error: 'ingest_failed', message: e.message ?? String(e) })
+    }
+  })
+
+  // GET /admin/stores/:storeId/retailnext/runs
+  app.get('/stores/:storeId/retailnext/runs', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const storeId = (req.params as any).storeId as string
+    const runs = await prisma.retailNextIngestRun.findMany({
+      where: { storeId },
+      orderBy: { startedAt: 'desc' },
+      take: 50,
+    })
+    return runs.map((r) => ({
+      id: r.id,
+      reportDate: r.reportDate.toISOString().slice(0, 10),
+      filename: r.filename,
+      status: r.status,
+      rowsIngested: r.rowsIngested,
+      startedAt: r.startedAt.toISOString(),
+      finishedAt: r.finishedAt?.toISOString() ?? null,
+      errorText: r.errorText,
+    }))
   })
 
   // ── Card 22 Campaigns ──────────────────────────────────────────

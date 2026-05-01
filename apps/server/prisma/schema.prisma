@@ -135,8 +135,11 @@ model Store {
   playbackEvents      PlaybackEvent[]
   posEvents           POSEvent[]
   posPullRuns         POSPullRun[]
-  campaigns           Campaign[]
-  campaignPlayState   CampaignPlayState?
+  campaigns                Campaign[]
+  campaignPlayState         CampaignPlayState?
+  retailNextIngestRuns      RetailNextIngestRun[]
+  retailNextDailySnapshots  RetailNextDailySnapshot[]
+  retailNextHourlySnapshots RetailNextHourlySnapshot[]
 
   @@index([clientId])
   @@map("stores")
@@ -731,4 +734,78 @@ model CampaignAssetState {
   campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   @@map("campaign_asset_states")
+}
+
+// ---------- RetailNext Ingestion ----------
+
+model RetailNextIngestRun {
+  id            String    @id @default(uuid()) @db.Uuid
+  storeId       String    @map("store_id") @db.Uuid
+  reportDate    DateTime  @map("report_date") @db.Date
+  filename      String?
+  status        String    @default("running") // running | success | failed
+  rowsIngested  Int?      @map("rows_ingested")
+  errorText     String?   @map("error_text")
+  startedAt     DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  finishedAt    DateTime? @map("finished_at") @db.Timestamptz(6)
+  triggeredById String?   @map("triggered_by_id") @db.Uuid
+
+  store           Store                    @relation(fields: [storeId], references: [id])
+  dailySnapshots  RetailNextDailySnapshot[]
+  hourlySnapshots RetailNextHourlySnapshot[]
+
+  @@index([storeId, startedAt(sort: Desc)])
+  @@map("retailnext_ingest_runs")
+}
+
+model RetailNextDailySnapshot {
+  id                String   @id @default(uuid()) @db.Uuid
+  storeId           String   @map("store_id") @db.Uuid
+  date              DateTime @map("date") @db.Date
+  retailNextStoreId String?  @map("retailnext_store_id") // e.g. "015"
+  traffic           Int?
+  salesCents        BigInt?  @map("sales_cents")
+  saleTrxCount      Int?     @map("sale_trx_count")
+  returnTrxCount    Int?     @map("return_trx_count")
+  convRate          Float?   @map("conv_rate")
+  atv               Float?
+  shopperYield      Float?   @map("shopper_yield")
+  captureRate       Float?   @map("capture_rate")
+  newShopperPct     Float?   @map("new_shopper_pct")
+  visitDurationSecs Int?     @map("visit_duration_secs")
+  weather           String?
+  ingestRunId       String   @map("ingest_run_id") @db.Uuid
+  receivedAt        DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  store     Store               @relation(fields: [storeId], references: [id])
+  ingestRun RetailNextIngestRun @relation(fields: [ingestRunId], references: [id])
+
+  @@unique([storeId, date])
+  @@index([storeId, date(sort: Desc)])
+  @@map("retailnext_daily_snapshots")
+}
+
+model RetailNextHourlySnapshot {
+  id              String   @id @default(uuid()) @db.Uuid
+  storeId         String   @map("store_id") @db.Uuid
+  date            DateTime @map("date") @db.Date
+  hourStart       Int      @map("hour_start") // 0–23
+  traffic         Int?
+  salesCents      BigInt?  @map("sales_cents")
+  saleTrxCount    Int?     @map("sale_trx_count")
+  returnTrxCount  Int?     @map("return_trx_count")
+  convRate        Float?   @map("conv_rate")
+  atv             Float?
+  shopperYield    Float?   @map("shopper_yield")
+  captureRate     Float?   @map("capture_rate")
+  visitDurationSecs Int?   @map("visit_duration_secs")
+  ingestRunId     String   @map("ingest_run_id") @db.Uuid
+  receivedAt      DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  store     Store               @relation(fields: [storeId], references: [id])
+  ingestRun RetailNextIngestRun @relation(fields: [ingestRunId], references: [id])
+
+  @@unique([storeId, date, hourStart])
+  @@index([storeId, date(sort: Desc)])
+  @@map("retailnext_hourly_snapshots")
 }
