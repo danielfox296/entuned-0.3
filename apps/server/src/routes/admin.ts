@@ -1552,7 +1552,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const poolByOutcome = new Map(lineageCounts.map((c) => [c.outcomeId, c._count._all]))
     const outcomeById = new Map(outcomes.map((o) => [o.id, o]))
 
-    const queueHookIds = [...new Set(hendrix.queue.map((q) => q.hookId))]
+    const queueHookIds = [...new Set(hendrix.queue.map((q) => q.hookId).filter(Boolean))]
     const queueHooks = queueHookIds.length
       ? await prisma.hook.findMany({ where: { id: { in: queueHookIds } }, select: { id: true, text: true } })
       : []
