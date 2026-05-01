@@ -255,7 +255,15 @@ async function injectAdIfDue(storeId: string, queue: QueueItem[], now: Date): Pr
   if (!campaign) return queue
 
   const playState = await prisma.campaignPlayState.findUnique({ where: { storeId } })
-  if ((playState?.songsPlayedSinceAd ?? 0) < campaign.songsPerAd) return queue
+  const songsPlayed = playState?.songsPlayedSinceAd ?? 0
+
+  if (songsPlayed < campaign.songsPerAd) {
+    // Not yet due — but truncate the batch so the player refetches as soon as the
+    // counter is due rather than playing through a large pre-filled batch.
+    // e.g. songsPerAd=3, songsPlayed=1 → return at most 2 songs this fetch.
+    const remaining = campaign.songsPerAd - songsPlayed
+    return queue.slice(0, remaining)
+  }
 
   const nextIdx = (campaign.assetState?.nextAssetIndex ?? 0) % campaign.adAssets.length
   const asset = campaign.adAssets[nextIdx]
