@@ -14,7 +14,7 @@ const PRELOAD_SECONDS_BEFORE_END = 8;
 const CROSSFADE_MS = 800;
 // Ads are mastered ~15-20% quieter than the music. HTML5 audio caps at 1.0 so we
 // can't boost ads; instead we bring songs down by the same margin so ads sit at full.
-const SONG_VOLUME = 0.56;
+const SONG_VOLUME = 0.47;
 const AD_VOLUME = 1.0;
 const LOVED_KEY = "entuned.loved.v1";
 
