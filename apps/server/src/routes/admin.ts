@@ -1359,12 +1359,23 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
-  // Bulk create hooks: same outcome, many text lines.
+  // Bulk create hooks: same outcome, many entries. Accepts either the legacy
+  // `texts: string[]` shape or the v2 `hooks: [{ text, vocalGender }]` shape.
   const HookBulkBody = z.object({
     outcomeId: z.string().uuid(),
-    texts: z.array(z.string().min(1)).min(1).max(100),
+    texts: z.array(z.string().min(1)).min(1).max(100).optional(),
+    hooks: z
+      .array(
+        z.object({
+          text: z.string().min(1),
+          vocalGender: z.enum(['male', 'female', 'duet']).nullable().optional(),
+        }),
+      )
+      .min(1)
+      .max(100)
+      .optional(),
     approve: z.boolean().optional(),
-  })
+  }).refine((b) => !!b.texts || !!b.hooks, { message: 'Provide either texts or hooks' })
 
   app.post('/icps/:id/hooks/bulk', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
@@ -1373,10 +1384,14 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     try {
       const now = new Date()
-      const data = parsed.data.texts.map((text) => ({
+      const entries: { text: string; vocalGender: string | null }[] = parsed.data.hooks
+        ? parsed.data.hooks.map((h) => ({ text: h.text, vocalGender: h.vocalGender ?? null }))
+        : (parsed.data.texts ?? []).map((text) => ({ text, vocalGender: null }))
+      const data = entries.map((e) => ({
         icpId,
         outcomeId: parsed.data.outcomeId,
-        text,
+        text: e.text,
+        vocalGender: e.vocalGender,
         status: parsed.data.approve ? 'approved' : 'draft',
         approvedAt: parsed.data.approve ? now : null,
         approvedById: parsed.data.approve ? op.operatorId : null,

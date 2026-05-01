@@ -112,10 +112,11 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
     setErr(null)
     try {
       const r = await api.draftHooks(ctx.icpId, { outcomeId, n }, token)
-      // Persist generated text as actual draft hooks so they survive nav.
+      // Persist generated hooks (with their vocal-gender tags) as draft rows
+      // so they survive nav.
       await api.bulkCreateHooks(
         ctx.icpId,
-        { outcomeId, texts: r.hooks, approve: false },
+        { outcomeId, hooks: r.hooks, approve: false },
         token,
       )
       await refetchHooks()

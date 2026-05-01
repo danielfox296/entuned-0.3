@@ -21,9 +21,34 @@ A great hook:
 NEVER write the phrase "good with that, just the way you are" or any close paraphrase.
 That phrase is permanently banned by editorial decision.
 
-Output JSON only: { "hooks": ["...", "...", ...] }. No prose, no markdown fences.
-Each string is one hook. Do not number them. Do not repeat any hook from the
-existing-hooks list.
+## Vocal-gender tagging (per-hook)
+
+Eno pairs each approved hook with a reference track at song-seed time. If a hook
+is gender-specific in its language, it should only be paired with reference
+tracks whose vocal lead matches. Tag each hook with a vocal_gender:
+
+- "male" — hook uses he/him/his, references a male relationship from a
+  first-person-male perspective ("my brother and I"), or has an unambiguously
+  male first-person POV.
+- "female" — hook uses she/her/hers, references a female relationship from a
+  first-person-female perspective, or has an unambiguously female first-person
+  POV.
+- "duet" — hook is structured as a call-and-response between two voices.
+- null — hook is gender-neutral and can be sung by any voice. **This should be
+  the default for the vast majority of hooks.** Most hooks ("Feel it fit before
+  you think about it", "The answer's closer than you think", etc.) work as either
+  male or female lead.
+
+Only mark male/female/duet when the lyrical content actually requires it. If in
+doubt, leave it null.
+
+## Output
+
+JSON only, no prose, no markdown fences:
+
+{ "hooks": [ { "text": "...", "vocal_gender": null }, { "text": "She's been carrying that for years", "vocal_gender": "female" }, ... ] }
+
+Do not number the hooks. Do not repeat any hook from the existing-hooks list.
 `.trim()
 
 export async function getOrSeedHookWriterPrompt(icpId: string): Promise<{ id: string; icpId: string; promptText: string }> {
@@ -34,8 +59,15 @@ export async function getOrSeedHookWriterPrompt(icpId: string): Promise<{ id: st
   })
 }
 
+export type HookVocalGender = 'male' | 'female' | 'duet' | null
+
+export interface DraftedHook {
+  text: string
+  vocalGender: HookVocalGender
+}
+
 export interface DraftHooksResult {
-  hooks: string[]
+  hooks: DraftedHook[]
   rawText: string
   promptUsed: string
 }
@@ -160,6 +192,29 @@ export async function draftHooks(opts: {
   const parsed = JSON.parse(cleaned.slice(start)) as { hooks: unknown }
   if (!Array.isArray(parsed.hooks)) throw new Error('Drafter output missing hooks array')
 
-  const hooks = parsed.hooks.filter((h): h is string => typeof h === 'string' && h.trim().length > 0).map((h) => h.trim())
+  // Accept both shapes: legacy bare-string array and the v2 structured-object
+  // array. The structured form is what the current prompt produces, but
+  // tolerating bare strings keeps prompt edits forgiving.
+  const allowed: HookVocalGender[] = ['male', 'female', 'duet', null]
+  const hooks: DraftedHook[] = parsed.hooks
+    .map((row): DraftedHook | null => {
+      if (typeof row === 'string') {
+        const t = row.trim()
+        return t ? { text: t, vocalGender: null } : null
+      }
+      if (row && typeof row === 'object') {
+        const r = row as { text?: unknown; vocal_gender?: unknown; vocalGender?: unknown }
+        const text = typeof r.text === 'string' ? r.text.trim() : ''
+        if (!text) return null
+        const raw = r.vocal_gender ?? r.vocalGender
+        const vocalGender =
+          raw === 'male' || raw === 'female' || raw === 'duet' ? raw : null
+        if (!allowed.includes(vocalGender)) return null
+        return { text, vocalGender }
+      }
+      return null
+    })
+    .filter((h): h is DraftedHook => h !== null)
+
   return { hooks, rawText: raw, promptUsed: systemPrompt }
 }

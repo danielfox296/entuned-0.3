@@ -603,17 +603,25 @@ export interface OutcomeRowFull {
   createdAt: string
 }
 
+export type HookVocalGender = 'male' | 'female' | 'duet' | null
+
 export interface HookRowFull {
   id: string
   icpId: string
   outcomeId: string
   text: string
+  vocalGender: HookVocalGender
   status: 'draft' | 'approved' | 'retired'
   approvedAt: string | null
   approvedById: string | null
   createdAt: string
   updatedAt: string
   outcome: { id: string; title: string; displayTitle: string | null; version: number }
+}
+
+export interface DraftedHook {
+  text: string
+  vocalGender: HookVocalGender
 }
 
 export type StyleAnalysisUpdate = Partial<{
@@ -767,7 +775,11 @@ export const api = {
     req<HookRowFull>(`/admin/hooks/${id}/approve`, { method: 'POST' }, token),
   deleteHook: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/hooks/${id}`, { method: 'DELETE' }, token),
-  bulkCreateHooks: (icpId: string, body: { outcomeId: string; texts: string[]; approve?: boolean }, token: string) =>
+  bulkCreateHooks: (
+    icpId: string,
+    body: { outcomeId: string; hooks: DraftedHook[]; approve?: boolean },
+    token: string,
+  ) =>
     req<{ created: number }>(`/admin/icps/${icpId}/hooks/bulk`, { method: 'POST', body: JSON.stringify(body) }, token),
   hookWriterPrompt: (icpId: string, token: string) =>
     req<{
@@ -781,7 +793,7 @@ export const api = {
   retireHook: (id: string, force: boolean, token: string) =>
     req<HookRowFull>(`/admin/hooks/${id}/retire`, { method: 'POST', body: JSON.stringify({ force }) }, token),
   draftHooks: (icpId: string, body: { outcomeId: string; n: number }, token: string) =>
-    req<{ hooks: string[] }>(`/admin/icps/${icpId}/hook-writer/run`, { method: 'POST', body: JSON.stringify(body) }, token),
+    req<{ hooks: DraftedHook[] }>(`/admin/icps/${icpId}/hook-writer/run`, { method: 'POST', body: JSON.stringify(body) }, token),
   hookDrafterContext: (icpId: string, outcomeId: string, n: number, token: string) =>
     req<{ systemPrompt: string; userMessage: string }>(
       `/admin/icps/${icpId}/hook-writer/context?outcomeId=${encodeURIComponent(outcomeId)}&n=${n}`,

@@ -183,7 +183,7 @@ function NewHookForm({ icpId, outcomes, onCreated }: {
   const [singleText, setSingleText] = useState('')
   const [bulkText, setBulkText] = useState('')
   const [draftN, setDraftN] = useState(8)
-  const [draftCandidates, setDraftCandidates] = useState<{ text: string; selected: boolean }[]>([])
+  const [draftCandidates, setDraftCandidates] = useState<{ text: string; vocalGender: 'male' | 'female' | 'duet' | null; selected: boolean }[]>([])
   const [busy, setBusy] = useState<'create' | 'bulk' | 'draft' | 'commit' | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [draftElapsed, setDraftElapsed] = useState(0)
@@ -224,7 +224,7 @@ function NewHookForm({ icpId, outcomes, onCreated }: {
     if (lines.length === 0 || !outcomeId) { setErr('paste at least one line and pick an outcome'); return }
     setBusy('bulk'); setErr(null)
     try {
-      const result = await api.bulkCreateHooks(icpId, { outcomeId, texts: lines, approve: approveOnCreate }, token)
+      const result = await api.bulkCreateHooks(icpId, { outcomeId, hooks: lines.map((text) => ({ text, vocalGender: null })), approve: approveOnCreate }, token)
       reset(); onCreated()
       alert(`created ${result.created} hook${result.created === 1 ? '' : 's'}`)
     } catch (e: any) { setErr(e.message) }
@@ -236,18 +236,18 @@ function NewHookForm({ icpId, outcomes, onCreated }: {
     setBusy('draft'); setErr(null); setDraftCandidates([])
     try {
       const result = await api.draftHooks(icpId, { outcomeId, n: draftN }, token)
-      setDraftCandidates(result.hooks.map((text) => ({ text, selected: true })))
+      setDraftCandidates(result.hooks.map((h) => ({ text: h.text, vocalGender: h.vocalGender, selected: true })))
     } catch (e: any) { setErr(e.message) }
     finally { setBusy(null) }
   }
 
   const commitDrafts = async () => {
     const token = getToken(); if (!token || !outcomeId) return
-    const picks = draftCandidates.filter((c) => c.selected).map((c) => c.text)
+    const picks = draftCandidates.filter((c) => c.selected).map((c) => ({ text: c.text, vocalGender: c.vocalGender }))
     if (picks.length === 0) { setErr('select at least one candidate'); return }
     setBusy('commit'); setErr(null)
     try {
-      const result = await api.bulkCreateHooks(icpId, { outcomeId, texts: picks, approve: approveOnCreate }, token)
+      const result = await api.bulkCreateHooks(icpId, { outcomeId, hooks: picks, approve: approveOnCreate }, token)
       reset(); onCreated()
       alert(`created ${result.created} hook${result.created === 1 ? '' : 's'}`)
     } catch (e: any) { setErr(e.message) }

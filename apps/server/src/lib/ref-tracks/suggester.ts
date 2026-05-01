@@ -52,6 +52,35 @@ is structurally different and requires extra reasoning — see its section below
 - Year is the original release year, not a re-release.
 - Avoid anything already in the ICP's existing tracks (listed in the user message).
 
+## **VOCAL TRACKS ONLY — no instrumentals**
+
+Every reference track you propose must have a vocal lead. Entuned's downstream
+pipeline pairs each reference track with a lyric hook to generate a vocal-bearing
+cousin track. Instrumental references break that pipeline because the generated
+cousin would inherit "no vocals" from the style profile while needing to deliver
+the lyric hook in its chorus.
+
+This rule applies to all four buckets, but it bites hardest in Adjacent — many
+of the most interesting "sophistication-adjacent" or "modern composition" picks
+are instrumentals. **Do not propose them.** Instead, find a vocal-bearing
+analogue that occupies the same texture space:
+
+- NOT Bill Evans Trio — instead Cassandra Wilson with sparse jazz backing
+- NOT Max Richter or Nils Frahm — instead Anohni or Sufjan Stevens' orchestral work
+- NOT Pat Metheny instrumental — instead Lyle Mays' vocal work, or Astrud Gilberto with bossa-jazz backing
+- NOT Brian Eno's Music for Airports — instead a vocal track with similar ambient production
+- NOT Floating Points instrumental — instead Sault, Hiatus Kaiyote, or another vocal track with similar electronic-jazz hybridity
+- NOT Ryuichi Sakamoto's solo piano — instead his vocal collaborations or a vocal artist with similar minimalism
+
+If a track is famous in its instrumental form (most film scores, modern classical,
+solo jazz piano, ambient electronic, post-rock), it is OUT regardless of how
+well it would otherwise fit the vector. Find the vocal-bearing analogue.
+
+A track counts as "vocal" if a singer carries the melody for the majority of
+the song. Brief vocal samples (chants, spoken-word interjections, "vocal as
+texture") do not count. The track must have lyrics that a listener could sing
+along to.
+
 ## Adjacent reasoning (mandatory if you produce any Adjacent picks)
 
 Adjacency is a vector, not a vibe. Naive prompts collapse Adjacent picks to the

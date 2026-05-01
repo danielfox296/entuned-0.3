@@ -9,6 +9,7 @@ import { marsAssemble } from '../mars/mars.js'
 import { generateLyrics } from '../bernie/bernie.js'
 import { injectArrangement, type ArrangementSections } from '../arranger/arranger.js'
 import { resolveOutcomeParams } from '../variance/variance.js'
+import { extractVocalGender, type VocalGender } from '../mars/vocal-gender.js'
 
 export const OUTCOME_FACTOR_PROMPT_SEED = '{tempo_bpm}bpm, {mode}' // prepended to style string; tokens: {tempo_bpm} {mode} {dynamics} {instrumentation}
 
@@ -103,8 +104,15 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
   const hook = await pickAvailableHook(icpId, outcomeId)
   if (!hook) return { ok: false, reason: 'pool_exhausted_hooks' }
 
-  const refTrack = await pickReferenceTrack(icpId)
-  if (!refTrack || !refTrack.styleAnalysis) return { ok: false, reason: 'pool_exhausted_reference_tracks' }
+  const refTrack = await pickReferenceTrack(icpId, hook.vocalGender)
+  if (!refTrack || !refTrack.styleAnalysis) {
+    return {
+      ok: false,
+      reason: hook.vocalGender
+        ? `pool_exhausted_reference_tracks_for_hook_vocal_gender_${hook.vocalGender}`
+        : 'pool_exhausted_reference_tracks',
+    }
+  }
 
   const songSeed = await prisma.songSeed.create({
     data: {
@@ -183,25 +191,41 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
   }
 }
 
-async function pickAvailableHook(icpId: string, outcomeId: string): Promise<{ id: string; text: string } | null> {
+type HookVocalGender = 'male' | 'female' | 'duet' | null
+
+async function pickAvailableHook(icpId: string, outcomeId: string): Promise<{ id: string; text: string; vocalGender: HookVocalGender } | null> {
   const hooks = await prisma.hook.findMany({
     where: { icpId, outcomeId, status: 'approved' },
     select: {
-      id: true, text: true,
+      id: true, text: true, vocalGender: true,
       songSeeds: { select: { status: true } },
     },
     orderBy: [{ useCount: 'asc' }, { createdAt: 'asc' }],
   })
   for (const h of hooks) {
     const blocking = h.songSeeds.some((s) => s.status === 'assembling' || s.status === 'queued' || s.status === 'accepted')
-    if (!blocking) return { id: h.id, text: h.text }
+    if (!blocking) {
+      const vg = h.vocalGender as HookVocalGender
+      return { id: h.id, text: h.text, vocalGender: vg }
+    }
   }
   return null
 }
 
 type RefTrackWithAnalysis = Awaited<ReturnType<typeof prisma.referenceTrack.findFirstOrThrow<{ include: { styleAnalysis: true } }>>>
 
-async function pickReferenceTrack(icpId: string): Promise<RefTrackWithAnalysis | null> {
+// True if a ref track's vocal lead is compatible with the hook's vocal-gender
+// constraint. Null hookGender = unconstrained (any vocal track passes; only
+// instrumentals are excluded). Set hookGender = strict match required.
+function vocalGenderCompatible(refGender: VocalGender, hookGender: HookVocalGender): boolean {
+  if (refGender === 'instrumental') return false
+  if (!hookGender) return true
+  if (hookGender === 'duet') return refGender === 'duet'
+  // Hook 'male' or 'female' — match same primary gender, plus duets which contain that voice.
+  return refGender === hookGender || refGender === 'duet'
+}
+
+async function pickReferenceTrack(icpId: string, hookGender: HookVocalGender): Promise<RefTrackWithAnalysis | null> {
   // useCount alone doesn't spread bursts: it only increments on operator
   // accept (admin.ts), so every iteration of a burst sees the same snapshot
   // and grabs the same lowest-useCount track. Add in-flight + already-
@@ -217,7 +241,19 @@ async function pickReferenceTrack(icpId: string): Promise<RefTrackWithAnalysis |
   })
   if (tracks.length === 0) return null
 
-  const scored = tracks.map((t) => {
+  // Filter: exclude instrumentals universally, and refs whose vocal gender
+  // doesn't match the hook's gender constraint when one is set.
+  const compatible = tracks.filter((t) => {
+    if (!t.styleAnalysis) return false
+    const vocalText = [t.styleAnalysis.vocalCharacter, t.styleAnalysis.vocalArrangement]
+      .filter(Boolean)
+      .join(' · ')
+    const refGender = extractVocalGender(vocalText)
+    return vocalGenderCompatible(refGender, hookGender)
+  })
+  if (compatible.length === 0) return null
+
+  const scored = compatible.map((t) => {
     const inFlight = t.songSeeds.filter(
       (s) => s.status === 'assembling' || s.status === 'queued' || s.status === 'accepted',
     ).length
