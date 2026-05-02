@@ -13,8 +13,6 @@ interface Draft {
   displayTitle: string
   tempoBpm: number
   mode: string
-  dynamics: string
-  instrumentation: string
   familiarity: string
   productionEraId: string
 }
@@ -49,7 +47,7 @@ export function OutcomeLibrary() {
     return rows.filter((r) => {
       if (filter === 'active' && r.supersededAt) return false
       if (filter === 'superseded' && !r.supersededAt) return false
-      if (q && !r.title.toLowerCase().includes(q) && !(r.displayTitle ?? '').toLowerCase().includes(q) && !(r.mode ?? '').toLowerCase().includes(q) && !(r.instrumentation ?? '').toLowerCase().includes(q)) return false
+      if (q && !r.title.toLowerCase().includes(q) && !(r.displayTitle ?? '').toLowerCase().includes(q) && !(r.mode ?? '').toLowerCase().includes(q)) return false
       return true
     })
   }, [rows, filter, search])
@@ -67,8 +65,6 @@ export function OutcomeLibrary() {
       displayTitle: r.displayTitle ?? '',
       tempoBpm: r.tempoBpm,
       mode: r.mode,
-      dynamics: r.dynamics ?? '',
-      instrumentation: r.instrumentation ?? '',
       familiarity: r.familiarity ?? '',
       productionEraId: r.productionEraId ?? '',
     })
@@ -82,7 +78,6 @@ export function OutcomeLibrary() {
       await api.editOutcome(editingId, {
         title: draft.title, displayTitle: draft.displayTitle.trim() || null,
         tempoBpm: draft.tempoBpm, mode: draft.mode,
-        dynamics: draft.dynamics || null, instrumentation: draft.instrumentation || null,
         familiarity: draft.familiarity || null, productionEraId: draft.productionEraId || null,
       }, token)
       setEditingId(null); setDraft(null); await reload()
@@ -98,7 +93,6 @@ export function OutcomeLibrary() {
       await api.createOutcome({
         title: adding.title, displayTitle: adding.displayTitle.trim() || null,
         tempoBpm: adding.tempoBpm, mode: adding.mode,
-        dynamics: adding.dynamics || null, instrumentation: adding.instrumentation || null,
         familiarity: adding.familiarity || null, productionEraId: adding.productionEraId || null,
       }, token)
       setAdding(null); await reload()
@@ -143,12 +137,12 @@ export function OutcomeLibrary() {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="search title, mode, instrumentation"
+          placeholder="search title, mode"
           style={{ minWidth: 280, flex: 1, maxWidth: 480, width: 'auto' }}
         />
         <Button
           variant={adding ? 'ghost' : 'primary'}
-          onClick={() => setAdding(adding ? null : { title: '', displayTitle: '', tempoBpm: 100, mode: 'major', dynamics: '', instrumentation: '', familiarity: '', productionEraId: '' })}
+          onClick={() => setAdding(adding ? null : { title: '', displayTitle: '', tempoBpm: 100, mode: 'major', familiarity: '', productionEraId: '' })}
         >{adding ? 'cancel' : '+ new outcome'}</Button>
       </div>
 
@@ -201,7 +195,7 @@ export function OutcomeLibrary() {
   )
 }
 
-const COLS = '1.6fr 60px 70px 90px 1fr 1.6fr 1fr 60px 130px'
+const COLS = '2fr 60px 70px 110px 1.4fr 60px 130px'
 
 function HeaderRow() {
   return (
@@ -216,8 +210,6 @@ function HeaderRow() {
       <span>v</span>
       <span>bpm</span>
       <span>mode</span>
-      <span>dynamics</span>
-      <span>instrumentation</span>
       <span>production era</span>
       <span style={{ textAlign: 'right' }}>pool</span>
       <span />
@@ -241,8 +233,6 @@ function DataRow({ row, onEdit, onSupersede, busy }: {
       <span style={{ color: T.accentMuted }}>v{row.version}</span>
       <span style={{ color: T.textMuted }}>{row.tempoBpm}</span>
       <span style={{ color: T.textMuted }}>{row.mode}</span>
-      <span style={cellTrunc}>{row.dynamics ?? '—'}</span>
-      <span style={cellTrunc}>{row.instrumentation ?? '—'}</span>
       <span style={cellTrunc}>{eraLabel}</span>
       <span style={{ color: row.lineageCount === 0 ? T.danger : T.text, textAlign: 'right', paddingRight: 6 }}>{row.lineageCount}</span>
       <span style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
@@ -275,7 +265,7 @@ function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent,
       background: intent === 'new' ? T.accentGlow : 'transparent',
       border: intent === 'new' ? `1px solid ${T.accentMuted}` : 'none',
       borderRadius: S.r4, padding: intent === 'new' ? 14 : 0,
-      display: 'grid', gridTemplateColumns: '1fr 1fr 100px 140px 1fr 1.4fr 120px 1.2fr', gap: 8,
+      display: 'grid', gridTemplateColumns: '1fr 1fr 100px 140px 140px 1.2fr', gap: 8,
     }}>
       <div>
         <label style={labelStyle}>title (LLM-facing)</label>
@@ -295,14 +285,6 @@ function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent,
         <datalist id="mode-suggestions">
           {MODE_SUGGESTIONS.map((m) => <option key={m} value={m} />)}
         </datalist>
-      </div>
-      <div>
-        <label style={labelStyle}>dynamics</label>
-        <Input value={draft.dynamics} onChange={(e) => set('dynamics', e.target.value)} placeholder="medium-loud" />
-      </div>
-      <div>
-        <label style={labelStyle}>instrumentation</label>
-        <Input value={draft.instrumentation} onChange={(e) => set('instrumentation', e.target.value)} placeholder="rhodes, brushed kit, upright bass" />
       </div>
       <div>
         <label style={labelStyle}>production era (generation)</label>

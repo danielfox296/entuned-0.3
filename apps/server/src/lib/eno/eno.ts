@@ -11,7 +11,7 @@ import { injectArrangement, type ArrangementSections } from '../arranger/arrange
 import { resolveOutcomeParams } from '../variance/variance.js'
 import { extractVocalGender, type VocalGender } from '../mars/vocal-gender.js'
 
-export const OUTCOME_FACTOR_PROMPT_SEED = '{tempo_bpm}bpm, {mode}' // prepended to style string; tokens: {tempo_bpm} {mode} {dynamics} {instrumentation}
+export const OUTCOME_FACTOR_PROMPT_SEED = '{tempo_bpm}bpm, {mode}' // prepended to style string. Tokens {dynamics} {instrumentation} also resolve but are intentionally not in the seed — operators were entering free-text values (e.g. "loud", "brushed kit") that stamped genre-mismatched instrument lists onto every track and used vocab banned by rules-v8.
 
 export async function getOrSeedOutcomeFactorPrompt(): Promise<{ id: string; version: number; templateText: string }> {
   const row = await prisma.outcomeFactorPrompt.findFirst({ orderBy: { version: 'desc' } })
@@ -123,7 +123,7 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
   try {
     const outcome = await prisma.outcome.findUniqueOrThrow({ where: { id: outcomeId } })
     const styleAnalysis = refTrack.styleAnalysis
-    const mars = await marsAssemble(styleAnalysis, outcome)
+    const mars = await marsAssemble(styleAnalysis, outcome, { year: refTrack.year })
 
     // Variance resolution — samples concrete tempo/mode from the Outcome's distribution
     // when bands are configured. No-op (returns center values) when radius/weights are null.
