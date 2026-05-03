@@ -501,25 +501,34 @@ export function PlayerScreen({ session, onLogout }: Props) {
   }, []);
 
   // ── Background refresh: prune stale ads when a campaign ends in Dash ─────
-  // The player otherwise only refills on mount / outcome change / network
-  // recovery, so a campaign disabled in the admin won't take effect until the
-  // tab reloads. Poll the server every 30s; if it no longer returns an ad,
-  // drop any ad sitting in the local queue or the preload slot.
+  // Critical: ads for an ended campaign must stop immediately. The player
+  // otherwise only refills on mount / outcome change / network recovery, so a
+  // campaign ended in the admin would keep playing its ad until tab reload.
+  // Poll the server every 15s; if it no longer returns an ad, drop any pending
+  // ads from the queue/preload slot AND skip past one currently playing.
   useEffect(() => {
-    const iv = window.setInterval(async () => {
+    const check = async () => {
       try {
         const r = await api.next(session.storeId, session.token, allOutcomesModeRef.current);
         const serverHasAd = r.queue.some((q) => q.type === "ad");
-        if (!serverHasAd) {
-          setQueue((prev) => prev.filter((q) => q.type !== "ad"));
-          if (nextLoadedRef.current?.type === "ad") nextLoadedRef.current = null;
+        if (serverHasAd) return;
+        setQueue((prev) => prev.filter((q) => q.type !== "ad"));
+        if (nextLoadedRef.current?.type === "ad") {
+          console.info("[player] dropping preloaded ad — campaign no longer active");
+          nextLoadedRef.current = null;
+        }
+        if (currentRef.current?.type === "ad") {
+          console.info("[player] skipping currently-playing ad — campaign no longer active");
+          void skip();
         }
       } catch (e) {
         console.warn("[player] background refresh failed", e);
       }
-    }, 30_000);
+    };
+    void check();
+    const iv = window.setInterval(() => void check(), 15_000);
     return () => clearInterval(iv);
-  }, [session.storeId, session.token]);
+  }, [session.storeId, session.token, skip]);
 
   // ── Online indicator: 30s polling against /auth/me ────────────────────────
   useEffect(() => {
