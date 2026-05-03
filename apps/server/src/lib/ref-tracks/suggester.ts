@@ -210,7 +210,10 @@ export type SuggestReferenceTracksResult = {
   rawText: string
 }
 
-export async function suggestReferenceTracks(opts: { icpId: string }): Promise<SuggestReferenceTracksResult> {
+export const ALL_BUCKETS = ['PreFormation', 'FormationEra', 'Subculture', 'Aspirational', 'Adjacent'] as const
+export type Bucket = typeof ALL_BUCKETS[number]
+
+export async function suggestReferenceTracks(opts: { icpId: string; buckets?: readonly Bucket[] }): Promise<SuggestReferenceTracksResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
   const client = new Anthropic({ apiKey })
@@ -241,6 +244,17 @@ export async function suggestReferenceTracks(opts: { icpId: string }): Promise<S
     ? '(none)'
     : existing.map((r) => `- ${r.artist} – ${r.title} (${r.bucket})`).join('\n')
 
+  // Bucket scoping: when the operator passes a subset, instruct the LLM to
+  // produce JSON containing ONLY those keys. Default = all five.
+  const requestedBuckets: readonly Bucket[] = (opts.buckets && opts.buckets.length > 0)
+    ? Array.from(new Set(opts.buckets)).filter((b): b is Bucket => (ALL_BUCKETS as readonly string[]).includes(b))
+    : ALL_BUCKETS
+  const isFocused = requestedBuckets.length < ALL_BUCKETS.length
+  const requestedList = requestedBuckets.join(', ')
+  const focusDirective = isFocused
+    ? `\n\n**FOCUSED REQUEST.** Produce picks ONLY for these buckets: ${requestedList}.\nOmit the other bucket keys from the JSON entirely. Do not include picks for buckets not listed here.${requestedBuckets.includes('Adjacent') ? `\nAdjacency reasoning: derive the dominant cluster from the existing pool above${requestedBuckets.length > 1 ? ' plus the other buckets you are proposing in this response' : ''}.` : '\nSkip the Adjacent / dominant_cluster_in_pool / adjacency_vectors fields entirely.'}`
+    : ''
+
   const userMessage = `# ICP
 
 ${icpDescriptor}
@@ -251,11 +265,10 @@ ${existingList}
 
 # Task
 
-Propose reference tracks for this ICP across all five buckets (PreFormation,
-FormationEra, Subculture, Aspirational, Adjacent). Identify the dominant cluster
-across the existing pool plus your PreFormation/FormationEra/Subculture/Aspirational
-picks, declare adjacency vectors, then pick Adjacent picks off-axis from that
-cluster. Output JSON only.`
+${isFocused
+    ? `Propose reference tracks for this ICP across these buckets only: ${requestedList}.`
+    : `Propose reference tracks for this ICP across all five buckets (PreFormation, FormationEra, Subculture, Aspirational, Adjacent). Identify the dominant cluster across the existing pool plus your PreFormation/FormationEra/Subculture/Aspirational picks, declare adjacency vectors, then pick Adjacent picks off-axis from that cluster.`}
+Output JSON only.${focusDirective}`
 
   const response = await client.messages.create({
     model: MODEL,
@@ -288,7 +301,6 @@ cluster. Output JSON only.`
       .filter((r): r is SuggestedRefTrack => r !== null)
   }
 
-  type Bucket = 'PreFormation' | 'FormationEra' | 'Subculture' | 'Aspirational' | 'Adjacent'
   const grouped: Record<Bucket, SuggestedRefTrack[]> = {
     PreFormation: norm(parsed.PreFormation),
     FormationEra: norm(parsed.FormationEra),
@@ -303,7 +315,7 @@ cluster. Output JSON only.`
   const existingKey = new Set(existing.map((e) => `${e.artist.toLowerCase()}::${e.title.toLowerCase()}`))
   const now = new Date()
   const rows: { icpId: string; bucket: Bucket; artist: string; title: string; year: number | null; suggestedRationale: string | null; suggestedPromptVer: number; suggestedAt: Date }[] = []
-  for (const bucket of ['PreFormation', 'FormationEra', 'Subculture', 'Aspirational', 'Adjacent'] as const) {
+  for (const bucket of requestedBuckets) {
     for (const s of grouped[bucket]) {
       const key = `${s.artist.toLowerCase()}::${s.title.toLowerCase()}`
       if (existingKey.has(key)) continue

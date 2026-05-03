@@ -248,13 +248,18 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return row
   })
 
+  const SuggestRefTracksBody = z.object({
+    buckets: z.array(z.enum(['PreFormation', 'FormationEra', 'Subculture', 'Aspirational', 'Adjacent'])).optional(),
+  })
   app.post('/icps/:id/suggest-reference-tracks', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const icpId = (req.params as any).id as string
     const exists = await prisma.iCP.findUnique({ where: { id: icpId }, select: { id: true } })
     if (!exists) return reply.code(404).send({ error: 'icp_not_found' })
+    const parsed = SuggestRefTracksBody.safeParse(req.body ?? {})
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     try {
-      const result = await suggestReferenceTracks({ icpId })
+      const result = await suggestReferenceTracks({ icpId, buckets: parsed.data.buckets })
       return result
     } catch (e: any) {
       return reply.code(500).send({ error: 'suggest_failed', message: e?.message ?? 'unknown' })

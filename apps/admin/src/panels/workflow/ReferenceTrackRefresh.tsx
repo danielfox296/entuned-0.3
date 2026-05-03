@@ -26,6 +26,11 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
   const [err, setErr] = useState<string | null>(null)
   const [openTrackId, setOpenTrackId] = useState<string | null>(null)
   const [prefetchingCovers, setPrefetchingCovers] = useState(false)
+  // Which buckets to ask the LLM for. Default = all five. Subsetting lets the
+  // operator focus the call when one bucket is empty/thin without diluting it
+  // across the others.
+  const [scopedBuckets, setScopedBuckets] = useState<Set<TasteCategory>>(new Set(BUCKETS))
+  const [manualAdding, setManualAdding] = useState(false)
   /** Track ids we've already attempted to prefetch in this session, regardless
    *  of outcome. Prevents re-fetching the same track on every storeDetail
    *  refetch but still picks up freshly-suggested tracks when they appear. */
@@ -97,11 +102,17 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
 
   const suggest = async () => {
     if (!ctx.icpId) return
+    if (scopedBuckets.size === 0) {
+      toast.error('select at least one bucket')
+      return
+    }
     const token = getToken(); if (!token) return
     setSuggesting(true)
     setErr(null)
     try {
-      const r = await api.suggestReferenceTracks(ctx.icpId, token)
+      const all = scopedBuckets.size === BUCKETS.length
+      const buckets = all ? undefined : BUCKETS.filter((b) => scopedBuckets.has(b))
+      const r = await api.suggestReferenceTracks(ctx.icpId, buckets ? { buckets } : undefined, token)
       await refetch()
       toast.success(`${r.createdCount} new reference track suggestion${r.createdCount === 1 ? '' : 's'}`)
     } catch (e: any) {
@@ -109,6 +120,37 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
       toast.error(e.message ?? 'failed to suggest reference tracks')
     } finally {
       setSuggesting(false)
+    }
+  }
+
+  const toggleBucket = (b: TasteCategory) => {
+    setScopedBuckets((prev) => {
+      const next = new Set(prev)
+      if (next.has(b)) next.delete(b)
+      else next.add(b)
+      return next
+    })
+  }
+
+  // Manual add: create an immediately-approved ReferenceTrack. Same fields the
+  // LLM produces; same downstream pipeline (preview prefetch, decompose).
+  const addManual = async (input: { artist: string; title: string; year: number | null; bucket: TasteCategory }) => {
+    if (!ctx.icpId) return
+    const token = getToken(); if (!token) return
+    setManualAdding(true)
+    try {
+      await api.createReferenceTrack(
+        ctx.icpId,
+        { artist: input.artist.trim(), title: input.title.trim(), year: input.year, bucket: input.bucket },
+        token,
+      )
+      await refetch()
+      toast.success('reference track added')
+    } catch (e: any) {
+      toast.error(e.message ?? 'failed to add reference track')
+      throw e
+    } finally {
+      setManualAdding(false)
     }
   }
 
@@ -228,14 +270,24 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* Suggest action */}
+      {/* Suggest action — bucket chips scope the LLM call to a subset; default = all */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <BucketChips
+          selected={scopedBuckets}
+          onToggle={toggleBucket}
+          onAll={() => setScopedBuckets(new Set(BUCKETS))}
+          onNone={() => setScopedBuckets(new Set())}
+        />
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Button onClick={suggest} disabled={suggesting}>
-            {suggesting ? 'suggesting…' : 'suggest reference tracks'}
+          <Button onClick={suggest} disabled={suggesting || scopedBuckets.size === 0}>
+            {suggesting ? 'suggesting…' : (scopedBuckets.size === BUCKETS.length
+              ? 'suggest reference tracks'
+              : `suggest for ${scopedBuckets.size} bucket${scopedBuckets.size === 1 ? '' : 's'}`)}
           </Button>
           <span style={{ fontFamily: T.sans, fontSize: S.small, color: T.textDim }}>
-            generates new candidates for this ICP based on the current reference-track prompt
+            {scopedBuckets.size === BUCKETS.length
+              ? 'generates candidates across all buckets'
+              : `generates candidates only for: ${BUCKETS.filter((b) => scopedBuckets.has(b)).map((b) => BUCKET_LABEL[b]).join(', ')}`}
           </span>
           {prefetchingCovers && (
             <span style={{
@@ -247,6 +299,9 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
         </div>
         {suggesting && <LlmProgress etaSeconds={45} label="suggesting reference tracks" />}
       </div>
+
+      {/* Manual entry — an approved track lands directly in the right column */}
+      <ManualAddRow onAdd={addManual} busy={manualAdding} />
 
       {/* Two columns: suggestions (left) | approved (right) */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -841,6 +896,144 @@ function StyleAnalysisModal({ track, onClose, onSaved, analyzing, onAnalyze, onR
       </div>
     </Modal>
   )
+}
+
+function BucketChips({ selected, onToggle, onAll, onNone }: {
+  selected: Set<TasteCategory>
+  onToggle: (b: TasteCategory) => void
+  onAll: () => void
+  onNone: () => void
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+      <span style={{
+        fontFamily: T.mono, fontSize: 11, color: T.textDim,
+        textTransform: 'uppercase', letterSpacing: '0.04em',
+        marginRight: 4,
+      }}>buckets</span>
+      {BUCKETS.map((b) => {
+        const on = selected.has(b)
+        return (
+          <button
+            key={b}
+            onClick={() => onToggle(b)}
+            title={on ? `exclude ${BUCKET_LABEL[b]} from this call` : `include ${BUCKET_LABEL[b]} in this call`}
+            style={{
+              background: on ? T.accent : 'transparent',
+              border: `1px solid ${on ? T.accent : T.border}`,
+              color: on ? T.bg : T.textMuted,
+              padding: '4px 10px',
+              borderRadius: 999,
+              fontFamily: T.sans,
+              fontSize: 12,
+              cursor: 'pointer',
+              fontWeight: on ? 500 : 400,
+            }}
+          >{BUCKET_LABEL[b]}</button>
+        )
+      })}
+      <span style={{ marginLeft: 6, display: 'inline-flex', gap: 6 }}>
+        <button onClick={onAll} style={tinyLinkStyle}>all</button>
+        <span style={{ color: T.textDim, fontSize: 11 }}>·</span>
+        <button onClick={onNone} style={tinyLinkStyle}>none</button>
+      </span>
+    </div>
+  )
+}
+
+function ManualAddRow({ onAdd, busy }: {
+  onAdd: (input: { artist: string; title: string; year: number | null; bucket: TasteCategory }) => Promise<void>
+  busy: boolean
+}) {
+  const [artist, setArtist] = useState('')
+  const [title, setTitle] = useState('')
+  const [year, setYear] = useState('')
+  const [bucket, setBucket] = useState<TasteCategory>('FormationEra')
+
+  const canSubmit = artist.trim().length > 0 && title.trim().length > 0 && !busy
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!canSubmit) return
+    const yearNum = year.trim() === '' ? null : Number.parseInt(year, 10)
+    if (year.trim() !== '' && !Number.isFinite(yearNum)) return
+    try {
+      await onAdd({ artist, title, year: yearNum, bucket })
+      setArtist(''); setTitle(''); setYear('')
+    } catch {/* toast handled upstream */}
+  }
+
+  return (
+    <form
+      onSubmit={submit}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1.4fr 1.4fr 90px 160px auto',
+        gap: 8,
+        alignItems: 'end',
+        background: T.surfaceRaised,
+        border: `1px dashed ${T.borderSubtle}`,
+        borderRadius: 4,
+        padding: 12,
+      }}
+    >
+      <Field label="artist">
+        <input
+          value={artist}
+          onChange={(e) => setArtist(e.target.value)}
+          placeholder="e.g. Fleetwood Mac"
+          disabled={busy}
+          style={inputStyle}
+        />
+      </Field>
+      <Field label="title">
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="e.g. Dreams"
+          disabled={busy}
+          style={inputStyle}
+        />
+      </Field>
+      <Field label="year">
+        <input
+          value={year}
+          onChange={(e) => setYear(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
+          placeholder="1977"
+          inputMode="numeric"
+          disabled={busy}
+          style={inputStyle}
+        />
+      </Field>
+      <Field label="bucket">
+        <select
+          value={bucket}
+          onChange={(e) => setBucket(e.target.value as TasteCategory)}
+          disabled={busy}
+          style={inputStyle}
+        >
+          {BUCKETS.map((b) => <option key={b} value={b}>{BUCKET_LABEL[b]}</option>)}
+        </select>
+      </Field>
+      <div>
+        <Button onClick={submit as any} disabled={!canSubmit}>
+          {busy ? 'adding…' : 'add'}
+        </Button>
+      </div>
+    </form>
+  )
+}
+
+const tinyLinkStyle: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  color: T.textDim,
+  fontFamily: T.sans,
+  fontSize: 11,
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+  cursor: 'pointer',
+  padding: 0,
 }
 
 const ghostBtnStyle: React.CSSProperties = {

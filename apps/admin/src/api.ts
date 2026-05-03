@@ -729,8 +729,12 @@ export const api = {
     req<{ latest: ReferenceTrackPromptRow | null; history: ReferenceTrackPromptRow[] }>('/admin/reference-track-prompt', {}, token),
   saveReferenceTrackPrompt: (templateText: string, notes: string | undefined, token: string) =>
     req<ReferenceTrackPromptRow>('/admin/reference-track-prompt', { method: 'POST', body: JSON.stringify({ templateText, notes }) }, token),
-  suggestReferenceTracks: (icpId: string, token: string) =>
-    req<SuggestReferenceTracksResult>(`/admin/icps/${icpId}/suggest-reference-tracks`, { method: 'POST' }, token),
+  suggestReferenceTracks: (icpId: string, opts: { buckets?: TasteCategory[] } | undefined, token: string) =>
+    req<SuggestReferenceTracksResult>(
+      `/admin/icps/${icpId}/suggest-reference-tracks`,
+      { method: 'POST', body: JSON.stringify(opts && opts.buckets && opts.buckets.length > 0 ? { buckets: opts.buckets } : {}) },
+      token,
+    ),
 
   lyricPrompts: (token: string) =>
     req<{ draft: { latest: LyricPromptRow | null; history: LyricPromptRow[] }; edit: { latest: LyricPromptRow | null; history: LyricPromptRow[] } }>('/admin/lyric-prompts', {}, token),
