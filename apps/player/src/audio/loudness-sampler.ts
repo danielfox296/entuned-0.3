@@ -24,6 +24,17 @@ const SAMPLE_WINDOW_MS = 500
 // (relative trend detection on a single device, not measurement-grade SPL).
 //
 // Reference: standard "Aweighting" biquad cascade from IIRFilterNode examples.
+function isIOSSafari(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent
+  // iPhone / iPad / iPod, OR iPad pretending to be desktop Safari (iPadOS 13+).
+  const iOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && (navigator as unknown as { maxTouchPoints?: number }).maxTouchPoints! > 1)
+  if (!iOS) return false
+  // All browsers on iOS use WebKit, so the audio-session bug applies to all of them.
+  // Don't try to narrow to "just Safari" — Chrome on iOS has the same problem.
+  return true
+}
+
 const A_WEIGHT_BIQUADS: Array<{ b: [number, number, number]; a: [number, number, number] }> = [
   // High-pass at ~20.6 Hz (squared)
   { b: [1, -2, 1], a: [1, -1.99004745483398, 0.99007225036621] },
@@ -76,6 +87,14 @@ export class LoudnessSampler {
   async start(): Promise<SamplerStartResult> {
     if (this.running) return 'granted'
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      return 'unavailable'
+    }
+    // iOS Safari forces the audio session into record mode the moment getUserMedia
+    // succeeds, which mutes Howler's html5 <audio> elements and won't restore them
+    // when the mic is closed. Disable on iOS Safari entirely until we either move
+    // the player to Web Audio routing or find a session-aware workaround.
+    if (isIOSSafari()) {
+      console.info('[loudness-sampler] disabled on iOS Safari (audio session conflict with html5 audio playback)')
       return 'unavailable'
     }
     try {

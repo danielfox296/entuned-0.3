@@ -295,9 +295,12 @@ export function PlayerScreen({ session, onLogout }: Props) {
     if (samplingEnabledRef.current && !samplerStartedRef.current && samplerRef.current) {
       samplerStartedRef.current = true;
       void samplerRef.current.start().then((res) => {
-        if (res !== "granted") {
+        // 'denied' → reset so a future page reload (after the user grants permission
+        // in browser settings) gets another chance. 'unavailable' → leave true so we
+        // don't keep re-checking on every play press; the result won't change this session.
+        if (res === "denied") {
           samplerStartedRef.current = false;
-          if (res === "denied") console.info("[player] loudness sampling denied by user");
+          console.info("[player] loudness sampling denied by user");
         }
       });
     }
