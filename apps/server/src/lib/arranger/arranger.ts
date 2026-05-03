@@ -10,13 +10,16 @@
 export interface SectionDirective {
   instruments: string[]
   density?: 'minimal' | 'sparse' | 'medium' | 'full'
+  // v8+: section-level energy character. Emitted as [<dynamic>, <density>] line.
+  dynamic?: 'steady' | 'building' | 'dropping' | 'stripped' | 'erupting' | 'fade' | 'sustained' | 'retreating'
+  // v8+: section-level vocal staging. Emitted as [<delivery>] line.
+  vocal_delivery?: 'close-mic' | 'distant' | 'whispered' | 'belted' | 'falsetto' | 'stacked' | 'doubled' | 'wordless' | 'instrumental' | 'a-cappella'
 }
 
 export type ArrangementSections = Partial<Record<SectionKey, SectionDirective>>
 
 type SectionKey = 'intro' | 'verse' | 'pre_chorus' | 'chorus' | 'bridge' | 'outro'
 
-// Maps raw [Section] header text → normalized key. Case-insensitive prefix match.
 const SECTION_MAP: Array<[RegExp, SectionKey]> = [
   [/^intro/i, 'intro'],
   [/^pre[\s-]?chorus/i, 'pre_chorus'],
@@ -33,10 +36,26 @@ function normalizeSection(headerContent: string): SectionKey | null {
   return null
 }
 
-function buildInstrumentTag(directive: SectionDirective): string {
-  const instruments = directive.instruments.slice(0, 3) // hard cap per Suno reliability notes
-  if (instruments.length === 0) return ''
-  return `[Instrument: ${instruments.join(', ')}]`
+function titleCase(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function buildSectionTags(directive: SectionDirective): string[] {
+  const tags: string[] = []
+  const instruments = directive.instruments.slice(0, 3)
+  if (instruments.length > 0) {
+    tags.push(`[Instrument: ${instruments.join(', ')}]`)
+  }
+  if (directive.dynamic) {
+    const dynamicTag = directive.density
+      ? `[${titleCase(directive.dynamic)}, ${directive.density}]`
+      : `[${titleCase(directive.dynamic)}]`
+    tags.push(dynamicTag)
+  }
+  if (directive.vocal_delivery) {
+    tags.push(`[${titleCase(directive.vocal_delivery)}]`)
+  }
+  return tags
 }
 
 export function injectArrangement(lyrics: string, sections: ArrangementSections): string {
@@ -52,10 +71,10 @@ export function injectArrangement(lyrics: string, sections: ArrangementSections)
       if (!key) return [line]
 
       const directive = sections[key]
-      if (!directive || directive.instruments.length === 0) return [line]
+      if (!directive) return [line]
 
-      const tag = buildInstrumentTag(directive)
-      return tag ? [line, tag] : [line]
+      const tags = buildSectionTags(directive)
+      return [line, ...tags]
     })
     .join('\n')
 }

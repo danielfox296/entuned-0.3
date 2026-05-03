@@ -33,7 +33,11 @@ function formatArrangementBrief(sections: ArrangementSections): string {
     const density = directive.density ?? 'medium'
     const instruments = directive.instruments.slice(0, 3).join(', ')
     const label = key === 'pre_chorus' ? 'pre-chorus' : key
-    lines.push(`- ${label}: ${density} — ${instruments}`)
+    const extras: string[] = []
+    if (directive.dynamic) extras.push(directive.dynamic)
+    if (directive.vocal_delivery) extras.push(directive.vocal_delivery)
+    const extrasStr = extras.length > 0 ? ` (${extras.join(', ')})` : ''
+    lines.push(`- ${label}: ${density}${extrasStr} — ${instruments}`)
   }
   if (lines.length === 0) return ''
   return `Arrangement (per section — match lyric density and energy to this; do NOT name instruments in the lyric lines):

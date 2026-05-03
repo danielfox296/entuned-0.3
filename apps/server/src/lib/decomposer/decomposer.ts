@@ -16,6 +16,8 @@ import { MUSICOLOGICAL_RULES_V3 } from './rules-v3.js'
 import { MUSICOLOGICAL_RULES_V4 } from './rules-v4.js'
 import { MUSICOLOGICAL_RULES_V5 } from './rules-v5.js'
 import { MUSICOLOGICAL_RULES_V6 } from './rules-v6.js'
+import { MUSICOLOGICAL_RULES_V7 } from './rules-v7.js'
+import { MUSICOLOGICAL_RULES_V8 } from './rules-v8.js'
 
 const MODEL = process.env.DECOMPOSER_MODEL ?? 'claude-sonnet-4-5'
 
@@ -27,8 +29,10 @@ const RULES_BY_VERSION: Record<number, string> = {
   4: MUSICOLOGICAL_RULES_V4,
   5: MUSICOLOGICAL_RULES_V5,
   6: MUSICOLOGICAL_RULES_V6,
+  7: MUSICOLOGICAL_RULES_V7,
+  8: MUSICOLOGICAL_RULES_V8,
 }
-const LATEST_RULES_VERSION = 6
+const LATEST_RULES_VERSION = 8
 
 export interface DecomposeInput {
   artist: string
@@ -48,23 +52,33 @@ export interface DecomposeInput {
 }
 
 export interface StyleAnalysisOutput {
-  // v2-only grounding fields (will be empty string for v1 rules)
+  // v2+ grounding fields
   verifiable_facts?: string
   // descriptive fields
   vibe_pitch: string
   era_production_signature: string
   instrumentation_palette: string
   standout_element: string
-  arrangement_shape: string
-  dynamic_curve: string
+  // Dropped in v8 — moved into arrangement_sections per section. Still emitted by v1-v7.
+  arrangement_shape?: string
+  dynamic_curve?: string
   vocal_character: string
   vocal_arrangement: string
   harmonic_and_groove: string
   confidence: 'low' | 'medium' | 'high'
-  // v3-only: explicit gender for Suno (always present in v3+)
+  // v3+: explicit gender for Suno
   vocal_gender?: 'male' | 'female' | 'duet' | 'instrumental'
   // v6+: per-section instrumentation map for the Arranger module.
-  arrangement_sections?: Record<string, { instruments: string[]; density?: string }>
+  // v8+ adds optional `dynamic` and `vocal_delivery` per section.
+  arrangement_sections?: Record<
+    string,
+    {
+      instruments: string[]
+      density?: string
+      dynamic?: string
+      vocal_delivery?: string
+    }
+  >
 }
 
 function decadeFromYear(y: number): string {
@@ -133,7 +147,9 @@ export async function decompose(input: DecomposeInput): Promise<DecomposeResult>
 
   const client = new Anthropic({ apiKey })
 
-  const requiredKeys = rulesRow.version >= 6
+  const requiredKeys = rulesRow.version >= 8
+    ? 'verifiable_facts, confidence, vibe_pitch, era_production_signature, instrumentation_palette, standout_element, vocal_character, vocal_arrangement, harmonic_and_groove, vocal_gender, arrangement_sections'
+    : rulesRow.version >= 6
     ? 'verifiable_facts, confidence, vibe_pitch, era_production_signature, instrumentation_palette, standout_element, arrangement_shape, dynamic_curve, vocal_character, vocal_arrangement, harmonic_and_groove, vocal_gender, arrangement_sections'
     : rulesRow.version >= 3
     ? 'verifiable_facts, confidence, vibe_pitch, era_production_signature, instrumentation_palette, standout_element, arrangement_shape, dynamic_curve, vocal_character, vocal_arrangement, harmonic_and_groove, vocal_gender'
@@ -201,7 +217,7 @@ keys: ${requiredKeys}. No prose before or after the JSON. No markdown code fence
   let parsed: StyleAnalysisOutput
   try {
     parsed = JSON.parse(cleaned) as StyleAnalysisOutput
-    validate(parsed)
+    validate(parsed, rulesRow.version)
   } catch (e) {
     console.error('--- raw model output (validation/parse failed) ---')
     console.error(raw)
@@ -247,19 +263,30 @@ function extractJson(s: string): string {
   throw new Error('Unbalanced JSON object in model output')
 }
 
-function validate(o: any): asserts o is StyleAnalysisOutput {
-  const required: (keyof StyleAnalysisOutput)[] = [
+// v8 dropped arrangement_shape and dynamic_curve as standalone fields. Their information
+// moves into per-section `dynamic` keys inside arrangement_sections.
+const ALLOWED_SECTION_DYNAMIC = new Set([
+  'steady', 'building', 'dropping', 'stripped', 'erupting', 'fade', 'sustained', 'retreating',
+])
+const ALLOWED_VOCAL_DELIVERY = new Set([
+  'close-mic', 'distant', 'whispered', 'belted', 'falsetto', 'stacked', 'doubled', 'wordless', 'instrumental', 'a-cappella',
+])
+
+function validate(o: any, rulesVersion: number): asserts o is StyleAnalysisOutput {
+  const baseRequired = [
     'vibe_pitch',
     'era_production_signature',
     'instrumentation_palette',
     'standout_element',
-    'arrangement_shape',
-    'dynamic_curve',
     'vocal_character',
     'vocal_arrangement',
     'harmonic_and_groove',
     'confidence',
-  ]
+  ] as const
+  const required: string[] = [...baseRequired]
+  if (rulesVersion < 8) {
+    required.push('arrangement_shape', 'dynamic_curve')
+  }
   for (const k of required) {
     if (typeof o[k] !== 'string' || o[k].length === 0) {
       throw new Error(`Decomposition missing or empty field: ${k}`)
@@ -286,6 +313,16 @@ function validate(o: any): asserts o is StyleAnalysisOutput {
       }
       if (!d.instruments.every((s: any) => typeof s === 'string' && s.length > 0)) {
         throw new Error(`arrangement_sections.${sec} instruments must be non-empty strings`)
+      }
+      // v8+ optional per-section tags. Drop silently if not in the allowed enums —
+      // the model's free to omit, and a stray value shouldn't fail the whole call.
+      if (rulesVersion >= 8) {
+        if (typeof d.dynamic === 'string' && !ALLOWED_SECTION_DYNAMIC.has(d.dynamic)) {
+          delete d.dynamic
+        }
+        if (typeof d.vocal_delivery === 'string' && !ALLOWED_VOCAL_DELIVERY.has(d.vocal_delivery)) {
+          delete d.vocal_delivery
+        }
       }
     }
   }
