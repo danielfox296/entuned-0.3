@@ -393,7 +393,8 @@ export function PlayerScreen({ session, onLogout }: Props) {
     const cur = currentRef.current;
     if (!cur) return;
     emit("song_report", cur, { report_reason: reason });
-  }, [emit]);
+    void skip();
+  }, [emit, skip]);
 
   const getProgress = useCallback(() => playerRef.current?.getProgress() ?? null, []);
 
