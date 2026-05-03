@@ -471,6 +471,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     timezone: z.string().min(1).optional(),
     goLiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
     defaultOutcomeId: z.string().uuid().nullable().optional(),
+    roomLoudnessSamplingEnabled: z.boolean().optional(),
   })
 
   app.put('/stores/:id', async (req, reply) => {
@@ -493,6 +494,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         icps: row.icps.map((i) => ({ id: i.id, name: i.name })),
         goLiveDate: row.goLiveDate ? row.goLiveDate.toISOString().slice(0, 10) : null,
         defaultOutcomeId: row.defaultOutcomeId,
+        roomLoudnessSamplingEnabled: row.roomLoudnessSamplingEnabled,
       }
     } catch {
       return reply.code(404).send({ error: 'not_found' })
@@ -541,6 +543,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         clientName: store.client.companyName,
         goLiveDate: store.goLiveDate ? store.goLiveDate.toISOString().slice(0, 10) : null,
         defaultOutcomeId: store.defaultOutcomeId,
+        roomLoudnessSamplingEnabled: store.roomLoudnessSamplingEnabled,
       },
       icps,
       sharedWith: [],
@@ -1611,6 +1614,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         operatorId: e.operatorId,
         operatorEmail: e.operator?.email ?? null,
         reportReason: e.reportReason,
+        extra: e.extra ?? null,
       })),
     }
   })

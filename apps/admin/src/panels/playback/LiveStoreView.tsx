@@ -205,13 +205,48 @@ function QueueCard({ queue, reason }: {
 }
 
 function RecentEvents({ events }: { events: PlaybackEventRow[] }) {
+  // Build the set of event types actually present in the current window so the
+  // filter row only shows chips that have data (no dead chips for never-emitted types).
+  const types = Array.from(new Set(events.map((e) => e.eventType))).sort()
+  const [excluded, setExcluded] = useState<Set<string>>(new Set())
+  const visible = events.filter((e) => !excluded.has(e.eventType))
+  const toggle = (t: string) => {
+    const next = new Set(excluded)
+    if (next.has(t)) next.delete(t); else next.add(t)
+    setExcluded(next)
+  }
   return (
-    <Section title="Recent events" subtitle={`Last ${events.length}`}>
-      {events.length === 0 ? (
+    <Section title="Recent events" subtitle={`Showing ${visible.length} of ${events.length}`}>
+      {types.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+          {types.map((t) => {
+            const on = !excluded.has(t)
+            return (
+              <button
+                key={t}
+                onClick={() => toggle(t)}
+                style={{
+                  fontFamily: T.sans,
+                  fontSize: S.label,
+                  padding: '3px 9px',
+                  borderRadius: 999,
+                  border: `1px solid ${on ? T.accent : T.borderSubtle}`,
+                  background: on ? T.accentGlow : 'transparent',
+                  color: on ? T.text : T.textDim,
+                  cursor: 'pointer',
+                }}
+              >
+                {prettyEventType(t)}
+              </button>
+            )
+          })}
+        </div>
+      )}
+      {visible.length === 0 ? (
         <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>No events</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {events.map((e) => <EventRow key={e.id} event={e} />)}
+          {visible.map((e) => <EventRow key={e.id} event={e} />)}
         </div>
       )}
     </Section>
@@ -259,6 +294,8 @@ function prettyEventType(type: string): string {
     case 'outcome_selection': return 'Outcome Selection'
     case 'outcome_selection_cleared': return 'Outcome Cleared'
     case 'playback_starved': return 'Playback Starved'
+    case 'ad_play': return 'Ad Play'
+    case 'room_loudness_sample': return 'Loudness Sample'
     default:
       return type
         .split('_')
@@ -277,6 +314,13 @@ function eventColor(type: string): string {
 
 function eventDetail(e: PlaybackEventRow): string {
   const parts: string[] = []
+  if (e.eventType === 'room_loudness_sample' && e.extra) {
+    const x = e.extra as { dbfs_a?: number; weighted?: string; sample_window_ms?: number }
+    if (typeof x.dbfs_a === 'number') {
+      parts.push(`${x.dbfs_a.toFixed(1)} dBFS${x.weighted ? ` (${x.weighted}-weighted)` : ''}`)
+    }
+    return parts.join(' · ')
+  }
   const label = e.outcomeDisplayTitle ?? e.outcomeTitle
   if (label) parts.push(label)
   if (e.reportReason) parts.push(`reason: ${e.reportReason}`)

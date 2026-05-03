@@ -17,6 +17,7 @@ const EventSchema = z.object({
     'operator_login',
     'operator_logout',
     'ad_play',
+    'room_loudness_sample',
   ]),
   store_id: z.string().uuid(),
   occurred_at: z.string().datetime(),

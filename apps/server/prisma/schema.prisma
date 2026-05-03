@@ -34,6 +34,7 @@ enum PlaybackEventType {
   operator_login
   operator_logout
   ad_play
+  room_loudness_sample
 }
 
 enum ReportReason {
@@ -124,6 +125,7 @@ model Store {
   defaultOutcomeId          String?   @map("default_outcome_id") @db.Uuid
   outcomeSelectionId        String?   @map("outcome_selection_id") @db.Uuid
   outcomeSelectionExpiresAt DateTime? @map("outcome_selection_expires_at") @db.Timestamptz(6)
+  roomLoudnessSamplingEnabled Boolean @default(false) @map("room_loudness_sampling_enabled")
   createdAt                 DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                 DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 

@@ -17,7 +17,7 @@ export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void 
   const [clients, setClients] = useState<ClientListRow[] | null>(null)
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
   const [storeId, setStoreId] = useStoreSelection()
-  const [detail, setDetail] = useState<{ id: string; name: string; timezone: string; clientId: string; clientName: string; icps: { id: string; name: string }[]; goLiveDate: string | null; defaultOutcomeId: string | null } | null>(null)
+  const [detail, setDetail] = useState<{ id: string; name: string; timezone: string; clientId: string; clientName: string; icps: { id: string; name: string }[]; goLiveDate: string | null; defaultOutcomeId: string | null; roomLoudnessSamplingEnabled: boolean } | null>(null)
   const [draft, setDraft] = useState<StoreUpdateBody | null>(null)
   const [creating, setCreating] = useState<StoreCreateBody | null>(null)
   const [busy, setBusy] = useState(false)
@@ -49,6 +49,7 @@ export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void 
         icps: d.icps.map((i) => ({ id: i.id, name: i.name })),
         goLiveDate: d.store.goLiveDate,
         defaultOutcomeId: d.store.defaultOutcomeId,
+        roomLoudnessSamplingEnabled: d.store.roomLoudnessSamplingEnabled,
       })
       setDraft({})
     }).catch((e) => setErr(e.message))
@@ -144,6 +145,17 @@ export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void 
                 value={draft.goLiveDate ?? detail.goLiveDate ?? ''}
                 onChange={(e) => setDraft({ ...draft, goLiveDate: e.target.value || null })}
               />
+            </Field>
+
+            <Field label="room loudness sampling">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: T.sans, fontSize: S.small, color: T.textMuted }}>
+                <input
+                  type="checkbox"
+                  checked={draft.roomLoudnessSamplingEnabled ?? detail.roomLoudnessSamplingEnabled}
+                  onChange={(e) => setDraft({ ...draft, roomLoudnessSamplingEnabled: e.target.checked })}
+                />
+                player requests mic, emits ~1/min A-weighted dBFS
+              </label>
             </Field>
           </Section>
 

@@ -278,7 +278,7 @@ export interface ReferenceTrackRow {
 }
 
 export interface StoreDetail {
-  store: { id: string; name: string; timezone: string; clientId: string; clientName: string; goLiveDate: string | null; defaultOutcomeId: string | null }
+  store: { id: string; name: string; timezone: string; clientId: string; clientName: string; goLiveDate: string | null; defaultOutcomeId: string | null; roomLoudnessSamplingEnabled: boolean }
   icps: (IcpRow & { referenceTracks: ReferenceTrackRow[] })[]
   sharedWith: { id: string; name: string; clientName: string }[]
 }
@@ -377,6 +377,7 @@ export interface StoreUpdateBody {
   timezone?: string
   goLiveDate?: string | null
   defaultOutcomeId?: string | null
+  roomLoudnessSamplingEnabled?: boolean
 }
 
 export interface IcpCreateBody {
@@ -566,6 +567,7 @@ export interface PlaybackEventRow {
   operatorId: string | null
   operatorEmail: string | null
   reportReason: string | null
+  extra: Record<string, unknown> | null
 }
 
 export interface LiveStoreView {

@@ -32,6 +32,7 @@ export interface NextResponse {
   queue: QueueItem[]
   fallbackTier: 'none' | 'daily_cap' | 'sibling_spacing' | 'no_repeat_window'
   reason: 'no_pool' | null
+  roomLoudnessSamplingEnabled: boolean
 }
 
 export interface OutcomeOption {
@@ -59,6 +60,7 @@ export type AudioEventType =
   | 'song_start' | 'song_complete' | 'song_skip' | 'song_report' | 'song_love'
   | 'outcome_selection' | 'outcome_selection_cleared' | 'playback_starved'
   | 'operator_login' | 'operator_logout' | 'ad_play'
+  | 'room_loudness_sample'
 
 export interface OutgoingEvent {
   event_type: AudioEventType

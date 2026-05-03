@@ -29,6 +29,14 @@ export interface HendrixResponse {
   queue: QueueItem[]
   fallbackTier: FallbackTier
   reason: EmptyReason
+  // Per-store opt-in for mic-based room-loudness sampling on the player.
+  // Server-level kill switch (ROOM_LOUDNESS_SAMPLING_KILL=true) forces false.
+  roomLoudnessSamplingEnabled: boolean
+}
+
+function roomLoudnessFlag(storeFlag: boolean): boolean {
+  if (process.env.ROOM_LOUDNESS_SAMPLING_KILL === 'true') return false
+  return storeFlag
 }
 
 interface PoolRow {
@@ -301,8 +309,10 @@ export async function nextQueue(
     include: { icps: { select: { id: true } } },
   })
   if (!store) {
-    return { storeId, decidedAt, activeOutcome: null, queue: [], fallbackTier: 'none', reason: 'no_pool' }
+    return { storeId, decidedAt, activeOutcome: null, queue: [], fallbackTier: 'none', reason: 'no_pool', roomLoudnessSamplingEnabled: false }
   }
+
+  const roomLoudness = roomLoudnessFlag(store.roomLoudnessSamplingEnabled)
 
   const rules = (await prisma.playbackRules.findFirst()) ?? {
     siblingSpacingMinutes: 240,
@@ -311,7 +321,7 @@ export async function nextQueue(
   }
 
   if (store.icps.length === 0) {
-    return { storeId, decidedAt, activeOutcome: null, queue: [], fallbackTier: 'none', reason: 'no_pool' }
+    return { storeId, decidedAt, activeOutcome: null, queue: [], fallbackTier: 'none', reason: 'no_pool', roomLoudnessSamplingEnabled: roomLoudness }
   }
 
   const icpIds = store.icps.map((i) => i.id)
@@ -327,6 +337,7 @@ export async function nextQueue(
       queue: await injectAdIfDue(storeId, queue, now),
       fallbackTier,
       reason: queue.length === 0 ? 'no_pool' : null,
+      roomLoudnessSamplingEnabled: roomLoudness,
     }
   }
 
@@ -343,6 +354,7 @@ export async function nextQueue(
       queue: await injectAdIfDue(storeId, queue, now),
       fallbackTier,
       reason: queue.length === 0 ? 'no_pool' : null,
+      roomLoudnessSamplingEnabled: roomLoudness,
     }
   }
 
@@ -360,6 +372,7 @@ export async function nextQueue(
       queue: await injectAdIfDue(storeId, queue, now),
       fallbackTier,
       reason: queue.length === 0 ? 'no_pool' : null,
+      roomLoudnessSamplingEnabled: roomLoudness,
     }
   }
 
@@ -371,5 +384,6 @@ export async function nextQueue(
     queue: await injectAdIfDue(storeId, queue, now),
     fallbackTier,
     reason: queue.length === 0 ? 'no_pool' : null,
+    roomLoudnessSamplingEnabled: roomLoudness,
   }
 }

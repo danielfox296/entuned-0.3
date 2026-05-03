@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type QueueItem, type ActiveOutcome, type OutcomeOption, type AudioEventType } from "../api.js";
 import { CrossfadePlayer } from "../audio/crossfade-player.js";
+import { LoudnessSampler } from "../audio/loudness-sampler.js";
 import { CircleButton } from "../components/CircleButton.js";
 import { DarkHalo } from "../components/DarkHalo.js";
 import { ProgressBar } from "../components/ProgressBar.js";
@@ -45,6 +46,9 @@ type Props = {
 
 export function PlayerScreen({ session, onLogout }: Props) {
   const playerRef = useRef<CrossfadePlayer | null>(null);
+  const samplerRef = useRef<LoudnessSampler | null>(null);
+  const samplerStartedRef = useRef(false);
+  const samplingEnabledRef = useRef(false);
 
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [currentItem, setCurrentItem] = useState<QueueItem | null>(null);
@@ -101,6 +105,12 @@ export function PlayerScreen({ session, onLogout }: Props) {
       setActiveOutcome(r.activeOutcome);
       setReason(r.reason);
       setNetworkError(null);
+      samplingEnabledRef.current = r.roomLoudnessSamplingEnabled;
+      // Toggling OFF mid-session: release the mic immediately.
+      if (!r.roomLoudnessSamplingEnabled && samplerStartedRef.current) {
+        samplerRef.current?.stop();
+        samplerStartedRef.current = false;
+      }
       setQueue((prev) => {
         const have = new Set(prev.filter((q) => q.type !== "ad").map((q) => q.songId));
         if (currentRef.current?.type !== "ad") have.add(currentRef.current?.songId ?? "");
@@ -280,6 +290,17 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const togglePlayPause = useCallback(() => {
     const player = playerRef.current;
     if (!player) return;
+    // Lazy-start the loudness sampler on the first user gesture that initiates playback.
+    // Permission prompt fires here, never on mount. Skipped entirely when the per-store flag is off.
+    if (samplingEnabledRef.current && !samplerStartedRef.current && samplerRef.current) {
+      samplerStartedRef.current = true;
+      void samplerRef.current.start().then((res) => {
+        if (res !== "granted") {
+          samplerStartedRef.current = false;
+          if (res === "denied") console.info("[player] loudness sampling denied by user");
+        }
+      });
+    }
     if (!currentRef.current) {
       void playFromQueue();
       return;
@@ -440,6 +461,19 @@ export function PlayerScreen({ session, onLogout }: Props) {
         }, 250);
       },
     });
+    samplerRef.current = new LoudnessSampler({
+      onSample: (s) => {
+        api.emit({
+          event_type: "room_loudness_sample",
+          store_id: session.storeId,
+          occurred_at: new Date().toISOString(),
+          operator_id: session.operatorId,
+          extra: s,
+        }).catch((e) => console.warn("[player] loudness sample emit failed", e));
+      },
+      isPlaying: () => playerRef.current?.isPlaying() ?? false,
+    });
+
     void refill();
     void refreshOutcomes();
     api.loved(session.storeId, session.token).then((r) => {
@@ -455,6 +489,9 @@ export function PlayerScreen({ session, onLogout }: Props) {
       if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
       playerRef.current?.stop();
       playerRef.current = null;
+      samplerRef.current?.stop();
+      samplerRef.current = null;
+      samplerStartedRef.current = false;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
