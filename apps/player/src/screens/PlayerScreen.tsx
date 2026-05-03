@@ -500,6 +500,27 @@ export function PlayerScreen({ session, onLogout }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Background refresh: prune stale ads when a campaign ends in Dash ─────
+  // The player otherwise only refills on mount / outcome change / network
+  // recovery, so a campaign disabled in the admin won't take effect until the
+  // tab reloads. Poll the server every 30s; if it no longer returns an ad,
+  // drop any ad sitting in the local queue or the preload slot.
+  useEffect(() => {
+    const iv = window.setInterval(async () => {
+      try {
+        const r = await api.next(session.storeId, session.token, allOutcomesModeRef.current);
+        const serverHasAd = r.queue.some((q) => q.type === "ad");
+        if (!serverHasAd) {
+          setQueue((prev) => prev.filter((q) => q.type !== "ad"));
+          if (nextLoadedRef.current?.type === "ad") nextLoadedRef.current = null;
+        }
+      } catch (e) {
+        console.warn("[player] background refresh failed", e);
+      }
+    }, 30_000);
+    return () => clearInterval(iv);
+  }, [session.storeId, session.token]);
+
   // ── Online indicator: 30s polling against /auth/me ────────────────────────
   useEffect(() => {
     let cancelled = false;
