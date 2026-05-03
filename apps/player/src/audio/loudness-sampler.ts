@@ -1,9 +1,8 @@
 // Room-loudness sampler — mic-based, A-weighted, ~1 sample/min.
 //
-// Shares Howler's AudioContext so mic capture and music playback live in the
-// same audio session. On iOS this is required: a separate AudioContext for the
-// mic causes WebKit to switch the audio session to record mode, which mutes
-// the music. With one shared context, no session switch happens.
+// Owns its own AudioContext (separate from Howler's) so the mic stream can never
+// route through the music graph and risk cutting playback. Only runs when the
+// per-store flag is on and the player is visibly playing.
 //
 // Numbers reported are device-relative dBFS, NOT calibrated SPL. Use for trend
 // detection across a single device, not absolute thresholds.
@@ -23,34 +22,50 @@ const SAMPLE_WINDOW_MS = 500
 // normalized so 1 kHz input passes through at 0 dB. Coefficients precomputed for 48 kHz.
 // At other sample rates the curve drifts a couple dB at the extremes — fine for our purposes
 // (relative trend detection on a single device, not measurement-grade SPL).
+//
+// Reference: standard "Aweighting" biquad cascade from IIRFilterNode examples.
+function isIOSSafari(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent
+  // iPhone / iPad / iPod, OR iPad pretending to be desktop Safari (iPadOS 13+).
+  const iOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && (navigator as unknown as { maxTouchPoints?: number }).maxTouchPoints! > 1)
+  if (!iOS) return false
+  // All browsers on iOS use WebKit, so the audio-session bug applies to all of them.
+  // Don't try to narrow to "just Safari" — Chrome on iOS has the same problem.
+  return true
+}
+
 const A_WEIGHT_BIQUADS: Array<{ b: [number, number, number]; a: [number, number, number] }> = [
+  // High-pass at ~20.6 Hz (squared)
   { b: [1, -2, 1], a: [1, -1.99004745483398, 0.99007225036621] },
+  // High-pass at ~107.7 Hz (squared)
   { b: [1, -2, 1], a: [1, -1.98700285911560, 0.98715024543762] },
+  // Low-pass at ~737.9 Hz
   { b: [1, 0, 0], a: [1, -1.91272163391113, 0.91369485855103] },
+  // Low-pass at ~12200 Hz (squared)
   { b: [1, 0, 0], a: [1, -1.62030077934265, 0.65742528438568] },
 ]
 
 function buildAWeightingFilter(ctx: AudioContext): AudioNode {
+  // Convolve all biquads into a single IIR filter (2N+1 taps). Easier: chain four BiquadFilters.
+  // Since IIRFilterNode coefficients are baked at one sample rate and we need flexibility,
+  // use Biquad-style nodes via IIRFilterNode per stage.
   const nodes = A_WEIGHT_BIQUADS.map((s) => new IIRFilterNode(ctx, { feedforward: s.b, feedback: s.a }))
   for (let i = 0; i < nodes.length - 1; i++) nodes[i].connect(nodes[i + 1])
+  // Return a wrapper: input goes to first, output is last. Caller chains.
+  // We expose by attaching a tiny gain node as the entry point.
   const entry = ctx.createGain()
   entry.gain.value = 1
   entry.connect(nodes[0])
+  // Use a "fake" pattern: wrap by exposing input via a property on the last node.
+  // Simpler: return a GainNode that internally routes through the chain.
   ;(entry as AudioNode & { _exit?: AudioNode })._exit = nodes[nodes.length - 1]
   return entry
-}
-
-function getHowlerCtx(): AudioContext | null {
-  try {
-    const ctx = (window as unknown as { Howler?: { ctx?: AudioContext } }).Howler?.ctx
-    return ctx ?? null
-  } catch { return null }
 }
 
 export class LoudnessSampler {
   private ctx: AudioContext | null = null
   private stream: MediaStream | null = null
-  private srcNode: MediaStreamAudioSourceNode | null = null
   private analyser: AnalyserNode | null = null
   private buffer: Float32Array<ArrayBuffer> | null = null
   private intervalId: number | null = null
@@ -74,12 +89,12 @@ export class LoudnessSampler {
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
       return 'unavailable'
     }
-    // Howler's AudioContext only exists after the first sound has been created — caller
-    // should invoke start() from inside the play handler so playerRef.current has fired
-    // createAndPlay() at least once.
-    const ctx = getHowlerCtx()
-    if (!ctx) {
-      console.warn('[loudness-sampler] Howler AudioContext not yet available; skipping')
+    // iOS Safari forces the audio session into record mode the moment getUserMedia
+    // succeeds, which mutes Howler's html5 <audio> elements and won't restore them
+    // when the mic is closed. Disable on iOS Safari entirely until we either move
+    // the player to Web Audio routing or find a session-aware workaround.
+    if (isIOSSafari()) {
+      console.info('[loudness-sampler] disabled on iOS Safari (audio session conflict with html5 audio playback)')
       return 'unavailable'
     }
     try {
@@ -91,16 +106,12 @@ export class LoudnessSampler {
         },
       })
       this.stream = stream
+
+      const Ctx = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)
+      const ctx = new Ctx()
       this.ctx = ctx
 
-      // Resume context if iOS suspended it during the permission prompt (which can
-      // briefly steal focus and put the page state into something unhelpful).
-      if (ctx.state === 'suspended') {
-        try { await ctx.resume() } catch {}
-      }
-
       const src = ctx.createMediaStreamSource(stream)
-      this.srcNode = src
       const aWeight = buildAWeightingFilter(ctx) as AudioNode & { _exit?: AudioNode }
       const analyser = ctx.createAnalyser()
       analyser.fftSize = 2048
@@ -110,12 +121,13 @@ export class LoudnessSampler {
 
       src.connect(aWeight)
       ;(aWeight._exit ?? aWeight).connect(analyser)
-      // Do NOT connect analyser to ctx.destination — we don't want to play the mic back
-      // through the music output. The analyser is a "sink" that AudioContext still pulls
-      // data through even when not connected to destination, because we call getFloatTimeDomainData.
+      // Do NOT connect analyser to ctx.destination — we don't want to play the mic back.
 
       this.running = true
       this.intervalId = window.setInterval(() => this.maybeSample(), this.intervalMs)
+
+      // Pause sampling when tab hidden; resume when visible.
+      document.addEventListener('visibilitychange', this.onVisibilityChange)
 
       return 'granted'
     } catch (err) {
@@ -126,11 +138,17 @@ export class LoudnessSampler {
     }
   }
 
+  private onVisibilityChange = () => {
+    // Don't tear down — getUserMedia track stays open. Sample loop already gates on isPlaying().
+  }
+
   private maybeSample(): void {
     if (!this.running || !this.analyser || !this.buffer) return
     if (document.hidden) return
     if (!this.isPlaying()) return
 
+    // Collect ~SAMPLE_WINDOW_MS worth of frames. fftSize at 48kHz ≈ 42ms per draw,
+    // so ~12 reads gets us ~500ms.
     const ctx = this.ctx
     if (!ctx) return
     const samplesNeeded = Math.ceil((SAMPLE_WINDOW_MS / 1000) * ctx.sampleRate)
@@ -144,9 +162,12 @@ export class LoudnessSampler {
       }
       collected += this.buffer!.length
       if (collected < samplesNeeded && this.running) {
+        // Schedule next draw on the next animation frame; AudioContext keeps pumping
+        // independently, so each draw returns the most recent fft window.
         requestAnimationFrame(drawOne)
       } else {
         const rms = Math.sqrt(sumSq / Math.max(1, collected))
+        // dBFS where 1.0 ≈ full scale. Floor at -120 to avoid -Infinity.
         const dbfs = rms > 0 ? 20 * Math.log10(rms) : -120
         this.onSample({
           dbfs_a: Number.isFinite(dbfs) ? Number(dbfs.toFixed(2)) : -120,
@@ -162,14 +183,12 @@ export class LoudnessSampler {
     if (!this.running) return
     this.running = false
     if (this.intervalId) { clearInterval(this.intervalId); this.intervalId = null }
+    document.removeEventListener('visibilitychange', this.onVisibilityChange)
     try { this.stream?.getTracks().forEach((t) => t.stop()) } catch {}
-    try { this.srcNode?.disconnect() } catch {}
-    try { this.analyser?.disconnect() } catch {}
     this.stream = null
-    this.srcNode = null
+    try { void this.ctx?.close() } catch {}
+    this.ctx = null
     this.analyser = null
     this.buffer = null
-    // Do NOT close ctx — it's Howler's, not ours.
-    this.ctx = null
   }
 }

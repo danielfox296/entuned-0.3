@@ -30,7 +30,7 @@ export class CrossfadePlayer {
     const targetVol = this.muted ? 0 : (opts?.volume ?? this.volume);
     const howl = new Howl({
       src: [url],
-      html5: false,
+      html5: true,
       volume: targetVol,
       onload: () => opts?.onDurationKnown?.(howl.duration()),
       onend: () => this.opts.onTrackEnded?.(),
@@ -56,7 +56,7 @@ export class CrossfadePlayer {
     return new Promise((resolve, reject) => {
       const howl = new Howl({
         src: [url],
-        html5: false,
+        html5: true,
         volume: 0,
         onload: () => resolve(),
         onloaderror: (_id, err) => reject(err),
