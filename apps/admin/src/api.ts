@@ -204,7 +204,7 @@ export interface SuggestReferenceTracksResult {
 
 // --- Brand: stores, ICPs, reference tracks, style analyses ---
 
-export type TasteCategory = 'FormationEra' | 'Subculture' | 'Aspirational' | 'Adjacent'
+export type TasteCategory = 'PreFormation' | 'FormationEra' | 'Subculture' | 'Aspirational' | 'Adjacent'
 
 export interface StoreSummary {
   id: string

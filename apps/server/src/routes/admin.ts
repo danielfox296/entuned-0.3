@@ -597,7 +597,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // --- Reference tracks ---
   const RefTrackBody = z.object({
-    bucket: z.enum(['FormationEra', 'Subculture', 'Aspirational']),
+    bucket: z.enum(['PreFormation', 'FormationEra', 'Subculture', 'Aspirational', 'Adjacent']),
     artist: z.string().min(1),
     title: z.string().min(1),
     year: z.number().int().nullable().optional(),
@@ -730,7 +730,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const icpId = (req.params as any).id as string
     const bucket = (req.query as any)?.bucket as string | undefined
-    const allowedBuckets = ['FormationEra', 'Subculture', 'Aspirational', 'Adjacent'] as const
+    const allowedBuckets = ['PreFormation', 'FormationEra', 'Subculture', 'Aspirational', 'Adjacent'] as const
     if (bucket && !allowedBuckets.includes(bucket as any)) {
       return reply.code(400).send({ error: 'bad_bucket', message: `bucket must be one of ${allowedBuckets.join(', ')}` })
     }

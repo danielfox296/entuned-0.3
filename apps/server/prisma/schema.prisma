@@ -15,6 +15,7 @@ datasource db {
 // ---------- enums ----------
 
 enum TasteCategory {
+  PreFormation
   FormationEra
   Subculture
   Aspirational

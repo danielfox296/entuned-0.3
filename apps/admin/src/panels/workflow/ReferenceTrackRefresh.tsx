@@ -5,9 +5,10 @@ import { T } from '../../tokens.js'
 import { Button, S, useToast, LlmProgress, Modal } from '../../ui/index.js'
 import type { WorkflowContext } from './WorkflowRouter.js'
 
-const BUCKETS: TasteCategory[] = ['FormationEra', 'Subculture', 'Aspirational', 'Adjacent']
+const BUCKETS: TasteCategory[] = ['PreFormation', 'FormationEra', 'Subculture', 'Aspirational', 'Adjacent']
 
 const BUCKET_LABEL: Record<TasteCategory, string> = {
+  PreFormation: 'Pre-Formation',
   FormationEra: 'Formation Era',
   Subculture: 'Subculture',
   Aspirational: 'Aspirational',

@@ -5,7 +5,7 @@ export function ReferenceTrackPrompt() {
   return (
     <VersionedPromptEditor
       title="Reference Track Suggester"
-      subtitle="System prompt for the Claude call that proposes ICP reference tracks (FormationEra / Subculture / Aspirational). The ICP's psychographic profile is appended automatically as the user message — no template tokens. Output JSON only."
+      subtitle="System prompt for the Claude call that proposes ICP reference tracks (PreFormation / FormationEra / Subculture / Aspirational / Adjacent). The ICP's psychographic profile is appended automatically as the user message — no template tokens. Output JSON only."
       load={async () => {
         const token = getToken(); if (!token) throw new Error('not signed in')
         const r = await api.referenceTrackPrompt(token)
