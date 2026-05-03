@@ -13,6 +13,7 @@ interface Draft {
   displayTitle: string
   tempoBpm: number
   mode: string
+  mood: string
   familiarity: string
   productionEraId: string
 }
@@ -47,7 +48,7 @@ export function OutcomeLibrary() {
     return rows.filter((r) => {
       if (filter === 'active' && r.supersededAt) return false
       if (filter === 'superseded' && !r.supersededAt) return false
-      if (q && !r.title.toLowerCase().includes(q) && !(r.displayTitle ?? '').toLowerCase().includes(q) && !(r.mode ?? '').toLowerCase().includes(q)) return false
+      if (q && !r.title.toLowerCase().includes(q) && !(r.displayTitle ?? '').toLowerCase().includes(q) && !(r.mode ?? '').toLowerCase().includes(q) && !(r.mood ?? '').toLowerCase().includes(q)) return false
       return true
     })
   }, [rows, filter, search])
@@ -65,6 +66,7 @@ export function OutcomeLibrary() {
       displayTitle: r.displayTitle ?? '',
       tempoBpm: r.tempoBpm,
       mode: r.mode,
+      mood: r.mood ?? '',
       familiarity: r.familiarity ?? '',
       productionEraId: r.productionEraId ?? '',
     })
@@ -77,7 +79,7 @@ export function OutcomeLibrary() {
     try {
       await api.editOutcome(editingId, {
         title: draft.title, displayTitle: draft.displayTitle.trim() || null,
-        tempoBpm: draft.tempoBpm, mode: draft.mode,
+        tempoBpm: draft.tempoBpm, mode: draft.mode, mood: draft.mood.trim(),
         familiarity: draft.familiarity || null, productionEraId: draft.productionEraId || null,
       }, token)
       setEditingId(null); setDraft(null); await reload()
@@ -92,7 +94,7 @@ export function OutcomeLibrary() {
     try {
       await api.createOutcome({
         title: adding.title, displayTitle: adding.displayTitle.trim() || null,
-        tempoBpm: adding.tempoBpm, mode: adding.mode,
+        tempoBpm: adding.tempoBpm, mode: adding.mode, mood: adding.mood.trim(),
         familiarity: adding.familiarity || null, productionEraId: adding.productionEraId || null,
       }, token)
       setAdding(null); await reload()
@@ -137,12 +139,12 @@ export function OutcomeLibrary() {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="search title, mode"
+          placeholder="search title, mode, mood"
           style={{ minWidth: 280, flex: 1, maxWidth: 480, width: 'auto' }}
         />
         <Button
           variant={adding ? 'ghost' : 'primary'}
-          onClick={() => setAdding(adding ? null : { title: '', displayTitle: '', tempoBpm: 100, mode: 'major', familiarity: '', productionEraId: '' })}
+          onClick={() => setAdding(adding ? null : { title: '', displayTitle: '', tempoBpm: 100, mode: 'major', mood: '', familiarity: '', productionEraId: '' })}
         >{adding ? 'cancel' : '+ new outcome'}</Button>
       </div>
 
@@ -195,7 +197,7 @@ export function OutcomeLibrary() {
   )
 }
 
-const COLS = '2fr 60px 70px 110px 1.4fr 60px 130px'
+const COLS = '1.6fr 60px 70px 110px 1.2fr 1.2fr 60px 130px'
 
 function HeaderRow() {
   return (
@@ -210,6 +212,7 @@ function HeaderRow() {
       <span>v</span>
       <span>bpm</span>
       <span>mode</span>
+      <span>mood</span>
       <span>production era</span>
       <span style={{ textAlign: 'right' }}>pool</span>
       <span />
@@ -233,6 +236,7 @@ function DataRow({ row, onEdit, onSupersede, busy }: {
       <span style={{ color: T.accentMuted }}>v{row.version}</span>
       <span style={{ color: T.textMuted }}>{row.tempoBpm}</span>
       <span style={{ color: T.textMuted }}>{row.mode}</span>
+      <span style={cellTrunc}>{row.mood ?? '—'}</span>
       <span style={cellTrunc}>{eraLabel}</span>
       <span style={{ color: row.lineageCount === 0 ? T.danger : T.text, textAlign: 'right', paddingRight: 6 }}>{row.lineageCount}</span>
       <span style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
@@ -258,14 +262,14 @@ function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent,
   eras: ProductionEraStub[]
 }) {
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => onChange({ ...draft, [k]: v })
-  const valid = !!(draft.title.trim() && draft.mode.trim() && draft.tempoBpm >= 40 && draft.tempoBpm <= 220)
+  const valid = !!(draft.title.trim() && draft.mode.trim() && draft.mood.trim() && draft.tempoBpm >= 40 && draft.tempoBpm <= 220)
 
   return (
     <div style={{
       background: intent === 'new' ? T.accentGlow : 'transparent',
       border: intent === 'new' ? `1px solid ${T.accentMuted}` : 'none',
       borderRadius: S.r4, padding: intent === 'new' ? 14 : 0,
-      display: 'grid', gridTemplateColumns: '1fr 1fr 100px 140px 140px 1.2fr', gap: 8,
+      display: 'grid', gridTemplateColumns: '1fr 1fr 100px 140px 1.2fr 140px 1.2fr', gap: 8,
     }}>
       <div>
         <label style={labelStyle}>title (LLM-facing)</label>
@@ -285,6 +289,10 @@ function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent,
         <datalist id="mode-suggestions">
           {MODE_SUGGESTIONS.map((m) => <option key={m} value={m} />)}
         </datalist>
+      </div>
+      <div>
+        <label style={labelStyle}>mood (required — leads style prefix)</label>
+        <Input value={draft.mood} onChange={(e) => set('mood', e.target.value)} placeholder="tender, hushed" />
       </div>
       <div>
         <label style={labelStyle}>production era (generation)</label>

@@ -469,6 +469,7 @@ model Outcome {
   tempoBpmRadius        Int?      @map("tempo_bpm_radius")
   mode                  String
   modeWeights           Json?     @map("mode_weights")
+  mood                  String
   dynamics              String?
   instrumentation       String?
   // Research-backed signals
