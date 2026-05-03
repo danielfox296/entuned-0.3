@@ -33,6 +33,18 @@ const EventSchema = z.object({
 
 const BatchSchema = z.object({ events: z.array(EventSchema).min(1).max(500) })
 
+// Wire format uses the display-cased values ('Not our Vibe', etc.) but Prisma's
+// generated client expects the TS-enum identifiers; the @map() in schema.prisma
+// only handles the DB column. This translates from one to the other.
+const REPORT_REASON_TO_PRISMA: Record<string, string> = {
+  'Not our Vibe': 'NotOurVibe',
+  'Boring': 'Boring',
+  'Awkward Lyrics': 'AwkwardLyrics',
+  'Too Slow': 'TooSlow',
+  'Too Intense': 'TooIntense',
+  'Song Audio Issues': 'SongAudioIssues',
+}
+
 export const eventsRoutes: FastifyPluginAsync = async (app) => {
   // POST /events — single or batch (offline-flush friendly).
   app.post('/', async (req, reply) => {
@@ -60,7 +72,7 @@ export const eventsRoutes: FastifyPluginAsync = async (app) => {
         operatorId: e.operator_id ?? null,
         songId: e.song_id ?? null,
         hookId: e.hook_id ?? (e.song_id ? hookBySong.get(e.song_id) ?? null : null),
-        reportReason: e.report_reason as any ?? null,
+        reportReason: (e.report_reason ? REPORT_REASON_TO_PRISMA[e.report_reason] : null) as any,
         outcomeId: e.outcome_id ?? null,
         extra: e.extra ?? undefined,
       })),
