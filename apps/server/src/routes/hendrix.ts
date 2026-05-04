@@ -5,7 +5,11 @@ import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 import { verify, isOperatorAuthorizedForStore } from '../lib/auth.js'
 import { prisma } from '../db.js'
 
-const NextQuery = z.object({ store_id: z.string().uuid(), all_outcomes: z.string().optional() })
+const NextQuery = z.object({
+  store_id: z.string().uuid().optional(),
+  slug: z.string().min(1).optional(),
+  all_outcomes: z.string().optional(),
+})
 const OverrideBody = z.object({ store_id: z.string().uuid(), outcome_id: z.string().uuid() })
 const ClearBody = z.object({ store_id: z.string().uuid() })
 
@@ -29,20 +33,38 @@ async function requireOperatorForStore(req: any, reply: any, storeId: string) {
 }
 
 export const hendrixRoutes: FastifyPluginAsync = async (app) => {
-  // GET /hendrix/next?store_id=...
+  // GET /hendrix/next?store_id=... (operator-authed) | ?slug=... (slug-as-auth)
+  // Slug path is for the freemium player at music.entuned.co/<slug>: anyone
+  // with the URL can call. Operator path stays for admin-managed stores.
   app.get('/next', async (req, reply) => {
     const parsed = NextQuery.safeParse(req.query)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_query', details: parsed.error.flatten() })
-    const op = await requireOperatorForStore(req, reply, parsed.data.store_id)
-    if (!op) return
-    return nextQueue(parsed.data.store_id, new Date(), { allOutcomes: parsed.data.all_outcomes === 'true' })
+
+    let storeId = parsed.data.store_id
+    if (parsed.data.slug && !storeId) {
+      const store = await prisma.store.findUnique({
+        where: { slug: parsed.data.slug },
+        select: { id: true, archivedAt: true },
+      })
+      if (!store || store.archivedAt) return reply.code(404).send({ error: 'store_not_found' })
+      storeId = store.id
+    } else if (storeId) {
+      const op = await requireOperatorForStore(req, reply, storeId)
+      if (!op) return
+    } else {
+      return reply.code(400).send({ error: 'need_store_id_or_slug' })
+    }
+
+    return nextQueue(storeId, new Date(), { allOutcomes: parsed.data.all_outcomes === 'true' })
   })
 
   // GET /hendrix/outcomes?store_id=... — picker source for Oscar's override UI.
-  // Returns all global outcomes, flagging which have a non-empty pool for this store's ICP.
+  // Operator-only (requires store_id + bearer). Returns all global outcomes,
+  // flagging which have a non-empty pool for this store's ICP.
   app.get('/outcomes', async (req, reply) => {
     const parsed = NextQuery.safeParse(req.query)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_query' })
+    if (!parsed.data.store_id) return reply.code(400).send({ error: 'store_id_required' })
     const op = await requireOperatorForStore(req, reply, parsed.data.store_id)
     if (!op) return
     const store = await prisma.store.findUnique({

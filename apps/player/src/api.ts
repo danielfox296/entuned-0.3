@@ -7,15 +7,26 @@ export interface QueueItem {
   type?: 'song' | 'ad'
   songId: string
   audioUrl: string
-  hookId: string
+  // hookId / icpId are nullable: rows from the general pool (free-tier
+  // Stores with no ICPs) have neither.
+  hookId: string | null
   outcomeId: string
-  icpId: string
+  icpId: string | null
   icpName: string | null
   title: string | null
   hookText: string | null
   // Present when type === 'ad'
   assetId?: string
   campaignId?: string
+}
+
+export interface StoreBySlug {
+  id: string
+  name: string
+  slug: string
+  tier: string
+  timezone: string
+  pausedUntil: string | null
 }
 
 export interface ActiveOutcome {
@@ -92,6 +103,11 @@ export const api = {
     req<MeResponse>('/auth/me', {}, token),
   next: (storeId: string, token: string, allOutcomes?: boolean) =>
     req<NextResponse>(`/hendrix/next?store_id=${encodeURIComponent(storeId)}${allOutcomes ? '&all_outcomes=true' : ''}`, {}, token),
+  // Slug-mode: no Authorization header. The slug itself is the auth.
+  nextBySlug: (slug: string, allOutcomes?: boolean) =>
+    req<NextResponse>(`/hendrix/next?slug=${encodeURIComponent(slug)}${allOutcomes ? '&all_outcomes=true' : ''}`),
+  storeBySlug: (slug: string) =>
+    req<StoreBySlug>(`/stores/by-slug/${encodeURIComponent(slug)}`),
   outcomes: (storeId: string, token: string) =>
     req<OutcomeOption[]>(`/hendrix/outcomes?store_id=${encodeURIComponent(storeId)}`, {}, token),
   outcomeSelection: (storeId: string, outcomeId: string, token: string) =>

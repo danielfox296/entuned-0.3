@@ -30,6 +30,7 @@ export function LoginScreen({ onAuthed }: Props) {
         return;
       }
       const session: Session = {
+        mode: 'operator',
         token: auth.token,
         storeId: store.id,
         storeName: store.name,

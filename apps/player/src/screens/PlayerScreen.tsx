@@ -82,13 +82,24 @@ export function PlayerScreen({ session, onLogout }: Props) {
     setAllOutcomesModeState(v);
   }, []);
 
+  // Slug-mode (freemium) vs operator-mode dispatch helper. In slug mode we
+  // call /hendrix/next with ?slug= (no Authorization header); operator mode
+  // uses ?store_id= + Bearer token as before.
+  const fetchNext = useCallback((allOutcomes: boolean) => (
+    session.mode === 'slug' && session.slug
+      ? api.nextBySlug(session.slug, allOutcomes)
+      : api.next(session.storeId, session.token, allOutcomes)
+  ), [session.mode, session.slug, session.storeId, session.token]);
+
   const emit = useCallback((event_type: AudioEventType, item?: QueueItem | null, extra?: { report_reason?: string; outcome_id?: string }) => {
     const isAd = item?.type === "ad";
     api.emit({
       event_type,
       store_id: session.storeId,
       occurred_at: new Date().toISOString(),
-      operator_id: session.operatorId,
+      // operator_id must be null (not '') in slug mode — the server zod
+      // validator rejects '' as a non-uuid.
+      operator_id: session.operatorId || null,
       song_id: isAd ? null : (item?.songId ?? null),
       hook_id: isAd ? null : (item?.hookId ?? null),
       report_reason: extra?.report_reason ?? null,
@@ -101,7 +112,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
   // waiting for React to flush the setQueue state update.
   const refill = useCallback(async (): Promise<QueueItem[]> => {
     try {
-      const r = await api.next(session.storeId, session.token, allOutcomesModeRef.current);
+      const r = await fetchNext(allOutcomesModeRef.current);
       setActiveOutcome(r.activeOutcome);
       setReason(r.reason);
       setNetworkError(null);
@@ -127,14 +138,17 @@ export function PlayerScreen({ session, onLogout }: Props) {
       setNetworkError("Connection issue. Retrying…");
       return [];
     }
-  }, [session.storeId, session.token, emit]);
+  }, [fetchNext, emit]);
 
   const refreshOutcomes = useCallback(async () => {
+    // Outcome management is operator-only — slug-mode (freemium) plays
+    // whatever default outcome the Store has and doesn't surface picker UI.
+    if (session.mode === 'slug') return;
     try {
       const r = await api.outcomes(session.storeId, session.token);
       setOutcomes(r);
     } catch (e) { console.warn("[player] outcomes failed", e); }
-  }, [session.storeId, session.token]);
+  }, [session.mode, session.storeId, session.token]);
 
   const schedulePreload = useCallback((durationSec: number) => {
     if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
@@ -480,15 +494,17 @@ export function PlayerScreen({ session, onLogout }: Props) {
 
     void refill();
     void refreshOutcomes();
-    api.loved(session.storeId, session.token).then((r) => {
-      setLovedIds((prev) => {
-        const merged = new Set(prev);
-        for (const id of r.songIds) merged.add(id);
-        saveLoved(merged);
-        return merged;
-      });
-    }).catch((e) => console.warn("[player] loved hydrate failed", e));
-    emit("operator_login");
+    if (session.mode !== 'slug') {
+      api.loved(session.storeId, session.token).then((r) => {
+        setLovedIds((prev) => {
+          const merged = new Set(prev);
+          for (const id of r.songIds) merged.add(id);
+          saveLoved(merged);
+          return merged;
+        });
+      }).catch((e) => console.warn("[player] loved hydrate failed", e));
+      emit("operator_login");
+    }
     return () => {
       if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
       playerRef.current?.stop();
@@ -509,7 +525,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
   useEffect(() => {
     const check = async () => {
       try {
-        const r = await api.next(session.storeId, session.token, allOutcomesModeRef.current);
+        const r = await fetchNext(allOutcomesModeRef.current);
         const serverHasAd = r.queue.some((q) => q.type === "ad");
         if (serverHasAd) return;
         setQueue((prev) => prev.filter((q) => q.type !== "ad"));
@@ -528,10 +544,14 @@ export function PlayerScreen({ session, onLogout }: Props) {
     void check();
     const iv = window.setInterval(() => void check(), 15_000);
     return () => clearInterval(iv);
-  }, [session.storeId, session.token, skip]);
+  }, [fetchNext, skip]);
 
   // ── Online indicator: 30s polling against /auth/me ────────────────────────
+  // Operator-only — slug mode has no operator token. Slug mode just stays
+  // optimistically online (any next-fetch failure flips the network banner
+  // anyway via refill's catch path).
   useEffect(() => {
+    if (session.mode === 'slug') { setOnline(true); return; }
     let cancelled = false;
     const check = async () => {
       try {
@@ -544,7 +564,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
     void check();
     const iv = window.setInterval(() => void check(), 30_000);
     return () => { cancelled = true; clearInterval(iv); };
-  }, [session.token]);
+  }, [session.mode, session.token]);
 
   useEffect(() => {
     const handleOnline = () => { setOnline(true); setNetworkError(null); void refill(); };
