@@ -1,0 +1,52 @@
+# Dependabot config for entuned-0.3 (pnpm workspaces).
+#
+# Why only the root directory:
+#   This is a pnpm workspace. The lockfile (pnpm-lock.yaml) and workspace
+#   manifest (pnpm-workspace.yaml) live at the root. Dependabot's pnpm
+#   updater errors out with "Updating workspaces from inside a workspace
+#   subdirectory is not supported" if you also list /apps/admin, /apps/player,
+#   /apps/dashboard, /apps/server here. Updating "/" already covers every
+#   workspace package because the lockfile is shared.
+#
+# Why one grouped PR per ecosystem:
+#   Without grouping, every vite/esbuild/etc. CVE spawns a separate PR for
+#   each workspace package, which is mostly noise. The "all-deps" group
+#   collapses every weekly + security update into a single PR Daniel can
+#   review and merge once.
+#
+# Schedule: weekly is the sane cadence — no daily PR drip — and security
+# advisories still open immediately regardless of schedule.
+
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      all-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "ci"
