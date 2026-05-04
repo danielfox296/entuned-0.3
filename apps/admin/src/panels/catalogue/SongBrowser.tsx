@@ -157,7 +157,7 @@ function FilterSelect({ label, value, onChange, options }: {
   )
 }
 
-const COLS = '1.6fr 1.6fr 1.2fr 1.4fr 130px 90px 110px'
+const COLS = '1.6fr 1.6fr 1.2fr 1.4fr 130px 70px 90px 110px'
 
 function Header() {
   return (
@@ -172,6 +172,7 @@ function Header() {
       <span>outcome</span>
       <span>icp</span>
       <span>create date</span>
+      <span style={{ textAlign: 'center' }} title="In the free-tier general pool">free</span>
       <span style={{ textAlign: 'right' }}>status</span>
       <span />
     </div>
@@ -183,6 +184,7 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
   const [err, setErr] = useState<string | null>(null)
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
   const [playing, setPlaying] = useState(false)
+  const [generalBusy, setGeneralBusy] = useState(false)
 
   const toggle = async () => {
     const token = getToken(); if (!token) return
@@ -190,6 +192,14 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
     try { await api.setLineageRowActive(row.id, !row.active, token); onChanged() }
     catch (e: any) { setErr(e.message) }
     finally { setBusy(false) }
+  }
+
+  const toggleGeneral = async () => {
+    const token = getToken(); if (!token) return
+    setGeneralBusy(true); setErr(null)
+    try { await api.toggleLineageRowGeneral(row.id, token); onChanged() }
+    catch (e: any) { setErr(e.message) }
+    finally { setGeneralBusy(false) }
   }
 
   const play = () => {
@@ -242,6 +252,18 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
         )}
       </span>
       <span style={{ color: T.textDim, fontSize: 13 }}>{created}</span>
+      <span style={{ textAlign: 'center' }}>
+        <input
+          type="checkbox"
+          checked={row.inGeneralPool}
+          disabled={generalBusy}
+          onChange={toggleGeneral}
+          title={row.inGeneralPool
+            ? 'Remove this song+outcome from the free-tier general pool'
+            : 'Add this song+outcome to the free-tier general pool'}
+          style={{ accentColor: T.accent, cursor: generalBusy ? 'wait' : 'pointer', width: 16, height: 16 }}
+        />
+      </span>
       <span style={{ textAlign: 'right', color: row.active ? T.success : T.textDim, fontSize: 13, textTransform: 'uppercase' }}>
         {row.active ? 'active' : 'retired'}
       </span>

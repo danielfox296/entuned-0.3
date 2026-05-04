@@ -1144,6 +1144,18 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     })
     const icpById = new Map(icps.map((i) => [i.id, i]))
 
+    // Compute inGeneralPool per row by looking up sibling general-pool rows
+    // (same songId+outcomeId, icp_id=NULL, active). One query for all rows.
+    const generalSiblings = rows.length === 0 ? [] : await prisma.lineageRow.findMany({
+      where: {
+        icpId: null,
+        active: true,
+        OR: rows.map((r) => ({ songId: r.songId, outcomeId: r.outcomeId })),
+      },
+      select: { songId: true, outcomeId: true },
+    })
+    const generalKeys = new Set(generalSiblings.map((g) => `${g.songId}::${g.outcomeId}`))
+
     return {
       total, limit, offset,
       rows: rows.map((r) => {
@@ -1160,9 +1172,51 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           hook: r.hook,
           song: r.song,
           songTitle: r.songSeed?.title ?? null,
+          // True if this song+outcome is in the free-tier general pool (whether
+          // via a sibling row or via this row itself if icp_id IS NULL).
+          inGeneralPool: generalKeys.has(`${r.songId}::${r.outcomeId}`),
         }
       }),
     }
+  })
+
+  // POST /admin/lineage-rows/:id/toggle-general
+  // Toggles whether the song this row references is in the general pool
+  // (free-tier catalogue). For any source row (ICP-owned or general):
+  //   - If a general-pool row exists for (songId, outcomeId), DELETE it.
+  //   - Else INSERT a new general-pool row (icp_id=NULL, hook_id=NULL).
+  // The source row itself is never modified.
+  app.post('/lineage-rows/:id/toggle-general', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const source = await prisma.lineageRow.findUnique({
+      where: { id },
+      select: { songId: true, outcomeId: true, r2Url: true, songSeedId: true },
+    })
+    if (!source) return reply.code(404).send({ error: 'not_found' })
+
+    const existing = await prisma.lineageRow.findFirst({
+      where: { songId: source.songId, outcomeId: source.outcomeId, icpId: null, active: true },
+      select: { id: true },
+    })
+
+    if (existing) {
+      await prisma.lineageRow.delete({ where: { id: existing.id } })
+      return { inGeneralPool: false }
+    }
+
+    await prisma.lineageRow.create({
+      data: {
+        songId: source.songId,
+        r2Url: source.r2Url,
+        outcomeId: source.outcomeId,
+        icpId: null,
+        hookId: null,
+        songSeedId: source.songSeedId,
+        active: true,
+      },
+    })
+    return { inGeneralPool: true }
   })
 
   const LineageRowPatch = z.object({ active: z.boolean() })

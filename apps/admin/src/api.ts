@@ -493,14 +493,19 @@ export interface LineageRowFull {
   id: string
   active: boolean
   createdAt: string
-  icpId: string
+  // icpId/hook nullable for general-pool rows (free-tier catalogue,
+  // icp_id IS NULL).
+  icpId: string | null
   icpName: string | null
   clientName: string | null
   storeName: string | null
   outcome: { id: string; title: string; displayTitle: string | null; version: number }
-  hook: { id: string; text: string }
+  hook: { id: string; text: string } | null
   song: { id: string; r2Url: string; byteSize: number | string | null }
   songTitle: string | null
+  // True if this song+outcome pair is in the free-tier general pool. Toggled
+  // via POST /admin/lineage-rows/:id/toggle-general.
+  inGeneralPool: boolean
 }
 
 export interface LineageRowList {
@@ -899,6 +904,8 @@ export const api = {
   },
   setLineageRowActive: (id: string, active: boolean, token: string) =>
     req<LineageRowFull>(`/admin/lineage-rows/${id}`, { method: 'PATCH', body: JSON.stringify({ active }) }, token),
+  toggleLineageRowGeneral: (id: string, token: string) =>
+    req<{ inGeneralPool: boolean }>(`/admin/lineage-rows/${id}/toggle-general`, { method: 'POST' }, token),
   flagged: (token: string) =>
     req<FlaggedResponse>('/admin/flagged', {}, token),
   retireFlagged: (songId: string, token: string) =>
