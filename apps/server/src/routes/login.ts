@@ -13,7 +13,7 @@ import { OAuth2Client, CodeChallengeMethod } from 'google-auth-library'
 import { prisma } from '../db.js'
 import { sendMagicLink } from '../lib/email.js'
 import { clearSessionCookie, requireAuth, setSessionCookie } from '../lib/session.js'
-import { ensureFreeAccountForUser } from '../lib/account.js'
+import { ensureFreeClientForUser } from '../lib/account.js'
 
 const MAGIC_LINK_TTL_MS = 15 * 60 * 1000 // 15 minutes
 const MAGIC_LINK_TOKEN_BYTES = 32
@@ -91,9 +91,11 @@ async function findOrCreateUserByEmail(email: string, name?: string | null): Pro
     : await prisma.user.create({
         data: { email: normalized, name: name ?? null, lastLoginAt: new Date() },
       })
-  // Free-tier provisioning: every signed-in user gets an Account + Location
-  // (idempotent — backfills users that pre-date this change).
-  await ensureFreeAccountForUser(user.id, normalized)
+  // Free-tier provisioning: every signed-in user gets a Client + Store
+  // (idempotent — backfills users that pre-date this change). Also handles
+  // the operator-link hook: matches existing Client.contact_email and
+  // attaches membership instead of creating a duplicate Client.
+  await ensureFreeClientForUser(user.id, normalized)
   return { id: user.id, email: user.email, name: user.name }
 }
 

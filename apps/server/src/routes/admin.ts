@@ -28,6 +28,7 @@ import { runEno } from '../lib/eno/eno.js'
 import { downloadAndUploadFromUrl, uploadBuffer } from '../lib/r2.js'
 import { draftHooks, getOrSeedHookWriterPrompt, buildHookDrafterContext } from '../lib/hooks/drafter.js'
 import { suggestReferenceTracks } from '../lib/ref-tracks/suggester.js'
+import { uniqueStoreSlug } from '../lib/account.js'
 import { resolvePreview } from '../lib/ref-tracks/preview.js'
 import { parseRetailNextXls } from '../lib/retailnext/parser.js'
 import { renderTemplate, sendTemplate } from '../lib/email.js'
@@ -447,6 +448,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const parsed = StoreCreateBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     try {
+      const slug = await uniqueStoreSlug(parsed.data.name)
       const row = await prisma.store.create({
         data: {
           clientId: parsed.data.clientId,
@@ -454,6 +456,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           timezone: parsed.data.timezone,
           goLiveDate: parsed.data.goLiveDate ? new Date(parsed.data.goLiveDate) : null,
           defaultOutcomeId: parsed.data.defaultOutcomeId ?? null,
+          slug,
+          // tier defaults to 'mvp_pilot' at the DB layer; admin-created Stores
+          // are operator-managed and don't go through the customer billing path.
         },
         include: { client: { select: { companyName: true } }, icps: { select: { id: true, name: true } } },
       })

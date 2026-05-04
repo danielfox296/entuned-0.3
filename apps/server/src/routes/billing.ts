@@ -1,19 +1,8 @@
 // Billing routes — Stripe Checkout + Customer Portal + webhook handler.
 //
-// This module assumes:
-//   - `stripe` npm package is installed (listed in summary as a dep to add).
-//   - The proposed billing schema (`prisma/schema.proposed-billing.prisma`)
-//     has been merged into `schema.prisma` so that `prisma.location`,
-//     `prisma.subscription`, and `prisma.account` are available on the
-//     PrismaClient. Until merge, `(prisma as any).<model>` calls will
-//     throw at runtime — this is intentional (proposal review gate).
-//   - `Account` model from agent 2's auth proposal exists with at least
-//     `{ id, email, name, stripeCustomerId? }` on it.
-//   - `lib/email.ts` exports `sendWelcome` and `sendDunning`.
-//   - The auth middleware from agent 2 (`lib/session.ts`) attaches
-//     `req.user` / `req.account` via the `entuned_session` cookie. Routes
-//     that need an authenticated customer use `requireAuth` as a
-//     preHandler.
+// Post-merger 2026-05-04: customer = `Client`, site = `Store`. The earlier
+// `Account`/`Location` models were merged into `Client`/`Store` (UUIDs
+// preserved). All Prisma calls in this file work against Client/Store.
 //
 // Webhook signature verification requires the *raw* request body. The route
 // is registered with a custom application/json content-type parser inside
@@ -22,12 +11,13 @@
 // in the app continues to use Fastify's default JSON parser.
 
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
-import { randomUUID, randomBytes } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import Stripe from 'stripe'
 import { prisma } from '../db.js'
 import { requireAuth } from '../lib/session.js'
 import { sendWelcome, sendDunning } from '../lib/email.js'
+import { uniqueStoreSlug } from '../lib/account.js'
 
 // ---------- env ----------
 
@@ -40,7 +30,7 @@ const STRIPE_PRICE_ID_PRO = process.env.STRIPE_PRICE_ID_PRO ?? ''
 // post-login destination linked from emails.
 const APP_URL = process.env.APP_URL ?? 'http://localhost:5173'
 const WEBSITE_URL = process.env.WEBSITE_URL ?? 'https://entuned.co'
-const PLAYER_URL = process.env.PLAYER_URL ?? 'https://play.entuned.co'
+const PLAYER_URL = process.env.PLAYER_URL ?? 'https://music.entuned.co'
 
 const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' as Stripe.LatestApiVersion })
 
@@ -55,70 +45,77 @@ const TIER_TO_PRICE: Record<Tier, string> = {
 
 // ---------- helpers ----------
 
-function slugify(name: string): string {
-  const first = (name.trim().split(/\s+/)[0] ?? 'store').toLowerCase().replace(/[^a-z0-9]/g, '')
-  const suffix = randomBytes(2).toString('hex') // 4 hex chars
-  return `${first || 'store'}-${suffix}`
-}
-
-async function uniqueSlug(name: string): Promise<string> {
-  // Retry up to 5 times in the (extremely unlikely) event of collision.
-  for (let i = 0; i < 5; i++) {
-    const slug = slugify(name)
-    const existing = await (prisma as any).location.findUnique({ where: { slug } })
-    if (!existing) return slug
-  }
-  // Last-ditch fallback.
-  return `${slugify(name)}-${randomBytes(3).toString('hex')}`
-}
-
-interface AuthedAccount {
-  accountId: string
+interface AuthedClient {
+  clientId: string
   email: string
 }
 
 /**
- * Resolve the authenticated account from the session middleware
- * (`req.account` / `req.user`). Returns null after sending a 401/403 response
- * if the request is not authenticated.
+ * Resolve the authenticated client from the session middleware
+ * (`req.account` / `req.user`). The session field is named `account` for
+ * backward-compat but post-merger carries the Client. Returns null after
+ * sending a 401 response if the request is not authenticated.
  */
-function getAccount(req: FastifyRequest, reply: FastifyReply): AuthedAccount | null {
+function getClient(req: FastifyRequest, reply: FastifyReply): AuthedClient | null {
   if (!req.user || !req.account) {
     reply.code(401).send({ error: 'unauthorized' })
     return null
   }
-  return { accountId: req.account.id, email: req.user.email }
+  return { clientId: req.account.id, email: req.user.email }
 }
 
-async function findOrCreateAccountByEmail(email: string, name?: string): Promise<{ id: string; email: string; name: string | null; stripeCustomerId?: string | null }> {
+/**
+ * Find an existing Client by the User's email (via membership), else create
+ * a fresh User + Client + Membership. Returns the Client id + display name.
+ *
+ * Used by the Stripe webhook to attach a paid Store to the right Client.
+ * Distinct from `ensureFreeClientForUser` (which also provisions a free
+ * Store) — the webhook does Store creation itself, with the paid tier.
+ */
+async function findOrCreateClientByEmail(
+  email: string,
+  name?: string,
+): Promise<{ id: string; email: string; name: string }> {
   const normalized = email.trim().toLowerCase()
-  // Find user → first membership account, mirroring the session plugin's
-  // resolution path. If no user exists, create User + Account + Membership.
-  const user = await (prisma as any).user.findUnique({
-    where: { email: normalized },
-    include: { memberships: { include: { account: true }, orderBy: { createdAt: 'asc' }, take: 1 } },
-  })
-  if (user?.memberships?.[0]?.account) {
-    const a = user.memberships[0].account
-    return { id: a.id, email: normalized, name: a.name ?? null }
-  }
 
-  // Create a fresh User + Account pair. The exact field set depends on agent
-  // 2's User/Account/AccountMembership shape — we use a conservative subset
-  // and fall back to direct Account creation if Membership creation fails.
-  const accountName = name ?? normalized.split('@')[0] ?? 'Account'
-  const account = await (prisma as any).account.create({
-    data: {
-      name: accountName,
-      ...(user
-        ? {}
-        : { memberships: { create: { user: { create: { email: normalized, name: accountName } }, role: 'owner' } } }),
-      ...(user
-        ? { memberships: { create: { userId: user.id, role: 'owner' } } }
-        : {}),
+  const user = await prisma.user.findUnique({
+    where: { email: normalized },
+    include: {
+      memberships: { include: { client: true }, orderBy: { createdAt: 'asc' }, take: 1 },
     },
   })
-  return { id: account.id, email: normalized, name: account.name ?? null }
+  if (user?.memberships?.[0]?.client) {
+    const c = user.memberships[0].client
+    return { id: c.id, email: normalized, name: c.companyName }
+  }
+
+  // No membership yet — but maybe an operator-managed Client matches by contact_email.
+  const operatorClient = await prisma.client.findFirst({
+    where: { contactEmail: normalized },
+  })
+  if (operatorClient) {
+    // Ensure User exists, then attach membership.
+    const u = user ?? await prisma.user.create({
+      data: { email: normalized, name: name ?? null },
+    })
+    await prisma.clientMembership.create({
+      data: { clientId: operatorClient.id, userId: u.id, role: 'owner' },
+    })
+    return { id: operatorClient.id, email: normalized, name: operatorClient.companyName }
+  }
+
+  // Fresh User + Client + Membership.
+  const companyName = name ?? normalized.split('@')[0] ?? 'Account'
+  const client = await prisma.client.create({
+    data: { companyName },
+  })
+  const u = user ?? await prisma.user.create({
+    data: { email: normalized, name: name ?? null },
+  })
+  await prisma.clientMembership.create({
+    data: { clientId: client.id, userId: u.id, role: 'owner' },
+  })
+  return { id: client.id, email: normalized, name: client.companyName }
 }
 
 // ---------- schemas ----------
@@ -126,11 +123,11 @@ async function findOrCreateAccountByEmail(email: string, name?: string): Promise
 const CheckoutBody = z.object({
   tier: z.enum(['core', 'pro']),
   email: z.string().email().optional(),
-  accountId: z.string().optional(),
+  clientId: z.string().optional(),
 })
 
-const NewLocationBody = z.object({ name: z.string().min(1) })
-const PauseBody = z.object({ locationId: z.string().min(1) })
+const NewStoreBody = z.object({ name: z.string().min(1) })
+const StoreIdBody = z.object({ storeId: z.string().min(1) })
 
 // ---------- plugin ----------
 
@@ -162,7 +159,7 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
   app.post('/billing/checkout', async (req, reply) => {
     const parsed = CheckoutBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
-    const { tier, email, accountId } = parsed.data
+    const { tier, email, clientId } = parsed.data
 
     const priceId = TIER_TO_PRICE[tier]
     if (!priceId) {
@@ -172,7 +169,7 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
     // For guest checkouts we mint a UUID up front so the webhook can correlate
     // back to the originating request (and so the response can return
     // something a thank-you page could persist locally).
-    const clientReferenceId = accountId ?? randomUUID()
+    const clientReferenceId = clientId ?? randomUUID()
 
     try {
       const session = await stripe.checkout.sessions.create({
@@ -182,9 +179,9 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
         cancel_url: `${WEBSITE_URL}/pricing.html`,
         client_reference_id: clientReferenceId,
         ...(email ? { customer_email: email } : {}),
-        metadata: { tier, accountId: accountId ?? '', guestRef: accountId ? '' : clientReferenceId },
+        metadata: { tier, clientId: clientId ?? '', guestRef: clientId ? '' : clientReferenceId },
         subscription_data: {
-          metadata: { tier, accountId: accountId ?? '', guestRef: accountId ? '' : clientReferenceId },
+          metadata: { tier, clientId: clientId ?? '', guestRef: clientId ? '' : clientReferenceId },
         },
       })
 
@@ -216,8 +213,8 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
         success_url: `${APP_URL}/welcome?session={CHECKOUT_SESSION_ID}`,
         cancel_url: `${WEBSITE_URL}/pricing.html`,
         client_reference_id: clientReferenceId,
-        metadata: { tier, accountId: '', guestRef: clientReferenceId },
-        subscription_data: { metadata: { tier, accountId: '', guestRef: clientReferenceId } },
+        metadata: { tier, clientId: '', guestRef: clientReferenceId },
+        subscription_data: { metadata: { tier, clientId: '', guestRef: clientReferenceId } },
       })
       return reply.redirect(session.url ?? `${WEBSITE_URL}/pricing.html`, 303)
     } catch (err: any) {
@@ -257,7 +254,7 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
         }
         case 'customer.subscription.updated': {
           const sub = event.data.object as Stripe.Subscription
-          await (prisma as any).subscription.updateMany({
+          await prisma.subscription.updateMany({
             where: { stripeSubscriptionId: sub.id },
             data: {
               status: sub.status,
@@ -269,7 +266,7 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
         }
         case 'customer.subscription.deleted': {
           const sub = event.data.object as Stripe.Subscription
-          await (prisma as any).subscription.updateMany({
+          await prisma.subscription.updateMany({
             where: { stripeSubscriptionId: sub.id },
             data: { status: 'canceled', cancelAtPeriodEnd: true },
           })
@@ -283,7 +280,7 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
         case 'invoice.payment_succeeded': {
           const invoice = event.data.object as Stripe.Invoice
           if (invoice.subscription) {
-            await (prisma as any).subscription.updateMany({
+            await prisma.subscription.updateMany({
               where: { stripeSubscriptionId: String(invoice.subscription) },
               data: { dunningAttempt: 0, status: 'active' },
             })
@@ -329,9 +326,9 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
       return reply.send({ status: 'pending', account: null })
     }
 
-    let subRow = await (prisma as any).subscription.findUnique({
+    let subRow = await prisma.subscription.findUnique({
       where: { stripeSubscriptionId: subscriptionId },
-      include: { location: { include: { account: true } } },
+      include: { store: { include: { client: true } } },
     })
 
     if (!subRow) {
@@ -344,31 +341,32 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
           return reply.code(500).send({ error: 'provision_failed' })
         }
       }
-      subRow = await (prisma as any).subscription.findUnique({
+      subRow = await prisma.subscription.findUnique({
         where: { stripeSubscriptionId: subscriptionId },
-        include: { location: { include: { account: true } } },
+        include: { store: { include: { client: true } } },
       })
     }
 
-    if (!subRow?.location?.account) {
+    if (!subRow?.store?.client) {
       return reply.send({ status: 'pending', account: null })
     }
 
-    const a = subRow.location.account
+    const c = subRow.store.client
+    // Response field is named `account` for backward-compat with the dashboard.
     return reply.send({
       status: 'provisioned',
-      account: { id: a.id, name: a.name },
+      account: { id: c.id, name: c.companyName },
     })
   })
 
   // ----- GET /billing/portal — Stripe Customer Portal session -----
   app.get('/billing/portal', { preHandler: requireAuth }, async (req, reply) => {
-    const ctx = getAccount(req, reply)
+    const ctx = getClient(req, reply)
     if (!ctx) return
 
-    // Find any subscription on this account to derive the customer id.
-    const sub = await (prisma as any).subscription.findFirst({
-      where: { location: { accountId: ctx.accountId } },
+    // Find any subscription on this client to derive the customer id.
+    const sub = await prisma.subscription.findFirst({
+      where: { store: { clientId: ctx.clientId } },
       select: { stripeCustomerId: true },
     })
     if (!sub?.stripeCustomerId) {
@@ -387,26 +385,26 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
-  // ----- POST /billing/locations — add a new Location at the same tier -----
+  // ----- POST /billing/stores — add a new Store at the same tier -----
   // ASSUMPTION: per-unit pricing. We add 1 to the existing subscription line's
   // quantity rather than creating a new subscription. Flag this in summary
   // for confirmation — if Stripe pricing is per-subscription instead, this
   // route needs to spin up a second subscription.
-  app.post('/billing/locations', { preHandler: requireAuth }, async (req, reply) => {
-    const ctx = getAccount(req, reply)
+  app.post('/billing/stores', { preHandler: requireAuth }, async (req, reply) => {
+    const ctx = getClient(req, reply)
     if (!ctx) return
-    const parsed = NewLocationBody.safeParse(req.body)
+    const parsed = NewStoreBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
 
-    const existing = await (prisma as any).location.findFirst({
-      where: { accountId: ctx.accountId, archivedAt: null },
+    const existing = await prisma.store.findFirst({
+      where: { clientId: ctx.clientId, archivedAt: null },
       include: { subscription: true },
     })
     if (!existing) {
-      return reply.code(400).send({ error: 'no_existing_location' })
+      return reply.code(400).send({ error: 'no_existing_store' })
     }
     if (!existing.subscription) {
-      return reply.code(400).send({ error: 'no_subscription_on_existing_location' })
+      return reply.code(400).send({ error: 'no_subscription_on_existing_store' })
     }
 
     try {
@@ -419,59 +417,60 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
         proration_behavior: 'create_prorations',
       })
 
-      // 2) Create the new Location record locally. Note: this Location does
-      // NOT get its own Subscription row — it shares the existing one via
-      // accountId. If you need per-Location subscription lookups, extend the
-      // schema with a join model rather than splitting the Stripe sub.
-      const slug = await uniqueSlug(parsed.data.name)
-      const loc = await (prisma as any).location.create({
+      // 2) Create the new Store record locally. Note: this Store does NOT get
+      // its own Subscription row — it shares the existing one via clientId.
+      // If you need per-Store subscription lookups, extend the schema with a
+      // join model rather than splitting the Stripe sub.
+      const slug = await uniqueStoreSlug(parsed.data.name)
+      const store = await prisma.store.create({
         data: {
-          accountId: ctx.accountId,
+          clientId: ctx.clientId,
           name: parsed.data.name,
           slug,
           tier: existing.tier,
+          timezone: existing.timezone,
         },
       })
 
-      return reply.send({ location: loc })
+      return reply.send({ store })
     } catch (err: any) {
-      req.log.error({ err }, 'add_location_failed')
+      req.log.error({ err }, 'add_store_failed')
       return reply.code(502).send({ error: 'stripe_error', message: err?.message ?? 'unknown' })
     }
   })
 
-  // ----- POST /billing/pause — pause a Location for 60 days -----
+  // ----- POST /billing/pause — pause a Store for 60 days -----
   // We use Stripe's `pause_collection` (behavior=void) so the customer is not
   // charged during the pause window but the subscription stays open. The
-  // local Location is marked with `pausedUntil = now + 60d` and tier is
-  // dropped to 'essentials' so the player still works on the free tier
-  // during the pause. Stripe will not auto-resume on a date — the operator
-  // must hit /billing/resume, OR a scheduled job (out of scope here) can
-  // call resume on `pausedUntil`.
+  // local Store is marked with `pausedUntil = now + 60d` and tier is dropped
+  // to 'free' so the player still works on the free tier during the pause.
+  // Stripe will not auto-resume on a date — the operator must hit
+  // /billing/resume, OR a scheduled job (out of scope here) can call resume
+  // on `pausedUntil`.
   app.post('/billing/pause', { preHandler: requireAuth }, async (req, reply) => {
-    const ctx = getAccount(req, reply)
+    const ctx = getClient(req, reply)
     if (!ctx) return
-    const parsed = PauseBody.safeParse(req.body)
+    const parsed = StoreIdBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
 
-    const loc = await (prisma as any).location.findFirst({
-      where: { id: parsed.data.locationId, accountId: ctx.accountId },
+    const store = await prisma.store.findFirst({
+      where: { id: parsed.data.storeId, clientId: ctx.clientId },
       include: { subscription: true },
     })
-    if (!loc) return reply.code(404).send({ error: 'location_not_found' })
-    if (!loc.subscription) return reply.code(400).send({ error: 'no_subscription' })
+    if (!store) return reply.code(404).send({ error: 'store_not_found' })
+    if (!store.subscription) return reply.code(400).send({ error: 'no_subscription' })
 
     try {
-      await stripe.subscriptions.update(loc.subscription.stripeSubscriptionId, {
+      await stripe.subscriptions.update(store.subscription.stripeSubscriptionId, {
         pause_collection: { behavior: 'void' },
       })
       const pausedUntil = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
-      await (prisma as any).location.update({
-        where: { id: loc.id },
-        data: { pausedUntil, tier: 'essentials' },
+      await prisma.store.update({
+        where: { id: store.id },
+        data: { pausedUntil, tier: 'free' },
       })
-      await (prisma as any).subscription.update({
-        where: { id: loc.subscription.id },
+      await prisma.subscription.update({
+        where: { id: store.subscription.id },
         data: { status: 'paused' },
       })
       return reply.send({ ok: true, pausedUntil })
@@ -483,34 +482,34 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
 
   // ----- POST /billing/resume — undo a pause -----
   app.post('/billing/resume', { preHandler: requireAuth }, async (req, reply) => {
-    const ctx = getAccount(req, reply)
+    const ctx = getClient(req, reply)
     if (!ctx) return
-    const parsed = PauseBody.safeParse(req.body)
+    const parsed = StoreIdBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
 
-    const loc = await (prisma as any).location.findFirst({
-      where: { id: parsed.data.locationId, accountId: ctx.accountId },
+    const store = await prisma.store.findFirst({
+      where: { id: parsed.data.storeId, clientId: ctx.clientId },
       include: { subscription: true },
     })
-    if (!loc) return reply.code(404).send({ error: 'location_not_found' })
-    if (!loc.subscription) return reply.code(400).send({ error: 'no_subscription' })
+    if (!store) return reply.code(404).send({ error: 'store_not_found' })
+    if (!store.subscription) return reply.code(400).send({ error: 'no_subscription' })
 
     try {
       // Restore the original tier from the Stripe price → tier map. We can't
       // reliably know the old tier post-pause without storing it; for now we
       // re-derive from the stored stripePriceId.
       const restoredTier: Tier =
-        loc.subscription.stripePriceId === STRIPE_PRICE_ID_PRO ? 'pro' : 'core'
+        store.subscription.stripePriceId === STRIPE_PRICE_ID_PRO ? 'pro' : 'core'
 
-      await stripe.subscriptions.update(loc.subscription.stripeSubscriptionId, {
+      await stripe.subscriptions.update(store.subscription.stripeSubscriptionId, {
         pause_collection: '' as unknown as Stripe.SubscriptionUpdateParams['pause_collection'],
       })
-      await (prisma as any).location.update({
-        where: { id: loc.id },
+      await prisma.store.update({
+        where: { id: store.id },
         data: { pausedUntil: null, tier: restoredTier },
       })
-      await (prisma as any).subscription.update({
-        where: { id: loc.subscription.id },
+      await prisma.subscription.update({
+        where: { id: store.subscription.id },
         data: { status: 'active' },
       })
       return reply.send({ ok: true, tier: restoredTier })
@@ -525,7 +524,9 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
   const tier = (session.metadata?.tier as Tier | undefined) ?? 'core'
-  const accountIdMeta = session.metadata?.accountId || undefined
+  // Newer sessions carry `metadata.clientId`; older ones may have `accountId`.
+  // After the merger UUIDs are reused, so accountId resolves to the same Client.
+  const clientIdMeta = session.metadata?.clientId || session.metadata?.accountId || undefined
   const email = session.customer_details?.email ?? session.customer_email ?? null
   const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id
   const subscriptionId =
@@ -540,43 +541,40 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
   const stripePriceId = stripeSub.items.data[0]?.price.id ?? ''
   const periodEnd = new Date(stripeSub.current_period_end * 1000)
 
-  // 1) Account: existing-by-id, else find-or-create-by-email.
-  let account: { id: string; email: string; name: string | null } | null = null
-  if (accountIdMeta) {
-    account = await (prisma as any).account.findUnique({ where: { id: accountIdMeta } })
+  // 1) Resolve Client: existing-by-id (from metadata), else find-or-create-by-email.
+  let client: { id: string; email: string; name: string } | null = null
+  if (clientIdMeta) {
+    const found = await prisma.client.findUnique({ where: { id: clientIdMeta } })
+    if (found) client = { id: found.id, email: email ?? '', name: found.companyName }
   }
-  if (!account) {
-    if (!email) throw new Error('no email on checkout.session and no accountId in metadata')
-    account = await findOrCreateAccountByEmail(email)
-  }
-
-  // Persist the Stripe customer id on the account if not already set. We
-  // best-effort skip if the column doesn't exist on the merged Account model.
-  try {
-    await (prisma as any).account.update({
-      where: { id: account!.id },
-      data: { stripeCustomerId: customerId },
-    })
-  } catch {
-    /* column may not exist yet — non-fatal */
+  if (!client) {
+    if (!email) throw new Error('no email on checkout.session and no clientId in metadata')
+    client = await findOrCreateClientByEmail(email)
   }
 
-  // 2) Location with auto slug.
-  const baseName = account!.name ?? (email ? email.split('@')[0] : 'Store')
-  const slug = await uniqueSlug(baseName)
-  const location = await (prisma as any).location.create({
+  // Persist the Stripe customer id on the Client if not already set.
+  await prisma.client.update({
+    where: { id: client.id },
+    data: { stripeCustomerId: customerId },
+  }).catch(() => undefined)
+
+  // 2) Store with auto slug.
+  const baseName = client.name ?? (email ? email.split('@')[0] : 'Store')
+  const slug = await uniqueStoreSlug(baseName)
+  const store = await prisma.store.create({
     data: {
-      accountId: account!.id,
+      clientId: client.id,
       name: `${baseName} — Main`,
       slug,
       tier,
+      timezone: 'America/Denver',
     },
   })
 
   // 3) Subscription row.
-  await (prisma as any).subscription.create({
+  await prisma.subscription.create({
     data: {
-      locationId: location.id,
+      storeId: store.id,
       stripeSubscriptionId: subscriptionId,
       stripeCustomerId: customerId,
       stripePriceId,
@@ -587,7 +585,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
   })
 
   // 4) Welcome email.
-  const dest = email ?? account!.email
+  const dest = email ?? client.email
   if (dest) {
     const playerUrl = `${PLAYER_URL}/${slug}`
     const dashboardUrl = APP_URL
@@ -599,14 +597,14 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
   if (!invoice.subscription) return
   const stripeSubId = String(invoice.subscription)
 
-  const sub = await (prisma as any).subscription.findUnique({
+  const sub = await prisma.subscription.findUnique({
     where: { stripeSubscriptionId: stripeSubId },
-    include: { location: { include: { /* account: true */ } } },
+    include: { store: { include: { client: { include: { memberships: { include: { user: true }, take: 1 } } } } } },
   })
   if (!sub) return
 
   const nextAttempt = (sub.dunningAttempt ?? 0) + 1
-  await (prisma as any).subscription.update({
+  await prisma.subscription.update({
     where: { id: sub.id },
     data: {
       dunningAttempt: nextAttempt,
@@ -614,13 +612,11 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
     },
   })
 
-  // Look up account email separately to avoid forcing the account include
-  // shape (which depends on agent 2's schema) at this layer.
-  const account = await (prisma as any).account.findUnique({
-    where: { id: sub.location.accountId },
-  })
-  if (account?.email) {
-    // Customer Portal URL for self-serve update of the payment method.
+  // Pull the first member's email for the dunning notice. If no membership
+  // exists (operator-managed Client), fall back to the Client.contactEmail.
+  const memberEmail = sub.store.client.memberships[0]?.user.email
+  const dest = memberEmail ?? sub.store.client.contactEmail
+  if (dest) {
     let portalUrl = `${APP_URL}/settings/billing`
     try {
       const portal = await stripe.billingPortal.sessions.create({
@@ -631,8 +627,6 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
     } catch {
       /* fall back to dashboard URL */
     }
-    // sendDunning expects DunningAttempt — we coerce; the email lib is
-    // expected to gate on attempt range itself.
-    await sendDunning(account.email, nextAttempt as any, portalUrl).catch(() => undefined)
+    await sendDunning(dest, nextAttempt as any, portalUrl).catch(() => undefined)
   }
 }

@@ -104,12 +104,17 @@ model Client {
   posProvider          String?    @map("pos_provider")
   posCredentials       Json?      @map("pos_credentials")
   brandLyricGuidelines String?    @map("brand_lyric_guidelines")
+  // Stripe customer id; absorbed from the dropped `Account` table 2026-05-04.
+  // Null for operator-managed Clients (Untuckit, Lululemon, Friends-Demo) that
+  // never went through Stripe Checkout.
+  stripeCustomerId     String?    @unique @map("stripe_customer_id")
   createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   stores      Store[]
   icps        ICP[]
   posPullRuns POSPullRun[]
+  memberships ClientMembership[]
 
   @@index([companyName])
   @@map("clients")
@@ -126,6 +131,13 @@ model Store {
   outcomeSelectionId          String?   @map("outcome_selection_id") @db.Uuid
   outcomeSelectionExpiresAt   DateTime? @map("outcome_selection_expires_at") @db.Timestamptz(6)
   roomLoudnessSamplingEnabled Boolean   @default(false) @map("room_loudness_sampling_enabled")
+  // Customer-dashboard fields absorbed from the dropped `Location` table 2026-05-04.
+  // `slug` is the URL fragment for music.entuned.co/<slug>. `tier` is a string
+  // (not enum) so adding tiers doesn't require a migration.
+  slug                        String    @unique
+  tier                        String    @default("mvp_pilot") // 'free' | 'core' | 'pro' | 'enterprise' | 'mvp_pilot'
+  pausedUntil                 DateTime? @map("paused_until") @db.Timestamptz(6)
+  archivedAt                  DateTime? @map("archived_at") @db.Timestamptz(6)
   createdAt                   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -143,6 +155,8 @@ model Store {
   retailNextIngestRuns      RetailNextIngestRun[]
   retailNextDailySnapshots  RetailNextDailySnapshot[]
   retailNextHourlySnapshots RetailNextHourlySnapshot[]
+  subscription              Subscription?
+  binding                   PlayerBinding?
 
   @@index([clientId])
   @@map("stores")
@@ -815,13 +829,18 @@ model RetailNextHourlySnapshot {
 
 // =========== v1 customer dashboard (auth + billing) ===========
 //
-// Customer dashboard auth layer (User / Account / AccountMembership / MagicLinkToken)
-// plus billing (Location / Subscription / PlayerBinding) for the Entuned v1 paid
+// Customer dashboard auth layer (User / ClientMembership / MagicLinkToken)
+// plus billing (Subscription / PlayerBinding) for the Entuned v1 paid
 // onboarding flow (Stripe Checkout + Customer Portal).
 //
-// `User` here is for end-customer dashboard users (the people who manage their
-// stores via app.entuned.co). Distinct from the existing `Operator` model, which
-// authenticates in-store player operators.
+// Customer = Client (Card 03 Duke). Site = Store (Card 03 Duke). The earlier
+// parallel models (Account, Location, AccountMembership) were merged into
+// Client/Store on 2026-05-04 — see `entune v0.3/schema/dashboard-auth.md`
+// and `dashboard-billing.md` deprecation banners.
+//
+// `User` here is for end-customer dashboard users (the people who manage
+// their stores via app.entuned.co). Distinct from the existing `Operator`
+// model, which authenticates in-store player operators.
 //
 // Conventions matched to canonical schema.prisma:
 //   - All ids are `String @id @default(uuid()) @db.Uuid` (Postgres-uuid).
@@ -832,20 +851,13 @@ model RetailNextHourlySnapshot {
 // (rather than Postgres enums) so adding new tiers/statuses does not require
 // an enum migration. Validation happens at the route layer with zod.
 
-// ---------- Customer dashboard auth ----------
-
-model Account {
-  id               String   @id @default(uuid()) @db.Uuid
-  name             String
-  stripeCustomerId String?  @unique @map("stripe_customer_id")
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  memberships AccountMembership[]
-  locations   Location[]
-
-  @@map("accounts")
-}
+// ---------- Customer dashboard auth (post-merger 2026-05-04) ----------
+//
+// `Account` was merged into `Client` (its sole field `stripe_customer_id`
+// moved to Client). `Location` was merged into `Store` (slug, tier,
+// paused_until, archived_at moved to Store). `AccountMembership` was renamed
+// to `ClientMembership`. `Subscription` and `PlayerBinding` survived but
+// their FK repointed from location_id → store_id.
 
 model User {
   id          String    @id @default(uuid()) @db.Uuid
@@ -855,27 +867,27 @@ model User {
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   lastLoginAt DateTime? @map("last_login_at") @db.Timestamptz(6)
 
-  memberships AccountMembership[]
+  memberships ClientMembership[]
 
   @@map("users")
 }
 
-model AccountMembership {
+model ClientMembership {
   id        String   @id @default(uuid()) @db.Uuid
-  accountId String   @map("account_id") @db.Uuid
+  clientId  String   @map("client_id") @db.Uuid
   userId    String   @map("user_id") @db.Uuid
   // role is a string for now: 'owner' | 'manager'.
   // Promote to a Postgres enum (e.g., AccountRole) when we add more roles or want DB-level validation.
   role      String
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([accountId, userId])
+  @@unique([clientId, userId])
   @@index([userId])
-  @@index([accountId])
-  @@map("account_memberships")
+  @@index([clientId])
+  @@map("client_memberships")
 }
 
 model MagicLinkToken {
@@ -891,35 +903,9 @@ model MagicLinkToken {
   @@map("magic_link_tokens")
 }
 
-// ---------- Billing: Location ----------
-//
-// A Location is a single physical site (one store / room) under an Account.
-// An Account can have many Locations; each Location has at most one
-// Subscription (per-unit Stripe pricing — one Stripe subscription line per
-// Location).
-
-model Location {
-  id          String    @id @default(uuid()) @db.Uuid
-  accountId   String    @map("account_id") @db.Uuid
-  name        String
-  slug        String    @unique
-  tier        String // 'essentials' | 'core' | 'pro' | 'enterprise'
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  pausedUntil DateTime? @map("paused_until") @db.Timestamptz(6)
-  archivedAt  DateTime? @map("archived_at") @db.Timestamptz(6)
-
-  // Relations
-  account      Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  subscription Subscription?
-  binding      PlayerBinding?
-
-  @@index([accountId])
-  @@map("locations")
-}
-
 // ---------- Billing: Subscription ----------
 //
-// One Subscription row per Location. Mirrors the Stripe subscription state
+// One Subscription row per Store. Mirrors the Stripe subscription state
 // closely enough for the server to reason about access without round-tripping
 // to Stripe on every request.
 //
@@ -930,7 +916,7 @@ model Location {
 
 model Subscription {
   id                   String   @id @default(uuid()) @db.Uuid
-  locationId           String   @unique @map("location_id") @db.Uuid
+  storeId              String   @unique @map("store_id") @db.Uuid
   stripeSubscriptionId String   @unique @map("stripe_subscription_id")
   stripeCustomerId     String   @map("stripe_customer_id")
   stripePriceId        String   @map("stripe_price_id")
@@ -941,7 +927,7 @@ model Subscription {
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([stripeCustomerId])
   @@map("subscriptions")
@@ -949,20 +935,20 @@ model Subscription {
 
 // ---------- Billing: PlayerBinding ----------
 //
-// First device that opens the player at a Location is bound by
-// fingerprint / IP / UA. Used as a soft anti-piracy signal — second devices
-// either fall through to a "this Location is already bound" screen or
-// trigger a manual review. Not enforced cryptographically.
+// First device that opens the player at a Store is bound by fingerprint /
+// IP / UA. Used as a soft anti-piracy signal — second devices either fall
+// through to a "this Store is already bound" screen or trigger a manual
+// review. Not enforced cryptographically.
 
 model PlayerBinding {
   id          String   @id @default(uuid()) @db.Uuid
-  locationId  String   @unique @map("location_id") @db.Uuid
+  storeId     String   @unique @map("store_id") @db.Uuid
   fingerprint String
   ip          String
   userAgent   String   @map("user_agent")
   boundAt     DateTime @default(now()) @map("bound_at") @db.Timestamptz(6)
 
-  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@map("player_bindings")
 }

@@ -115,17 +115,19 @@ async function attachSession(request: FastifyRequest, reply: FastifyReply): Prom
       memberships: {
         orderBy: { createdAt: 'asc' },
         take: 1,
-        include: { account: true },
+        include: { client: true },
       },
     },
   })
   if (!user) return
 
   request.user = { id: user.id, email: user.email, name: user.name }
-  // Resolves first AccountMembership for now; a multi-account switcher comes later.
+  // Resolves first ClientMembership for now; a multi-client switcher comes later.
+  // The request field is named `account` for backward-compat with /login/me's
+  // public response shape — internally it carries the Client (post-merger).
   const m = user.memberships[0]
   if (m) {
-    request.account = { id: m.account.id, name: m.account.name }
+    request.account = { id: m.client.id, name: m.client.companyName }
     request.role = m.role
   }
 
