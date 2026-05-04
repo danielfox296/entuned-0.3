@@ -25,8 +25,10 @@ export function Welcome() {
         if (cancelled) return
         if (r.status === 'provisioned') {
           setStatus('ready')
-          // Brief pause so the user sees the confirmation, then on to intake.
-          setTimeout(() => navigate('/intake', { replace: true }), 1200)
+          // Brief pause for the confirmation, then to the dashboard home.
+          // (The brand-intake wizard lives at /intake but is preview-only;
+          // we land paying customers on Home until it ships.)
+          setTimeout(() => navigate('/', { replace: true }), 1200)
         } else {
           setStatus('pending')
         }
@@ -58,7 +60,7 @@ export function Welcome() {
         )}
         {status === 'ready' && (
           <div style={{ color: T.text, fontSize: 16, lineHeight: 1.6 }}>
-            Account ready. Taking you to the brand intake.
+            Account ready. Taking you to your dashboard.
           </div>
         )}
         {status === 'error' && (

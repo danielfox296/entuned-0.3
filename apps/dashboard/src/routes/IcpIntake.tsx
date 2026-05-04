@@ -35,6 +35,22 @@ export function IcpIntake() {
         </div>
       </div>
 
+      <div style={{
+        marginBottom: 20,
+        padding: '12px 14px',
+        background: T.surfaceRaised,
+        border: `1px solid ${T.borderSubtle}`,
+        borderRadius: 6,
+        color: T.textMuted,
+        fontSize: 13,
+        lineHeight: 1.5,
+      }}>
+        <strong style={{ color: T.text }}>Preview.</strong> The intake wizard
+        is being wired into the catalogue pipeline. Answers won&rsquo;t persist
+        yet &mdash; if you just upgraded, your account is already active and
+        playing the general catalogue while we land this.
+      </div>
+
       <Card>
         <div style={{ display: 'grid', gap: 18 }}>
           {QUESTIONS.map((q) => (
