@@ -84,6 +84,11 @@ jobs:
           cp -R apps/player/dist/. publish/
           echo "music.entuned.co" > publish/CNAME
           touch publish/.nojekyll
+          # SPA fallback for client-side routing (e.g. /<store-slug> paths
+          # like music.entuned.co/danielchristopherfox-0616). GitHub Pages
+          # serves 404.html for any unknown path; copying index.html to
+          # 404.html lets React take over and resolve the slug.
+          cp publish/index.html publish/404.html
       - name: Push to entuned-0.3-player
         uses: peaceiris/actions-gh-pages@v4
         with:
