@@ -10,6 +10,10 @@
 
 import { randomBytes } from 'node:crypto'
 import { prisma } from '../db.js'
+import { sendWelcome } from './email.js'
+
+const PLAYER_URL = process.env.PLAYER_URL ?? 'https://music.entuned.co'
+const APP_URL = process.env.APP_URL ?? 'https://app.entuned.co'
 
 function slugify(name: string): string {
   const first = (name.trim().split(/\s+/)[0] ?? 'store').toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -41,19 +45,23 @@ export async function ensureFreeAccountForUser(userId: string, email: string): P
 
   const localPart = email.split('@')[0] || 'account'
 
-  await prisma.$transaction(async (tx) => {
+  const slug = await prisma.$transaction(async (tx) => {
     const account = await (tx as any).account.create({ data: { name: localPart } })
     await (tx as any).accountMembership.create({
       data: { accountId: account.id, userId, role: 'owner' },
     })
-    const slug = await uniqueLocationSlug(localPart)
+    const s = await uniqueLocationSlug(localPart)
     await (tx as any).location.create({
       data: {
         accountId: account.id,
         name: `${localPart} — Main`,
-        slug,
+        slug: s,
         tier: 'free',
       },
     })
+    return s
   })
+
+  // Welcome email — best-effort, never blocks sign-in. Resend dev mode logs instead.
+  await sendWelcome(email, 'free', `${PLAYER_URL}/${slug}`, APP_URL).catch(() => undefined)
 }
