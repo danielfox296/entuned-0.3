@@ -2,6 +2,7 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
 import multipart from '@fastify/multipart'
+import fastifyCookie from '@fastify/cookie'
 import { healthRoutes } from './routes/health.js'
 import { hendrixRoutes } from './routes/hendrix.js'
 import { eventsRoutes } from './routes/events.js'
@@ -31,8 +32,9 @@ app.addHook('preSerialization', async (_req, _reply, payload) => {
 await app.register(cors, { origin: true })
 await app.register(rateLimit, { global: false })
 await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024 } })
-// sessionPlugin must be registered BEFORE any route plugin that reads cookies / uses requireAuth.
-// It registers @fastify/cookie and an onRequest hook that resolves request.user / request.account.
+// Cookie plugin registered at app scope so reply.setCookie is available to all routes.
+await app.register(fastifyCookie)
+// sessionPlugin adds the onRequest hook that resolves request.user / request.account.
 await app.register(sessionPlugin)
 await app.register(healthRoutes)
 await app.register(hendrixRoutes, { prefix: '/hendrix' })
