@@ -12,6 +12,7 @@
 import jwt from 'jsonwebtoken'
 import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import fastifyCookie from '@fastify/cookie'
+import fp from 'fastify-plugin'
 import { prisma } from '../db.js'
 
 const COOKIE_NAME = 'entuned_session'
@@ -132,13 +133,16 @@ async function attachSession(request: FastifyRequest, reply: FastifyReply): Prom
   setSessionCookie(reply, user.id)
 }
 
-/** Fastify plugin — registers @fastify/cookie and an onRequest hook that attaches session info. */
-export const sessionPlugin: FastifyPluginAsync = async (app: FastifyInstance) => {
+// Wrapped with fastify-plugin so the onRequest hook escapes encapsulation
+// and applies to sibling-registered routes (loginRoutes, billingRoutes, etc).
+// Without fp, the hook only fires for routes registered as children of this
+// plugin — which is none — and every authenticated request 401s silently.
+export const sessionPlugin = fp(async (app: FastifyInstance) => {
   if (!app.hasPlugin?.('@fastify/cookie')) {
     await app.register(fastifyCookie)
   }
   app.addHook('onRequest', attachSession)
-}
+}, { name: 'session-plugin' })
 
 /**
  * preHandler that 401s if there is no authenticated user.
