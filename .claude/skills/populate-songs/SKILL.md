@@ -244,3 +244,46 @@ All queued prompts have accepted Suno URLs. Report: N songs added, ICP(s) affect
 15. **All style strings should be truncated to 1000 chars.** Gary/Terrell styles routinely exceed 1000 chars. Always `.slice(0, 1000)` before injecting into the style textarea.
 
 16. **Sidebar Filters(3) hides songs from other tabs.** When Suno has active sidebar filters, `a.href` attribute queries return only filtered songs. Always use fiber scan to get URLs — it bypasses all filter state.
+
+17. **(2026-05-03) Fiber URL scan returns 0 hrefs on freshly-opened Suno tabs.** Suno v5.5 changed sidebar rendering — `__reactFiber*` href traversal returns empty on new tabs even when songs are visible. Direct `a[href*="/song/"]` query works reliably and bypasses filter state too (contradicts note 16). Use `Array.from(document.querySelectorAll('a[href*="/song/"]'))` as primary, drop fiber scan unless that fails.
+
+18. **(2026-05-03) Vocal buttons are TOGGLES, not radio.** Clicking already-selected gender DESELECTS it (Male=true → click Male → Male=false → Create silently no-ops). Inject helper MUST check `data-selected` before clicking — only click if not already in target state. Pseudo:
+    ```js
+    const isSelected = desiredBtn?.getAttribute('data-selected') === 'true';
+    if (!isSelected) desiredBtn?.click();
+    ```
+
+19. **(2026-05-03) Single Create can silently no-op even with vocal verified.** Especially after a previous accept on the same tab, JS `.click()` on Create may register but generation never starts. Mitigations (in order of preference):
+    - **Vocal-toggle trick**: click Female (deselects Male), then click Male (re-selects). Forces React state tick. Then Create fires reliably.
+    - **Coordinate click on Create button** at its visible position is more reliable than JS .click().
+    - **Last resort**: fire Create twice with ~5s gap. Accept ONLY top 2 takes (will produce 4 takes total).
+    - Verify after ~10s: scan sidebar for new UUIDs matching expected title. If 0, retry with vocal-toggle trick.
+
+20. **(2026-05-03) Suno session title bleed.** Re-using a tab without page reload, Suno may generate songs with the PREVIOUS title even though form fields show new title. Symptom: form has "Yes to This" but Suno spawns "I Don't Think Twice" cards. Workaround: vocal-toggle trick may help; otherwise reload tab and re-set sliders.
+
+21. **(2026-05-03) Accept-takes button click — coordinate click is required.** JS `.click()` on the "accept takes" button silently no-ops. Even `dispatchEvent` of MouseEvent doesn't reliably fire it. Use `computer.left_click([x, y])` at the button's visible coordinate (~`[1163, 547]` at standard window size). Sequence:
+    1. Click row to open modal
+    2. setReactValue both take URLs
+    3. `t1.scrollIntoView({block: 'center'})` (take inputs sit BELOW lyrics/style — modal needs scrolling)
+    4. Wait 1-2s
+    5. **Coordinate-click** the accept-takes button
+    6. Wait 4-6s
+    7. Verify `document.body.textContent.includes('Song Entries')` — confirms accept worked
+
+22. **(2026-05-03) "More Options" panel hides sliders.** Suno v5.5 puts Weirdness/Style Influence behind a collapsed `<div>More Options</div>`. Click the deepest text-content match to expand:
+    ```js
+    const moreOpt = Array.from(document.querySelectorAll('div, span'))
+      .find(el => el.textContent.trim() === 'More Options' && el.children.length === 0);
+    moreOpt?.click();
+    ```
+    Then sliders become queryable.
+
+23. **(2026-05-03) Cross-origin: window.__prompts on Dash is NOT readable from Suno tabs.** `window.postMessage`, `BroadcastChannel`, `localStorage` all blocked by origin isolation. Must read each prompt from Dash, build inject call as JS literal with embedded text, send to Suno tab. Per prompt: ~5 reads (lyrics chunks + style chunks + meta) + 1 inject + 1 create = 7 calls.
+
+24. **(2026-05-03) JS response truncates ~1000 chars.** Earlier note 4 said ~2KB; observed truncation is closer to 950-1050 chars. Read long fields in 800-char chunks: `field.slice(0, 800)` then `field.slice(800)`.
+
+25. **(2026-05-03) Filter strings missing matches in title-search.** When filtering sidebar UUIDs by title via `t.includes(matchTitle)`, sometimes matches return 0 even though screenshot shows the cards. Cause unknown — possibly DOM order vs visual order mismatch (sidebar renders newest-first visually but DOM iterates in different order). Workaround: query without filter and look at the full top-N list; cards with target title are usually at top.
+
+26. **(2026-05-03) "Song Entries" check is the reliable accept verification.** Don't trust badge text changes or queue refresh — those lag. After accept-takes click + wait, query `document.body.textContent.includes('Song Entries')`. If true, accepted. If false, retry accept.
+
+27. **(2026-05-03) Slider setting works in 2 calls (not 3 as note 12 implies).** Confirmed: `pctEls[i].dispatchEvent(dblclick)` in call 1, then `setReactValue(input, value) + Enter dispatch + blur` in call 2. Verify with a 3rd call after 1s wait.

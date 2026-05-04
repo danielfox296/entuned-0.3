@@ -38,12 +38,12 @@ enum PlaybackEventType {
 }
 
 enum ReportReason {
-  NotOurVibe        @map("Not our Vibe")
+  NotOurVibe      @map("Not our Vibe")
   Boring
-  AwkwardLyrics     @map("Awkward Lyrics")
-  TooSlow           @map("Too Slow")
-  TooIntense        @map("Too Intense")
-  SongAudioIssues   @map("Song Audio Issues")
+  AwkwardLyrics   @map("Awkward Lyrics")
+  TooSlow         @map("Too Slow")
+  TooIntense      @map("Too Intense")
+  SongAudioIssues @map("Song Audio Issues")
 }
 
 enum ClientPlan {
@@ -116,29 +116,29 @@ model Client {
 }
 
 model Store {
-  id                        String    @id @default(uuid()) @db.Uuid
-  clientId                  String    @map("client_id") @db.Uuid
-  name                      String
-  timezone                  String
-  goLiveDate                DateTime? @map("go_live_date") @db.Date
-  posLocationId             String?   @map("pos_location_id")
-  defaultOutcomeId          String?   @map("default_outcome_id") @db.Uuid
-  outcomeSelectionId        String?   @map("outcome_selection_id") @db.Uuid
-  outcomeSelectionExpiresAt DateTime? @map("outcome_selection_expires_at") @db.Timestamptz(6)
-  roomLoudnessSamplingEnabled Boolean @default(false) @map("room_loudness_sampling_enabled")
-  createdAt                 DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                 DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                          String    @id @default(uuid()) @db.Uuid
+  clientId                    String    @map("client_id") @db.Uuid
+  name                        String
+  timezone                    String
+  goLiveDate                  DateTime? @map("go_live_date") @db.Date
+  posLocationId               String?   @map("pos_location_id")
+  defaultOutcomeId            String?   @map("default_outcome_id") @db.Uuid
+  outcomeSelectionId          String?   @map("outcome_selection_id") @db.Uuid
+  outcomeSelectionExpiresAt   DateTime? @map("outcome_selection_expires_at") @db.Timestamptz(6)
+  roomLoudnessSamplingEnabled Boolean   @default(false) @map("room_loudness_sampling_enabled")
+  createdAt                   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  client              Client                    @relation(fields: [clientId], references: [id])
-  icps                ICP[]                     @relation("LocationIcp")
-  defaultOutcome      Outcome?                  @relation("StoreDefaultOutcome", fields: [defaultOutcomeId], references: [id])
-  outcomeSelection    Outcome?                  @relation("StoreOutcomeSelection", fields: [outcomeSelectionId], references: [id])
-  scheduleSlots       ScheduleSlot[]
-  operatorAssignments OperatorStoreAssignment[]
-  playbackEvents      PlaybackEvent[]
-  posEvents           POSEvent[]
-  posPullRuns         POSPullRun[]
-  campaigns                Campaign[]
+  client                    Client                     @relation(fields: [clientId], references: [id])
+  icps                      ICP[]                      @relation("LocationIcp")
+  defaultOutcome            Outcome?                   @relation("StoreDefaultOutcome", fields: [defaultOutcomeId], references: [id])
+  outcomeSelection          Outcome?                   @relation("StoreOutcomeSelection", fields: [outcomeSelectionId], references: [id])
+  scheduleSlots             ScheduleSlot[]
+  operatorAssignments       OperatorStoreAssignment[]
+  playbackEvents            PlaybackEvent[]
+  posEvents                 POSEvent[]
+  posPullRuns               POSPullRun[]
+  campaigns                 Campaign[]
   campaignPlayState         CampaignPlayState?
   retailNextIngestRuns      RetailNextIngestRun[]
   retailNextDailySnapshots  RetailNextDailySnapshot[]
@@ -151,30 +151,29 @@ model Store {
 // ---------- Card 4 Gains (ICP) ----------
 
 model ICP {
-  id                 String    @id @default(uuid()) @db.Uuid
-  clientId           String    @map("client_id") @db.Uuid
-  storeId            String    @map("store_id") @db.Uuid
+  id                 String   @id @default(uuid()) @db.Uuid
+  clientId           String   @map("client_id") @db.Uuid
+  storeId            String   @map("store_id") @db.Uuid
   name               String
-  ageRange           String?   @map("age_range")
+  ageRange           String?  @map("age_range")
   location           String?
-  politicalSpectrum  String?   @map("political_spectrum")
+  politicalSpectrum  String?  @map("political_spectrum")
   openness           String?
   fears              String?
   values             String?
   desires            String?
-  unexpressedDesires String?   @map("unexpressed_desires")
-  turnOffs           String?   @map("turn_offs")
-  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  unexpressedDesires String?  @map("unexpressed_desires")
+  turnOffs           String?  @map("turn_offs")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   client           Client            @relation(fields: [clientId], references: [id])
   store            Store             @relation("LocationIcp", fields: [storeId], references: [id])
-
-  @@index([storeId])
   hooks            Hook[]
   referenceTracks  ReferenceTrack[]
   hookWriterPrompt HookWriterPrompt?
 
+  @@index([storeId])
   @@index([clientId])
   @@map("icps")
 }
@@ -188,25 +187,25 @@ enum ReferenceTrackStatus {
 }
 
 model ReferenceTrack {
-  id                  String              @id @default(uuid()) @db.Uuid
-  icpId               String              @map("icp_id") @db.Uuid
-  bucket              TasteCategory
-  artist              String
-  title               String
-  year                Int?
-  operatorNotes       String?             @map("operator_notes")
-  status              ReferenceTrackStatus @default(approved)
-  suggestedRationale  String?             @map("suggested_rationale")
-  suggestedPromptVer  Int?                @map("suggested_prompt_version")
-  suggestedAt         DateTime?           @map("suggested_at") @db.Timestamptz(6)
-  approvedAt          DateTime?           @map("approved_at") @db.Timestamptz(6)
-  approvedById        String?             @map("approved_by") @db.Uuid
-  verifiedById        String?             @map("verified_by") @db.Uuid
-  useCount            Int                 @default(0) @map("use_count")
-  previewUrl          String?             @map("preview_url")
-  previewSource       String?             @map("preview_source")
-  coverUrl            String?             @map("cover_url")
-  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                 String               @id @default(uuid()) @db.Uuid
+  icpId              String               @map("icp_id") @db.Uuid
+  bucket             TasteCategory
+  artist             String
+  title              String
+  year               Int?
+  operatorNotes      String?              @map("operator_notes")
+  status             ReferenceTrackStatus @default(approved)
+  suggestedRationale String?              @map("suggested_rationale")
+  suggestedPromptVer Int?                 @map("suggested_prompt_version")
+  suggestedAt        DateTime?            @map("suggested_at") @db.Timestamptz(6)
+  approvedAt         DateTime?            @map("approved_at") @db.Timestamptz(6)
+  approvedById       String?              @map("approved_by") @db.Uuid
+  verifiedById       String?              @map("verified_by") @db.Uuid
+  useCount           Int                  @default(0) @map("use_count")
+  previewUrl         String?              @map("preview_url")
+  previewSource      String?              @map("preview_source")
+  coverUrl           String?              @map("cover_url")
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
 
   icp           ICP            @relation(fields: [icpId], references: [id], onDelete: Cascade)
   styleAnalysis StyleAnalysis?
@@ -415,32 +414,32 @@ model SongSeedBatch {
 }
 
 model SongSeed {
-  id                         String    @id @default(uuid()) @db.Uuid
-  songSeedBatchId            String    @map("song_seed_batch_id") @db.Uuid
-  icpId                      String    @map("icp_id") @db.Uuid
-  hookId                     String    @map("hook_id") @db.Uuid
-  outcomeId                  String    @map("outcome_id") @db.Uuid
-  referenceTrackId           String?   @map("reference_track_id") @db.Uuid
-  status                     String    @default("assembling") // assembling|queued|accepted|failed
+  id               String  @id @default(uuid()) @db.Uuid
+  songSeedBatchId  String  @map("song_seed_batch_id") @db.Uuid
+  icpId            String  @map("icp_id") @db.Uuid
+  hookId           String  @map("hook_id") @db.Uuid
+  outcomeId        String  @map("outcome_id") @db.Uuid
+  referenceTrackId String? @map("reference_track_id") @db.Uuid
+  status           String  @default("assembling") // assembling|queued|accepted|failed
 
   // Final Song Prompt payload
-  style                      String?
-  stylePortionRaw            String?   @map("style_portion_raw")
-  negativeStyle              String?   @map("negative_style")
-  vocalGender                String?   @map("vocal_gender")
-  lyrics                     String?
-  title                      String?
+  style           String?
+  stylePortionRaw String? @map("style_portion_raw")
+  negativeStyle   String? @map("negative_style")
+  vocalGender     String? @map("vocal_gender")
+  lyrics          String?
+  title           String?
 
   // Provenance snapshots
-  outcomeFactorPromptVersion Int?      @map("outcome_factor_prompt_version")
-  styleTemplateVersion       Int?      @map("style_template_version")
-  lyricDraftPromptVersion    Int?      @map("lyric_draft_prompt_version")
-  lyricEditPromptVersion     Int?      @map("lyric_edit_prompt_version")
-  arrangementTemplateVersion Int?      @map("arrangement_template_version")
-  resolvedTempoBpm           Int?      @map("resolved_tempo_bpm")
-  resolvedMode               String?   @map("resolved_mode")
-  firedExclusionRuleIds      String[]  @map("fired_exclusion_rule_ids") @db.Uuid
-  errorText                  String?   @map("error_text")
+  outcomeFactorPromptVersion Int?     @map("outcome_factor_prompt_version")
+  styleTemplateVersion       Int?     @map("style_template_version")
+  lyricDraftPromptVersion    Int?     @map("lyric_draft_prompt_version")
+  lyricEditPromptVersion     Int?     @map("lyric_edit_prompt_version")
+  arrangementTemplateVersion Int?     @map("arrangement_template_version")
+  resolvedTempoBpm           Int?     @map("resolved_tempo_bpm")
+  resolvedMode               String?  @map("resolved_mode")
+  firedExclusionRuleIds      String[] @map("fired_exclusion_rule_ids") @db.Uuid
+  errorText                  String?  @map("error_text")
 
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -468,16 +467,16 @@ model Outcome {
   title           String
   displayTitle    String?   @map("display_title")
   // Song Outcome Specs
-  tempoBpm              Int       @map("tempo_bpm")
-  tempoBpmRadius        Int?      @map("tempo_bpm_radius")
-  mode                  String
-  modeWeights           Json?     @map("mode_weights")
-  mood                  String
-  dynamics              String?
-  instrumentation       String?
+  tempoBpm        Int       @map("tempo_bpm")
+  tempoBpmRadius  Int?      @map("tempo_bpm_radius")
+  mode            String
+  modeWeights     Json?     @map("mode_weights")
+  mood            String
+  dynamics        String?
+  instrumentation String?
   // Research-backed signals
-  familiarity     String?   @map("familiarity")     // unfamiliar | familiar | neutral — Hendrix rotation signal
-  productionEraId String?   @map("production_era_id") @db.Uuid  // → ProductionEra; Mars pulls era sonic descriptors
+  familiarity     String?   @map("familiarity") // unfamiliar | familiar | neutral — Hendrix rotation signal
+  productionEraId String?   @map("production_era_id") @db.Uuid // → ProductionEra; Mars pulls era sonic descriptors
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   createdById     String?   @map("created_by") @db.Uuid
   supersededAt    DateTime? @map("superseded_at") @db.Timestamptz(6)
@@ -662,17 +661,17 @@ model POSPullRun {
 }
 
 model POSEvent {
-  id                     String   @id @default(uuid()) @db.Uuid
-  storeId                String   @map("store_id") @db.Uuid
-  clientId               String   @map("client_id") @db.Uuid
-  posProvider            String   @map("pos_provider")
-  posExternalId          String?  @map("pos_external_id")
-  occurredAt             DateTime @map("occurred_at") @db.Timestamptz(6)
-  transactionValueCents  BigInt   @map("transaction_value_cents")
-  currency               String   @default("USD")
-  itemCount              Int      @map("item_count")
-  posPullRunId           String   @map("pos_pull_run_id") @db.Uuid
-  receivedAt             DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+  id                    String   @id @default(uuid()) @db.Uuid
+  storeId               String   @map("store_id") @db.Uuid
+  clientId              String   @map("client_id") @db.Uuid
+  posProvider           String   @map("pos_provider")
+  posExternalId         String?  @map("pos_external_id")
+  occurredAt            DateTime @map("occurred_at") @db.Timestamptz(6)
+  transactionValueCents BigInt   @map("transaction_value_cents")
+  currency              String   @default("USD")
+  itemCount             Int      @map("item_count")
+  posPullRunId          String   @map("pos_pull_run_id") @db.Uuid
+  receivedAt            DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
 
   store      Store      @relation(fields: [storeId], references: [id])
   posPullRun POSPullRun @relation(fields: [posPullRunId], references: [id])
@@ -754,7 +753,7 @@ model RetailNextIngestRun {
   finishedAt    DateTime? @map("finished_at") @db.Timestamptz(6)
   triggeredById String?   @map("triggered_by_id") @db.Uuid
 
-  store           Store                    @relation(fields: [storeId], references: [id])
+  store           Store                      @relation(fields: [storeId], references: [id])
   dailySnapshots  RetailNextDailySnapshot[]
   hourlySnapshots RetailNextHourlySnapshot[]
 
@@ -790,21 +789,21 @@ model RetailNextDailySnapshot {
 }
 
 model RetailNextHourlySnapshot {
-  id              String   @id @default(uuid()) @db.Uuid
-  storeId         String   @map("store_id") @db.Uuid
-  date            DateTime @map("date") @db.Date
-  hourStart       Int      @map("hour_start") // 0–23
-  traffic         Int?
-  salesCents      BigInt?  @map("sales_cents")
-  saleTrxCount    Int?     @map("sale_trx_count")
-  returnTrxCount  Int?     @map("return_trx_count")
-  convRate        Float?   @map("conv_rate")
-  atv             Float?
-  shopperYield    Float?   @map("shopper_yield")
-  captureRate     Float?   @map("capture_rate")
-  visitDurationSecs Int?   @map("visit_duration_secs")
-  ingestRunId     String   @map("ingest_run_id") @db.Uuid
-  receivedAt      DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+  id                String   @id @default(uuid()) @db.Uuid
+  storeId           String   @map("store_id") @db.Uuid
+  date              DateTime @map("date") @db.Date
+  hourStart         Int      @map("hour_start") // 0–23
+  traffic           Int?
+  salesCents        BigInt?  @map("sales_cents")
+  saleTrxCount      Int?     @map("sale_trx_count")
+  returnTrxCount    Int?     @map("return_trx_count")
+  convRate          Float?   @map("conv_rate")
+  atv               Float?
+  shopperYield      Float?   @map("shopper_yield")
+  captureRate       Float?   @map("capture_rate")
+  visitDurationSecs Int?     @map("visit_duration_secs")
+  ingestRunId       String   @map("ingest_run_id") @db.Uuid
+  receivedAt        DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
 
   store     Store               @relation(fields: [storeId], references: [id])
   ingestRun RetailNextIngestRun @relation(fields: [ingestRunId], references: [id])
@@ -812,4 +811,158 @@ model RetailNextHourlySnapshot {
   @@unique([storeId, date, hourStart])
   @@index([storeId, date(sort: Desc)])
   @@map("retailnext_hourly_snapshots")
+}
+
+// =========== v1 customer dashboard (auth + billing) ===========
+//
+// Customer dashboard auth layer (User / Account / AccountMembership / MagicLinkToken)
+// plus billing (Location / Subscription / PlayerBinding) for the Entuned v1 paid
+// onboarding flow (Stripe Checkout + Customer Portal).
+//
+// `User` here is for end-customer dashboard users (the people who manage their
+// stores via app.entuned.co). Distinct from the existing `Operator` model, which
+// authenticates in-store player operators.
+//
+// Conventions matched to canonical schema.prisma:
+//   - All ids are `String @id @default(uuid()) @db.Uuid` (Postgres-uuid).
+//   - `email` columns use `@db.Citext` for case-insensitive lookups.
+//   - SSOT lives in `../../../entune v0.3/schema/`; mirrored there too.
+//
+// `Location.tier` and `Subscription.status` are intentionally string fields
+// (rather than Postgres enums) so adding new tiers/statuses does not require
+// an enum migration. Validation happens at the route layer with zod.
+
+// ---------- Customer dashboard auth ----------
+
+model Account {
+  id               String   @id @default(uuid()) @db.Uuid
+  name             String
+  stripeCustomerId String?  @unique @map("stripe_customer_id")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  memberships AccountMembership[]
+  locations   Location[]
+
+  @@map("accounts")
+}
+
+model User {
+  id          String    @id @default(uuid()) @db.Uuid
+  email       String    @unique @db.Citext
+  name        String?
+  googleSub   String?   @unique @map("google_sub")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastLoginAt DateTime? @map("last_login_at") @db.Timestamptz(6)
+
+  memberships AccountMembership[]
+
+  @@map("users")
+}
+
+model AccountMembership {
+  id        String   @id @default(uuid()) @db.Uuid
+  accountId String   @map("account_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  // role is a string for now: 'owner' | 'manager'.
+  // Promote to a Postgres enum (e.g., AccountRole) when we add more roles or want DB-level validation.
+  role      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, userId])
+  @@index([userId])
+  @@index([accountId])
+  @@map("account_memberships")
+}
+
+model MagicLinkToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  email      String    @db.Citext
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([email])
+  @@index([expiresAt])
+  @@map("magic_link_tokens")
+}
+
+// ---------- Billing: Location ----------
+//
+// A Location is a single physical site (one store / room) under an Account.
+// An Account can have many Locations; each Location has at most one
+// Subscription (per-unit Stripe pricing — one Stripe subscription line per
+// Location).
+
+model Location {
+  id          String    @id @default(uuid()) @db.Uuid
+  accountId   String    @map("account_id") @db.Uuid
+  name        String
+  slug        String    @unique
+  tier        String // 'essentials' | 'core' | 'pro' | 'enterprise'
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  pausedUntil DateTime? @map("paused_until") @db.Timestamptz(6)
+  archivedAt  DateTime? @map("archived_at") @db.Timestamptz(6)
+
+  // Relations
+  account      Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  subscription Subscription?
+  binding      PlayerBinding?
+
+  @@index([accountId])
+  @@map("locations")
+}
+
+// ---------- Billing: Subscription ----------
+//
+// One Subscription row per Location. Mirrors the Stripe subscription state
+// closely enough for the server to reason about access without round-tripping
+// to Stripe on every request.
+//
+// `dunningAttempt` is incremented by `invoice.payment_failed` and reset by
+// `invoice.payment_succeeded`. After 3 failed attempts the server flips
+// `status` to 'past_due' and lets Stripe (per the dashboard's smart-retry
+// settings) ultimately mark the subscription canceled.
+
+model Subscription {
+  id                   String   @id @default(uuid()) @db.Uuid
+  locationId           String   @unique @map("location_id") @db.Uuid
+  stripeSubscriptionId String   @unique @map("stripe_subscription_id")
+  stripeCustomerId     String   @map("stripe_customer_id")
+  stripePriceId        String   @map("stripe_price_id")
+  status               String // 'active' | 'past_due' | 'paused' | 'canceled' | 'incomplete'
+  currentPeriodEnd     DateTime @map("current_period_end") @db.Timestamptz(6)
+  cancelAtPeriodEnd    Boolean  @default(false) @map("cancel_at_period_end")
+  dunningAttempt       Int      @default(0) @map("dunning_attempt")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@index([stripeCustomerId])
+  @@map("subscriptions")
+}
+
+// ---------- Billing: PlayerBinding ----------
+//
+// First device that opens the player at a Location is bound by
+// fingerprint / IP / UA. Used as a soft anti-piracy signal — second devices
+// either fall through to a "this Location is already bound" screen or
+// trigger a manual review. Not enforced cryptographically.
+
+model PlayerBinding {
+  id          String   @id @default(uuid()) @db.Uuid
+  locationId  String   @unique @map("location_id") @db.Uuid
+  fingerprint String
+  ip          String
+  userAgent   String   @map("user_agent")
+  boundAt     DateTime @default(now()) @map("bound_at") @db.Timestamptz(6)
+
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@map("player_bindings")
 }

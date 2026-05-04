@@ -4,6 +4,91 @@ Append a dated section per run. Newest at the top.
 
 ---
 
+## 2026-05-03 — Gary ICP, Park Meadows / Untuckit (20 songs across all outcomes)
+
+**ICP:** Gary (`1eaf3d99-8bc7-4a37-beaa-14483ea5517f`)
+**Goal:** 20 prompts accepted into Dash, spread across outcomes (CRITICAL pools first)
+**Result:** 20/20 accepted ✓
+
+### Prompts processed (5 batches of 4)
+
+| Batch | Title | Outcome | Status |
+|---|---|---|---|
+| 1 | Nothing to Lose | Move Through | ✓ |
+| 1 | I Float | Lift Energy | ✓ |
+| 1 | I Don't Think Twice | Increase Order Value | ✓ |
+| 1 | The Thing I Didn't Know | Increase Order Value | ✓ |
+| 2 | One More | Increase Order Value | ✓ |
+| 2 | This One's Mine (Dawes) | Increase Order Value | ✓ |
+| 2 | Yes to This | Impulse Buy | ✗ first try (title bleed); ✓ recovered |
+| 2 | Sometimes You Just Take It Home | Impulse Buy | ✓ |
+| 3 | Trust the Feeling | Impulse Buy | ✓ |
+| 3 | The One to Love Your Heart | Impulse Buy | ✓ |
+| 3 | Right Here (Jason Isbell) | Convert Browsers | ✓ |
+| 3 | I Trust Myself With This | Convert Browsers | ✓ |
+| 4 | What Works for Me | Convert Browsers | ✓ |
+| 4 | Own the Day | Convert Browsers | ✓ |
+| 4 | The Sky Opens Up | Calm | ✓ |
+| 4 | I Let the Day Come to Me | Calm | ✓ |
+| 5 | No Second Thoughts | Reinforce Brand | ✓ |
+| 5 | Finally Something That Fits Right | Reinforce Brand | ✓ |
+| 5 | Built to Last | Reinforce Brand | ✓ |
+| 5 | What Easy Looks Like | Reinforce Brand | ✓ |
+
+### Pool Depth before/after
+
+| Outcome | Before | After | Δ |
+|---|---|---|---|
+| Reinforce Brand | 4 (CRITICAL) | 12 (thin) | +8 |
+| Convert Browsers | 4 (CRITICAL) | 12 (thin) | +8 |
+| Impulse Buy | 4 (CRITICAL) | 12 (thin) | +8 |
+| Increase Order Value | 4 (CRITICAL) | 12 (thin) | +8 |
+| Lift Energy | 8 (thin) | 10 (thin) | +2 |
+| Move Through | 12 (thin) | 14 (thin) | +2 |
+| Calm | 16 (ok) | 20 (ok) | +4 |
+| Linger | 16 (ok) | 16 (ok) | — |
+| Add More Items | 16 (ok) | 16 (ok) | — |
+
+**Result:** Gary now has ZERO CRITICAL outcomes (was 4). All thin or ok.
+
+### Bugs / new friction notes added to skill
+
+1. **Vocal toggle is a TOGGLE, not radio** — clicking already-selected gender deselects it, causing silent Create no-op. Skill now says: only click vocal button if `data-selected !== 'true'`. (note 18)
+
+2. **Single Create silently no-ops on tabs after a previous accept** — even with vocal verified. Mitigations added (note 19): vocal-toggle trick (click Female then Male to "tick" React), or coordinate click on Create button. Last resort: fire 2x and accept top 2 (over-fires to 4 takes).
+
+3. **Suno session title bleed** — Tab C had "Yes to This" loaded in form but Suno generated "I Don't Think Twice" cards (the previous prompt's title). Workaround: vocal-toggle trick may help; otherwise reload tab. (note 20)
+
+4. **Accept-takes button JS click silently no-ops** — coordinate click `[1163, 547]` works reliably; setReactValue on take inputs + scrollIntoView before clicking. Verify with `document.body.textContent.includes('Song Entries')`. (notes 21, 26)
+
+5. **More Options panel hides sliders** — Suno v5.5 puts Weirdness/Style Influence behind collapsed expander. Click the deepest text-match `<div>More Options</div>` to reveal. (note 22)
+
+6. **Cross-origin tab isolation** — `window.__prompts` on Dash is NOT readable from Suno tabs. Must read each field via individual JS calls then embed as literal in the inject call. Per prompt: ~5 reads + 1 inject + 1 create. (note 23)
+
+7. **JS response truncates ~1000 chars** (not 2KB as previously documented) — chunk at 800-char boundaries when reading lyrics/style. (note 24)
+
+8. **Fiber URL scan returns 0 hrefs on freshly-opened tabs** — direct `a[href*="/song/"]` query is more reliable in Suno v5.5. Bypasses Filters(3) too. (note 17, contradicts older note 16)
+
+9. **Filter-by-title sometimes returns 0 matches** even when cards visible. Workaround: query without filter, look at top-N. (note 25)
+
+### Flow quirks
+
+- Tab A (when vocal toggle changed M→F) reliably fired Create on first try.
+- Tabs B/C/D (vocal already correct) frequently silently no-opped on first Create. Vocal-toggle trick fixed all 3.
+- 4 of the 20 prompts were over-fired (4 takes instead of 2) due to retry-on-no-op pattern. Used top-2 in each case; no harm.
+- Yes to This recovery: failed first attempt due to title-bleed bug on Tab C; succeeded second attempt on Tab A after batch 5 freed it up.
+
+### Timing
+
+- Total elapsed: ~2 hours wall time
+- Average per song: ~6 min (bottlenecked by transfer + accept loop, not Suno gen)
+- Suno generation: typically 90-120s per batch of 4
+
+### Path to RUN_LOG
+`/Users/fox296/Desktop/entuned/entuned-0.3/.claude/skills/populate-songs/RUN_LOG.md`
+
+---
+
 ## 2026-05-01 — Terrell ICP, Park Meadows / Untuckit (batches 5–8)
 
 **ICP:** Terrell (`781505a1-220f-4894-a350-9a4344af1319`)

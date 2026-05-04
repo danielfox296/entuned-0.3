@@ -1,0 +1,73 @@
+name: Deploy dashboard to entuned-0.3-dashboard (app.entuned.co)
+
+# Mirrors the player's deploy pattern (see pages.yml -> build-and-publish-player):
+# build the dashboard, then push the static dist into a separate repo whose
+# GitHub Pages serves app.entuned.co. Keeps the monorepo's own Pages slot free
+# for the admin (dash.entuned.co), since each repo can publish only one Pages site.
+#
+# Required Daniel-managed secrets / vars:
+#   secret: DASHBOARD_DEPLOY_TOKEN  — fine-grained (or classic) PAT with
+#                                     contents:write on danielfox296/entuned-0.3-dashboard
+#   var:    VITE_API_URL            — already set at the repo level (e.g. https://api.entuned.co)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/dashboard/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/deploy-dashboard.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Don't queue multiple deploys against the same target repo.
+concurrency:
+  group: dashboard-pages
+  cancel-in-progress: true
+
+# Match the Node-24 forced-cutover env that the existing pages.yml workflow
+# uses for its third-party JS actions.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build-and-publish-dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build dashboard
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        run: pnpm --filter @entuned/dashboard build
+      - name: Stage dashboard publish dir
+        run: |
+          mkdir -p publish
+          cp -R apps/dashboard/dist/. publish/
+          # CNAME is also bundled inside apps/dashboard/public/ so vite copies
+          # it into dist; we re-write it here defensively in case Pages strips
+          # it on a force-orphan publish.
+          echo "app.entuned.co" > publish/CNAME
+          touch publish/.nojekyll
+          # SPA fallback: GitHub Pages serves 404.html for unknown paths, so
+          # mirror index.html into 404.html so client-side routing works on
+          # deep links (e.g. /account, /welcome?session=...).
+          cp publish/index.html publish/404.html
+      - name: Push to entuned-0.3-dashboard
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.DASHBOARD_DEPLOY_TOKEN }}
+          external_repository: danielfox296/entuned-0.3-dashboard
+          publish_branch: main
+          publish_dir: ./publish
+          force_orphan: true
+          commit_message: "deploy dashboard from entuned-0.3@${{ github.sha }}"
+          user_name: "github-actions[bot]"
+          user_email: "41898282+github-actions[bot]@users.noreply.github.com"

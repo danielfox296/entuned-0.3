@@ -10,6 +10,7 @@
     "dev:server": "pnpm --filter server dev",
     "dev:player": "pnpm --filter player dev",
     "dev:admin": "pnpm --filter admin dev",
+    "dev:dashboard": "pnpm --filter @entuned/dashboard dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck"
   }

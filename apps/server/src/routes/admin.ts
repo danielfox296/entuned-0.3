@@ -12,6 +12,8 @@
 //   GET    /admin/lyric-prompts                  — { draft: { latest, history }, edit: { latest, history } }
 //   POST   /admin/lyric-prompts/draft            — new draft prompt version
 //   POST   /admin/lyric-prompts/edit             — new edit prompt version
+//   POST   /admin/email/preview                  — render or test-send an email template
+//                                                  (gated by INTERNAL_ADMIN_TOKEN, header x-admin-token)
 
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
@@ -28,6 +30,8 @@ import { draftHooks, getOrSeedHookWriterPrompt, buildHookDrafterContext } from '
 import { suggestReferenceTracks } from '../lib/ref-tracks/suggester.js'
 import { resolvePreview } from '../lib/ref-tracks/preview.js'
 import { parseRetailNextXls } from '../lib/retailnext/parser.js'
+import { renderTemplate, sendTemplate } from '../lib/email.js'
+import { TEMPLATES, type TemplateName } from '../email-templates/index.js'
 
 interface AuthedOp {
   operatorId: string
@@ -2854,5 +2858,52 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       prisma.adAsset.update({ where: { id: swapWith.id }, data: { position: asset.position } }),
     ])
     return { ok: true }
+  })
+
+  // ----- Email template preview / test send -----
+  //
+  // Gated by INTERNAL_ADMIN_TOKEN (header: x-admin-token), separate from the
+  // operator-bearer flow other admin routes use. Lets an internal user render
+  // any template and either inspect the HTML or fire a test send.
+  //
+  // POST /admin/email/preview
+  //   body: { template: string, props: object, sendTo?: string }
+  //   - sendTo absent → returns { subject, html }
+  //   - sendTo present → sends via Resend (or logs in dev) and returns the result
+
+  const EmailPreviewBody = z.object({
+    template: z.string().min(1),
+    props: z.record(z.any()).default({}),
+    sendTo: z.string().email().optional(),
+  })
+
+  app.post('/email/preview', async (req, reply) => {
+    const expected = process.env.INTERNAL_ADMIN_TOKEN
+    if (!expected) return reply.code(503).send({ error: 'internal_admin_token_unset' })
+    const provided = req.headers['x-admin-token']
+    if (typeof provided !== 'string' || provided !== expected) {
+      return reply.code(401).send({ error: 'unauthorized' })
+    }
+
+    const parsed = EmailPreviewBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+
+    const { template, props, sendTo } = parsed.data
+    if (!(template in TEMPLATES)) {
+      return reply.code(400).send({ error: 'unknown_template', available: Object.keys(TEMPLATES) })
+    }
+    const name = template as TemplateName
+
+    try {
+      if (sendTo) {
+        const result = await sendTemplate(name, sendTo, props)
+        if (!result.ok) return reply.code(502).send({ error: 'send_failed', message: result.error })
+        return { ok: true, sent: true, to: sendTo, dryRun: result.dryRun ?? false, id: result.id ?? null }
+      }
+      const { subject, html } = renderTemplate(name, props)
+      return { ok: true, sent: false, template: name, subject, html }
+    } catch (e: any) {
+      return reply.code(500).send({ error: 'render_failed', message: e?.message ?? 'unknown' })
+    }
   })
 }
