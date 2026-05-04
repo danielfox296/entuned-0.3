@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
 import { Card } from '../ui/Card.js'
+import { LockScreen } from '../ui/LockScreen.js'
 import { Button, Input } from '../ui/index.js'
+import { TIER_RANK } from '../api.js'
+import { useTier } from '../lib/tier.jsx'
 
-// /intake — first-run brand intake. Seven Core questions, placeholder until
-// the real wizard UI lands. Field labels mirror the IcpRow shape from the
-// admin app's api.ts so the eventual server payload is straightforward.
+// /intake — Brand intake form. Free users see LockScreen. Core+ see the form
+// (form persistence ships in v1.5; v1 keeps the placeholder draft behavior).
 const QUESTIONS: { key: string; label: string; hint: string }[] = [
   { key: 'name',                label: 'Audience name',          hint: 'e.g. "Park Meadows lunch crowd"' },
   { key: 'ageRange',            label: 'Age range',              hint: 'e.g. 28–45' },
@@ -18,8 +20,27 @@ const QUESTIONS: { key: string; label: string; hint: string }[] = [
 ]
 
 export function IcpIntake() {
-  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const { tier } = useTier()
 
+  if (TIER_RANK[tier] < TIER_RANK.core) {
+    return (
+      <Layout>
+        <LockScreen
+          tabName="Brand Intake"
+          valueLine="Music tailored to your specific customer, not the average shopper."
+          requiredTier="core"
+          currentTier={tier}
+          detail="Seven questions about who actually walks in. We turn those answers into a private music library that fits your audience — instead of falling back on the generic mood pool."
+        />
+      </Layout>
+    )
+  }
+
+  return <IcpIntakeForm />
+}
+
+function IcpIntakeForm() {
+  const [answers, setAnswers] = useState<Record<string, string>>({})
   const update = (k: string, v: string) =>
     setAnswers((a) => ({ ...a, [k]: v }))
 
@@ -71,7 +92,7 @@ export function IcpIntake() {
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
             <Button variant="ghost" onClick={() => setAnswers({})}>Reset</Button>
-            <Button onClick={() => { /* wired in later phase */ }}>
+            <Button onClick={() => { /* wired in v1.5 */ }}>
               Save and continue
             </Button>
           </div>

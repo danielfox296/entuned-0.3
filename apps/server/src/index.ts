@@ -11,6 +11,7 @@ import { authRoutes } from './routes/auth.js'
 import { loginRoutes } from './routes/login.js'
 import { adminRoutes } from './routes/admin.js'
 import { billingRoutes } from './routes/billing.js'
+import { meRoutes } from './routes/me.js'
 import { sessionPlugin } from './lib/session.js'
 
 const app = Fastify({
@@ -60,6 +61,7 @@ await app.register(adminRoutes, { prefix: '/admin' })
 // installs its own content-type parser inside its encapsulated scope so the
 // Stripe webhook receives the raw request body for signature verification.
 await app.register(billingRoutes)
+await app.register(meRoutes, { prefix: '/me' })
 
 const port = Number(process.env.PORT ?? 3000)
 await app.listen({ port, host: '0.0.0.0' })

@@ -7,6 +7,7 @@
 // that pattern here.
 
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+export const PLAYER_URL = import.meta.env.VITE_PLAYER_URL ?? 'https://music.entuned.co'
 
 async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
@@ -31,6 +32,7 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
 // ── Types ─────────────────────────────────────────────────────────
 
 export type Role = 'owner' | 'manager' | 'staff'
+export type Tier = 'free' | 'core' | 'pro' | 'enterprise'
 
 export interface MeUser {
   id: string
@@ -59,6 +61,50 @@ export interface CheckoutSessionResponse {
   status: 'provisioned' | 'pending'
 }
 
+export interface StoreSubscriptionSummary {
+  status: string
+  currentPeriodEnd: string | null
+  cancelAtPeriodEnd: boolean
+}
+
+export interface StoreRow {
+  id: string
+  name: string
+  slug: string
+  tier: Tier
+  pausedUntil: string | null
+  subscription: StoreSubscriptionSummary | null
+}
+
+// ── Tier helpers ──────────────────────────────────────────────────
+
+export const TIER_RANK: Record<Tier, number> = {
+  free: 0,
+  core: 1,
+  pro: 2,
+  enterprise: 3,
+}
+
+export const TIER_LABEL: Record<Tier, string> = {
+  free: 'Essentials',
+  core: 'Core',
+  pro: 'Pro',
+  enterprise: 'Enterprise',
+}
+
+export const TIER_PRICE: Record<Tier, string> = {
+  free: 'Free',
+  core: '$99 / location / month',
+  pro: '$399 / location / month',
+  enterprise: 'Custom',
+}
+
+/** Highest-rank tier across a Client's stores. Returns 'free' for empty input. */
+export function highestTier(stores: StoreRow[]): Tier {
+  if (stores.length === 0) return 'free'
+  return stores.reduce<Tier>((best, s) => (TIER_RANK[s.tier] > TIER_RANK[best] ? s.tier : best), 'free')
+}
+
 // ── API methods ───────────────────────────────────────────────────
 
 export const api = {
@@ -84,4 +130,25 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ sessionId }),
     }),
+
+  // ── /me/* (customer-facing, scoped to the authed Client) ──
+  meStores: () => req<{ stores: StoreRow[] }>('/me/stores'),
+
+  // ── Billing actions ──
+  billingPortal: () => req<{ url: string }>('/billing/portal'),
+  pauseStore: (storeId: string) =>
+    req<{ ok: true; pausedUntil: string }>('/billing/pause', {
+      method: 'POST',
+      body: JSON.stringify({ storeId }),
+    }),
+  resumeStore: (storeId: string) =>
+    req<{ ok: true; tier: Tier }>('/billing/resume', {
+      method: 'POST',
+      body: JSON.stringify({ storeId }),
+    }),
+
+  // Direct upgrade flow (GET-redirect endpoint on the server). The dashboard
+  // links straight to this URL; the server creates a Stripe Checkout session
+  // and 303s the browser onward.
+  checkoutUrl: (tier: 'core' | 'pro') => `${API_URL}/billing/checkout?tier=${tier}`,
 }

@@ -1,20 +1,26 @@
+import { useState } from 'react'
+import { ExternalLink } from 'lucide-react'
 import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
 import { Card, EmptyState } from '../ui/Card.js'
 import { Button } from '../ui/index.js'
+import { api, TIER_LABEL, TIER_RANK, PLAYER_URL } from '../api.js'
 import { useAuth } from '../lib/auth.jsx'
+import { useTier } from '../lib/tier.jsx'
 
-// /account — billing portal link, indemnification cert download, locations summary.
-// All actions stubbed; wire to server endpoints in a follow-up phase.
+// /account — profile, billing portal, indemnification cert, sign-out.
+// Profile fields are read-only in v1; rename ships in v1.5.
 export function Account() {
-  const { user, account, role } = useAuth()
+  const { user, account } = useAuth()
+  const { stores, tier } = useTier()
+  const isPaid = TIER_RANK[tier] >= TIER_RANK.core
 
   return (
     <Layout>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{
-          fontFamily: T.heading, fontSize: 24, fontWeight: 700,
-          color: T.text, letterSpacing: '-0.02em',
+          fontFamily: T.heading, fontSize: 28, fontWeight: 700,
+          color: T.text, letterSpacing: '-0.02em', margin: 0,
         }}>Account</h1>
       </div>
 
@@ -26,36 +32,110 @@ export function Account() {
             <span style={{ color: T.textDim }}>Company</span>
             <span style={{ color: T.text }}>{account?.companyName ?? '—'}</span>
             <span style={{ color: T.textDim }}>Plan</span>
-            <span style={{ color: T.text }}>{account?.plan ?? '—'}</span>
-            <span style={{ color: T.textDim }}>Role</span>
-            <span style={{ color: T.text }}>{role ?? '—'}</span>
+            <span style={{ color: T.text }}>{TIER_LABEL[tier]}</span>
           </div>
         </Card>
 
         <Card title="Billing">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-            <div style={{ color: T.textMuted, fontSize: 14 }}>
-              Manage subscription, payment method, and invoices in Stripe.
+          {isPaid ? (
+            <BillingPortalRow />
+          ) : (
+            <div style={{
+              display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between', gap: 16,
+            }}>
+              <div style={{ color: T.textMuted, fontSize: 14 }}>
+                You're on the free Essentials plan. Upgrade to Core to unlock billing management,
+                pause/resume, and tailored music.
+              </div>
+              <a href={api.checkoutUrl('core')} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                background: T.accent, color: T.bg,
+                padding: '8px 14px', borderRadius: 3,
+                fontFamily: T.sans, fontSize: 14, fontWeight: 600,
+                textDecoration: 'none', whiteSpace: 'nowrap',
+              }}>Upgrade to Core</a>
             </div>
-            <Button variant="ghost">Open billing portal</Button>
-          </div>
+          )}
         </Card>
 
-        <Card title="Indemnification certificate">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-            <div style={{ color: T.textMuted, fontSize: 14 }}>
-              Proof of music-licence indemnification, ready to forward to your landlord or franchisor.
+        {isPaid && (
+          <Card title="Indemnification certificate">
+            <div style={{
+              display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between', gap: 16,
+            }}>
+              <div style={{ color: T.textMuted, fontSize: 14 }}>
+                Proof of music-licence indemnification, ready to forward to your landlord or franchisor.
+              </div>
+              <Button variant="ghost" onClick={() => alert('Cert download ships in v1.5')}>
+                Download PDF
+              </Button>
             </div>
-            <Button variant="ghost">Download PDF</Button>
-          </div>
-        </Card>
+          </Card>
+        )}
 
         <Card title="Locations">
-          <EmptyState>
-            You have no locations yet. Add one from the <strong>Locations</strong> tab.
-          </EmptyState>
+          {stores.length === 0 ? (
+            <EmptyState>
+              You have no locations yet. Add one from the <strong>Locations</strong> tab.
+            </EmptyState>
+          ) : (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {stores.map((s) => (
+                <div key={s.id} style={{
+                  display: 'flex', alignItems: 'center',
+                  justifyContent: 'space-between', gap: 12,
+                  padding: '8px 0',
+                  borderBottom: `1px solid ${T.borderSubtle}`,
+                }}>
+                  <div>
+                    <div style={{ color: T.text, fontSize: 14 }}>{s.name}</div>
+                    <div style={{ color: T.textFaint, fontSize: 12, fontFamily: T.mono }}>
+                      {PLAYER_URL}/{s.slug}
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: 10, fontWeight: 600, letterSpacing: '0.08em',
+                    color: T.accentMuted, textTransform: 'uppercase',
+                    border: `1px solid ${T.border}`, borderRadius: 3, padding: '1px 6px',
+                  }}>{TIER_LABEL[s.tier] ?? s.tier}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
       </div>
     </Layout>
+  )
+}
+
+function BillingPortalRow() {
+  const [busy, setBusy] = useState(false)
+  const open = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const { url } = await api.billingPortal()
+      window.location.href = url
+    } catch (e: any) {
+      alert(`Couldn't open billing portal: ${e?.message ?? 'unknown error'}`)
+      setBusy(false)
+    }
+  }
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center',
+      justifyContent: 'space-between', gap: 16,
+    }}>
+      <div style={{ color: T.textMuted, fontSize: 14 }}>
+        Manage subscription, payment method, and invoices in Stripe.
+      </div>
+      <Button variant="ghost" onClick={open} busy={busy}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <ExternalLink size={13} strokeWidth={2} /> Open billing portal
+        </span>
+      </Button>
+    </div>
   )
 }

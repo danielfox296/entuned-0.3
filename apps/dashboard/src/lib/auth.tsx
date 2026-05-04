@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { api, type MeResponse, type Role } from '../api.js'
+import { TierProvider } from './tier.jsx'
 
 export interface AuthState {
   user: MeResponse['user'] | null
@@ -46,5 +47,5 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   if (!user) {
     return <Navigate to="/start" replace state={{ from: location.pathname }} />
   }
-  return <>{children}</>
+  return <TierProvider>{children}</TierProvider>
 }
