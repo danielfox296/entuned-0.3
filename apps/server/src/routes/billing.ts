@@ -303,6 +303,64 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ received: true })
   })
 
+  // ----- POST /billing/checkout-session/confirm — verify provisioning after checkout -----
+  // Called by the dashboard's /welcome page once Stripe redirects back. Looks up the
+  // Subscription row created by the webhook; if the webhook hasn't landed yet (or was
+  // missed), runs handleCheckoutCompleted inline as a self-heal. Idempotent — relies
+  // on the unique constraint on stripeSubscriptionId to safely race with the webhook.
+  app.post('/billing/checkout-session/confirm', async (req, reply) => {
+    const body = req.body as { sessionId?: string } | undefined
+    const sessionId = body?.sessionId
+    if (!sessionId || typeof sessionId !== 'string' || !sessionId.startsWith('cs_')) {
+      return reply.code(400).send({ error: 'invalid_session_id' })
+    }
+
+    let session: Stripe.Checkout.Session
+    try {
+      session = await stripe.checkout.sessions.retrieve(sessionId)
+    } catch (err: any) {
+      req.log.warn({ err, sessionId }, 'stripe_session_retrieve_failed')
+      return reply.code(404).send({ error: 'session_not_found' })
+    }
+
+    const subscriptionId =
+      typeof session.subscription === 'string' ? session.subscription : session.subscription?.id
+    if (!subscriptionId) {
+      return reply.send({ status: 'pending', account: null })
+    }
+
+    let subRow = await (prisma as any).subscription.findUnique({
+      where: { stripeSubscriptionId: subscriptionId },
+      include: { location: { include: { account: true } } },
+    })
+
+    if (!subRow) {
+      try {
+        await handleCheckoutCompleted(session)
+      } catch (err: any) {
+        // Webhook may have raced and won; the unique constraint trip is fine.
+        if (err?.code !== 'P2002') {
+          req.log.error({ err, sessionId }, 'checkout_confirm_provision_failed')
+          return reply.code(500).send({ error: 'provision_failed' })
+        }
+      }
+      subRow = await (prisma as any).subscription.findUnique({
+        where: { stripeSubscriptionId: subscriptionId },
+        include: { location: { include: { account: true } } },
+      })
+    }
+
+    if (!subRow?.location?.account) {
+      return reply.send({ status: 'pending', account: null })
+    }
+
+    const a = subRow.location.account
+    return reply.send({
+      status: 'provisioned',
+      account: { id: a.id, name: a.name },
+    })
+  })
+
   // ----- GET /billing/portal — Stripe Customer Portal session -----
   app.get('/billing/portal', { preHandler: requireAuth }, async (req, reply) => {
     const ctx = getAccount(req, reply)
