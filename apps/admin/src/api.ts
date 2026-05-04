@@ -889,7 +889,7 @@ export const api = {
   // --- Catalogue ---
 
   lineageRows: (
-    params: { icpId?: string; outcomeId?: string; hookId?: string; active?: 'all' | 'true' | 'false'; limit?: number; offset?: number },
+    params: { icpId?: string; outcomeId?: string; hookId?: string; active?: 'all' | 'true' | 'false'; general?: 'hide' | 'only' | 'all'; limit?: number; offset?: number },
     token: string,
   ) => {
     const qs = new URLSearchParams()
@@ -897,6 +897,7 @@ export const api = {
     if (params.outcomeId) qs.set('outcomeId', params.outcomeId)
     if (params.hookId) qs.set('hookId', params.hookId)
     if (params.active) qs.set('active', params.active)
+    if (params.general) qs.set('general', params.general)
     if (params.limit) qs.set('limit', String(params.limit))
     if (params.offset) qs.set('offset', String(params.offset))
     const q = qs.toString() ? `?${qs.toString()}` : ''

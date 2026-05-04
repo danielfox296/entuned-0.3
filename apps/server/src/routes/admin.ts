@@ -1115,6 +1115,15 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     else if (q.active === 'false') where.active = false
     // active === 'all' or unset → no filter
 
+    // general-pool filter: 'hide' (default — ICP rows only), 'only' (general
+    // rows only), 'all' (both). General-pool rows are the parallel
+    // LineageRows created by the free-tier checkbox; admins usually browse
+    // ICP rows and don't need to see the duplicates.
+    const general = q.general ?? 'hide'
+    if (general === 'hide') where.icpId = where.icpId ?? { not: null }
+    else if (general === 'only') where.icpId = null
+    // 'all' → no filter
+
     const [rows, total] = await Promise.all([
       prisma.lineageRow.findMany({
         where,

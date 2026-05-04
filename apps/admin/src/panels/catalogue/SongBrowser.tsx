@@ -5,6 +5,7 @@ import { T } from '../../tokens.js'
 import { Button, PanelHeader, S } from '../../ui/index.js'
 
 type ActiveFilter = 'all' | 'true' | 'false'
+type GeneralFilter = 'hide' | 'only' | 'all'
 const PAGE_SIZE = 50
 
 interface IcpOption { id: string; name: string; clientName: string | null; storeName: string | null }
@@ -28,6 +29,7 @@ export function SongBrowser({ defaultActive = 'true' as ActiveFilter, headerLabe
   const [icpId, setIcpId] = useState<string>('')
   const [outcomeId, setOutcomeId] = useState<string>('')
   const [active, setActive] = useState<ActiveFilter>(defaultActive)
+  const [general, setGeneral] = useState<GeneralFilter>('hide')
   const [page, setPage] = useState(0)
   const [err, setErr] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -40,6 +42,7 @@ export function SongBrowser({ defaultActive = 'true' as ActiveFilter, headerLabe
         icpId: icpId || undefined,
         outcomeId: outcomeId || undefined,
         active,
+        general,
         limit: PAGE_SIZE,
         offset: p * PAGE_SIZE,
       }, token)
@@ -59,7 +62,7 @@ export function SongBrowser({ defaultActive = 'true' as ActiveFilter, headerLabe
     })))).catch(() => {})
   }, [])
 
-  useEffect(() => { void reload(0) }, [icpId, outcomeId, active])
+  useEffect(() => { void reload(0) }, [icpId, outcomeId, active, general])
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
@@ -69,8 +72,8 @@ export function SongBrowser({ defaultActive = 'true' as ActiveFilter, headerLabe
 
       <Filters
         icps={icps} outcomes={outcomes}
-        icpId={icpId} outcomeId={outcomeId} active={active}
-        onIcp={setIcpId} onOutcome={setOutcomeId} onActive={setActive}
+        icpId={icpId} outcomeId={outcomeId} active={active} general={general}
+        onIcp={setIcpId} onOutcome={setOutcomeId} onActive={setActive} onGeneral={setGeneral}
       />
 
       {err && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</div>}
@@ -108,10 +111,11 @@ export function SongBrowser({ defaultActive = 'true' as ActiveFilter, headerLabe
   )
 }
 
-function Filters({ icps, outcomes, icpId, outcomeId, active, onIcp, onOutcome, onActive }: {
+function Filters({ icps, outcomes, icpId, outcomeId, active, general, onIcp, onOutcome, onActive, onGeneral }: {
   icps: IcpOption[] | null; outcomes: OutcomeRowFull[] | null
-  icpId: string; outcomeId: string; active: ActiveFilter
-  onIcp: (v: string) => void; onOutcome: (v: string) => void; onActive: (v: ActiveFilter) => void
+  icpId: string; outcomeId: string; active: ActiveFilter; general: GeneralFilter
+  onIcp: (v: string) => void; onOutcome: (v: string) => void
+  onActive: (v: ActiveFilter) => void; onGeneral: (v: GeneralFilter) => void
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -132,6 +136,21 @@ function Filters({ icps, outcomes, icpId, outcomeId, active, onIcp, onOutcome, o
               padding: '5px 12px', borderRadius: 4,
               fontFamily: T.mono, fontSize: 14, cursor: 'pointer',
             }}>{label}</button>
+          )
+        })}
+      </div>
+      <span style={{ fontSize: 13, color: T.textDim, fontFamily: T.mono, textTransform: 'uppercase' }}>free</span>
+      <div style={{ display: 'flex', gap: 4 }}>
+        {(['hide', 'only', 'all'] as const).map((k) => {
+          const on = general === k
+          return (
+            <button key={k} onClick={() => onGeneral(k)} style={{
+              background: on ? T.surfaceRaised : 'transparent',
+              border: `1px solid ${on ? T.accent : T.border}`,
+              color: on ? T.accent : T.textMuted,
+              padding: '5px 12px', borderRadius: 4,
+              fontFamily: T.mono, fontSize: 14, cursor: 'pointer',
+            }} title={k === 'hide' ? 'hide free-pool rows' : k === 'only' ? 'show only free-pool rows' : 'show both'}>{k}</button>
           )
         })}
       </div>
