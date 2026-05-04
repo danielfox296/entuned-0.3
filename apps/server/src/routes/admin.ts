@@ -1132,7 +1132,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     ])
 
     // Resolve ICP names + client/store context in one shot.
-    const icpIds = [...new Set(rows.map((r) => r.icpId))]
+    // icpId is nullable (general-pool LineageRows have icp_id=NULL) — filter before query.
+    const icpIds = [...new Set(rows.map((r) => r.icpId).filter((i): i is string => i !== null))]
     const icps = icpIds.length === 0 ? [] : await prisma.iCP.findMany({
       where: { id: { in: icpIds } },
       select: {
@@ -1146,7 +1147,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return {
       total, limit, offset,
       rows: rows.map((r) => {
-        const i = icpById.get(r.icpId)
+        const i = r.icpId ? icpById.get(r.icpId) : undefined
         return {
           id: r.id,
           active: r.active,
@@ -1567,14 +1568,14 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const poolByOutcome = new Map(lineageCounts.map((c) => [c.outcomeId, c._count._all]))
     const outcomeById = new Map(outcomes.map((o) => [o.id, o]))
 
-    const queueHookIds = [...new Set(hendrix.queue.map((q) => q.hookId).filter(Boolean))]
+    const queueHookIds = [...new Set(hendrix.queue.map((q) => q.hookId).filter((h): h is string => h !== null))]
     const queueHooks = queueHookIds.length
       ? await prisma.hook.findMany({ where: { id: { in: queueHookIds } }, select: { id: true, text: true } })
       : []
     const hookTextById = new Map(queueHooks.map((h) => [h.id, h.text]))
     const queueWithTitles = hendrix.queue.map((q) => ({
       ...q,
-      hookText: hookTextById.get(q.hookId) ?? null,
+      hookText: q.hookId ? (hookTextById.get(q.hookId) ?? null) : null,
       outcomeTitle: outcomeById.get(q.outcomeId)?.title ?? null,
       outcomeDisplayTitle: outcomeById.get(q.outcomeId)?.displayTitle ?? null,
     }))

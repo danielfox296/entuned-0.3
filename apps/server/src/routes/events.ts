@@ -61,7 +61,10 @@ export const eventsRoutes: FastifyPluginAsync = async (app) => {
         where: { songId: { in: songIds } },
         select: { songId: true, hookId: true },
       })
-      hookBySong = new Map(rows.map((r) => [r.songId, r.hookId]))
+      // hookId is nullable on LineageRow now (general pool); skip null entries.
+      for (const r of rows) {
+        if (r.hookId) hookBySong.set(r.songId, r.hookId)
+      }
     }
 
     const created = await prisma.playbackEvent.createMany({

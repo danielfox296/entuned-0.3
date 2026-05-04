@@ -5,6 +5,7 @@ import multipart from '@fastify/multipart'
 import fastifyCookie from '@fastify/cookie'
 import { healthRoutes } from './routes/health.js'
 import { hendrixRoutes } from './routes/hendrix.js'
+import { storeRoutes } from './routes/stores.js'
 import { eventsRoutes } from './routes/events.js'
 import { authRoutes } from './routes/auth.js'
 import { loginRoutes } from './routes/login.js'
@@ -44,6 +45,7 @@ await app.register(fastifyCookie)
 await app.register(sessionPlugin)
 await app.register(healthRoutes)
 await app.register(hendrixRoutes, { prefix: '/hendrix' })
+await app.register(storeRoutes, { prefix: '/stores' })
 await app.register(eventsRoutes, { prefix: '/events' })
 await app.register(authRoutes, { prefix: '/auth' })
 // Customer dashboard auth routes. Mounted at `/login` (NOT `/auth`) to avoid a route

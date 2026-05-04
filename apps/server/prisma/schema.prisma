@@ -588,17 +588,20 @@ model LineageRow {
   id             String   @id @default(uuid()) @db.Uuid
   songId         String   @map("song_id") @db.Uuid
   r2Url          String   @map("r2_url")
-  icpId          String   @map("icp_id") @db.Uuid
+  // icpId nullable: rows with icp_id=NULL belong to the general pool that
+  // serves free-tier Stores (no ICPs assigned). hookId follows because Hooks
+  // FK to ICPs — general songs have no associated Hook. Added 2026-05-04.
+  icpId          String?  @map("icp_id") @db.Uuid
   outcomeId      String   @map("outcome_id") @db.Uuid
   outcomeVersion Int?     @map("outcome_version") // scope stamp — required for Kraftwerk baseline isolation
-  hookId         String   @map("hook_id") @db.Uuid
+  hookId         String?  @map("hook_id") @db.Uuid
   songSeedId     String?  @map("song_seed_id") @db.Uuid
   active         Boolean  @default(true)
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   song     Song      @relation(fields: [songId], references: [id])
   outcome  Outcome   @relation(fields: [outcomeId], references: [id])
-  hook     Hook      @relation(fields: [hookId], references: [id])
+  hook     Hook?     @relation(fields: [hookId], references: [id])
   songSeed SongSeed? @relation(fields: [songSeedId], references: [id])
 
   @@index([icpId, outcomeId, active])

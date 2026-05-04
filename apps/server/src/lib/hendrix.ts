@@ -11,9 +11,11 @@ export interface QueueItem {
   type?: 'song' | 'ad'
   songId: string
   audioUrl: string
-  hookId: string
+  // hookId / icpId are nullable: rows from the general pool (free-tier
+  // Stores with no ICPs) have neither. icpName/hookText follow.
+  hookId: string | null
   outcomeId: string
-  icpId: string
+  icpId: string | null
   icpName: string | null
   title: string | null
   hookText: string | null
@@ -43,9 +45,9 @@ interface PoolRow {
   id: string
   songId: string
   r2Url: string
-  hookId: string
+  hookId: string | null
   outcomeId: string
-  icpId: string
+  icpId: string | null
 }
 
 async function fetchPool(icpId: string, outcomeId: string): Promise<PoolRow[]> {
@@ -63,6 +65,21 @@ async function fetchAllPool(icpIds: string[]): Promise<PoolRow[]> {
   })
 }
 
+// General-pool fetchers (icpId IS NULL) — free-tier Stores with no ICPs.
+async function fetchGeneralPool(outcomeId: string): Promise<PoolRow[]> {
+  return prisma.lineageRow.findMany({
+    where: { icpId: null, outcomeId, active: true },
+    select: { id: true, songId: true, r2Url: true, hookId: true, outcomeId: true, icpId: true },
+  })
+}
+
+async function fetchAllGeneralPool(): Promise<PoolRow[]> {
+  return prisma.lineageRow.findMany({
+    where: { icpId: null, active: true },
+    select: { id: true, songId: true, r2Url: true, hookId: true, outcomeId: true, icpId: true },
+  })
+}
+
 async function applyFilters(
   storeId: string,
   pool: PoolRow[],
@@ -76,7 +93,8 @@ async function applyFilters(
   if (pool.length === 0) return pool
 
   const songIds = [...new Set(pool.map((r) => r.songId))]
-  const hookIds = [...new Set(pool.map((r) => r.hookId))]
+  // hookId can be null for general-pool rows; filter before sending to Prisma.
+  const hookIds = [...new Set(pool.map((r) => r.hookId).filter((h): h is string => h !== null))]
 
   const noRepeatCutoff = new Date(now.getTime() - rules.noRepeatWindowMinutes * 60 * 1000)
   const siblingCutoff = new Date(now.getTime() - rules.siblingSpacingMinutes * 60 * 1000)
@@ -128,7 +146,9 @@ async function applyFilters(
 
   return pool.filter((r) => {
     if (applyNoRepeat && noRepeatBlock.has(r.songId)) return false
-    if (applySiblingSpacing && siblingBlock.has(r.hookId)) return false
+    // Sibling-spacing only applies to rows with a hook (paid pools); general
+    // pool rows have null hookId and skip this filter.
+    if (applySiblingSpacing && r.hookId && siblingBlock.has(r.hookId)) return false
     if (applyDailyCap && (dailyCount.get(r.songId) ?? 0) >= rules.dailyCap) return false
     return true
   })
@@ -186,6 +206,12 @@ function dedupeByHook(pool: PoolRow[]): PoolRow[] {
   const seen = new Set<string>()
   const out: PoolRow[] = []
   for (const r of pool) {
+    // Rows with no hook (general pool) skip the dedupe — every general row
+    // is independently selectable since there's no sibling group to collapse.
+    if (r.hookId === null) {
+      out.push(r)
+      continue
+    }
     if (seen.has(r.hookId)) continue
     seen.add(r.hookId)
     out.push(r)
@@ -197,15 +223,20 @@ type PlaybackRules = { siblingSpacingMinutes: number; noRepeatWindowMinutes: num
 
 async function hydrateQueue(top: PoolRow[]): Promise<QueueItem[]> {
   const lineageIds = top.map((r) => r.id)
-  const hookIds = [...new Set(top.map((r) => r.hookId))]
-  const icpIds = [...new Set(top.map((r) => r.icpId))]
+  // Filter nulls before sending to Prisma — general-pool rows have null hook/icp.
+  const hookIds = [...new Set(top.map((r) => r.hookId).filter((h): h is string => h !== null))]
+  const icpIds  = [...new Set(top.map((r) => r.icpId).filter((i): i is string => i !== null))]
   const [lineageMeta, hookMeta, icpMeta] = await Promise.all([
     prisma.lineageRow.findMany({
       where: { id: { in: lineageIds } },
       select: { id: true, songSeed: { select: { title: true } } },
     }),
-    prisma.hook.findMany({ where: { id: { in: hookIds } }, select: { id: true, text: true } }),
-    prisma.iCP.findMany({ where: { id: { in: icpIds } }, select: { id: true, name: true } }),
+    hookIds.length === 0
+      ? Promise.resolve([] as { id: string; text: string }[])
+      : prisma.hook.findMany({ where: { id: { in: hookIds } }, select: { id: true, text: true } }),
+    icpIds.length === 0
+      ? Promise.resolve([] as { id: string; name: string }[])
+      : prisma.iCP.findMany({ where: { id: { in: icpIds } }, select: { id: true, name: true } }),
   ])
   const titleByLineage = new Map(lineageMeta.map((m) => [m.id, m.songSeed?.title ?? null]))
   const textByHook = new Map(hookMeta.map((h) => [h.id, h.text]))
@@ -216,9 +247,9 @@ async function hydrateQueue(top: PoolRow[]): Promise<QueueItem[]> {
     hookId: r.hookId,
     outcomeId: r.outcomeId,
     icpId: r.icpId,
-    icpName: nameByIcp.get(r.icpId) ?? null,
+    icpName: r.icpId ? (nameByIcp.get(r.icpId) ?? null) : null,
     title: titleByLineage.get(r.id) ?? null,
-    hookText: textByHook.get(r.hookId) ?? null,
+    hookText: r.hookId ? (textByHook.get(r.hookId) ?? null) : null,
   }))
 }
 
@@ -320,8 +351,38 @@ export async function nextQueue(
     dailyCap: 3,
   }
 
+  // Free-tier path: Store has no ICPs → play from the general pool
+  // (LineageRows where icp_id IS NULL). Daniel curates this pool by hand.
   if (store.icps.length === 0) {
-    return { storeId, decidedAt, activeOutcome: null, queue: [], fallbackTier: 'none', reason: 'no_pool', roomLoudnessSamplingEnabled: roomLoudness }
+    if (opts.allOutcomes) {
+      const pool = dedupeBySong(await fetchAllGeneralPool())
+      const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, store.timezone, now)
+      return {
+        storeId,
+        decidedAt,
+        activeOutcome: null,
+        queue: await injectAdIfDue(storeId, queue, now),
+        fallbackTier,
+        reason: queue.length === 0 ? 'no_pool' : null,
+        roomLoudnessSamplingEnabled: roomLoudness,
+      }
+    }
+    const resolvedFree = await resolveActiveOutcome(storeId, now)
+    const pool = resolvedFree
+      ? dedupeBySong(await fetchGeneralPool(resolvedFree.outcomeId))
+      : dedupeBySong(await fetchAllGeneralPool())
+    // If outcome-restricted pool is empty, fall back to the all-outcomes general pool.
+    const finalPool = pool.length === 0 ? dedupeBySong(await fetchAllGeneralPool()) : pool
+    const { queue, fallbackTier } = await buildQueueFromPool(storeId, finalPool, rules, store.timezone, now)
+    return {
+      storeId,
+      decidedAt,
+      activeOutcome: resolvedFree ? await serializeOutcome(resolvedFree) : null,
+      queue: await injectAdIfDue(storeId, queue, now),
+      fallbackTier,
+      reason: queue.length === 0 ? 'no_pool' : null,
+      roomLoudnessSamplingEnabled: roomLoudness,
+    }
   }
 
   const icpIds = store.icps.map((i) => i.id)
