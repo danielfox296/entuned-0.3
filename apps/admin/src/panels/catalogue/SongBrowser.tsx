@@ -227,10 +227,14 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
           title={row.songTitle ?? undefined}
         >{row.songTitle ?? '(untitled)'}</span>
       </span>
-      <span style={{ color: T.text, fontFamily: T.sans, ...trunc }} title={row.hook.text}>{row.hook.text}</span>
+      <span style={{ color: T.text, fontFamily: T.sans, ...trunc }} title={row.hook?.text ?? '— general pool —'}>
+        {row.hook?.text ?? <span style={{ color: T.textDim, fontStyle: 'italic' }}>— general pool —</span>}
+      </span>
       <span style={{ color: T.textMuted, ...trunc }}>{row.outcome.displayTitle ?? row.outcome.title}</span>
       <span style={{ ...trunc, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500, ...trunc }}>{row.icpName ?? row.icpId.slice(0, 8)}</span>
+        <span style={{ color: T.text, fontFamily: T.sans, fontWeight: 500, ...trunc }}>
+          {row.icpName ?? (row.icpId ? row.icpId.slice(0, 8) : <span style={{ color: T.textDim, fontStyle: 'italic' }}>free tier</span>)}
+        </span>
         {(row.clientName || row.storeName) && (
           <span style={{ color: T.textDim, fontFamily: T.mono, fontSize: 12, ...trunc }}>
             {[row.clientName, row.storeName].filter(Boolean).join(' · ')}
