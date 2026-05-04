@@ -13,6 +13,7 @@ import { OAuth2Client, CodeChallengeMethod } from 'google-auth-library'
 import { prisma } from '../db.js'
 import { sendMagicLink } from '../lib/email.js'
 import { clearSessionCookie, requireAuth, setSessionCookie } from '../lib/session.js'
+import { ensureFreeAccountForUser } from '../lib/account.js'
 
 const MAGIC_LINK_TTL_MS = 15 * 60 * 1000 // 15 minutes
 const MAGIC_LINK_TOKEN_BYTES = 32
@@ -85,14 +86,15 @@ interface GoogleUserinfo {
 async function findOrCreateUserByEmail(email: string, name?: string | null): Promise<{ id: string; email: string; name: string | null }> {
   const normalized = email.trim().toLowerCase()
   const existing = await prisma.user.findUnique({ where: { email: normalized } })
-  if (existing) {
-    await prisma.user.update({ where: { id: existing.id }, data: { lastLoginAt: new Date() } })
-    return { id: existing.id, email: existing.email, name: existing.name }
-  }
-  const created = await prisma.user.create({
-    data: { email: normalized, name: name ?? null, lastLoginAt: new Date() },
-  })
-  return { id: created.id, email: created.email, name: created.name }
+  const user = existing
+    ? await prisma.user.update({ where: { id: existing.id }, data: { lastLoginAt: new Date() } })
+    : await prisma.user.create({
+        data: { email: normalized, name: name ?? null, lastLoginAt: new Date() },
+      })
+  // Free-tier provisioning: every signed-in user gets an Account + Location
+  // (idempotent — backfills users that pre-date this change).
+  await ensureFreeAccountForUser(user.id, normalized)
+  return { id: user.id, email: user.email, name: user.name }
 }
 
 // Google OAuth handlers — defined but NOT registered in v1.
