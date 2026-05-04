@@ -68,7 +68,6 @@ export function Start() {
               )}
             </form>
 
-            {/* TODO(google-oauth): re-enable when OAuth credentials are configured.
             <div style={{
               display: 'flex', alignItems: 'center', gap: 10,
               margin: '20px 0', color: T.textFaint, fontSize: 12,
@@ -93,7 +92,6 @@ export function Start() {
             >
               Continue with Google
             </a>
-            */}
           </>
         )}
       </div>

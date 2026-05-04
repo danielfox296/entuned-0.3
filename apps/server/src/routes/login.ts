@@ -250,13 +250,8 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
     return reply.redirect(`${appUrl()}/`, 302)
   })
 
-  // TODO(google-oauth): re-enable when OAuth credentials are configured.
-  // Handlers `googleStartHandler` and `googleCallbackHandler` are defined above
-  // but intentionally NOT registered in v1. Re-enable by uncommenting:
-  // app.get('/google', googleStartHandler)
-  // app.get('/google/callback', googleCallbackHandler)
-  void googleStartHandler
-  void googleCallbackHandler
+  app.get('/google', googleStartHandler)
+  app.get('/google/callback', googleCallbackHandler)
 
   // ----- POST /logout -----
   app.post('/logout', async (_req, reply) => {
