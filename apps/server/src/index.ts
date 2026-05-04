@@ -29,7 +29,13 @@ app.addHook('preSerialization', async (_req, _reply, payload) => {
   return JSON.parse(JSON.stringify(payload, (_k, v) => typeof v === 'bigint' ? Number(v) : v))
 })
 
-await app.register(cors, { origin: true })
+// `credentials: true` is required so browsers attach the session cookie on
+// cross-origin fetches from app.entuned.co → api.entuned.co. With it, the
+// CORS spec also requires Access-Control-Allow-Origin to be a specific
+// origin (not `*`); `origin: true` reflects the request origin, which
+// satisfies that. Without credentials:true, every dashboard fetch with
+// `credentials: 'include'` is blocked client-side ("Failed to fetch").
+await app.register(cors, { origin: true, credentials: true })
 await app.register(rateLimit, { global: false })
 await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024 } })
 // Cookie plugin registered at app scope so reply.setCookie is available to all routes.
