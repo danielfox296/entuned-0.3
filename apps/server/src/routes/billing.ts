@@ -558,18 +558,44 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
     data: { stripeCustomerId: customerId },
   }).catch(() => undefined)
 
-  // 2) Store with auto slug.
-  const baseName = client.name ?? (email ? email.split('@')[0] : 'Store')
-  const slug = await uniqueStoreSlug(baseName)
-  const store = await prisma.store.create({
-    data: {
+  // 2) Store. If this Client has an auto-provisioned free Store with no Subscription
+  //    (the one created at first sign-in), transmute it into the paid Store rather
+  //    than creating a sibling. Keeps one Client = N paid Stores per billing decision
+  //    #6 and preserves any music.entuned.co/<slug> URL the customer already shared.
+  //    Falls through to a fresh Store if there's no orphan to absorb (e.g. user already
+  //    has a paid Store and is re-checking-out for some reason).
+  const orphanFreeStore = await prisma.store.findFirst({
+    where: {
       clientId: client.id,
-      name: `${baseName} — Main`,
-      slug,
-      tier,
-      timezone: 'America/Denver',
+      tier: 'free',
+      archivedAt: null,
+      subscription: { is: null },
     },
+    orderBy: { createdAt: 'asc' },
   })
+
+  let store: { id: string; slug: string }
+  if (orphanFreeStore) {
+    store = await prisma.store.update({
+      where: { id: orphanFreeStore.id },
+      data: { tier },
+      select: { id: true, slug: true },
+    })
+  } else {
+    const baseName = client.name ?? (email ? email.split('@')[0] : 'Store')
+    const newSlug = await uniqueStoreSlug(baseName)
+    store = await prisma.store.create({
+      data: {
+        clientId: client.id,
+        name: `${baseName} — Main`,
+        slug: newSlug,
+        tier,
+        timezone: 'America/Denver',
+      },
+      select: { id: true, slug: true },
+    })
+  }
+  const slug = store.slug
 
   // 3) Subscription row.
   await prisma.subscription.create({
