@@ -35,6 +35,7 @@ import { renderTemplate, sendTemplate, TEMPLATE_PROPS_EXAMPLES } from '../lib/em
 import { LIFECYCLE_TEMPLATES, TEMPLATES, type TemplateName } from '../email-templates/index.js'
 import { EDITABLE_TEMPLATE_NAMES } from '../email-templates/seeds.js'
 import { runOneLifecycleDrip, runLifecycleEmails, type LifecycleDripName } from '../lib/lifecycleEmails.js'
+import { runPauseAutoResume } from '../lib/pauseAutoResume.js'
 
 interface AuthedOp {
   operatorId: string
@@ -3097,6 +3098,22 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     } catch (e: any) {
       req.log.error({ err: e }, 'admin_lifecycle_run_failed')
       return reply.code(500).send({ error: 'lifecycle_run_failed', message: e?.message ?? 'unknown' })
+    }
+  })
+
+  // POST /admin/email/pause-auto-resume/run
+  // Operator triggers the auto-resume scan on demand. Same logic the daily
+  // cron runs — finds any Store with pausedUntil <= now and flips Stripe
+  // pause_collection back off. Idempotent: a Store with pausedUntil = null
+  // is filtered out, so re-runs on already-resumed Stores are no-ops.
+  app.post('/email/pause-auto-resume/run', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    try {
+      const stats = await runPauseAutoResume()
+      return { ok: true, stats }
+    } catch (e: any) {
+      req.log.error({ err: e }, 'admin_pause_auto_resume_run_failed')
+      return reply.code(500).send({ error: 'pause_auto_resume_failed', message: e?.message ?? 'unknown' })
     }
   })
 }

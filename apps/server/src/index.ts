@@ -17,6 +17,7 @@ import { emailRoutes } from './routes/email.js'
 import { sessionPlugin } from './lib/session.js'
 import { seedEmailTemplates } from './lib/email.js'
 import { runLifecycleEmails } from './lib/lifecycleEmails.js'
+import { runPauseAutoResume } from './lib/pauseAutoResume.js'
 
 const app = Fastify({
   logger: {
@@ -79,11 +80,20 @@ try {
   app.log.error({ err }, 'email_template_seed_failed')
 }
 
-// Daily lifecycle email tick — 9am America/Denver. node-cron handles DST.
-// LIFECYCLE_DRIPS_DISABLED=1 skips registration (useful for one-off scripts /
-// CI). Each tick logs a structured summary.
+// Daily lifecycle email + pause-auto-resume tick — 9am America/Denver.
+// node-cron handles DST. LIFECYCLE_DRIPS_DISABLED=1 skips registration
+// (one-off scripts / CI). The auto-resume scan runs first so any Store whose
+// pause expired today is back on the customer's tier before the day-53
+// pauseEnding warning emails fire (they only target windows still ≥6 days out,
+// so order matters less than logging cleanly). Each tick logs structured stats.
 if (process.env.LIFECYCLE_DRIPS_DISABLED !== '1') {
   cron.schedule('0 9 * * *', async () => {
+    try {
+      const resume = await runPauseAutoResume()
+      app.log.info({ resume }, 'pause_auto_resume_tick_complete')
+    } catch (err) {
+      app.log.error({ err }, 'pause_auto_resume_tick_failed')
+    }
     try {
       const stats = await runLifecycleEmails()
       app.log.info({ stats }, 'lifecycle_drip_tick_complete')
@@ -91,7 +101,7 @@ if (process.env.LIFECYCLE_DRIPS_DISABLED !== '1') {
       app.log.error({ err }, 'lifecycle_drip_tick_failed')
     }
   }, { timezone: 'America/Denver' })
-  app.log.info('lifecycle_drip_cron_registered (daily 9am America/Denver)')
+  app.log.info('daily_cron_registered (9am America/Denver — auto-resume + lifecycle drips)')
 }
 
 const port = Number(process.env.PORT ?? 3000)

@@ -1041,6 +1041,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(drip === 'all' ? {} : { drip }),
     }, token),
+  runPauseAutoResume: (token: string) =>
+    req<{ ok: true; stats: { considered: number; resumed: number; skipped: number; errors: number } }>(
+      '/admin/email/pause-auto-resume/run',
+      { method: 'POST', body: JSON.stringify({}) },
+      token,
+    ),
 }
 
 // --- Email template types ---

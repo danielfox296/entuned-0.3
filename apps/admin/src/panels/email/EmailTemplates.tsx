@@ -52,6 +52,7 @@ export function EmailTemplates() {
 
   // Fire-now state
   const [firing, setFiring] = useState<LifecycleDripName | 'all' | null>(null)
+  const [resuming, setResuming] = useState(false)
 
   // Load list on mount
   useEffect(() => {
@@ -200,6 +201,24 @@ export function EmailTemplates() {
     }
   }
 
+  const fireAutoResume = async () => {
+    if (!token || resuming) return
+    const ok = window.confirm(
+      'Run pause auto-resume now?\n\nFinds any Store whose pause window is in the past and flips Stripe back on. Idempotent — already-resumed Stores are skipped.',
+    )
+    if (!ok) return
+    setResuming(true)
+    try {
+      const result = await api.runPauseAutoResume(token)
+      const s = result.stats
+      toast.success(`Auto-resume: ${s.resumed} resumed · ${s.skipped} skipped · ${s.errors} errors (${s.considered} considered)`)
+    } catch (e: any) {
+      toast.error(`Auto-resume failed: ${e.message ?? 'unknown'}`)
+    } finally {
+      setResuming(false)
+    }
+  }
+
   const isLifecycle = selected ? LIFECYCLE_DRIPS.includes(selected as LifecycleDripName) : false
   const editable = selected ? !!list.find((r) => r.name === selected)?.editable : false
 
@@ -229,11 +248,16 @@ export function EmailTemplates() {
           borderRadius: S.r4,
         }}>
           <div style={{ fontSize: 11, color: T.textDim, lineHeight: 1.5, marginBottom: 8 }}>
-            Lifecycle drips fire daily at 9am Mountain. Idempotent — already-sent users skipped.
+            Lifecycle drips + pause auto-resume fire daily at 9am Mountain. Idempotent.
           </div>
-          <Button variant="ghost" onClick={() => fireDrip('all')} disabled={!!firing}>
-            {firing === 'all' ? 'Firing…' : 'Fire all drips now'}
-          </Button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <Button variant="ghost" onClick={() => fireDrip('all')} disabled={!!firing}>
+              {firing === 'all' ? 'Firing…' : 'Fire all drips now'}
+            </Button>
+            <Button variant="ghost" onClick={fireAutoResume} disabled={resuming}>
+              {resuming ? 'Resuming…' : 'Run auto-resume now'}
+            </Button>
+          </div>
         </div>
       </aside>
 
