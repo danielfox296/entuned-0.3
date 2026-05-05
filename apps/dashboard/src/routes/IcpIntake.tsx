@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { ArrowRight } from 'lucide-react'
 import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
 import { LockScreen } from '../ui/LockScreen.js'
@@ -30,6 +32,10 @@ const QUESTIONS: { key: AnswerKey; label: string; example: string }[] = [
     example: 'Tone, words, music, vibes — anything that breaks the spell' },
 ]
 
+// Progressive disclosure: show these three first, reveal the rest behind
+// "Add more detail" so the form doesn't read as 7 mandatory questions.
+const BASIC_KEYS: AnswerKey[] = ['name', 'ageRange', 'location']
+
 type Answers = Record<AnswerKey, string>
 
 const EMPTY_ANSWERS: Answers = {
@@ -48,6 +54,7 @@ export function IcpIntake() {
           valueLine="Music tailored to your specific customer, not the average shopper."
           requiredTier="core"
           currentTier={tier}
+          timeToValue="Answer the questions and your music starts adapting on your floor within 24 hours."
           detail="Seven questions about who actually walks in. We turn those answers into a private music library that fits your audience — instead of falling back on the generic mood pool."
         />
       </Layout>
@@ -57,13 +64,20 @@ export function IcpIntake() {
   return <IcpIntakeForm />
 }
 
+type SaveState =
+  | { kind: 'idle' }
+  | { kind: 'saving' }
+  | { kind: 'saved'; at: number }
+
 function IcpIntakeForm() {
   const [answers, setAnswers] = useState<Answers>(EMPTY_ANSWERS)
   const [loaded, setLoaded] = useState<Answers>(EMPTY_ANSWERS)
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [saveState, setSaveState] = useState<SaveState>({ kind: 'idle' })
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [showExtended, setShowExtended] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -83,6 +97,12 @@ function IcpIntakeForm() {
           setAnswers(next)
           setLoaded(next)
           setSavedAt(r.icp.updatedAt)
+          // If any of the deeper questions already have answers, expand the
+          // extended section so the user sees their previous work.
+          const hasExtended = QUESTIONS
+            .filter((q) => !BASIC_KEYS.includes(q.key))
+            .some((q) => (next[q.key] ?? '').trim().length > 0)
+          if (hasExtended) setShowExtended(true)
         }
       })
       .catch(() => { if (!cancelled) setError('Could not load your saved intake.') })
@@ -95,14 +115,17 @@ function IcpIntakeForm() {
 
   const dirty = (Object.keys(answers) as AnswerKey[]).some((k) => answers[k] !== loaded[k])
 
-  const save = async () => {
-    if (saving) return
-    setError(null)
+  const doSave = async (opts: { silent?: boolean } = {}) => {
+    if (saveState.kind === 'saving') return
     if (!answers.name.trim()) {
-      setError('Audience name is required.')
+      // For autosave we never surface a "name required" — just skip.
+      // For explicit save we show the error.
+      if (!opts.silent) setError('Audience name is required.')
       return
     }
-    setSaving(true)
+    setError(null)
+    const wasFirstSave = !savedAt
+    setSaveState({ kind: 'saving' })
     try {
       const payload: IcpInput = {
         name: answers.name.trim(),
@@ -126,12 +149,65 @@ function IcpIntakeForm() {
       setAnswers(next)
       setLoaded(next)
       setSavedAt(icp.updatedAt)
+      setSaveState({ kind: 'saved', at: Date.now() })
+      if (wasFirstSave && !opts.silent) {
+        setShowSuccess(true)
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed.')
-    } finally {
-      setSaving(false)
+      if (!opts.silent) {
+        setError(e instanceof Error ? e.message : 'Save failed.')
+      }
+      setSaveState({ kind: 'idle' })
     }
   }
+
+  // Autosave on blur if the field has a value and the form has changes.
+  // Silent — no user-facing error if it fails (they can still hit Save).
+  const onFieldBlur = (k: AnswerKey) => {
+    if (!dirty) return
+    if (k === 'name' && !answers.name.trim()) return
+    doSave({ silent: true })
+  }
+
+  if (showSuccess) {
+    return <SuccessState />
+  }
+
+  const renderQuestion = (q: { key: AnswerKey; label: string; example: string }) => (
+    <div key={q.key}>
+      <label style={{
+        display: 'block',
+        fontFamily: T.heading,
+        fontSize: 18, fontWeight: 600,
+        color: T.text, letterSpacing: '-0.01em',
+        marginBottom: 6,
+      }}>
+        {q.label}
+      </label>
+      <Input
+        value={answers[q.key]}
+        onChange={(e) => update(q.key, e.target.value)}
+        onBlur={() => onFieldBlur(q.key)}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          borderBottom: `1px solid ${T.border}`,
+          borderRadius: 0,
+          fontSize: 17,
+          padding: '8px 0',
+        }}
+      />
+      <div style={{
+        marginTop: 6,
+        fontSize: 13, color: T.textFaint, lineHeight: 1.5,
+      }}>
+        {q.example}
+      </div>
+    </div>
+  )
+
+  const basicQs = QUESTIONS.filter((q) => BASIC_KEYS.includes(q.key))
+  const extendedQs = QUESTIONS.filter((q) => !BASIC_KEYS.includes(q.key))
 
   return (
     <Layout>
@@ -152,14 +228,7 @@ function IcpIntakeForm() {
           Each answer changes the music. None of them are wrong, and you can
           come back and re-tune any time.
         </p>
-        {savedAt && (
-          <div style={{
-            marginTop: 18, fontSize: 12, color: T.textFaint,
-            letterSpacing: '0.06em',
-          }}>
-            Saved {new Date(savedAt).toLocaleString()}
-          </div>
-        )}
+        <SaveIndicator saveState={saveState} savedAt={savedAt} />
       </div>
 
       <div style={{
@@ -172,37 +241,40 @@ function IcpIntakeForm() {
           <div style={{ color: T.textDim, fontSize: 14 }}>Loading…</div>
         ) : (
           <div style={{ display: 'grid', gap: 28 }}>
-            {QUESTIONS.map((q) => (
-              <div key={q.key}>
-                <label style={{
-                  display: 'block',
-                  fontFamily: T.heading,
-                  fontSize: 18, fontWeight: 600,
-                  color: T.text, letterSpacing: '-0.01em',
-                  marginBottom: 6,
-                }}>
-                  {q.label}
-                </label>
-                <Input
-                  value={answers[q.key]}
-                  onChange={(e) => update(q.key, e.target.value)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    borderBottom: `1px solid ${T.border}`,
-                    borderRadius: 0,
-                    fontSize: 17,
-                    padding: '8px 0',
-                  }}
-                />
-                <div style={{
-                  marginTop: 6,
-                  fontSize: 13, color: T.textFaint, lineHeight: 1.5,
-                }}>
-                  {q.example}
-                </div>
-              </div>
-            ))}
+            {basicQs.map(renderQuestion)}
+
+            {!showExtended && (
+              <button
+                type="button"
+                onClick={() => setShowExtended(true)}
+                style={{
+                  background: 'transparent',
+                  border: `1px solid ${T.border}`,
+                  color: T.accent,
+                  padding: '12px 16px',
+                  borderRadius: 4,
+                  fontFamily: T.sans, fontSize: 14, fontWeight: 500,
+                  cursor: 'pointer', textAlign: 'left',
+                  display: 'flex', alignItems: 'center',
+                  justifyContent: 'space-between', gap: 12,
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.borderActive }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.border }}
+              >
+                <span>
+                  Add more detail
+                  <span style={{
+                    color: T.textFaint, fontSize: 13, marginLeft: 10,
+                    fontWeight: 400,
+                  }}>
+                    Four more questions — they sharpen the music
+                  </span>
+                </span>
+                <ArrowRight size={16} strokeWidth={1.75} />
+              </button>
+            )}
+
+            {showExtended && extendedQs.map(renderQuestion)}
 
             {error && (
               <div style={{ color: T.danger, fontSize: 13 }}>{error}</div>
@@ -214,16 +286,137 @@ function IcpIntakeForm() {
               borderTop: `1px solid ${T.borderSubtle}`,
               paddingTop: 20, marginTop: 8,
             }}>
-              <Button variant="ghost" onClick={() => setAnswers(loaded)} disabled={!dirty || saving}>
+              <Button variant="ghost" onClick={() => setAnswers(loaded)} disabled={!dirty || saveState.kind === 'saving'}>
                 Reset
               </Button>
-              <Button onClick={save} disabled={!dirty || saving}>
-                {saving ? 'Saving…' : (savedAt ? 'Save changes' : 'Tune the music')}
+              <Button onClick={() => doSave()} disabled={!dirty || saveState.kind === 'saving'}>
+                {saveState.kind === 'saving' ? 'Saving…' : (savedAt ? 'Save changes' : 'Tune my music')}
               </Button>
             </div>
           </div>
         )}
       </div>
     </Layout>
+  )
+}
+
+// Live save indicator under the headline. Switches between the persistent
+// "saved at" timestamp and a transient "Saved just now" flash on autosave.
+function SaveIndicator({ saveState, savedAt }: { saveState: SaveState; savedAt: string | null }) {
+  if (saveState.kind === 'saving') {
+    return (
+      <div style={{
+        marginTop: 18, fontSize: 12, color: T.textFaint,
+        letterSpacing: '0.06em',
+      }}>
+        Saving…
+      </div>
+    )
+  }
+  if (saveState.kind === 'saved') {
+    return (
+      <div style={{
+        marginTop: 18, fontSize: 12, color: T.accent,
+        letterSpacing: '0.06em',
+      }}>
+        Saved just now
+      </div>
+    )
+  }
+  if (savedAt) {
+    return (
+      <div style={{
+        marginTop: 18, fontSize: 12, color: T.textFaint,
+        letterSpacing: '0.06em',
+      }}>
+        Saved {new Date(savedAt).toLocaleString()}
+      </div>
+    )
+  }
+  return null
+}
+
+// Shown after the very first save completes successfully. Marks the high
+// moment instead of leaving the user staring at a "Saved 3:42 PM" timestamp.
+function SuccessState() {
+  return (
+    <Layout>
+      <div style={{ maxWidth: 640 }}>
+        <Eyebrow>You're tuned in</Eyebrow>
+        <h1 style={{
+          fontFamily: T.heading,
+          fontSize: 'clamp(1.9rem, 3vw, 2.7rem)',
+          fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.08,
+          color: T.text, margin: '0 0 12px',
+        }}>
+          Your music is being tuned.
+        </h1>
+        <p style={{
+          fontSize: 15, lineHeight: 1.55,
+          color: T.textDim, margin: 0, maxWidth: '52ch',
+        }}>
+          We'll re-tune your library with these answers and refresh your
+          floor's player within 24 hours. You can come back and adjust any
+          time — every change carries forward.
+        </p>
+
+        <div style={{
+          marginTop: 32,
+          padding: 24,
+          background: T.surfaceRaised,
+          border: `1px solid ${T.border}`,
+          borderRadius: 6,
+          display: 'grid', gap: 16,
+        }}>
+          <div style={{
+            fontSize: 11, fontWeight: 500, letterSpacing: '0.18em',
+            color: T.accent, textTransform: 'uppercase',
+          }}>
+            What's next
+          </div>
+          <NextStepRow
+            to="/locations"
+            title="Add another location"
+            sub="One subscription, multiple stores — billing is prorated."
+          />
+          <NextStepRow
+            to="/"
+            title="Go to your dashboard"
+            sub="Open your player URL on any in-store device."
+          />
+        </div>
+      </div>
+    </Layout>
+  )
+}
+
+function NextStepRow({ to, title, sub }: { to: string; title: string; sub: string }) {
+  return (
+    <Link to={to} style={{
+      display: 'flex', alignItems: 'center', gap: 16,
+      padding: '12px 14px',
+      background: 'transparent',
+      border: `1px solid ${T.borderSubtle}`,
+      borderRadius: 4,
+      textDecoration: 'none',
+      color: T.text,
+      transition: 'border-color 0.15s ease',
+    }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.borderActive }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.borderSubtle }}
+    >
+      <div style={{ flex: 1 }}>
+        <div style={{
+          fontFamily: T.heading, fontSize: 16, fontWeight: 500,
+          color: T.text, letterSpacing: '-0.01em', marginBottom: 4,
+        }}>
+          {title}
+        </div>
+        <div style={{ fontSize: 13, color: T.textDim, lineHeight: 1.5 }}>
+          {sub}
+        </div>
+      </div>
+      <ArrowRight size={16} strokeWidth={1.75} color={T.accent} />
+    </Link>
   )
 }

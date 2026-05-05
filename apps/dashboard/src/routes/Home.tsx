@@ -3,6 +3,7 @@ import { ExternalLink, Copy, Check, ArrowRight } from 'lucide-react'
 import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
 import { Card } from '../ui/Card.js'
+import { SetupChecklist } from '../ui/SetupChecklist.js'
 import { api, PLAYER_URL, primaryStore, TIER_LABEL, type Tier } from '../api.js'
 import { useTier } from '../lib/tier.jsx'
 
@@ -29,6 +30,8 @@ export function Home() {
       </div>
 
       <div style={{ display: 'grid', gap: 16, maxWidth: 720 }}>
+        <SetupChecklist tier={tier} hasLocation={stores.length > 0} />
+
         {/* Setup status */}
         <Card>
           {loading ? (

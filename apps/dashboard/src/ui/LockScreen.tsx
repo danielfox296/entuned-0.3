@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Lock } from 'lucide-react'
 import { T } from '../tokens.js'
 import { TIER_LABEL, TIER_PRICE, api, type Tier } from '../api.js'
@@ -12,20 +13,31 @@ interface LockScreenProps {
   // Caller's current tier — used so the CTA can read "Upgrade to Core"
   // even when the requirement is Pro but the user is already Core.
   currentTier?: Tier
+  // How fast the user gets value after upgrading. Surfacing this turns the
+  // upgrade trade from abstract ("you'd unlock...") into concrete ("music
+  // refreshes within 24h"). Keep to a single short line.
+  timeToValue?: string
+  // Visual preview of what the unlocked surface looks like. Renders below
+  // the value line. Use a faked/illustrated mock so the trade is visceral
+  // rather than text-only.
+  preview?: ReactNode
 }
 
 // Single-screen lock used on routes the customer's tier doesn't include.
 // Renders inside <Layout>; URL stays correct so the screen can be linked or
 // bookmarked. Roadmap variant has no upgrade CTA — it's a teaser.
-export function LockScreen({ tabName, valueLine, requiredTier, detail, currentTier }: LockScreenProps) {
+export function LockScreen({
+  tabName, valueLine, requiredTier, detail, currentTier,
+  timeToValue, preview,
+}: LockScreenProps) {
   const isRoadmap = requiredTier === 'roadmap'
   const ctaTier: 'core' | 'pro' = requiredTier === 'roadmap' ? 'pro' : requiredTier
-  const ctaLabel = `Upgrade to ${TIER_LABEL[ctaTier]}`
+  const ctaLabel = `Unlock ${TIER_LABEL[ctaTier]}`
   const tierLabel = isRoadmap ? null : TIER_LABEL[ctaTier]
   const priceLine = isRoadmap ? null : TIER_PRICE[ctaTier]
 
   return (
-    <div style={{ maxWidth: 640 }}>
+    <div style={{ maxWidth: 720 }}>
       <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 10 }}>
         <Lock size={18} strokeWidth={1.75} color={T.accent} />
         <h1 style={{
@@ -50,10 +62,19 @@ export function LockScreen({ tabName, valueLine, requiredTier, detail, currentTi
         {!isRoadmap && (
           <div style={{
             color: T.textDim, fontSize: 13, fontFamily: T.sans,
-            marginBottom: 22,
+            marginBottom: timeToValue ? 6 : 22,
           }}>
             Available on <span style={{ color: T.accent, fontWeight: 600 }}>{tierLabel}</span>
             {' · '}{priceLine}
+          </div>
+        )}
+
+        {timeToValue && !isRoadmap && (
+          <div style={{
+            color: T.accentMuted, fontSize: 13, fontFamily: T.sans,
+            marginBottom: 22,
+          }}>
+            {timeToValue}
           </div>
         )}
 
@@ -95,6 +116,34 @@ export function LockScreen({ tabName, valueLine, requiredTier, detail, currentTi
           </div>
         )}
       </div>
+
+      {preview && (
+        <div style={{ marginTop: 24 }}>
+          <div style={{
+            fontSize: 11, fontWeight: 500, letterSpacing: '0.18em',
+            color: T.accent, textTransform: 'uppercase', marginBottom: 12,
+          }}>
+            Preview · what you'd see unlocked
+          </div>
+          <div style={{
+            position: 'relative',
+            border: `1px dashed ${T.border}`,
+            borderRadius: 6,
+            padding: 0,
+            overflow: 'hidden',
+            background: T.surface,
+          }}>
+            <div style={{
+              opacity: 0.55,
+              filter: 'saturate(0.85)',
+              pointerEvents: 'none',
+              userSelect: 'none',
+            }}>
+              {preview}
+            </div>
+          </div>
+        </div>
+      )}
 
       {currentTier && !isRoadmap && (
         <div style={{ color: T.textFaint, fontSize: 12, marginTop: 14, fontFamily: T.sans }}>

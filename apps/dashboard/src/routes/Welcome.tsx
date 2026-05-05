@@ -29,10 +29,12 @@ export function Welcome() {
         if (cancelled) return
         if (r.status === 'provisioned') {
           setStatus('ready')
-          // Brief pause for the confirmation, then to the dashboard home.
-          // (The brand-intake wizard lives at /intake but is preview-only;
-          // we land paying customers on Home until it ships.)
-          setTimeout(() => navigate('/', { replace: true }), 1200)
+          // Brief pause for the confirmation, then straight to the brand
+          // intake. /welcome is only reached after Stripe checkout returns,
+          // so the user is paid (Core+) and unlocked for /intake. This is
+          // where they get value first — landing them on Home would skip
+          // the highest-leverage activation step.
+          setTimeout(() => navigate('/intake', { replace: true }), 1200)
         } else {
           setStatus('pending')
         }
@@ -60,10 +62,34 @@ export function Welcome() {
           <>
             <Eyebrow>Almost ready</Eyebrow>
             <Headline>Setting up your store.</Headline>
-            <Sub>
-              Confirming payment and spinning up your account. This usually
-              takes about five seconds.
-            </Sub>
+            <Sub>About five seconds. Here's what's happening:</Sub>
+            <ol style={{
+              margin: '20px 0 0', padding: 0, listStyle: 'none',
+              display: 'grid', gap: 10, color: T.textMuted,
+              fontSize: 14, lineHeight: 1.5,
+            }}>
+              <li style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
+                <span style={{
+                  fontFamily: T.heading, color: T.accent,
+                  fontWeight: 600, minWidth: 20,
+                }}>01</span>
+                Activating your subscription
+              </li>
+              <li style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
+                <span style={{
+                  fontFamily: T.heading, color: T.accent,
+                  fontWeight: 600, minWidth: 20,
+                }}>02</span>
+                Setting up your account and first location
+              </li>
+              <li style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
+                <span style={{
+                  fontFamily: T.heading, color: T.accent,
+                  fontWeight: 600, minWidth: 20,
+                }}>03</span>
+                Generating your starter soundtrack
+              </li>
+            </ol>
             <Pulse />
           </>
         )}
@@ -71,7 +97,7 @@ export function Welcome() {
           <>
             <Eyebrow>You're in</Eyebrow>
             <Headline>You're all set.</Headline>
-            <Sub>Taking you to your dashboard.</Sub>
+            <Sub>Taking you to brand intake — that's where the music starts taking shape.</Sub>
           </>
         )}
         {status === 'error' && (

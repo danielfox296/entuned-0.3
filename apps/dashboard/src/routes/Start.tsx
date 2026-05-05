@@ -54,8 +54,14 @@ export function Start() {
         <>
           <Headline>Start your store's soundtrack.</Headline>
           <Sub>
-            We'll email you a sign-in link. Click it and you're in.
+            AI-generated music tuned to your customers — not the average
+            shopper. Free to start, no card required.
           </Sub>
+          <div style={{
+            marginTop: 6, fontSize: 13, color: T.textFaint,
+          }}>
+            We'll email you a sign-in link. Click it and you're in.
+          </div>
 
           <form onSubmit={submit} style={{ display: 'grid', gap: 18, marginTop: 32 }}>
             <div>

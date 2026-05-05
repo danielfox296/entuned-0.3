@@ -33,7 +33,7 @@ export function Locations() {
         {canAdd ? (
           <Button onClick={() => setAddOpen(true)}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <Plus size={14} strokeWidth={2} /> Add location
+              <Plus size={14} strokeWidth={2} /> Add my location
             </span>
           </Button>
         ) : (
@@ -47,7 +47,7 @@ export function Locations() {
             }}
             title="Add location requires Core"
           >
-            <Lock size={12} strokeWidth={2} /> Add location · Core
+            <Lock size={12} strokeWidth={2} /> Add my location · Core
           </a>
         )}
       </div>
@@ -331,7 +331,7 @@ function AddLocationModal({ onClose, onAdded }: {
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 18 }}>
           <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
           <Button onClick={submit} disabled={busy}>
-            {busy ? 'Adding…' : 'Add location'}
+            {busy ? 'Adding…' : 'Add my location'}
           </Button>
         </div>
       </div>
