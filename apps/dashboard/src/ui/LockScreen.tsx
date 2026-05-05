@@ -112,7 +112,7 @@ export function LockScreen({
             color: T.textFaint, fontSize: 13, fontFamily: T.sans,
             fontStyle: 'italic',
           }}>
-            Rolling out with v2.
+            On the roadmap.
           </div>
         )}
       </div>

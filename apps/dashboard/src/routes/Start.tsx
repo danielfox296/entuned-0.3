@@ -54,8 +54,9 @@ export function Start() {
         <>
           <Headline>Start your store's soundtrack.</Headline>
           <Sub>
-            AI-generated music tuned to your customers — not the average
-            shopper. Free to start, no card required.
+            Pick an outcome — Increase Dwell or Infuse Energy — and play
+            it through any speaker you already have. Free, indefinite,
+            no card required.
           </Sub>
           <div style={{
             marginTop: 6, fontSize: 13, color: T.textFaint,

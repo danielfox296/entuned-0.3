@@ -26,10 +26,10 @@ export function Schedule() {
 // no backing data. Rendered inside LockScreen's preview slot, dimmed.
 function SchedulePreview() {
   const rows = [
-    { label: 'Weekday mornings', when: 'Mon–Fri · 9:00–11:00 AM', outcome: 'Increase dwell',  color: T.accent },
-    { label: 'Lunch rush',       when: 'Mon–Fri · 12:00–2:00 PM', outcome: 'Drive energy',   color: T.slate },
-    { label: 'Saturday floor',   when: 'Sat · 11:00 AM–4:00 PM',  outcome: 'Convert browsers', color: T.accent },
-    { label: 'Sunday wind-down', when: 'Sun · 3:00–6:00 PM',      outcome: 'Encourage returns', color: T.slate },
+    { label: 'Weekday mornings', when: 'Mon–Fri · 9:00–11:00 AM', outcome: 'Increase Dwell', color: T.accent },
+    { label: 'Lunch rush',       when: 'Mon–Fri · 12:00–2:00 PM', outcome: 'Infuse Energy',  color: T.slate },
+    { label: 'Saturday floor',   when: 'Sat · 11:00 AM–4:00 PM',  outcome: 'Infuse Energy',  color: T.slate },
+    { label: 'Sunday wind-down', when: 'Sun · 3:00–6:00 PM',      outcome: 'Increase Dwell', color: T.accent },
   ]
   return (
     <div style={{ padding: 20 }}>

@@ -87,7 +87,7 @@ export function Welcome() {
                   fontFamily: T.heading, color: T.accent,
                   fontWeight: 600, minWidth: 20,
                 }}>03</span>
-                Generating your starter soundtrack
+                Loading your starter library
               </li>
             </ol>
             <Pulse />
@@ -97,7 +97,7 @@ export function Welcome() {
           <>
             <Eyebrow>You're in</Eyebrow>
             <Headline>You're all set.</Headline>
-            <Sub>Taking you to brand intake — that's where the music starts taking shape.</Sub>
+            <Sub>Taking you to a few quick questions — three answers and your music starts taking shape.</Sub>
           </>
         )}
         {status === 'error' && (

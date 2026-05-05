@@ -29,7 +29,7 @@ const QUESTIONS: { key: AnswerKey; label: string; example: string }[] = [
   { key: 'unexpressedDesires',  label: 'What do they want but won’t admit?',
     example: 'The quieter motivation underneath the stated one' },
   { key: 'turnOffs',            label: 'What would make them leave?',
-    example: 'Tone, words, music, vibes — anything that breaks the spell' },
+    example: 'Tone, words, music — anything that makes them feel out of place' },
 ]
 
 // Progressive disclosure: show these three first, reveal the rest behind
@@ -54,7 +54,7 @@ export function IcpIntake() {
           valueLine="Music tailored to your specific customer, not the average shopper."
           requiredTier="core"
           currentTier={tier}
-          timeToValue="Answer the questions and your music starts adapting on your floor within 24 hours."
+          timeToValue="Fill it in and your library starts being built around your audience — usually live on the floor within a few days."
           detail="Seven questions about who actually walks in. We turn those answers into a private music library that fits your audience — instead of falling back on the generic mood pool."
         />
       </Layout>
@@ -355,9 +355,9 @@ function SuccessState() {
           fontSize: 15, lineHeight: 1.55,
           color: T.textDim, margin: 0, maxWidth: '52ch',
         }}>
-          We'll re-tune your library with these answers and refresh your
-          floor's player within 24 hours. You can come back and adjust any
-          time — every change carries forward.
+          We'll start composing your library around these answers. New
+          tracks usually land on your floor within a few days. You can
+          come back and adjust any time — every change carries forward.
         </p>
 
         <div style={{
@@ -381,8 +381,8 @@ function SuccessState() {
           />
           <NextStepRow
             to="/"
-            title="Go to your dashboard"
-            sub="Open your player URL on any in-store device."
+            title="See what's playing"
+            sub="Your home tab has the player URL — open it on any in-store device."
           />
         </div>
       </div>

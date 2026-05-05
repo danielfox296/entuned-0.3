@@ -17,12 +17,23 @@ export function Reports() {
   )
 }
 
+// Preview shows the two metrics with PUBLISHED, ATTRIBUTED ranges from
+// peer-reviewed retail-audio research — the same numbers that already live
+// on entuned.co/for-cfos.html and how-it-works.html. We deliberately do NOT
+// show fabricated single-store percentages here: this surface is what a
+// CFO might screenshot, and the brand voice rule is "we don't oversell."
 function ReportsPreview() {
   const metrics = [
-    { label: 'Avg. dwell time',    value: '+18%', sub: 'vs. matched-control week' },
-    { label: 'Avg. basket',        value: '+9%',  sub: 'vs. matched-control week' },
-    { label: 'Browse → buy',       value: '+6%',  sub: 'four-week rolling' },
-    { label: '4-week return rate', value: '+13%', sub: 'first-time visitors' },
+    {
+      label: 'Dwell time',
+      value: '+15–25%',
+      source: 'Peer-reviewed retail-audio studies (Milliman 1982 et al.)',
+    },
+    {
+      label: 'Willingness to pay',
+      value: '+8–12%',
+      source: 'Areni & Kim 1993; North et al. 1999',
+    },
   ]
   return (
     <div style={{ padding: 20 }}>
@@ -47,11 +58,22 @@ function ReportsPreview() {
             }}>
               {m.value}
             </div>
-            <div style={{ fontSize: 12, color: T.textDim, marginTop: 6 }}>
-              {m.sub}
+            <div style={{
+              fontSize: 11, color: T.textDim, marginTop: 8,
+              fontFamily: T.sans, lineHeight: 1.4, fontStyle: 'italic',
+            }}>
+              {m.source}
             </div>
           </div>
         ))}
+      </div>
+      <div style={{
+        marginTop: 14,
+        fontSize: 12, color: T.textFaint, fontFamily: T.sans, lineHeight: 1.5,
+      }}>
+        Ranges from published research, not single-store guarantees. Your
+        Reports tab will compare each fortnight against a matched-control
+        period from your own data.
       </div>
     </div>
   )
