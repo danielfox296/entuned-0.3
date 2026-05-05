@@ -122,7 +122,7 @@ function upgradeCopyFor(tier: Tier): UpgradeCopy | null {
   if (tier === 'free') {
     return {
       headline: 'Music tailored to your specific customer.',
-      body: 'On Core, your library is built around your audience — not the average shopper. $99 per location, per month.',
+      body: 'On Core, your library is built around the people who actually walk into your store. $99 per location, per month.',
       ctaLabel: 'Upgrade to Core',
       ctaTier: 'core',
     }

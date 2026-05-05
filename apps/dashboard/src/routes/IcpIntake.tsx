@@ -51,11 +51,11 @@ export function IcpIntake() {
       <Layout>
         <LockScreen
           tabName="Brand Intake"
-          valueLine="Music tailored to your specific customer, not the average shopper."
+          valueLine="Music tailored to the people who actually walk into your store."
           requiredTier="core"
           currentTier={tier}
           timeToValue="Fill it in and your library starts being built around your audience — usually live on the floor within a few days."
-          detail="Seven questions about who actually walks in. We turn those answers into a private music library that fits your audience — instead of falling back on the generic mood pool."
+          detail="Seven questions about who walks in. The answers become your own music library, built around your specific customer instead of the one every store starts on."
         />
       </Layout>
     )
