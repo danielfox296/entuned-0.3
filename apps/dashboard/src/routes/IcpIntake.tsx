@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
-import { Card } from '../ui/Card.js'
 import { LockScreen } from '../ui/LockScreen.js'
-import { Button, Input } from '../ui/index.js'
+import { Button, Eyebrow, Input } from '../ui/index.js'
 import { api, TIER_RANK, type IcpInput } from '../api.js'
 import { useTier } from '../lib/tier.jsx'
 
@@ -126,43 +125,58 @@ function IcpIntakeForm() {
 
   return (
     <Layout>
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 32, maxWidth: 640 }}>
+        <Eyebrow>Brand voice · Intake</Eyebrow>
         <h1 style={{
-          fontFamily: T.heading, fontSize: 24, fontWeight: 700,
-          color: T.text, letterSpacing: '-0.02em',
-        }}>Tell us about your audience</h1>
-        <div style={{ color: T.textDim, fontSize: 14, marginTop: 4 }}>
-          Seven questions. Two minutes. Drives every song we write for you.
-        </div>
+          fontFamily: T.heading,
+          fontSize: 'clamp(1.7rem, 2.6vw, 2.3rem)',
+          fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.1,
+          color: T.text, margin: '0 0 12px',
+        }}>
+          Tell us about your audience.
+        </h1>
+        <p style={{
+          fontSize: 15, lineHeight: 1.55,
+          color: T.textDim, margin: 0, maxWidth: '52ch',
+        }}>
+          Seven questions, two minutes. Each answer shapes the music we write
+          for your floor — you can re-tune any time.
+        </p>
+        {savedAt && (
+          <div style={{
+            marginTop: 18, fontSize: 12, color: T.textFaint,
+            letterSpacing: '0.06em',
+          }}>
+            Saved {new Date(savedAt).toLocaleString()}
+          </div>
+        )}
       </div>
 
-      {savedAt && (
-        <div style={{
-          marginBottom: 20, padding: '10px 14px',
-          background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
-          borderRadius: 6, color: T.textMuted, fontSize: 13,
-        }}>
-          Last saved {new Date(savedAt).toLocaleString()}.
-        </div>
-      )}
-
-      <Card>
+      <div style={{
+        background: 'transparent',
+        borderLeft: `3px solid ${T.accent}`,
+        paddingLeft: 24,
+        maxWidth: 720,
+      }}>
         {loading ? (
           <div style={{ color: T.textDim, fontSize: 14 }}>Loading…</div>
         ) : (
-          <div style={{ display: 'grid', gap: 18 }}>
+          <div style={{ display: 'grid', gap: 28 }}>
             {QUESTIONS.map((q) => (
               <div key={q.key}>
-                <label style={{
-                  display: 'block', fontSize: 13, color: T.textMuted,
-                  marginBottom: 6, fontFamily: T.sans,
-                }}>
-                  {q.label}
-                </label>
+                <Eyebrow>{q.label}</Eyebrow>
                 <Input
                   value={answers[q.key]}
                   onChange={(e) => update(q.key, e.target.value)}
                   placeholder={q.hint}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    borderBottom: `1px solid ${T.border}`,
+                    borderRadius: 0,
+                    fontSize: 17,
+                    padding: '8px 0',
+                  }}
                 />
               </div>
             ))}
@@ -171,7 +185,12 @@ function IcpIntakeForm() {
               <div style={{ color: T.danger, fontSize: 13 }}>{error}</div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, alignItems: 'center' }}>
+            <div style={{
+              display: 'flex', justifyContent: 'flex-end',
+              gap: 12, alignItems: 'center',
+              borderTop: `1px solid ${T.borderSubtle}`,
+              paddingTop: 20, marginTop: 8,
+            }}>
               <Button variant="ghost" onClick={() => setAnswers(loaded)} disabled={!dirty || saving}>
                 Reset
               </Button>
@@ -181,7 +200,7 @@ function IcpIntakeForm() {
             </div>
           </div>
         )}
-      </Card>
+      </div>
     </Layout>
   )
 }
