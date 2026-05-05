@@ -34,6 +34,7 @@ import { parseRetailNextXls } from '../lib/retailnext/parser.js'
 import { renderTemplate, sendTemplate, TEMPLATE_PROPS_EXAMPLES } from '../lib/email.js'
 import { LIFECYCLE_TEMPLATES, TEMPLATES, type TemplateName } from '../email-templates/index.js'
 import { EDITABLE_TEMPLATE_NAMES } from '../email-templates/seeds.js'
+import { runOneLifecycleDrip, runLifecycleEmails, type LifecycleDripName } from '../lib/lifecycleEmails.js'
 
 interface AuthedOp {
   operatorId: string
@@ -3065,6 +3066,34 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       body: row.body,
       propsExample: row.propsExample,
       updatedAt: row.updatedAt,
+    }
+  })
+
+  // POST /admin/email/lifecycle/run
+  // Operator triggers a one-shot lifecycle drip pass. Body:
+  //   { drip: 'icpUnfilled' | 'pauseEnding' | 'freeToCoreNudge' } → run that one
+  //   {} → run all three (same as the daily cron tick)
+  // Returns the dispatcher's stats. Idempotency log is the same as the cron's,
+  // so already-sent recipients are skipped — fire-now is safe to spam.
+  const LifecycleRunBody = z.object({
+    drip: z.enum(['icpUnfilled', 'pauseEnding', 'freeToCoreNudge']).optional(),
+  })
+
+  app.post('/email/lifecycle/run', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = LifecycleRunBody.safeParse(req.body ?? {})
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+
+    try {
+      if (parsed.data.drip) {
+        const stats = await runOneLifecycleDrip(parsed.data.drip as LifecycleDripName)
+        return { ok: true, drip: parsed.data.drip, stats }
+      }
+      const stats = await runLifecycleEmails()
+      return { ok: true, drip: 'all', stats }
+    } catch (e: any) {
+      req.log.error({ err: e }, 'admin_lifecycle_run_failed')
+      return reply.code(500).send({ error: 'lifecycle_run_failed', message: e?.message ?? 'unknown' })
     }
   })
 }

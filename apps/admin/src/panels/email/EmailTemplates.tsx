@@ -6,16 +6,23 @@ import { Button, Input, Textarea, Pill, useToast } from '../../ui/index.js'
 
 // /admin → Email panel.
 //
-// List of all email template names (from the server template registry) on the
-// left; editor on the right. DB-editable templates can be edited in place;
-// non-editable variant-heavy ones (welcome, dunning) are read-only with a
-// helpful note.
+// List of all email template names on the left; editor on the right. Editable
+// templates round-trip via /admin/email/templates; non-editable variant ones
+// (welcome*, dunning*) get inlined into v1 split files and are now editable
+// per-variant from this panel.
 //
 // Preview pane renders against the template's propsExample by default, or any
-// JSON the operator pastes in. The /admin/email/preview endpoint is gated by
+// JSON the operator pastes in. /admin/email/preview is gated by
 // INTERNAL_ADMIN_TOKEN (separate from operator JWT) — the operator pastes it
-// once per session into the small input below the preview pane and we keep it
-// in component state (never persisted).
+// once per session and we keep it in component state (never persisted). Also
+// drives the "Send test" affordance, which reuses the same endpoint with sendTo.
+//
+// Lifecycle drips have a "Fire now" button that hits /admin/email/lifecycle/run.
+// The dispatcher is idempotent (lifecycle_email_logs unique on user+template+
+// contextKey), so spamming the button is safe — already-sent recipients are skipped.
+
+const LIFECYCLE_DRIPS = ['icpUnfilled', 'pauseEnding', 'freeToCoreNudge'] as const
+type LifecycleDripName = typeof LIFECYCLE_DRIPS[number]
 
 export function EmailTemplates() {
   const token = getToken()
@@ -36,13 +43,19 @@ export function EmailTemplates() {
   const [adminToken, setAdminToken] = useState('')
   const [propsJson, setPropsJson] = useState('{}')
 
+  // Send-test state
+  const [sendTo, setSendTo] = useState('')
+  const [sending, setSending] = useState(false)
+
+  // Fire-now state
+  const [firing, setFiring] = useState<LifecycleDripName | 'all' | null>(null)
+
   // Load list on mount
   useEffect(() => {
     if (!token) return
     api.emailTemplates(token)
       .then((r) => {
         setList(r.templates)
-        // Default to the first editable template.
         const firstEditable = r.templates.find((t) => t.editable)
         if (firstEditable) setSelected(firstEditable.name)
       })
@@ -89,7 +102,6 @@ export function EmailTemplates() {
         ...(parsedProps ? { propsExample: parsedProps } : {}),
       }, token)
       setDetail(updated)
-      // Refresh list so the updatedAt timestamp re-renders.
       const fresh = await api.emailTemplates(token)
       setList(fresh.templates)
       toast.success('Saved.')
@@ -124,6 +136,65 @@ export function EmailTemplates() {
     }
   }
 
+  const sendTest = async () => {
+    if (!selected || sending) return
+    if (!adminToken.trim()) {
+      toast.error('Paste the INTERNAL_ADMIN_TOKEN first.')
+      return
+    }
+    if (!sendTo.trim() || !sendTo.includes('@')) {
+      toast.error('Enter a valid recipient address.')
+      return
+    }
+    setSending(true)
+    try {
+      let parsedProps: Record<string, unknown> = {}
+      try { parsedProps = propsJson.trim() ? JSON.parse(propsJson) : {} }
+      catch { toast.error('Sample props must be valid JSON.'); setSending(false); return }
+      await previewEmailTemplate(adminToken, {
+        template: selected, props: parsedProps, sendTo: sendTo.trim(),
+      })
+      toast.success(`Sent to ${sendTo.trim()}.`)
+    } catch (e: any) {
+      toast.error(`Send failed: ${e.message ?? 'unknown'}`)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const fireDrip = async (drip: LifecycleDripName | 'all') => {
+    if (!token || firing) return
+    if (drip !== 'all') {
+      const ok = window.confirm(
+        `Fire "${drip}" now?\n\nThis runs the same scan the daily cron does — eligible recipients who haven't been sent this drip yet will get an email. Idempotent (already-sent users are skipped).`,
+      )
+      if (!ok) return
+    } else {
+      const ok = window.confirm(
+        'Fire ALL three drips now?\n\nRuns icpUnfilled + pauseEnding + freeToCoreNudge. Idempotent — already-sent users are skipped.',
+      )
+      if (!ok) return
+    }
+    setFiring(drip)
+    try {
+      const result = await api.runLifecycleDrip(drip, token)
+      const stats = result.stats
+      const summarize = (s: any) => `${s.sent} sent · ${s.skipped} skipped · ${s.errors} errors (${s.considered} considered)`
+      if (drip === 'all') {
+        toast.success(`Drip pass: icpUnfilled ${summarize(stats.icpUnfilled)}; pauseEnding ${summarize(stats.pauseEnding)}; freeToCoreNudge ${summarize(stats.freeToCoreNudge)}`)
+      } else {
+        toast.success(`${drip}: ${summarize(stats)}`)
+      }
+    } catch (e: any) {
+      toast.error(`Fire failed: ${e.message ?? 'unknown'}`)
+    } finally {
+      setFiring(null)
+    }
+  }
+
+  const isLifecycle = selected ? LIFECYCLE_DRIPS.includes(selected as LifecycleDripName) : false
+  const editable = selected ? !!list.find((r) => r.name === selected)?.editable : false
+
   return (
     <div style={{ display: 'flex', gap: 24, height: '100%' }}>
       {/* List */}
@@ -147,11 +218,14 @@ export function EmailTemplates() {
         <div style={{
           margin: '12px 8px 8px', padding: '10px 12px',
           background: T.bg, border: `1px solid ${T.borderSubtle}`,
-          borderRadius: S.r4, fontSize: 11, color: T.textDim, lineHeight: 1.5,
+          borderRadius: S.r4,
         }}>
-          <strong style={{ color: T.textMuted }}>Lifecycle</strong> templates fire from
-          a daily cron at 9am Mountain. They check the recipient&rsquo;s opt-out flag
-          and include an unsubscribe footer.
+          <div style={{ fontSize: 11, color: T.textDim, lineHeight: 1.5, marginBottom: 8 }}>
+            Lifecycle drips fire daily at 9am Mountain. Idempotent — already-sent users skipped.
+          </div>
+          <Button variant="ghost" onClick={() => fireDrip('all')} disabled={!!firing}>
+            {firing === 'all' ? 'Firing…' : 'Fire all drips now'}
+          </Button>
         </div>
       </aside>
 
@@ -161,11 +235,11 @@ export function EmailTemplates() {
           <div style={{ color: T.textDim, fontSize: 14 }}>Select a template.</div>
         )}
 
-        {selected && !list.find((t) => t.name === selected)?.editable && (
+        {selected && !editable && (
           <ReadOnlyNote name={selected} />
         )}
 
-        {selected && list.find((t) => t.name === selected)?.editable && (
+        {selected && editable && (
           <>
             {loadingDetail && <div style={{ color: T.textDim, fontSize: 14 }}>Loading…</div>}
             {detail && !loadingDetail && (
@@ -214,7 +288,7 @@ export function EmailTemplates() {
                   />
                 </Field>
 
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <Button onClick={save} disabled={!dirty || saving}>
                     {saving ? 'Saving…' : 'Save'}
                   </Button>
@@ -227,6 +301,16 @@ export function EmailTemplates() {
                     }}
                     disabled={!dirty || saving}
                   >Reset</Button>
+
+                  {isLifecycle && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => fireDrip(selected as LifecycleDripName)}
+                      disabled={!!firing}
+                    >
+                      {firing === selected ? 'Firing…' : `Fire ${selected} now`}
+                    </Button>
+                  )}
                 </div>
 
                 {/* Preview */}
@@ -239,20 +323,32 @@ export function EmailTemplates() {
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     marginBottom: 12, gap: 12, flexWrap: 'wrap',
                   }}>
-                    <strong style={{ color: T.textMuted, fontSize: 13 }}>Preview</strong>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <Input
-                        value={adminToken}
-                        onChange={(e) => setAdminToken(e.target.value)}
-                        placeholder="INTERNAL_ADMIN_TOKEN"
-                        style={{ width: 240, fontFamily: T.mono, fontSize: 12 }}
-                        type="password"
-                      />
-                      <Button onClick={renderPreview} disabled={previewing}>
-                        {previewing ? 'Rendering…' : 'Render'}
-                      </Button>
-                    </div>
+                    <strong style={{ color: T.textMuted, fontSize: 13 }}>Preview &amp; test</strong>
+                    <Input
+                      value={adminToken}
+                      onChange={(e) => setAdminToken(e.target.value)}
+                      placeholder="INTERNAL_ADMIN_TOKEN"
+                      style={{ width: 240, fontFamily: T.mono, fontSize: 12 }}
+                      type="password"
+                    />
                   </div>
+
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                    <Button onClick={renderPreview} disabled={previewing}>
+                      {previewing ? 'Rendering…' : 'Render'}
+                    </Button>
+                    <Input
+                      value={sendTo}
+                      onChange={(e) => setSendTo(e.target.value)}
+                      placeholder="recipient@example.com"
+                      style={{ flex: 1, minWidth: 220 }}
+                      type="email"
+                    />
+                    <Button variant="ghost" onClick={sendTest} disabled={sending}>
+                      {sending ? 'Sending…' : 'Send test'}
+                    </Button>
+                  </div>
+
                   {previewError && (
                     <div style={{ color: T.danger, fontSize: 13, marginBottom: 10 }}>
                       {previewError}
@@ -260,20 +356,16 @@ export function EmailTemplates() {
                   )}
                   {!previewHtml && !previewError && (
                     <div style={{ color: T.textDim, fontSize: 13 }}>
-                      Click Render to see the email. The preview reads from the
-                      <em> currently saved</em> DB row, not your unsaved edits — save first.
+                      Render shows the email rendered against the <em>currently saved</em> DB row
+                      (save your edits first). Send test fires a real email through Resend
+                      using the same render.
                     </div>
                   )}
                   {previewHtml && (
-                    <>
-                      <div style={{
-                        fontSize: 12, color: T.textDim, marginBottom: 8,
-                        fontFamily: T.mono,
-                      }}>
-                        <strong style={{ color: T.textMuted }}>Subject:</strong> {previewSubject}
-                      </div>
-                      <PreviewIframe html={previewHtml} />
-                    </>
+                    <PreviewWindow
+                      subject={previewSubject ?? '(no subject)'}
+                      html={previewHtml}
+                    />
                   )}
                 </div>
               </>
@@ -339,11 +431,33 @@ function ReadOnlyNote({ name }: { name: string }) {
       border: `1px solid ${T.borderSubtle}`, borderRadius: S.r6,
       color: T.textMuted, fontSize: 14, lineHeight: 1.55,
     }}>
-      <strong style={{ color: T.text }}>{name}</strong> is variant-heavy — its
-      copy branches on tier (welcome) or attempt number (dunning) inside the
-      TS file. To edit, open <code style={{ color: T.accent }}>apps/server/src/email-templates/{name}.ts</code>.
-      It can be split into per-variant DB-editable templates later if you
-      want to tune the variants from here.
+      <strong style={{ color: T.text }}>{name}</strong> isn&rsquo;t in the
+      DB-editable set. To edit, open <code style={{ color: T.accent }}>apps/server/src/email-templates/{name}.ts</code>
+      &nbsp;and the matching row in <code style={{ color: T.accent }}>seeds.ts</code>.
+    </div>
+  )
+}
+
+function PreviewWindow({ subject, html }: { subject: string; html: string }) {
+  // Gmail-style chrome: subject row above, then the email body in an iframe.
+  return (
+    <div style={{
+      border: `1px solid ${T.border}`, borderRadius: S.r4,
+      background: '#0a0a0a', overflow: 'hidden',
+    }}>
+      <div style={{
+        padding: '12px 16px', borderBottom: `1px solid ${T.borderSubtle}`,
+        background: '#0f0f0f',
+      }}>
+        <div style={{
+          fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
+          color: T.textFaint, textTransform: 'uppercase', marginBottom: 4,
+        }}>Subject</div>
+        <div style={{
+          fontSize: 14, color: '#E8E4DE', fontFamily: T.heading, fontWeight: 600,
+        }}>{subject}</div>
+      </div>
+      <PreviewIframe html={html} />
     </div>
   )
 }
@@ -359,8 +473,8 @@ function PreviewIframe({ html }: { html: string }) {
     <iframe
       ref={ref}
       style={{
-        width: '100%', minHeight: 600, border: `1px solid ${T.border}`,
-        background: '#0a0a0a', borderRadius: S.r4,
+        display: 'block', width: '100%', minHeight: 600, border: 'none',
+        background: '#0a0a0a',
       }}
       title="Email preview"
     />

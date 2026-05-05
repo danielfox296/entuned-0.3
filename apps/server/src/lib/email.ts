@@ -21,8 +21,14 @@ import { prisma } from '../db.js'
 import { layout } from '../email-templates/_layout.js'
 import { LIFECYCLE_TEMPLATES, TEMPLATES, TEMPLATE_PROPS_EXAMPLES, type TemplateName } from '../email-templates/index.js'
 import { EDITABLE_TEMPLATES } from '../email-templates/seeds.js'
-import type { Tier } from '../email-templates/welcome.js'
-import type { DunningAttempt } from '../email-templates/dunning.js'
+
+// Tier label for the welcome variant router. Free + essentials collapse onto
+// the same template since they're the same tier (essentials is the public
+// label, free is the legacy DB value).
+export type Tier = 'free' | 'essentials' | 'core' | 'pro'
+
+// Dunning escalation level (1 = heads-up, 2 = direct, 3 = final).
+export type DunningAttempt = 1 | 2 | 3
 
 const FROM = process.env.EMAIL_FROM ?? 'Entuned <hello@entuned.co>'
 const REPLY_TO = process.env.EMAIL_REPLY_TO ?? 'hello@entuned.co'
@@ -206,7 +212,11 @@ export async function sendWelcome(
   playerUrl: string,
   dashboardUrl: string,
 ): Promise<SendResult> {
-  return sendTemplate('welcome', to, { tier, playerUrl, dashboardUrl })
+  const name: TemplateName =
+    tier === 'pro' ? 'welcomePro'
+    : tier === 'core' ? 'welcomeCore'
+    : 'welcomeFree'
+  return sendTemplate(name, to, { playerUrl, dashboardUrl })
 }
 
 export async function sendIndemnificationCert(
@@ -226,7 +236,11 @@ export async function sendDunning(
   attempt: DunningAttempt,
   billingPortalUrl: string,
 ): Promise<SendResult> {
-  return sendTemplate('dunning', to, { attempt, billingPortalUrl })
+  const name: TemplateName =
+    attempt === 3 ? 'dunning3'
+    : attempt === 2 ? 'dunning2'
+    : 'dunning1'
+  return sendTemplate(name, to, { billingPortalUrl })
 }
 
 export async function sendPauseEnding(

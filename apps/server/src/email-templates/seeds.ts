@@ -4,11 +4,10 @@
 // Mustache-style `{{var}}` placeholders). At render time the body is
 // interpolated against props and wrapped in `_layout.layout`.
 //
-// Templates not listed here are NOT DB-editable in v1. They have internal
-// branching (welcome's tier variants, dunning's attempt escalation) and
-// are kept in their TS files until we split them into per-variant templates.
-// `lib/email.ts` falls back to those TS files for any name without a DB row
-// or absent from `EDITABLE_TEMPLATES`.
+// Every template in the registry that maps to a single coherent body lives
+// here. Variant routing happens upstream (e.g. sendWelcome routes by tier
+// to welcomeFree / welcomeCore / welcomePro), so each row in this file is a
+// flat, branchless body the operator can edit.
 
 import type { TemplateName } from './index.js'
 
@@ -33,6 +32,59 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     `.trim(),
     propsExample: { link: 'https://api.entuned.co/login/verify?token=sample' },
   },
+  welcomeFree: {
+    subject: 'Welcome to Entuned Essentials',
+    preheader: 'Your Essentials account is active. Two next steps inside.',
+    body: `
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">You&rsquo;re on Essentials.</p>
+    <p style="margin:0 0 14px 0;">Two links to get running:</p>
+    <p style="margin:0 0 6px 0;"><strong style="color:#d7af74;">1. Dashboard</strong> &mdash; manage your account and add a location.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open dashboard</a></td></tr></table>
+    <p style="margin:14px 0 6px 0;"><strong style="color:#d7af74;">2. Player</strong> &mdash; open this on the in-store device to start playing the general catalogue.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{playerUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open player</a></td></tr></table>
+    <p style="margin:18px 0 0 0;font-size:14px;">Ready for music tailored to your specific customer? <a href="https://entuned.co/pricing.html" style="color:#d7af74;">Upgrade to Core</a> for a custom catalogue built around your ICP.</p>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Questions go to founder@entuned.co. Replies hit a real person.</p>
+    `.trim(),
+    propsExample: {
+      playerUrl: 'https://music.entuned.co/sample-store-1234',
+      dashboardUrl: 'https://app.entuned.co',
+    },
+  },
+  welcomeCore: {
+    subject: 'Welcome to Entuned Core',
+    preheader: 'Your Core account is active. Two next steps inside.',
+    body: `
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">You&rsquo;re on Core.</p>
+    <p style="margin:0 0 14px 0;">Two links to get running:</p>
+    <p style="margin:0 0 6px 0;"><strong style="color:#d7af74;">1. Dashboard</strong> &mdash; finish your store profile so we can build the catalogue.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open dashboard</a></td></tr></table>
+    <p style="margin:14px 0 6px 0;"><strong style="color:#d7af74;">2. Player</strong> &mdash; sign in on the in-store device once your catalogue is ready.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{playerUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open player</a></td></tr></table>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Questions go to founder@entuned.co. Replies hit a real person.</p>
+    `.trim(),
+    propsExample: {
+      playerUrl: 'https://music.entuned.co/sample-store-1234',
+      dashboardUrl: 'https://app.entuned.co',
+    },
+  },
+  welcomePro: {
+    subject: 'Welcome to Entuned Pro',
+    preheader: 'Your Pro account is active. Two next steps inside.',
+    body: `
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">You&rsquo;re on Pro.</p>
+    <p style="margin:0 0 14px 0;">Two links to get running:</p>
+    <p style="margin:0 0 6px 0;"><strong style="color:#d7af74;">1. Dashboard</strong> &mdash; finish your store profile so we can build the catalogue.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open dashboard</a></td></tr></table>
+    <p style="margin:14px 0 6px 0;"><strong style="color:#d7af74;">2. Player</strong> &mdash; sign in on the in-store device once your catalogue is ready.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{playerUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open player</a></td></tr></table>
+    <p style="margin:14px 0 0 0;">Pro includes a human review pass on your first catalogue. Expect a note from us within 48 hours after your store profile is in.</p>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Questions go to founder@entuned.co. Replies hit a real person.</p>
+    `.trim(),
+    propsExample: {
+      playerUrl: 'https://music.entuned.co/sample-store-1234',
+      dashboardUrl: 'https://app.entuned.co',
+    },
+  },
   catalogueReady: {
     subject: 'Your catalogue is ready',
     preheader: 'First catalogue is live. Preview before it hits the floor.',
@@ -43,6 +95,39 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">If anything feels off &mdash; tempo, energy, era &mdash; flag it. We re-tune fast.</p>
     `.trim(),
     propsExample: { dashboardUrl: 'https://app.entuned.co' },
+  },
+  dunning1: {
+    subject: 'Payment didn’t go through',
+    preheader: 'Update your billing to avoid an interruption.',
+    body: `
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">A payment didn&rsquo;t clear.</p>
+    <p style="margin:0 0 14px 0;">We&rsquo;ll retry in 3 days. If your card has changed, update it now and we&rsquo;ll re-bill immediately.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{billingPortalUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Update billing</a></td></tr></table>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Billing questions: founder@entuned.co.</p>
+    `.trim(),
+    propsExample: { billingPortalUrl: 'https://billing.stripe.com/sample' },
+  },
+  dunning2: {
+    subject: 'Second notice: payment failed',
+    preheader: 'Update your billing to avoid an interruption.',
+    body: `
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Second attempt failed.</p>
+    <p style="margin:0 0 14px 0;">One more retry in 3 days. After that, the player stops streaming until we collect. Update your card to avoid an interruption.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{billingPortalUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Update billing</a></td></tr></table>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Billing questions: founder@entuned.co.</p>
+    `.trim(),
+    propsExample: { billingPortalUrl: 'https://billing.stripe.com/sample' },
+  },
+  dunning3: {
+    subject: 'Final notice: service will pause today',
+    preheader: 'Update your billing to avoid an interruption.',
+    body: `
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Final notice.</p>
+    <p style="margin:0 0 14px 0;">Service pauses end of day unless billing is current. Catalogue and store profile stay intact &mdash; resume any time by updating your card.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{billingPortalUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Update billing now</a></td></tr></table>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Billing questions: founder@entuned.co.</p>
+    `.trim(),
+    propsExample: { billingPortalUrl: 'https://billing.stripe.com/sample' },
   },
   pauseEnding: {
     subject: 'Your pause ends in {{daysRemaining}} days',

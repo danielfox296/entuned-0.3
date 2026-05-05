@@ -9,3 +9,4 @@ build
 .turbo
 .vite
 coverage
+apps/dashboard/tsconfig.tsbuildinfo

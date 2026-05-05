@@ -28,6 +28,8 @@ interface DripStats {
   errors: number
 }
 
+export type LifecycleDripName = 'icpUnfilled' | 'pauseEnding' | 'freeToCoreNudge'
+
 /** Run all three drips. Called by the daily cron. */
 export async function runLifecycleEmails(): Promise<{
   icpUnfilled: DripStats
@@ -40,6 +42,16 @@ export async function runLifecycleEmails(): Promise<{
     runFreeToCoreNudge(),
   ])
   return { icpUnfilled, pauseEnding, freeToCoreNudge }
+}
+
+/** Fire one drip on demand. Used by the admin "fire now" button. Same
+ *  idempotency rails as the cron — already-sent recipients are skipped. */
+export async function runOneLifecycleDrip(name: LifecycleDripName): Promise<DripStats> {
+  switch (name) {
+    case 'icpUnfilled': return runIcpUnfilled()
+    case 'pauseEnding': return runPauseEnding()
+    case 'freeToCoreNudge': return runFreeToCoreNudge()
+  }
 }
 
 // ── ICP-unfilled ────────────────────────────────────────────────────────

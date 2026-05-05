@@ -4,10 +4,14 @@
 // Add new templates here. Keep the union narrow so callers get a clean autocomplete.
 
 import * as magicLink from './magicLink.js'
-import * as welcome from './welcome.js'
+import * as welcomeFree from './welcomeFree.js'
+import * as welcomeCore from './welcomeCore.js'
+import * as welcomePro from './welcomePro.js'
 import * as indemnificationCert from './indemnificationCert.js'
 import * as catalogueReady from './catalogueReady.js'
-import * as dunning from './dunning.js'
+import * as dunning1 from './dunning1.js'
+import * as dunning2 from './dunning2.js'
+import * as dunning3 from './dunning3.js'
 import * as pauseEnding from './pauseEnding.js'
 import * as icpUnfilled from './icpUnfilled.js'
 import * as freeToCoreNudge from './freeToCoreNudge.js'
@@ -19,10 +23,14 @@ export interface TemplateModule<P = any> {
 
 export const TEMPLATES = {
   magicLink,
-  welcome,
+  welcomeFree,
+  welcomeCore,
+  welcomePro,
   indemnificationCert,
   catalogueReady,
-  dunning,
+  dunning1,
+  dunning2,
+  dunning3,
   pauseEnding,
   icpUnfilled,
   freeToCoreNudge,
@@ -42,8 +50,15 @@ export const LIFECYCLE_TEMPLATES = new Set<TemplateName>([
 // a custom payload. Shape matches each template's Props interface.
 export const TEMPLATE_PROPS_EXAMPLES: Record<TemplateName, Record<string, unknown>> = {
   magicLink: { link: 'https://api.entuned.co/login/verify?token=sample' },
-  welcome: {
-    tier: 'core',
+  welcomeFree: {
+    playerUrl: 'https://music.entuned.co/sample-store-1234',
+    dashboardUrl: 'https://app.entuned.co',
+  },
+  welcomeCore: {
+    playerUrl: 'https://music.entuned.co/sample-store-1234',
+    dashboardUrl: 'https://app.entuned.co',
+  },
+  welcomePro: {
     playerUrl: 'https://music.entuned.co/sample-store-1234',
     dashboardUrl: 'https://app.entuned.co',
   },
@@ -52,7 +67,9 @@ export const TEMPLATE_PROPS_EXAMPLES: Record<TemplateName, Record<string, unknow
     pdfUrl: 'https://app.entuned.co/cert/sample.pdf',
   },
   catalogueReady: { dashboardUrl: 'https://app.entuned.co' },
-  dunning: { attempt: 1, billingPortalUrl: 'https://billing.stripe.com/sample' },
+  dunning1: { billingPortalUrl: 'https://billing.stripe.com/sample' },
+  dunning2: { billingPortalUrl: 'https://billing.stripe.com/sample' },
+  dunning3: { billingPortalUrl: 'https://billing.stripe.com/sample' },
   pauseEnding: { daysRemaining: 7, dashboardUrl: 'https://app.entuned.co' },
   icpUnfilled: { intakeUrl: 'https://app.entuned.co/intake' },
   freeToCoreNudge: {
