@@ -1,14 +1,13 @@
 import { useState } from 'react'
 import { T } from '../tokens.js'
-import { Button, Eyebrow, Input } from '../ui/index.js'
+import { Button, Eyebrow, Input, Logo } from '../ui/index.js'
 import { api } from '../api.js'
 
 // /start — magic-link request + Google OAuth entry. Customer-facing login.
 // No password field by design: passwordless via magic link.
 //
-// Layout pulled from the PLG onboarding design: full-bleed dark canvas,
-// eyebrow + Manrope headline + muted sub, primary CTA below the field,
-// Google as secondary path under a hairline divider.
+// Friendly first-touch copy: no step counter (visitor doesn't know there's
+// a flow yet), outcome-promising CTA, no "no password" objection-flip.
 export function Start() {
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState(false)
@@ -31,14 +30,12 @@ export function Start() {
 
   return (
     <Shell>
-      <Eyebrow>Step 01 · Account</Eyebrow>
-      <Headline>Let's tune your store.</Headline>
-
       {sent ? (
         <>
+          <Headline>Check your inbox.</Headline>
           <Sub>
-            Check <span style={{ color: T.text }}>{email}</span>. The link
-            opens your dashboard — no password to remember.
+            We sent a sign-in link to{' '}
+            <span style={{ color: T.text }}>{email}</span>. Click it and you're in.
           </Sub>
           <div style={{
             marginTop: 24,
@@ -49,19 +46,20 @@ export function Start() {
             fontSize: 14,
             lineHeight: 1.55,
           }}>
-            Didn't land? Check spam, or send another to a different address.
+            Didn't land? It's worth a peek in spam — sometimes new domains get
+            filtered. You can also try a different address.
           </div>
         </>
       ) : (
         <>
+          <Headline>Start your store's soundtrack.</Headline>
           <Sub>
-            One thing to start. We email a sign-in link the moment you finish
-            — no password to remember.
+            We'll email you a sign-in link. Click it and you're in.
           </Sub>
 
-          <form onSubmit={submit} style={{ display: 'grid', gap: 18, marginTop: 28 }}>
+          <form onSubmit={submit} style={{ display: 'grid', gap: 18, marginTop: 32 }}>
             <div>
-              <Eyebrow>Work email</Eyebrow>
+              <Eyebrow>Your email</Eyebrow>
               <BigInput
                 type="email"
                 value={email}
@@ -78,7 +76,7 @@ export function Start() {
 
             <div style={{ marginTop: 4 }}>
               <Button type="submit" busy={busy}>
-                {busy ? 'Sending…' : 'Email me a sign-in link'}
+                {busy ? 'Sending…' : 'Get my sign-in link'}
               </Button>
             </div>
           </form>
@@ -116,10 +114,9 @@ function Shell({ children }: { children: React.ReactNode }) {
       fontFamily: T.sans, padding: 24, color: T.text,
     }}>
       <div style={{ width: 460, maxWidth: '100%' }}>
-        <div style={{
-          fontFamily: T.heading, fontSize: 22, fontWeight: 700,
-          color: T.text, letterSpacing: '-0.02em', marginBottom: 40,
-        }}>entuned</div>
+        <div style={{ marginBottom: 40 }}>
+          <Logo />
+        </div>
         {children}
       </div>
     </div>

@@ -10,14 +10,24 @@ import { useTier } from '../lib/tier.jsx'
 // which round-trips through GET/POST /me/icp.
 type AnswerKey = keyof IcpInput
 
-const QUESTIONS: { key: AnswerKey; label: string; hint: string }[] = [
-  { key: 'name',                label: 'Audience name',          hint: 'e.g. "Park Meadows lunch crowd"' },
-  { key: 'ageRange',            label: 'Age range',              hint: 'e.g. 28–45' },
-  { key: 'location',            label: 'Where they live / shop', hint: 'City, region, or neighborhood' },
-  { key: 'values',              label: 'What they value',        hint: 'A short list — comma separated' },
-  { key: 'desires',             label: 'What they want',         hint: 'Stated goals' },
-  { key: 'unexpressedDesires',  label: 'What they would not say out loud', hint: 'The quieter motivations' },
-  { key: 'turnOffs',            label: 'What turns them off',    hint: 'Tone, words, or styles to avoid' },
+// Each question reads like something you'd actually ask a shop owner over
+// coffee. The `example` line stays visible under the field (placeholder text
+// disappears on focus, exactly when the user wants to see it most).
+const QUESTIONS: { key: AnswerKey; label: string; example: string }[] = [
+  { key: 'name',                label: 'What do you call them?',
+    example: 'A nickname for this audience, e.g. "Park Meadows lunch crowd"' },
+  { key: 'ageRange',            label: 'How old are they, roughly?',
+    example: 'A range is fine — 28–45, mid-30s, "older millennials"' },
+  { key: 'location',            label: 'Where do they live or shop?',
+    example: 'Neighborhood, city, region — wherever they spend their time' },
+  { key: 'values',              label: 'What matters to them?',
+    example: 'A short list — craft, family, time outdoors, looking sharp' },
+  { key: 'desires',             label: 'What are they here for?',
+    example: 'The thing they’d say if you asked them at the door' },
+  { key: 'unexpressedDesires',  label: 'What do they want but won’t admit?',
+    example: 'The quieter motivation underneath the stated one' },
+  { key: 'turnOffs',            label: 'What would make them leave?',
+    example: 'Tone, words, music, vibes — anything that breaks the spell' },
 ]
 
 type Answers = Record<AnswerKey, string>
@@ -126,21 +136,21 @@ function IcpIntakeForm() {
   return (
     <Layout>
       <div style={{ marginBottom: 32, maxWidth: 640 }}>
-        <Eyebrow>Brand voice · Intake</Eyebrow>
+        <Eyebrow>Brand voice</Eyebrow>
         <h1 style={{
           fontFamily: T.heading,
           fontSize: 'clamp(1.7rem, 2.6vw, 2.3rem)',
           fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.1,
           color: T.text, margin: '0 0 12px',
         }}>
-          Tell us about your audience.
+          Who walks into your store?
         </h1>
         <p style={{
           fontSize: 15, lineHeight: 1.55,
           color: T.textDim, margin: 0, maxWidth: '52ch',
         }}>
-          Seven questions, two minutes. Each answer shapes the music we write
-          for your floor — you can re-tune any time.
+          Each answer changes the music. None of them are wrong, and you can
+          come back and re-tune any time.
         </p>
         {savedAt && (
           <div style={{
@@ -164,11 +174,18 @@ function IcpIntakeForm() {
           <div style={{ display: 'grid', gap: 28 }}>
             {QUESTIONS.map((q) => (
               <div key={q.key}>
-                <Eyebrow>{q.label}</Eyebrow>
+                <label style={{
+                  display: 'block',
+                  fontFamily: T.heading,
+                  fontSize: 18, fontWeight: 600,
+                  color: T.text, letterSpacing: '-0.01em',
+                  marginBottom: 6,
+                }}>
+                  {q.label}
+                </label>
                 <Input
                   value={answers[q.key]}
                   onChange={(e) => update(q.key, e.target.value)}
-                  placeholder={q.hint}
                   style={{
                     background: 'transparent',
                     border: 'none',
@@ -178,6 +195,12 @@ function IcpIntakeForm() {
                     padding: '8px 0',
                   }}
                 />
+                <div style={{
+                  marginTop: 6,
+                  fontSize: 13, color: T.textFaint, lineHeight: 1.5,
+                }}>
+                  {q.example}
+                </div>
               </div>
             ))}
 
@@ -195,7 +218,7 @@ function IcpIntakeForm() {
                 Reset
               </Button>
               <Button onClick={save} disabled={!dirty || saving}>
-                {saving ? 'Saving…' : (savedAt ? 'Save changes' : 'Save and continue')}
+                {saving ? 'Saving…' : (savedAt ? 'Save changes' : 'Tune the music')}
               </Button>
             </div>
           </div>

@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { T } from '../tokens.js'
-import { Eyebrow } from '../ui/index.js'
+import { Eyebrow, Logo } from '../ui/index.js'
 import { api } from '../api.js'
 
 // /welcome?session=cs_... — landing page after Stripe Checkout returns.
 // Confirms the account is provisioned, then routes to the ICP intake wizard.
 //
-// Layout follows the PLG onboarding "post-onboarding" feel: editorial
-// eyebrow + Manrope headline, rather than the centered text-only treatment.
+// Copy is concrete on the pending state ("Finishing payment...") so a
+// just-paid customer doesn't sit there wondering whether the charge worked.
 export function Welcome() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
@@ -52,32 +52,34 @@ export function Welcome() {
       fontFamily: T.sans, padding: 24, color: T.text,
     }}>
       <div style={{ width: 520, maxWidth: '100%' }}>
-        <div style={{
-          fontFamily: T.heading, fontSize: 22, fontWeight: 700,
-          color: T.text, letterSpacing: '-0.02em', marginBottom: 40,
-        }}>entuned</div>
+        <div style={{ marginBottom: 40 }}>
+          <Logo />
+        </div>
 
         {status === 'pending' && (
           <>
-            <Eyebrow>Setting up</Eyebrow>
-            <Headline>Tuning your account.</Headline>
-            <Sub>One moment — finalising your subscription and provisioning your store.</Sub>
+            <Eyebrow>Almost ready</Eyebrow>
+            <Headline>Setting up your store.</Headline>
+            <Sub>
+              Confirming payment and spinning up your account. This usually
+              takes about five seconds.
+            </Sub>
             <Pulse />
           </>
         )}
         {status === 'ready' && (
           <>
-            <Eyebrow>You're tuned in</Eyebrow>
-            <Headline>Account ready.</Headline>
+            <Eyebrow>You're in</Eyebrow>
+            <Headline>You're all set.</Headline>
             <Sub>Taking you to your dashboard.</Sub>
           </>
         )}
         {status === 'error' && (
           <>
-            <Eyebrow>Something's off</Eyebrow>
-            <Headline>We couldn't confirm your checkout.</Headline>
+            <Eyebrow>Hmm</Eyebrow>
+            <Headline>We hit a snag finishing up.</Headline>
             <Sub style={{ color: T.danger }}>
-              {error ?? 'Reach out at hello@entuned.co and we\'ll sort it.'}
+              {error ?? "Email hello@entuned.co and we'll sort it in minutes."}
             </Sub>
           </>
         )}
@@ -111,8 +113,6 @@ function Sub({ children, style }: { children: React.ReactNode; style?: React.CSS
   )
 }
 
-// A thin animated bar — tiny "we're working" affordance under the pending
-// headline. Pure CSS keyframes via inline <style>.
 function Pulse() {
   return (
     <div style={{
