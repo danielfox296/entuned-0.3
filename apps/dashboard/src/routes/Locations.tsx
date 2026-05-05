@@ -1,9 +1,9 @@
-import { useState, type CSSProperties } from 'react'
-import { Plus, ExternalLink, Copy, Check, Pause, Play, Lock } from 'lucide-react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { Plus, ExternalLink, Copy, Check, Pause, Play, Lock, Pencil, X } from 'lucide-react'
 import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
 import { Card, EmptyState } from '../ui/Card.js'
-import { Button } from '../ui/index.js'
+import { Button, Input } from '../ui/index.js'
 import { api, PLAYER_URL, TIER_LABEL, TIER_RANK, type StoreRow, type Tier } from '../api.js'
 import { useTier } from '../lib/tier.jsx'
 
@@ -13,6 +13,7 @@ export function Locations() {
   const { stores, tier, loading, refresh } = useTier()
   const canAdd = TIER_RANK[tier] >= TIER_RANK.core
   const canPause = TIER_RANK[tier] >= TIER_RANK.core
+  const [addOpen, setAddOpen] = useState(false)
 
   return (
     <Layout>
@@ -30,7 +31,7 @@ export function Locations() {
           </div>
         </div>
         {canAdd ? (
-          <Button onClick={() => alert('Add location ships in v1.5')}>
+          <Button onClick={() => setAddOpen(true)}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <Plus size={14} strokeWidth={2} /> Add location
             </span>
@@ -74,6 +75,13 @@ export function Locations() {
           ))}
         </div>
       )}
+
+      {addOpen && (
+        <AddLocationModal
+          onClose={() => setAddOpen(false)}
+          onAdded={refresh}
+        />
+      )}
     </Layout>
   )
 }
@@ -96,11 +104,8 @@ function StoreCard({ store, canPause, onChanged }: {
         display: 'flex', alignItems: 'center',
         justifyContent: 'space-between', marginBottom: 12, gap: 12,
       }}>
-        <div>
-          <div style={{
-            fontSize: 16, fontFamily: T.heading, color: T.text,
-            fontWeight: 500,
-          }}>{store.name}</div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <StoreNameRow store={store} onChanged={onChanged} />
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10, marginTop: 4,
           }}>
@@ -124,6 +129,212 @@ function StoreCard({ store, canPause, onChanged }: {
         />
       </div>
       <PlayerUrlRow url={url} />
+    </div>
+  )
+}
+
+function StoreNameRow({ store, onChanged }: { store: StoreRow; onChanged: () => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(store.name)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editing) {
+      setDraft(store.name)
+      setError(null)
+      // Defer focus until input mounts.
+      requestAnimationFrame(() => inputRef.current?.select())
+    }
+  }, [editing, store.name])
+
+  const save = async () => {
+    const trimmed = draft.trim()
+    if (busy) return
+    if (!trimmed) {
+      setError('Name is required.')
+      return
+    }
+    if (trimmed === store.name) {
+      setEditing(false)
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      await api.renameStore(store.id, trimmed)
+      onChanged()
+      setEditing(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Rename failed.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <div style={{
+          fontSize: 16, fontFamily: T.heading, color: T.text, fontWeight: 500,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>{store.name}</div>
+        <button
+          onClick={() => setEditing(true)}
+          title="Rename"
+          aria-label="Rename location"
+          style={{
+            background: 'transparent', border: 'none', padding: 2,
+            color: T.textDim, cursor: 'pointer', borderRadius: 3,
+            display: 'inline-flex', alignItems: 'center',
+          }}
+        >
+          <Pencil size={13} strokeWidth={1.75} />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Input
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          disabled={busy}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') save()
+            if (e.key === 'Escape') setEditing(false)
+          }}
+          style={{ flex: 1, maxWidth: 360 }}
+        />
+        <Button onClick={save} disabled={busy}>
+          {busy ? 'Saving…' : 'Save'}
+        </Button>
+        <Button variant="ghost" onClick={() => setEditing(false)} disabled={busy}>
+          Cancel
+        </Button>
+      </div>
+      {error && (
+        <div style={{ color: T.danger, fontSize: 12, marginTop: 6 }}>{error}</div>
+      )}
+    </div>
+  )
+}
+
+function AddLocationModal({ onClose, onAdded }: {
+  onClose: () => void
+  onAdded: () => void
+}) {
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    requestAnimationFrame(() => inputRef.current?.focus())
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [busy, onClose])
+
+  const submit = async () => {
+    const trimmed = name.trim()
+    if (busy) return
+    if (!trimmed) {
+      setError('Location name is required.')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      await api.addStore(trimmed)
+      onAdded()
+      onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Add location failed.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      onClick={() => !busy && onClose()}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 50,
+        background: 'rgba(0,0,0,0.55)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 20,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 460,
+          background: T.surface,
+          border: `1px solid ${T.border}`,
+          borderRadius: 8,
+          boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
+          padding: 24,
+        }}
+      >
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+          marginBottom: 16,
+        }}>
+          <div>
+            <h2 style={{
+              fontFamily: T.heading, fontSize: 18, fontWeight: 600,
+              color: T.text, margin: 0, letterSpacing: '-0.01em',
+            }}>Add a location</h2>
+            <div style={{ color: T.textDim, fontSize: 13, marginTop: 4, lineHeight: 1.5 }}>
+              We bump your subscription by one location and provision a new
+              player URL. Billing is prorated automatically.
+            </div>
+          </div>
+          <button
+            onClick={() => !busy && onClose()}
+            aria-label="Close"
+            style={{
+              background: 'transparent', border: 'none', padding: 4,
+              color: T.textDim, cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center',
+            }}
+          >
+            <X size={16} strokeWidth={1.75} />
+          </button>
+        </div>
+
+        <label style={{
+          display: 'block', fontSize: 13, color: T.textMuted,
+          marginBottom: 6, fontFamily: T.sans,
+        }}>
+          Location name
+        </label>
+        <Input
+          ref={inputRef}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Park Meadows"
+          disabled={busy}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') submit()
+          }}
+        />
+
+        {error && (
+          <div style={{ color: T.danger, fontSize: 13, marginTop: 10 }}>{error}</div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 18 }}>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button onClick={submit} disabled={busy}>
+            {busy ? 'Adding…' : 'Add location'}
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

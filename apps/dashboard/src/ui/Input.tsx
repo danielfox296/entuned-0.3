@@ -1,4 +1,4 @@
-import type { CSSProperties, InputHTMLAttributes } from 'react'
+import { forwardRef, type CSSProperties, type InputHTMLAttributes } from 'react'
 import { T } from '../tokens.js'
 
 const baseField: CSSProperties = {
@@ -16,13 +16,14 @@ const baseField: CSSProperties = {
 
 type InputProps = InputHTMLAttributes<HTMLInputElement>
 
-export function Input({ style, ...rest }: InputProps) {
+export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ style, ...rest }, ref) {
   return (
     <input
+      ref={ref}
       {...rest}
       style={{ ...baseField, ...style }}
       onFocus={(e) => { e.currentTarget.style.borderColor = T.accent }}
       onBlur={(e) => { e.currentTarget.style.borderColor = T.border }}
     />
   )
-}
+})

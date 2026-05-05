@@ -163,4 +163,38 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
 
     return reply.send({ icp: pickIcpFields(saved) })
   })
+
+  // PATCH /me/stores/:id — rename a Store. Only writes to `Store.name`. The
+  // slug stays put — it's the URL the customer has likely shared, and we
+  // never want a rename to break a music.entuned.co/<slug> link.
+  app.patch<{ Params: { id: string }; Body: { name?: string } }>(
+    '/stores/:id',
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const ctx = getClient(req, reply)
+      if (!ctx) return
+
+      const { id } = req.params
+      const parsed = z.object({
+        name: z.string().trim().min(1).max(120),
+      }).safeParse(req.body)
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'invalid_body', issues: parsed.error.issues })
+      }
+
+      const store = await prisma.store.findFirst({
+        where: { id, clientId: ctx.clientId, archivedAt: null },
+        select: { id: true },
+      })
+      if (!store) return reply.code(404).send({ error: 'store_not_found' })
+
+      const updated = await prisma.store.update({
+        where: { id: store.id },
+        data: { name: parsed.data.name },
+        select: { id: true, name: true },
+      })
+
+      return reply.send({ store: updated })
+    },
+  )
 }

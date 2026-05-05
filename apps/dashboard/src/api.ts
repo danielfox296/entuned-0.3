@@ -167,6 +167,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+  addStore: (name: string) =>
+    req<{ store: { id: string; name: string; slug: string; tier: Tier } }>('/billing/stores', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }),
+  renameStore: (id: string, name: string) =>
+    req<{ store: { id: string; name: string } }>(`/me/stores/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
 
   // ── Billing actions ──
   billingPortal: () => req<{ url: string }>('/billing/portal'),
