@@ -15,6 +15,9 @@ import * as dunning3 from './dunning3.js'
 import * as pauseEnding from './pauseEnding.js'
 import * as icpUnfilled from './icpUnfilled.js'
 import * as freeToCoreNudge from './freeToCoreNudge.js'
+import * as engagedFreeToCore from './engagedFreeToCore.js'
+import * as scalingCoreToPro from './scalingCoreToPro.js'
+import * as establishedCoreToPro from './establishedCoreToPro.js'
 
 export interface TemplateModule<P = any> {
   subject: (props: P) => string
@@ -34,6 +37,9 @@ export const TEMPLATES = {
   pauseEnding,
   icpUnfilled,
   freeToCoreNudge,
+  engagedFreeToCore,
+  scalingCoreToPro,
+  establishedCoreToPro,
 } satisfies Record<string, TemplateModule>
 
 export type TemplateName = keyof typeof TEMPLATES
@@ -44,6 +50,9 @@ export type TemplateName = keyof typeof TEMPLATES
 export const LIFECYCLE_TEMPLATES = new Set<TemplateName>([
   'icpUnfilled',
   'freeToCoreNudge',
+  'engagedFreeToCore',
+  'scalingCoreToPro',
+  'establishedCoreToPro',
 ])
 
 // Sample props the admin "preview" pane uses when the operator hasn't supplied
@@ -75,5 +84,16 @@ export const TEMPLATE_PROPS_EXAMPLES: Record<TemplateName, Record<string, unknow
   freeToCoreNudge: {
     upgradeUrl: 'https://api.entuned.co/billing/checkout?tier=core',
     playerUrl: 'https://music.entuned.co/sample-store-1234',
+  },
+  engagedFreeToCore: {
+    upgradeUrl: 'https://api.entuned.co/billing/checkout?tier=core',
+    songsPlayed: 247,
+  },
+  scalingCoreToPro: {
+    upgradeUrl: 'https://api.entuned.co/billing/checkout?tier=pro',
+    storeCount: 3,
+  },
+  establishedCoreToPro: {
+    upgradeUrl: 'https://api.entuned.co/billing/checkout?tier=pro',
   },
 }

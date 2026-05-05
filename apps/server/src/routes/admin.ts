@@ -3076,7 +3076,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // Returns the dispatcher's stats. Idempotency log is the same as the cron's,
   // so already-sent recipients are skipped — fire-now is safe to spam.
   const LifecycleRunBody = z.object({
-    drip: z.enum(['icpUnfilled', 'pauseEnding', 'freeToCoreNudge']).optional(),
+    drip: z.enum([
+      'icpUnfilled', 'pauseEnding', 'freeToCoreNudge',
+      'engagedFreeToCore', 'scalingCoreToPro', 'establishedCoreToPro',
+    ]).optional(),
   })
 
   app.post('/email/lifecycle/run', async (req, reply) => {

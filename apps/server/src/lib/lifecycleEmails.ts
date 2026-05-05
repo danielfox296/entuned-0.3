@@ -1,10 +1,16 @@
 // Lifecycle email dispatcher.
 //
-// Drives behavioral / lifecycle drips on a daily cron. Three triggers in v1:
+// Drives behavioral / lifecycle drips on a daily cron. Triggers:
 //
-//   1. icpUnfilled        — paid Store created ≥48h ago, no ICP saved
-//   2. pauseEnding         — Subscription paused, day 53 of the 60-day window
-//   3. freeToCoreNudge     — free signup ≥72h ago, no paid Store
+//   Time-based:
+//     1. icpUnfilled         — paid Store created ≥48h ago, no ICP saved
+//     2. pauseEnding         — Subscription paused, day 53 of the 60-day window
+//     3. freeToCoreNudge     — free signup ≥72h ago, no paid Store
+//
+//   Behavior-based:
+//     4. engagedFreeToCore     — Free Client with ≥100 song_starts in last 14d
+//     5. scalingCoreToPro      — Client with ≥2 paid Stores, no Pro yet
+//     6. establishedCoreToPro  — Core ≥30 days, ICP saved, no Pro yet
 //
 // Each send is idempotent via `LifecycleEmailLog` (unique on userId, template,
 // contextKey). Lifecycle templates are gated on User.lifecycleEmailsOptOut by
@@ -28,20 +34,31 @@ interface DripStats {
   errors: number
 }
 
-export type LifecycleDripName = 'icpUnfilled' | 'pauseEnding' | 'freeToCoreNudge'
+export type LifecycleDripName =
+  | 'icpUnfilled'
+  | 'pauseEnding'
+  | 'freeToCoreNudge'
+  | 'engagedFreeToCore'
+  | 'scalingCoreToPro'
+  | 'establishedCoreToPro'
 
-/** Run all three drips. Called by the daily cron. */
-export async function runLifecycleEmails(): Promise<{
-  icpUnfilled: DripStats
-  pauseEnding: DripStats
-  freeToCoreNudge: DripStats
-}> {
-  const [icpUnfilled, pauseEnding, freeToCoreNudge] = await Promise.all([
+/** Run every drip the cron knows about. */
+export async function runLifecycleEmails(): Promise<Record<LifecycleDripName, DripStats>> {
+  const [
+    icpUnfilled, pauseEnding, freeToCoreNudge,
+    engagedFreeToCore, scalingCoreToPro, establishedCoreToPro,
+  ] = await Promise.all([
     runIcpUnfilled(),
     runPauseEnding(),
     runFreeToCoreNudge(),
+    runEngagedFreeToCore(),
+    runScalingCoreToPro(),
+    runEstablishedCoreToPro(),
   ])
-  return { icpUnfilled, pauseEnding, freeToCoreNudge }
+  return {
+    icpUnfilled, pauseEnding, freeToCoreNudge,
+    engagedFreeToCore, scalingCoreToPro, establishedCoreToPro,
+  }
 }
 
 /** Fire one drip on demand. Used by the admin "fire now" button. Same
@@ -51,6 +68,9 @@ export async function runOneLifecycleDrip(name: LifecycleDripName): Promise<Drip
     case 'icpUnfilled': return runIcpUnfilled()
     case 'pauseEnding': return runPauseEnding()
     case 'freeToCoreNudge': return runFreeToCoreNudge()
+    case 'engagedFreeToCore': return runEngagedFreeToCore()
+    case 'scalingCoreToPro': return runScalingCoreToPro()
+    case 'establishedCoreToPro': return runEstablishedCoreToPro()
   }
 }
 
@@ -236,6 +256,215 @@ async function runFreeToCoreNudge(): Promise<DripStats> {
       if (!res.ok) { stats.errors++; continue }
       await prisma.lifecycleEmailLog.create({
         data: { userId: user.id, templateName: 'freeToCoreNudge' },
+      })
+      stats.sent++
+    } catch {
+      stats.errors++
+    }
+  }
+  return stats
+}
+
+// ── Engaged Free → Core ─────────────────────────────────────────────────
+//
+// Free Client whose Store has racked up real playback (≥100 song_start events
+// in the last 14 days). Time-only `freeToCoreNudge` already fires at 72h on
+// signup; this one fires later when usage actually shows up. Different
+// template, distinct contextKey, so a Client can receive both.
+
+const ENGAGED_THRESHOLD_SONGS = 100
+const ENGAGED_WINDOW_DAYS = 14
+
+async function runEngagedFreeToCore(): Promise<DripStats> {
+  const stats: DripStats = { considered: 0, sent: 0, skipped: 0, errors: 0 }
+  const since = new Date(Date.now() - ENGAGED_WINDOW_DAYS * 24 * HOUR_MS)
+
+  // Eligible Clients: at least one active Store, none with a Subscription.
+  const clients = await prisma.client.findMany({
+    where: {
+      stores: {
+        some: { archivedAt: null },
+        none: { subscription: { isNot: null }, archivedAt: null },
+      },
+    },
+    select: {
+      id: true,
+      stores: {
+        where: { archivedAt: null },
+        select: { id: true },
+      },
+      memberships: {
+        where: { role: { in: ['owner', 'manager'] } },
+        orderBy: { createdAt: 'asc' },
+        take: 1,
+        select: { user: { select: { id: true, email: true } } },
+      },
+    },
+  })
+
+  for (const c of clients) {
+    const user = c.memberships[0]?.user
+    if (!user || c.stores.length === 0) continue
+
+    const storeIds = c.stores.map((s) => s.id)
+    const songStarts = await prisma.playbackEvent.count({
+      where: {
+        storeId: { in: storeIds },
+        eventType: 'song_start',
+        occurredAt: { gte: since },
+      },
+    })
+    if (songStarts < ENGAGED_THRESHOLD_SONGS) continue
+
+    stats.considered++
+    const already = await prisma.lifecycleEmailLog.findUnique({
+      where: { userId_templateName_contextKey: {
+        userId: user.id, templateName: 'engagedFreeToCore', contextKey: '',
+      } },
+    })
+    if (already) { stats.skipped++; continue }
+    try {
+      const res = await sendLifecycle('engagedFreeToCore', { userId: user.id, email: user.email }, {
+        upgradeUrl: `${API_URL}/billing/checkout?tier=core`,
+        songsPlayed: songStarts,
+      })
+      if (res.skipped) { stats.skipped++; continue }
+      if (!res.ok) { stats.errors++; continue }
+      await prisma.lifecycleEmailLog.create({
+        data: { userId: user.id, templateName: 'engagedFreeToCore' },
+      })
+      stats.sent++
+    } catch {
+      stats.errors++
+    }
+  }
+  return stats
+}
+
+// ── Scaling Core → Pro ──────────────────────────────────────────────────
+//
+// Client with ≥2 paid Stores, none on Pro yet. Multi-location operators are
+// the natural Pro audience — day-parting + POS integrations matter once you
+// can't eyeball every floor.
+
+async function runScalingCoreToPro(): Promise<DripStats> {
+  const stats: DripStats = { considered: 0, sent: 0, skipped: 0, errors: 0 }
+
+  // Pull every Client with at least 2 active paid Stores. We then check for
+  // "no Pro yet" in JS — keeps the SQL straightforward across mixed-tier rows.
+  const clients = await prisma.client.findMany({
+    where: {
+      stores: {
+        some: { archivedAt: null, subscription: { isNot: null } },
+      },
+    },
+    select: {
+      id: true,
+      stores: {
+        where: { archivedAt: null },
+        select: { id: true, tier: true, subscription: { select: { id: true } } },
+      },
+      memberships: {
+        where: { role: { in: ['owner', 'manager'] } },
+        orderBy: { createdAt: 'asc' },
+        take: 1,
+        select: { user: { select: { id: true, email: true } } },
+      },
+    },
+  })
+
+  for (const c of clients) {
+    const user = c.memberships[0]?.user
+    if (!user) continue
+    const paid = c.stores.filter((s) => s.subscription !== null)
+    if (paid.length < 2) continue
+    if (paid.some((s) => s.tier === 'pro' || s.tier === 'enterprise')) continue
+
+    stats.considered++
+    const already = await prisma.lifecycleEmailLog.findUnique({
+      where: { userId_templateName_contextKey: {
+        userId: user.id, templateName: 'scalingCoreToPro', contextKey: '',
+      } },
+    })
+    if (already) { stats.skipped++; continue }
+    try {
+      const res = await sendLifecycle('scalingCoreToPro', { userId: user.id, email: user.email }, {
+        upgradeUrl: `${API_URL}/billing/checkout?tier=pro`,
+        storeCount: paid.length,
+      })
+      if (res.skipped) { stats.skipped++; continue }
+      if (!res.ok) { stats.errors++; continue }
+      await prisma.lifecycleEmailLog.create({
+        data: { userId: user.id, templateName: 'scalingCoreToPro' },
+      })
+      stats.sent++
+    } catch {
+      stats.errors++
+    }
+  }
+  return stats
+}
+
+// ── Established Core → Pro ──────────────────────────────────────────────
+//
+// Client whose oldest Core Subscription is ≥30 days old AND whose primary
+// Store has a saved ICP. They've engaged + stuck around — Pro's data story
+// (Lift Reports, integrations) is the natural next pitch.
+
+const ESTABLISHED_TENURE_DAYS = 30
+
+async function runEstablishedCoreToPro(): Promise<DripStats> {
+  const stats: DripStats = { considered: 0, sent: 0, skipped: 0, errors: 0 }
+  const tenureCutoff = new Date(Date.now() - ESTABLISHED_TENURE_DAYS * 24 * HOUR_MS)
+
+  // Eligible Clients: at least one Subscription created ≥30 days ago whose
+  // Store is at tier=core; at least one ICP saved on any Store; no Pro Stores.
+  const clients = await prisma.client.findMany({
+    where: {
+      stores: {
+        some: {
+          archivedAt: null,
+          tier: 'core',
+          subscription: { is: { createdAt: { lte: tenureCutoff } } },
+        },
+      },
+      icps: { some: {} },
+    },
+    select: {
+      id: true,
+      stores: {
+        where: { archivedAt: null },
+        select: { tier: true },
+      },
+      memberships: {
+        where: { role: { in: ['owner', 'manager'] } },
+        orderBy: { createdAt: 'asc' },
+        take: 1,
+        select: { user: { select: { id: true, email: true } } },
+      },
+    },
+  })
+
+  for (const c of clients) {
+    const user = c.memberships[0]?.user
+    if (!user) continue
+    if (c.stores.some((s) => s.tier === 'pro' || s.tier === 'enterprise')) continue
+
+    stats.considered++
+    const already = await prisma.lifecycleEmailLog.findUnique({
+      where: { userId_templateName_contextKey: {
+        userId: user.id, templateName: 'establishedCoreToPro', contextKey: '',
+      } },
+    })
+    if (already) { stats.skipped++; continue }
+    try {
+      const res = await sendLifecycle('establishedCoreToPro', { userId: user.id, email: user.email }, {
+        upgradeUrl: `${API_URL}/billing/checkout?tier=pro`,
+      })
+      if (res.skipped) { stats.skipped++; continue }
+      if (!res.ok) { stats.errors++; continue }
+      await prisma.lifecycleEmailLog.create({
+        data: { userId: user.id, templateName: 'establishedCoreToPro' },
       })
       stats.sent++
     } catch {

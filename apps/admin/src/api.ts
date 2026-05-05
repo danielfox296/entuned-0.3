@@ -1031,7 +1031,12 @@ export const api = {
     req<EmailTemplateDetail>(`/admin/email/templates/${encodeURIComponent(name)}`, {
       method: 'PUT', body: JSON.stringify(body),
     }, token),
-  runLifecycleDrip: (drip: 'icpUnfilled' | 'pauseEnding' | 'freeToCoreNudge' | 'all', token: string) =>
+  runLifecycleDrip: (
+    drip: 'icpUnfilled' | 'pauseEnding' | 'freeToCoreNudge'
+        | 'engagedFreeToCore' | 'scalingCoreToPro' | 'establishedCoreToPro'
+        | 'all',
+    token: string,
+  ) =>
     req<{ ok: true; drip: string; stats: any }>('/admin/email/lifecycle/run', {
       method: 'POST',
       body: JSON.stringify(drip === 'all' ? {} : { drip }),

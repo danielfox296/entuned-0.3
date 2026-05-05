@@ -181,6 +181,59 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
       playerUrl: 'https://music.entuned.co/sample-store-1234',
     },
   },
+  engagedFreeToCore: {
+    subject: 'You play hundreds of songs a week on the general pool',
+    preheader: 'Same playback, sharper library. Upgrade to Core.',
+    body: `
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">{{songsPlayed}} songs through your store on Essentials.</p>
+    <p style="margin:0 0 14px 0;">You&rsquo;re using the player. The music is working hard for you. It&rsquo;s also tuned to retail in general &mdash; not to your specific customer.</p>
+    <p style="margin:0 0 14px 0;">On Core, the same hours of playback hit a library built around your audience. Same staff, same hours, sharper match.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Upgrade to Core</a></td></tr></table>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Seven questions, two minutes of intake, and the catalogue retunes around the answers.</p>
+    `.trim(),
+    propsExample: {
+      upgradeUrl: 'https://api.entuned.co/billing/checkout?tier=core',
+      songsPlayed: 247,
+    },
+  },
+  scalingCoreToPro: {
+    subject: 'You run multiple locations now. Pro is when you stop running them blind.',
+    preheader: '{{storeCount}} locations on Core. Pro is the next gear.',
+    body: `
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">{{storeCount}} locations on Core.</p>
+    <p style="margin:0 0 14px 0;">At one location, eyeballing the floor works. At {{storeCount}}, it doesn&rsquo;t. You can&rsquo;t hear what every store is hearing, and you can&rsquo;t tell which hours need different music.</p>
+    <p style="margin:0 0 14px 0;">Pro adds two things that pay for themselves at scale:</p>
+    <ul style="margin:0 0 14px 0;padding-left:20px;">
+      <li style="margin-bottom:6px;"><strong style="color:#d7af74;">Day-parting</strong> &mdash; outcome rotation per location. Morning lull on Increase Dwell, Saturday afternoon on Infuse Energy. One rule, every store.</li>
+      <li><strong style="color:#d7af74;">POS integrations</strong> &mdash; Square / Shopify / Lightspeed. Music outcomes next to hourly transactions, per location. Stop guessing which mix moved.</li>
+    </ul>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Upgrade to Pro</a></td></tr></table>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">$399 per location, per month. The math works once you can prove the lift.</p>
+    `.trim(),
+    propsExample: {
+      upgradeUrl: 'https://api.entuned.co/billing/checkout?tier=pro',
+      storeCount: 3,
+    },
+  },
+  establishedCoreToPro: {
+    subject: 'You filled the intake. You stuck around. Pro is where the data starts paying off.',
+    preheader: 'A month of Core. Pro is when the data starts paying off.',
+    body: `
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">A month of Core, and you finished intake.</p>
+    <p style="margin:0 0 14px 0;">You&rsquo;re past the point where someone else would&rsquo;ve bounced. The library is built around your customer. Now the question changes from <em>does the music fit</em> to <em>does it move the number</em>.</p>
+    <p style="margin:0 0 14px 0;">Pro is the answer:</p>
+    <ul style="margin:0 0 14px 0;padding-left:20px;">
+      <li style="margin-bottom:6px;"><strong style="color:#d7af74;">Lift Reports</strong> &mdash; the music outcome on each shift, mapped to your existing CFO report. Forward it as-is.</li>
+      <li style="margin-bottom:6px;"><strong style="color:#d7af74;">POS integrations</strong> &mdash; hourly sales next to what was playing. The lift stops being a story and starts being a line item.</li>
+      <li><strong style="color:#d7af74;">Day-parting</strong> &mdash; different outcomes by hour. Match the customer that walks in at 11am vs. 5pm.</li>
+    </ul>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Upgrade to Pro</a></td></tr></table>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">$399 per location, per month. The first time you forward a Lift Report to your CFO, it pays.</p>
+    `.trim(),
+    propsExample: {
+      upgradeUrl: 'https://api.entuned.co/billing/checkout?tier=pro',
+    },
+  },
 }
 
 export const EDITABLE_TEMPLATE_NAMES = Object.keys(EDITABLE_TEMPLATES) as TemplateName[]

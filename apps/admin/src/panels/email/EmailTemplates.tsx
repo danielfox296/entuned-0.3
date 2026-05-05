@@ -21,7 +21,10 @@ import { Button, Input, Textarea, Pill, useToast } from '../../ui/index.js'
 // The dispatcher is idempotent (lifecycle_email_logs unique on user+template+
 // contextKey), so spamming the button is safe — already-sent recipients are skipped.
 
-const LIFECYCLE_DRIPS = ['icpUnfilled', 'pauseEnding', 'freeToCoreNudge'] as const
+const LIFECYCLE_DRIPS = [
+  'icpUnfilled', 'pauseEnding', 'freeToCoreNudge',
+  'engagedFreeToCore', 'scalingCoreToPro', 'establishedCoreToPro',
+] as const
 type LifecycleDripName = typeof LIFECYCLE_DRIPS[number]
 
 export function EmailTemplates() {
@@ -181,7 +184,12 @@ export function EmailTemplates() {
       const stats = result.stats
       const summarize = (s: any) => `${s.sent} sent · ${s.skipped} skipped · ${s.errors} errors (${s.considered} considered)`
       if (drip === 'all') {
-        toast.success(`Drip pass: icpUnfilled ${summarize(stats.icpUnfilled)}; pauseEnding ${summarize(stats.pauseEnding)}; freeToCoreNudge ${summarize(stats.freeToCoreNudge)}`)
+        const totals = { sent: 0, skipped: 0, errors: 0, considered: 0 }
+        for (const v of Object.values(stats) as any[]) {
+          totals.sent += v.sent; totals.skipped += v.skipped
+          totals.errors += v.errors; totals.considered += v.considered
+        }
+        toast.success(`All drips: ${summarize(totals)}`)
       } else {
         toast.success(`${drip}: ${summarize(stats)}`)
       }
