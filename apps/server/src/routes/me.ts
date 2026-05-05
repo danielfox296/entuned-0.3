@@ -4,6 +4,7 @@
 // scoped to a single Client.
 
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
+import { z } from 'zod'
 import { prisma } from '../db.js'
 import { requireAuth } from '../lib/session.js'
 
@@ -17,6 +18,55 @@ function getClient(req: FastifyRequest, reply: FastifyReply): AuthedClient | nul
     return null
   }
   return { clientId: req.account.id }
+}
+
+const TIER_RANK: Record<string, number> = { free: 0, core: 1, pro: 2, enterprise: 3 }
+
+// "Primary" Store — the Store the dashboard operates on for single-Store
+// surfaces (e.g. Brand Intake). Picks the highest-tier active Store, breaks
+// ties on createdAt asc. Returns null if the Client has no active Stores.
+async function findPrimaryStore(clientId: string) {
+  const stores = await prisma.store.findMany({
+    where: { clientId, archivedAt: null },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, tier: true, createdAt: true },
+  })
+  if (stores.length === 0) return null
+  return stores.reduce((best, s) => (TIER_RANK[s.tier] > TIER_RANK[best.tier] ? s : best))
+}
+
+const IcpInput = z.object({
+  name: z.string().trim().min(1).max(120),
+  ageRange: z.string().trim().max(120).optional().nullable(),
+  location: z.string().trim().max(240).optional().nullable(),
+  values: z.string().trim().max(2000).optional().nullable(),
+  desires: z.string().trim().max(2000).optional().nullable(),
+  unexpressedDesires: z.string().trim().max(2000).optional().nullable(),
+  turnOffs: z.string().trim().max(2000).optional().nullable(),
+})
+
+function pickIcpFields(row: {
+  id: string
+  name: string
+  ageRange: string | null
+  location: string | null
+  values: string | null
+  desires: string | null
+  unexpressedDesires: string | null
+  turnOffs: string | null
+  updatedAt: Date
+}) {
+  return {
+    id: row.id,
+    name: row.name,
+    ageRange: row.ageRange,
+    location: row.location,
+    values: row.values,
+    desires: row.desires,
+    unexpressedDesires: row.unexpressedDesires,
+    turnOffs: row.turnOffs,
+    updatedAt: row.updatedAt,
+  }
 }
 
 export const meRoutes: FastifyPluginAsync = async (app) => {
@@ -49,5 +99,68 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     }))
 
     return reply.send({ stores: rows })
+  })
+
+  // GET /me/icp — current ICP for the authed Client's primary Store.
+  // Returns { icp: null, store: null } if the Client has no active Stores or
+  // no ICP has been saved yet. Multi-Store Clients see only the primary Store's
+  // ICP for now; per-Store intake selection is a v2 concern.
+  app.get('/icp', { preHandler: requireAuth }, async (req, reply) => {
+    const ctx = getClient(req, reply)
+    if (!ctx) return
+
+    const store = await findPrimaryStore(ctx.clientId)
+    if (!store) return reply.send({ icp: null, store: null })
+
+    const icp = await prisma.iCP.findFirst({
+      where: { storeId: store.id },
+      orderBy: { updatedAt: 'desc' },
+    })
+
+    return reply.send({
+      icp: icp ? pickIcpFields(icp) : null,
+      store: { id: store.id },
+    })
+  })
+
+  // POST /me/icp — upsert the ICP for the authed Client's primary Store.
+  // First save creates a row; subsequent saves update the most recent row in
+  // place. Operator-side ICP suggestions, hooks, and reference tracks survive
+  // an update because they hang off icp.id and the row identity is preserved.
+  app.post('/icp', { preHandler: requireAuth }, async (req, reply) => {
+    const ctx = getClient(req, reply)
+    if (!ctx) return
+
+    const parsed = IcpInput.safeParse(req.body)
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'invalid_body', issues: parsed.error.issues })
+    }
+
+    const store = await findPrimaryStore(ctx.clientId)
+    if (!store) return reply.code(409).send({ error: 'no_active_store' })
+
+    const fields = {
+      clientId: ctx.clientId,
+      storeId: store.id,
+      name: parsed.data.name,
+      ageRange: parsed.data.ageRange ?? null,
+      location: parsed.data.location ?? null,
+      values: parsed.data.values ?? null,
+      desires: parsed.data.desires ?? null,
+      unexpressedDesires: parsed.data.unexpressedDesires ?? null,
+      turnOffs: parsed.data.turnOffs ?? null,
+    }
+
+    const existing = await prisma.iCP.findFirst({
+      where: { storeId: store.id },
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true },
+    })
+
+    const saved = existing
+      ? await prisma.iCP.update({ where: { id: existing.id }, data: fields })
+      : await prisma.iCP.create({ data: fields })
+
+    return reply.send({ icp: pickIcpFields(saved) })
   })
 }

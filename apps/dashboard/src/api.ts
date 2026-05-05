@@ -76,6 +76,26 @@ export interface StoreRow {
   subscription: StoreSubscriptionSummary | null
 }
 
+export interface IcpInput {
+  name: string
+  ageRange?: string | null
+  location?: string | null
+  values?: string | null
+  desires?: string | null
+  unexpressedDesires?: string | null
+  turnOffs?: string | null
+}
+
+export interface IcpRow extends IcpInput {
+  id: string
+  updatedAt: string
+}
+
+export interface MeIcpResponse {
+  icp: IcpRow | null
+  store: { id: string } | null
+}
+
 // ── Tier helpers ──────────────────────────────────────────────────
 
 export const TIER_RANK: Record<Tier, number> = {
@@ -141,6 +161,12 @@ export const api = {
 
   // ── /me/* (customer-facing, scoped to the authed Client) ──
   meStores: () => req<{ stores: StoreRow[] }>('/me/stores'),
+  meIcp: () => req<MeIcpResponse>('/me/icp'),
+  saveMeIcp: (input: IcpInput) =>
+    req<{ icp: IcpRow }>('/me/icp', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
 
   // ── Billing actions ──
   billingPortal: () => req<{ url: string }>('/billing/portal'),
