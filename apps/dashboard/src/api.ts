@@ -105,6 +105,14 @@ export function highestTier(stores: StoreRow[]): Tier {
   return stores.reduce<Tier>((best, s) => (TIER_RANK[s.tier] > TIER_RANK[best] ? s.tier : best), 'free')
 }
 
+/** Headline store for surfaces that show a single store (e.g. Home). Picks
+ * the highest-tier store so a paid customer sees the store they're paying
+ * for, not the leftover free store from before they upgraded. */
+export function primaryStore(stores: StoreRow[]): StoreRow | null {
+  if (stores.length === 0) return null
+  return stores.reduce((best, s) => (TIER_RANK[s.tier] > TIER_RANK[best.tier] ? s : best), stores[0])
+}
+
 // ── API methods ───────────────────────────────────────────────────
 
 export const api = {

@@ -3,15 +3,15 @@ import { ExternalLink, Copy, Check, ArrowRight } from 'lucide-react'
 import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
 import { Card } from '../ui/Card.js'
-import { api, PLAYER_URL, TIER_LABEL, type Tier } from '../api.js'
+import { api, PLAYER_URL, primaryStore, TIER_LABEL, type Tier } from '../api.js'
 import { useTier } from '../lib/tier.jsx'
 
 // /  — authenticated home. Tier label + setup status + (free/core only) an
 // upgrade card + a quick link to the player URL. No now-playing widget. Ever.
 export function Home() {
   const { stores, tier, loading } = useTier()
-  const firstStore = stores[0] ?? null
-  const playerUrl = firstStore ? `${PLAYER_URL}/${firstStore.slug}` : null
+  const headlineStore = primaryStore(stores)
+  const playerUrl = headlineStore ? `${PLAYER_URL}/${headlineStore.slug}` : null
 
   return (
     <Layout>
@@ -33,7 +33,7 @@ export function Home() {
         <Card>
           {loading ? (
             <div style={{ color: T.textDim, fontSize: 14 }}>Loading…</div>
-          ) : firstStore && playerUrl ? (
+          ) : headlineStore && playerUrl ? (
             <div>
               <div style={{ color: T.textMuted, fontSize: 14, marginBottom: 10 }}>
                 Your player is ready.
