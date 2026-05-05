@@ -863,14 +863,19 @@ model RetailNextHourlySnapshot {
 // their FK repointed from location_id → store_id.
 
 model User {
-  id          String    @id @default(uuid()) @db.Uuid
-  email       String    @unique @db.Citext
-  name        String?
-  googleSub   String?   @unique @map("google_sub")
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  lastLoginAt DateTime? @map("last_login_at") @db.Timestamptz(6)
+  id                     String    @id @default(uuid()) @db.Uuid
+  email                  String    @unique @db.Citext
+  name                   String?
+  googleSub              String?   @unique @map("google_sub")
+  // Behavioral / lifecycle email opt-out. Unsubscribe link in every drip
+  // flips this to true. Transactional mail (magic link, dunning, welcome,
+  // pause-ending) ignores this flag — those are operationally required.
+  lifecycleEmailsOptOut  Boolean   @default(false) @map("lifecycle_emails_opt_out")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastLoginAt            DateTime? @map("last_login_at") @db.Timestamptz(6)
 
-  memberships ClientMembership[]
+  memberships     ClientMembership[]
+  lifecycleEmails LifecycleEmailLog[]
 
   @@map("users")
 }
@@ -954,4 +959,51 @@ model PlayerBinding {
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@map("player_bindings")
+}
+
+// ---------- Email: editable templates ----------
+//
+// Templates live in the DB so the operator can edit voice without a server
+// redeploy. lib/email.ts reads from this table at send time, falls back to
+// the TS template registry if a row is missing (safety net so a wiped row
+// can't break dunning / magic-link).
+//
+// `body` is raw HTML and is wrapped at render time by the shared `_layout`
+// (see apps/server/src/email-templates/_layout.ts). Variables are
+// interpolated with a Mustache-style `{{var}}` pass.
+
+model EmailTemplate {
+  id           String   @id @default(uuid()) @db.Uuid
+  // Matches the keys in apps/server/src/email-templates/index.ts (TemplateName).
+  name         String   @unique
+  subject      String
+  body         String
+  // Sample props for the admin preview pane (stored as JSON for arbitrary shape).
+  propsExample Json?    @map("props_example")
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("email_templates")
+}
+
+// ---------- Email: lifecycle send log (idempotency) ----------
+//
+// One row per (user, template, contextKey) — written under a unique constraint
+// so the daily cron can re-run safely and never double-send a drip. contextKey
+// distinguishes per-instance sends (e.g. one pause-ending warning per pause
+// window). For "single global send" templates leave it as the default empty
+// string; Postgres unique semantics treat '' as a real value, unlike NULL.
+
+model LifecycleEmailLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  templateName String   @map("template_name")
+  contextKey   String   @default("") @map("context_key")
+  sentAt       DateTime @default(now()) @map("sent_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, templateName, contextKey])
+  @@index([userId])
+  @@map("lifecycle_email_logs")
 }

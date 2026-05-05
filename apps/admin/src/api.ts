@@ -1021,4 +1021,57 @@ export const api = {
     req<OperatorRow>('/admin/operators', { method: 'POST', body: JSON.stringify(body) }, token),
   updateOperator: (id: string, body: OperatorUpdateBody, token: string) =>
     req<OperatorRow>(`/admin/operators/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+
+  // --- Email templates (operator-editable copy) ---
+  emailTemplates: (token: string) =>
+    req<{ templates: EmailTemplateListRow[] }>('/admin/email/templates', {}, token),
+  emailTemplate: (name: string, token: string) =>
+    req<EmailTemplateDetail>(`/admin/email/templates/${encodeURIComponent(name)}`, {}, token),
+  saveEmailTemplate: (name: string, body: { subject: string; body: string; propsExample?: any }, token: string) =>
+    req<EmailTemplateDetail>(`/admin/email/templates/${encodeURIComponent(name)}`, {
+      method: 'PUT', body: JSON.stringify(body),
+    }, token),
+}
+
+// --- Email template types ---
+
+export interface EmailTemplateListRow {
+  name: string
+  editable: boolean
+  lifecycle: boolean
+  subject: string | null
+  updatedAt: string | null
+  propsExample: any
+}
+
+export interface EmailTemplateDetail {
+  name: string
+  editable: boolean
+  lifecycle: boolean
+  subject: string
+  body: string
+  propsExample: any
+  updatedAt: string | null
+}
+
+// Render or test-send a template via the existing /admin/email/preview endpoint.
+// Different auth: this endpoint is gated by INTERNAL_ADMIN_TOKEN, not operator JWT.
+// The Email panel takes the token from a small input field; we don't store it.
+export async function previewEmailTemplate(
+  adminToken: string,
+  body: { template: string; props: Record<string, unknown>; sendTo?: string },
+): Promise<{ ok: true; subject: string; html: string; sent?: boolean; to?: string; dryRun?: boolean }> {
+  const res = await fetch(`${API_URL}/admin/email/preview`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-admin-token': adminToken,
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `HTTP ${res.status}`)
+  }
+  return res.json()
 }

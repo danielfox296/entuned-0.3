@@ -3,6 +3,7 @@ import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
 import multipart from '@fastify/multipart'
 import fastifyCookie from '@fastify/cookie'
+import cron from 'node-cron'
 import { healthRoutes } from './routes/health.js'
 import { hendrixRoutes } from './routes/hendrix.js'
 import { storeRoutes } from './routes/stores.js'
@@ -12,7 +13,10 @@ import { loginRoutes } from './routes/login.js'
 import { adminRoutes } from './routes/admin.js'
 import { billingRoutes } from './routes/billing.js'
 import { meRoutes } from './routes/me.js'
+import { emailRoutes } from './routes/email.js'
 import { sessionPlugin } from './lib/session.js'
+import { seedEmailTemplates } from './lib/email.js'
+import { runLifecycleEmails } from './lib/lifecycleEmails.js'
 
 const app = Fastify({
   logger: {
@@ -62,6 +66,33 @@ await app.register(adminRoutes, { prefix: '/admin' })
 // Stripe webhook receives the raw request body for signature verification.
 await app.register(billingRoutes)
 await app.register(meRoutes, { prefix: '/me' })
+await app.register(emailRoutes, { prefix: '/email' })
+
+// Boot-time seed: ensure each DB-editable email template has a row. Idempotent —
+// never overwrites existing rows so operator edits survive deploys.
+try {
+  const { created } = await seedEmailTemplates()
+  if (created.length > 0) {
+    app.log.info({ created }, 'email_templates_seeded')
+  }
+} catch (err) {
+  app.log.error({ err }, 'email_template_seed_failed')
+}
+
+// Daily lifecycle email tick — 9am America/Denver. node-cron handles DST.
+// LIFECYCLE_DRIPS_DISABLED=1 skips registration (useful for one-off scripts /
+// CI). Each tick logs a structured summary.
+if (process.env.LIFECYCLE_DRIPS_DISABLED !== '1') {
+  cron.schedule('0 9 * * *', async () => {
+    try {
+      const stats = await runLifecycleEmails()
+      app.log.info({ stats }, 'lifecycle_drip_tick_complete')
+    } catch (err) {
+      app.log.error({ err }, 'lifecycle_drip_tick_failed')
+    }
+  }, { timezone: 'America/Denver' })
+  app.log.info('lifecycle_drip_cron_registered (daily 9am America/Denver)')
+}
 
 const port = Number(process.env.PORT ?? 3000)
 await app.listen({ port, host: '0.0.0.0' })

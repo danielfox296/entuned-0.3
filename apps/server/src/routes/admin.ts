@@ -31,8 +31,9 @@ import { suggestReferenceTracks } from '../lib/ref-tracks/suggester.js'
 import { uniqueStoreSlug } from '../lib/account.js'
 import { resolvePreview } from '../lib/ref-tracks/preview.js'
 import { parseRetailNextXls } from '../lib/retailnext/parser.js'
-import { renderTemplate, sendTemplate } from '../lib/email.js'
-import { TEMPLATES, type TemplateName } from '../email-templates/index.js'
+import { renderTemplate, sendTemplate, TEMPLATE_PROPS_EXAMPLES } from '../lib/email.js'
+import { LIFECYCLE_TEMPLATES, TEMPLATES, type TemplateName } from '../email-templates/index.js'
+import { EDITABLE_TEMPLATE_NAMES } from '../email-templates/seeds.js'
 
 interface AuthedOp {
   operatorId: string
@@ -2969,10 +2970,101 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         if (!result.ok) return reply.code(502).send({ error: 'send_failed', message: result.error })
         return { ok: true, sent: true, to: sendTo, dryRun: result.dryRun ?? false, id: result.id ?? null }
       }
-      const { subject, html } = renderTemplate(name, props)
+      const { subject, html } = await renderTemplate(name, props)
       return { ok: true, sent: false, template: name, subject, html }
     } catch (e: any) {
       return reply.code(500).send({ error: 'render_failed', message: e?.message ?? 'unknown' })
+    }
+  })
+
+  // ──────────────────────────────────────────────────────────────────
+  // EMAIL TEMPLATES — operator-editable copy
+  //
+  //   GET  /admin/email/templates       → list all DB-editable rows + which TS-only
+  //   GET  /admin/email/templates/:name → single row (404 if not editable)
+  //   PUT  /admin/email/templates/:name → upsert subject + body
+  //
+  // Operator JWT (isAdmin) gated. Editable set is the keys of EDITABLE_TEMPLATES;
+  // anything outside that set returns 403 (variant-heavy templates like welcome
+  // and dunning are TS-only in v1).
+  // ──────────────────────────────────────────────────────────────────
+
+  app.get('/email/templates', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const rows = await prisma.emailTemplate.findMany({ orderBy: { name: 'asc' } })
+    const editableSet = new Set(EDITABLE_TEMPLATE_NAMES)
+    const allNames = Object.keys(TEMPLATES)
+    return {
+      templates: allNames.map((name) => {
+        const row = rows.find((r) => r.name === name)
+        return {
+          name,
+          editable: editableSet.has(name as TemplateName),
+          lifecycle: LIFECYCLE_TEMPLATES.has(name as TemplateName),
+          subject: row?.subject ?? null,
+          updatedAt: row?.updatedAt ?? null,
+          propsExample: row?.propsExample ?? TEMPLATE_PROPS_EXAMPLES[name as TemplateName],
+        }
+      }),
+    }
+  })
+
+  app.get<{ Params: { name: string } }>('/email/templates/:name', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const name = req.params.name
+    if (!(name in TEMPLATES)) return reply.code(404).send({ error: 'unknown_template' })
+    if (!EDITABLE_TEMPLATE_NAMES.includes(name as TemplateName)) {
+      return reply.code(403).send({ error: 'not_editable', message: `${name} is variant-heavy and not DB-editable in v1.` })
+    }
+    const row = await prisma.emailTemplate.findUnique({ where: { name } })
+    return {
+      name,
+      editable: true,
+      lifecycle: LIFECYCLE_TEMPLATES.has(name as TemplateName),
+      subject: row?.subject ?? '',
+      body: row?.body ?? '',
+      propsExample: row?.propsExample ?? TEMPLATE_PROPS_EXAMPLES[name as TemplateName],
+      updatedAt: row?.updatedAt ?? null,
+    }
+  })
+
+  const TemplateUpsertBody = z.object({
+    subject: z.string().min(1).max(500),
+    body: z.string().min(1).max(60_000),
+    propsExample: z.record(z.any()).optional(),
+  })
+
+  app.put<{ Params: { name: string } }>('/email/templates/:name', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const name = req.params.name
+    if (!(name in TEMPLATES)) return reply.code(404).send({ error: 'unknown_template' })
+    if (!EDITABLE_TEMPLATE_NAMES.includes(name as TemplateName)) {
+      return reply.code(403).send({ error: 'not_editable' })
+    }
+    const parsed = TemplateUpsertBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+
+    const row = await prisma.emailTemplate.upsert({
+      where: { name },
+      update: {
+        subject: parsed.data.subject,
+        body: parsed.data.body,
+        ...(parsed.data.propsExample ? { propsExample: parsed.data.propsExample as any } : {}),
+      },
+      create: {
+        name,
+        subject: parsed.data.subject,
+        body: parsed.data.body,
+        propsExample: (parsed.data.propsExample ?? TEMPLATE_PROPS_EXAMPLES[name as TemplateName]) as any,
+      },
+    })
+
+    return {
+      name: row.name,
+      subject: row.subject,
+      body: row.body,
+      propsExample: row.propsExample,
+      updatedAt: row.updatedAt,
     }
   })
 }

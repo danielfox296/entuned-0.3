@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   Sparkles, CalendarDays, Settings, Music2,
-  FlaskConical, Lightbulb, Activity, ListChecks, Target, ShoppingCart,
+  FlaskConical, Lightbulb, Activity, ListChecks, Target, ShoppingCart, Mail,
 } from 'lucide-react'
 import { api, getToken, setToken, clearToken } from './api.js'
 import type { MeResponse, ClientListRow, StoreSummary, StoreDetail } from './api.js'
@@ -31,6 +31,7 @@ import { SongBrowser } from './panels/catalogue/SongBrowser.js'
 import { FlaggedReview } from './panels/catalogue/FlaggedReview.js'
 import { WorkflowRouter } from './panels/workflow/WorkflowRouter.js'
 import { SalesDataIngest } from './panels/salesdata/SalesDataIngest.js'
+import { EmailTemplates } from './panels/email/EmailTemplates.js'
 import { useNavGroup, useNavSub } from './nav.js'
 
 // ── Surface groups (from admin-ui.md, priority order) ──────────
@@ -60,6 +61,9 @@ const GROUPS: SurfaceGroup[] = [
     description: '' },
   { key: 'salesdata', label: 'Sales Data', short: 'Sales Data', icon: ShoppingCart,
     cards: ['Ingest'],
+    description: '' },
+  { key: 'email', label: 'Email', short: 'Email', icon: Mail,
+    cards: ['Templates'],
     description: '' },
   { key: 'experiments', label: 'Experiments', short: 'Experiments', icon: FlaskConical,
     cards: ['Experiment Editor', 'Experiment Detail', 'Results'],
@@ -215,7 +219,8 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
          group.key === 'schedule' ? <ScheduleRouter cards={group.cards} /> :
          group.key === 'outcomes' ? <OutcomesRouter cards={group.cards} /> :
          group.key === 'catalogue' ? <CatalogueRouter cards={group.cards} /> :
-         group.key === 'salesdata' ? <SalesDataIngest /> : (
+         group.key === 'salesdata' ? <SalesDataIngest /> :
+         group.key === 'email' ? <EmailTemplates /> : (
         <>
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12,
