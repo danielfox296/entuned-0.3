@@ -35,7 +35,7 @@ export function subject(props: CompEndingProps): string {
 export function html(props: CompEndingProps): string {
   const isFromFree = props.paidTier === 'free' || props.paidTier === 'mvp_pilot'
   const stayCopy = isFromFree
-    ? `If you do nothing, your account drops back to Essentials (free) on ${props.endsOn}.`
+    ? `If you do nothing, your account drops back to Entuned Free on ${props.endsOn}.`
     : `If you do nothing, you stay on ${capitalize(props.paidTier)} at your current price &mdash; nothing changes about your billing.`
 
   const body = `

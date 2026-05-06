@@ -17,7 +17,7 @@ interface Props {
 }
 
 const TIER_LABEL: Record<string, string> = {
-  free: 'Essentials (Free)',
+  free: 'Entuned Free',
   mvp_pilot: 'MVP Pilot',
   core: 'Core',
   pro: 'Pro',

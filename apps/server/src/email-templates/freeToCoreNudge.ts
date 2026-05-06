@@ -21,7 +21,7 @@ export function subject(_props: FreeToCoreNudgeProps): string {
 export function html(props: FreeToCoreNudgeProps): string {
   const body = `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">On Core, your library is built around your customer.</p>
-    <p style="margin:0 0 14px 0;">Essentials gives you a soundtrack engineered for retail in general &mdash; Increase Dwell or Infuse Energy on a 100+ song catalogue. It&rsquo;s the same one every store starts on.</p>
+    <p style="margin:0 0 14px 0;">Entuned Free gives you a soundtrack engineered for retail in general &mdash; Increase Dwell or Infuse Energy on a 100+ song catalogue. It&rsquo;s the same one every store starts on.</p>
     <p style="margin:0 0 14px 0;">On Core, you answer seven questions about who walks in and we build a private library around them. All research-backed outcomes unlocked. $99 per location, per month. No setup fee, no contracts, cancel any time.</p>
     ${button(props.upgradeUrl, 'Unlock Core')}
     <p style="margin:18px 0 6px 0;font-size:13px;color:#9a958c;">Your current player: <a href="${props.playerUrl}" style="color:#d7af74;">${props.playerUrl}</a></p>

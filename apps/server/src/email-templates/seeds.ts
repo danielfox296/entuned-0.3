@@ -33,10 +33,10 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     propsExample: { link: 'https://api.entuned.co/login/verify?token=sample' },
   },
   welcomeFree: {
-    subject: 'Welcome to Entuned Essentials',
-    preheader: 'Your Essentials account is active. Two next steps inside.',
+    subject: 'Welcome to Entuned Free',
+    preheader: 'Your Entuned Free account is active. Two next steps inside.',
     body: `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">You&rsquo;re on Essentials.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">You&rsquo;re on Entuned Free.</p>
     <p style="margin:0 0 14px 0;">Two links to get running:</p>
     <p style="margin:0 0 6px 0;"><strong style="color:#d7af74;">1. Dashboard</strong> &mdash; manage your account and add a location.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open dashboard</a></td></tr></table>
@@ -168,7 +168,7 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     preheader: 'A library built around your customer. $99 / location / month.',
     body: `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">On Core, your library is built around your customer.</p>
-    <p style="margin:0 0 14px 0;">Essentials gives you a soundtrack engineered for retail in general &mdash; Increase Dwell or Infuse Energy on a 100+ song catalogue. It&rsquo;s the same one every store starts on.</p>
+    <p style="margin:0 0 14px 0;">Entuned Free gives you a soundtrack engineered for retail in general &mdash; Increase Dwell or Infuse Energy on a 100+ song catalogue. It&rsquo;s the same one every store starts on.</p>
     <p style="margin:0 0 14px 0;">On Core, you answer seven questions about who walks in and we build a private library around them. All research-backed outcomes unlocked. $99 per location, per month. No setup fee, no contracts, cancel any time.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Unlock Core</a></td></tr></table>
     <p style="margin:18px 0 6px 0;font-size:13px;color:#9a958c;">Your current player: <a href="{{playerUrl}}" style="color:#d7af74;">{{playerUrl}}</a></p>
@@ -182,7 +182,7 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     subject: 'You&rsquo;re putting hundreds of songs through your floor a week',
     preheader: 'Same playback, sharper library on Core.',
     body: `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">{{songsPlayed}} songs through your store on Essentials.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">{{songsPlayed}} songs through your store on Entuned Free.</p>
     <p style="margin:0 0 14px 0;">You&rsquo;re using the player. The music is doing real work for you on the catalogue every store starts on.</p>
     <p style="margin:0 0 14px 0;">On Core, the same hours of playback hit a library built around your specific customer. Same staff, same hours, sharper match.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Unlock Core</a></td></tr></table>

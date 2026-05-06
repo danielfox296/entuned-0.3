@@ -145,7 +145,7 @@ export const TIER_RANK: Record<Tier, number> = {
 }
 
 export const TIER_LABEL: Record<Tier, string> = {
-  free: 'Essentials',
+  free: 'Entuned Free',
   core: 'Core',
   pro: 'Pro',
   enterprise: 'Enterprise',

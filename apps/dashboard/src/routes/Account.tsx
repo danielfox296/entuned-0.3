@@ -13,7 +13,7 @@ import { useTier } from '../lib/tier.jsx'
 //
 // Note on PRO indemnification: PRO = Performance Rights Organization
 // (ASCAP/BMI/SESAC) — the music-licensing umbrella. NOT the Pro tier.
-// Every Entuned plan, including free Essentials, ships indemnified from
+// Every Entuned plan, including Entuned Free, ships indemnified from
 // day one — the cert card is shown to every signed-in user.
 export function Account() {
   const { user, account } = useAuth()
@@ -77,7 +77,7 @@ export function Account() {
               justifyContent: 'space-between', gap: 16,
             }}>
               <div style={{ color: T.textMuted, fontSize: 14 }}>
-                You're on the free Essentials plan. Unlock Core for music
+                You're on Entuned Free. Unlock Core for music
                 tuned to your specific customer, plus pause / resume and a
                 billing portal.
               </div>

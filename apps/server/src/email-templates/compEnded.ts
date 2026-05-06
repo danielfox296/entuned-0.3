@@ -25,7 +25,7 @@ export function subject(props: CompEndedProps): string {
 export function html(props: CompEndedProps): string {
   const isToFree = props.paidTier === 'free' || props.paidTier === 'mvp_pilot'
   const baselineCopy = isToFree
-    ? `You&rsquo;re back on the free Essentials tier &mdash; the player still works, but you lose the ${capitalize(props.formerCompTier)} features.`
+    ? `You&rsquo;re back on Entuned Free &mdash; the player still works, but you lose the ${capitalize(props.formerCompTier)} features.`
     : `You&rsquo;re back on ${capitalize(props.paidTier)}, which you&rsquo;ve been paying for the whole time.`
 
   const body = `

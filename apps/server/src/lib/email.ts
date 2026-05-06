@@ -22,10 +22,9 @@ import { layout } from '../email-templates/_layout.js'
 import { LIFECYCLE_TEMPLATES, TEMPLATES, TEMPLATE_PROPS_EXAMPLES, type TemplateName } from '../email-templates/index.js'
 import { EDITABLE_TEMPLATES } from '../email-templates/seeds.js'
 
-// Tier label for the welcome variant router. Free + essentials collapse onto
-// the same template since they're the same tier (essentials is the public
-// label, free is the legacy DB value).
-export type Tier = 'free' | 'essentials' | 'core' | 'pro'
+// Tier label for the welcome variant router. The public label is "Entuned
+// Free" (formerly "Essentials"); the DB value is `'free'`.
+export type Tier = 'free' | 'core' | 'pro'
 
 // Dunning escalation level (1 = heads-up, 2 = direct, 3 = final).
 export type DunningAttempt = 1 | 2 | 3
