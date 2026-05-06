@@ -323,7 +323,15 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const rows = await prisma.client.findMany({
       orderBy: { companyName: 'asc' },
       include: {
-        _count: { select: { stores: true, icps: true } },
+        _count: { select: { stores: true, icps: true, memberships: true } },
+        // Owner email surfaces in DASH so PLG signups are identifiable when
+        // companyName is just an email-prefix slug (e.g. "danielchristopherfox").
+        memberships: {
+          where: { role: 'owner' },
+          orderBy: { createdAt: 'asc' },
+          take: 1,
+          select: { user: { select: { email: true } } },
+        },
       },
     })
     return rows.map((c) => ({
@@ -339,6 +347,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       updatedAt: c.updatedAt.toISOString(),
       storeCount: c._count.stores,
       icpCount: c._count.icps,
+      // PLG = self-serve customer (has a User membership). Operator-managed
+      // clients (Untuckit, Lululemon, Friends-Demo) have no User attached.
+      isPlg: c._count.memberships > 0,
+      ownerEmail: c.memberships[0]?.user.email ?? null,
     }))
   })
 
@@ -349,13 +361,20 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       where: { id },
       include: {
         stores: {
+          where: { archivedAt: null },
           orderBy: { name: 'asc' },
           include: {
-            icps: { select: { id: true, name: true } },
+            icps: { where: { archivedAt: null }, select: { id: true, name: true } },
             defaultOutcome: { select: { id: true, title: true, displayTitle: true, version: true } },
           },
         },
-        icps: { orderBy: { name: 'asc' }, select: { id: true, name: true, storeId: true, _count: { select: { hooks: true, referenceTracks: true } } } },
+        icps: { where: { archivedAt: null }, orderBy: { name: 'asc' }, select: { id: true, name: true, storeId: true, _count: { select: { hooks: true, referenceTracks: true } } } },
+        memberships: {
+          where: { role: 'owner' },
+          orderBy: { createdAt: 'asc' },
+          take: 1,
+          select: { user: { select: { email: true } } },
+        },
       },
     })
     if (!client) return reply.code(404).send({ error: 'not_found' })
@@ -370,6 +389,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       brandLyricGuidelines: client.brandLyricGuidelines,
       createdAt: client.createdAt.toISOString(),
       updatedAt: client.updatedAt.toISOString(),
+      isPlg: client.memberships.length > 0,
+      ownerEmail: client.memberships[0]?.user.email ?? null,
       stores: client.stores.map((s) => ({
         id: s.id,
         name: s.name,
@@ -518,8 +539,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   app.get('/stores', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.store.findMany({
+      where: { archivedAt: null },
       orderBy: [{ client: { companyName: 'asc' } }, { name: 'asc' }],
-      include: { client: { select: { companyName: true } }, icps: { select: { id: true, name: true } } },
+      include: { client: { select: { companyName: true } }, icps: { where: { archivedAt: null }, select: { id: true, name: true } } },
     })
     return rows.map((s) => ({
       id: s.id,

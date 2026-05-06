@@ -351,7 +351,14 @@ function BrandRouter({ cards }: { cards: string[] }) {
             value={clientId ?? ''}
             onChange={(v) => setClientId(v || null)}
             placeholder={clients ? '— pick a client —' : 'loading…'}
-            options={(clients ?? []).map((c) => ({ value: c.id, label: c.companyName }))}
+            options={(clients ?? []).map((c) => ({
+              value: c.id,
+              label: [
+                c.isPlg ? '[PLG]' : null,
+                c.companyName,
+                c.ownerEmail ? `· ${c.ownerEmail}` : null,
+              ].filter(Boolean).join(' '),
+            }))}
           />
           <HeaderSelect
             label="location"

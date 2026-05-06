@@ -90,6 +90,24 @@ export function ClientDetail({ onClientsChanged, selectedClient: _summary }: {
 
       {client && draft && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: T.sans, fontSize: S.small }}>
+            {client.isPlg && (
+              <span style={{
+                background: T.accent, color: T.bg, padding: '2px 8px',
+                borderRadius: 3, fontSize: 11, fontWeight: 600, letterSpacing: '0.04em',
+              }}>PLG</span>
+            )}
+            {!client.isPlg && (
+              <span style={{
+                background: T.surfaceRaised, color: T.textDim, padding: '2px 8px',
+                border: `1px solid ${T.borderSubtle}`,
+                borderRadius: 3, fontSize: 11, fontWeight: 600, letterSpacing: '0.04em',
+              }}>OPERATOR-MANAGED</span>
+            )}
+            {client.ownerEmail && (
+              <span style={{ color: T.textMuted }}>owner: {client.ownerEmail}</span>
+            )}
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
               <Section title="Company" columns={2}>

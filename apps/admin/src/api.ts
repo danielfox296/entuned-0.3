@@ -336,6 +336,8 @@ export interface ClientListRow {
   updatedAt: string
   storeCount: number
   icpCount: number
+  isPlg: boolean
+  ownerEmail: string | null
 }
 
 export interface ClientFull {
@@ -349,6 +351,8 @@ export interface ClientFull {
   brandLyricGuidelines: string | null
   createdAt: string
   updatedAt: string
+  isPlg: boolean
+  ownerEmail: string | null
   stores: {
     id: string; name: string; timezone: string; goLiveDate: string | null
     icps: { id: string; name: string }[]
