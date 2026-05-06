@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { T } from '../tokens.js'
 import { Button, Eyebrow, Input, Logo } from '../ui/index.js'
 import { api } from '../api.js'
@@ -9,6 +10,12 @@ import { api } from '../api.js'
 // Friendly first-touch copy: no step counter (visitor doesn't know there's
 // a flow yet), outcome-promising CTA, no "no password" objection-flip.
 export function Start() {
+  const [searchParams] = useSearchParams()
+  // ?next=<url> rides through both the magic-link email and the Google OAuth
+  // handshake so logged-out clicks on links like /billing/upgrade-from-comp
+  // route the user back to where they were trying to go after auth.
+  const next = searchParams.get('next') ?? undefined
+
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [sent, setSent] = useState(false)
@@ -19,7 +26,7 @@ export function Start() {
     setError(null)
     setBusy(true)
     try {
-      await api.requestMagicLink(email)
+      await api.requestMagicLink(email, next)
       setSent(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'something went wrong')
@@ -91,7 +98,7 @@ export function Start() {
           <Divider />
 
           <a
-            href={api.googleLoginUrl()}
+            href={api.googleLoginUrl(next)}
             style={{
               display: 'block',
               background: 'transparent',

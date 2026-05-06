@@ -146,15 +146,22 @@ export function primaryStore(stores: StoreRow[]): StoreRow | null {
 export const api = {
   me: () => req<MeResponse>('/login/me'),
 
-  requestMagicLink: (email: string) =>
+  // `next` is an optional post-login destination URL. Server validates it
+  // against APP_URL/API_URL origin allowlist (see safeNext in routes/login.ts);
+  // anything else is silently dropped and login lands on '/'.
+  requestMagicLink: (email: string, next?: string) =>
     req<MagicLinkResponse>('/login/magic-link', {
       method: 'POST',
-      body: JSON.stringify({ email }),
+      body: JSON.stringify(next ? { email, next } : { email }),
     }),
 
   // GET-redirect endpoint, but expose the URL helper here so call-sites import
-  // the constant rather than hardcoding it.
-  googleLoginUrl: () => `${API_URL}/login/google`,
+  // the constant rather than hardcoding it. `next` round-trips through the
+  // OAuth handshake via a server-set cookie.
+  googleLoginUrl: (next?: string) =>
+    next
+      ? `${API_URL}/login/google?next=${encodeURIComponent(next)}`
+      : `${API_URL}/login/google`,
 
   logout: () =>
     req<void>('/login/logout', { method: 'POST' }),

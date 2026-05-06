@@ -18,7 +18,40 @@ import { ensureFreeClientForUser } from '../lib/account.js'
 const MAGIC_LINK_TTL_MS = 15 * 60 * 1000 // 15 minutes
 const MAGIC_LINK_TOKEN_BYTES = 32
 
-const MagicLinkBody = z.object({ email: z.string().email() })
+const MagicLinkBody = z.object({
+  email: z.string().email(),
+  // Optional post-login destination. Validated against `safeNext()` before
+  // being baked into the email link — only same-origin URLs survive.
+  next: z.string().optional(),
+})
+
+/**
+ * Whitelist destinations for `?next=` parameters. Returns the URL itself if
+ * it points at the dashboard origin (APP_URL) or the API origin (for routes
+ * like /billing/upgrade-from-comp that handle their own redirects). Returns
+ * null for anything else — including protocol-relative `//evil.com`,
+ * different origins, and javascript: pseudo-URLs.
+ *
+ * Returning null means the caller falls back to APP_URL/.
+ */
+function safeNext(next: string | undefined | null): string | null {
+  if (!next || typeof next !== 'string') return null
+  // Reject obvious abuse first — anything that isn't an absolute http(s) URL.
+  let parsed: URL
+  try {
+    parsed = new URL(next)
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+  const allowed = new Set<string>()
+  try { allowed.add(new URL(appUrl()).origin) } catch { /* APP_URL missing — caller handles */ }
+  const apiUrl = process.env.API_URL
+  if (apiUrl) {
+    try { allowed.add(new URL(apiUrl).origin) } catch { /* ignore */ }
+  }
+  return allowed.has(parsed.origin) ? parsed.toString() : null
+}
 
 function sha256Hex(input: string): string {
   return createHash('sha256').update(input).digest('hex')
@@ -101,12 +134,22 @@ async function findOrCreateUserByEmail(email: string, name?: string | null): Pro
 
 // Google OAuth handlers — defined but NOT registered in v1.
 // TODO(google-oauth): re-enable when OAuth credentials are configured.
-async function googleStartHandler(_req: FastifyRequest, reply: FastifyReply) {
+// Cookie that carries `next` across the OAuth roundtrip. Same scope/lifetime
+// as the other handshake cookies. Plain string (already validated against
+// safeNext before being set), 10-minute max age.
+const OAUTH_NEXT_COOKIE = 'entuned_oauth_next'
+
+async function googleStartHandler(req: FastifyRequest, reply: FastifyReply) {
   const client = googleClient()
   const state = base64url(randomBytes(16))
   const { verifier, challenge } = generatePkce()
   reply.setCookie(OAUTH_STATE_COOKIE, state, oauthHandshakeCookieOpts())
   reply.setCookie(OAUTH_PKCE_COOKIE, verifier, oauthHandshakeCookieOpts())
+  const next = (req.query as { next?: string } | undefined)?.next
+  const validatedNext = safeNext(next)
+  if (validatedNext) {
+    reply.setCookie(OAUTH_NEXT_COOKIE, validatedNext, oauthHandshakeCookieOpts())
+  }
   const url = client.generateAuthUrl({
     scope: ['openid', 'email', 'profile'],
     state,
@@ -129,9 +172,15 @@ async function googleCallbackHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!expectedState || !codeVerifier) return reply.code(400).send({ error: 'oauth_session_lost' })
   if (q.state !== expectedState) return reply.code(400).send({ error: 'state_mismatch' })
 
+  // Pull (and clear) the optional next cookie before any error branches —
+  // we don't want a stale next surviving a failed callback into the next
+  // OAuth attempt.
+  const nextDest = safeNext(cookies[OAUTH_NEXT_COOKIE])
+
   // Clear handshake cookies regardless of outcome from here on.
   reply.clearCookie(OAUTH_STATE_COOKIE, { path: '/' })
   reply.clearCookie(OAUTH_PKCE_COOKIE, { path: '/' })
+  reply.clearCookie(OAUTH_NEXT_COOKIE, { path: '/' })
 
   const client = googleClient()
   let userinfo: GoogleUserinfo
@@ -198,7 +247,7 @@ async function googleCallbackHandler(req: FastifyRequest, reply: FastifyReply) {
   }
 
   setSessionCookie(reply, user.id)
-  return reply.redirect(`${appUrl()}/`, 302)
+  return reply.redirect(nextDest ?? `${appUrl()}/`, 302)
 }
 
 export const loginRoutes: FastifyPluginAsync = async (app) => {
@@ -215,6 +264,7 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
       // Always return 200 — never leak whether an email exists or whether the body was valid.
       if (!parsed.success) return reply.code(200).send({ ok: true })
       const email = parsed.data.email.trim().toLowerCase()
+      const validatedNext = safeNext(parsed.data.next)
 
       try {
         const tokenRaw = randomBytes(MAGIC_LINK_TOKEN_BYTES).toString('hex')
@@ -225,7 +275,11 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
           data: { email, tokenHash, expiresAt },
         })
 
-        const link = `${magicLinkBaseUrl()}?token=${encodeURIComponent(tokenRaw)}`
+        // Bake `next` into the link itself so the email round-trips it without
+        // needing a schema column. /verify validates again on the way back —
+        // belt + suspenders, since the email payload is essentially user input.
+        const nextParam = validatedNext ? `&next=${encodeURIComponent(validatedNext)}` : ''
+        const link = `${magicLinkBaseUrl()}?token=${encodeURIComponent(tokenRaw)}${nextParam}`
         await sendMagicLink(email, link)
       } catch (err) {
         req.log.error({ err }, 'magic-link send failed')
@@ -236,9 +290,10 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
     },
   )
 
-  // ----- GET /verify?token=... -----
+  // ----- GET /verify?token=...&next=... -----
   app.get('/verify', async (req, reply) => {
-    const token = (req.query as { token?: string } | undefined)?.token
+    const q = (req.query as { token?: string; next?: string } | undefined) ?? {}
+    const token = q.token
     if (!token || typeof token !== 'string') {
       return reply.code(400).send({ error: 'missing_token' })
     }
@@ -251,7 +306,11 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
     await prisma.magicLinkToken.update({ where: { id: row.id }, data: { consumedAt: new Date() } })
     const user = await findOrCreateUserByEmail(row.email)
     setSessionCookie(reply, user.id)
-    return reply.redirect(`${appUrl()}/`, 302)
+    // Re-validate `next` on the way out — the link was constructed by us
+    // but we don't trust the email transport. safeNext returns null for
+    // anything that isn't a same-origin (APP_URL or API_URL) destination.
+    const dest = safeNext(q.next) ?? `${appUrl()}/`
+    return reply.redirect(dest, 302)
   })
 
   app.get('/google', googleStartHandler)

@@ -415,11 +415,13 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
     if (!storeId) return reply.code(400).send({ error: 'missing_store_param' })
 
     if (!req.user || !req.account) {
-      // TODO: dashboard /start does not yet honor `?next=`. After they log
-      // in they'll land on / and need to re-click the email link. Acceptable
-      // papercut for v1 — most upgrade-from-comp clicks happen with an
-      // already-active session. Add `next` support to Start.tsx to close.
-      return reply.redirect(`${APP_URL}/start`, 302)
+      // /start passes `next` through both magic-link verify and Google OAuth
+      // so the user lands back here after auth. The server validates `next`
+      // against an APP_URL/API_URL origin allowlist (see safeNext in login.ts)
+      // before honoring it.
+      const apiBase = process.env.API_URL ?? 'https://api.entuned.co'
+      const next = encodeURIComponent(`${apiBase}/billing/upgrade-from-comp?store=${storeId}`)
+      return reply.redirect(`${APP_URL}/start?next=${next}`, 302)
     }
     const clientId = req.account.id
 
