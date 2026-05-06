@@ -56,9 +56,16 @@ jobs:
           # it on a force-orphan publish.
           echo "app.entuned.co" > publish/CNAME
           touch publish/.nojekyll
-          # SPA fallback: GitHub Pages serves 404.html for unknown paths, so
-          # mirror index.html into 404.html so client-side routing works on
-          # deep links (e.g. /account, /welcome?session=...).
+          # Per-route HTML so GitHub Pages returns 200 (not 404) on direct hits
+          # to client-side routes. Without this, /start etc. fall through to
+          # 404.html — the SPA renders for users, but link checkers, search
+          # engines, and social-preview bots all see HTTP 404. Keep this list
+          # in sync with the <Routes> table in apps/dashboard/src/App.tsx.
+          for route in start welcome locations intake schedule integrations reports account; do
+            cp publish/index.html "publish/$route.html"
+          done
+          # Final SPA fallback for any unknown / dynamic path. Still served with
+          # HTTP 404 by Pages, but the SPA loads client-side.
           cp publish/index.html publish/404.html
       - name: Push to entuned-0.3-dashboard
         uses: peaceiris/actions-gh-pages@v4
