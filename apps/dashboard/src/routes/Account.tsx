@@ -19,6 +19,7 @@ export function Account() {
   const { user, account } = useAuth()
   const { stores, tier } = useTier()
   const isPaid = TIER_RANK[tier] >= TIER_RANK.core
+  const hasStripeSubscription = stores.some((s) => s.subscription !== null)
 
   // A comp is active on this account if any Store carries one — typically
   // surfaced as "we comped you up to Pro through <date>" copy. This is not
@@ -63,8 +64,13 @@ export function Account() {
         </Card>
 
         <Card title="Billing">
-          {isPaid ? (
+          {isPaid && hasStripeSubscription ? (
             <BillingPortalRow />
+          ) : isPaid && hasComp ? (
+            <div style={{ color: T.textMuted, fontSize: 14 }}>
+              Your account is currently comped — there's no active subscription
+              to manage. If you have questions, reach out to us.
+            </div>
           ) : (
             <div style={{
               display: 'flex', alignItems: 'center',
