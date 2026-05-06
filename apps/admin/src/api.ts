@@ -792,7 +792,7 @@ export const api = {
   // Audit trail in tier_change_logs.
   storeTierHistory: (id: string, token: string) =>
     req<TierHistoryResponse>(`/admin/stores/${id}/tier-history`, {}, token),
-  storeCompGrant: (id: string, body: { tier: 'core' | 'pro' | 'enterprise'; reason: string; expiresAt?: string }, token: string) =>
+  storeCompGrant: (id: string, body: { tier: 'core' | 'pro'; reason: string; expiresAt?: string }, token: string) =>
     req<{ ok: true; store: StoreCompState }>(`/admin/stores/${id}/comp`, { method: 'POST', body: JSON.stringify(body) }, token),
   storeCompRevoke: (id: string, body: { reason: string }, token: string) =>
     req<{ ok: true; store: StoreCompState }>(`/admin/stores/${id}/comp`, { method: 'DELETE', body: JSON.stringify(body) }, token),

@@ -39,7 +39,7 @@ export function TierPanel({ storeId, storeName }: Props) {
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [showGrant, setShowGrant] = useState(false)
-  const [grantTier, setGrantTier] = useState<'core' | 'pro' | 'enterprise'>('pro')
+  const [grantTier, setGrantTier] = useState<'core' | 'pro'>('pro')
   const [grantReason, setGrantReason] = useState('')
   const [grantExpires, setGrantExpires] = useState('')
   const [showRevoke, setShowRevoke] = useState(false)
@@ -154,12 +154,11 @@ export function TierPanel({ storeId, storeName }: Props) {
             <div style={{ fontSize: S.label, color: T.textMuted, fontFamily: T.sans, marginBottom: 4 }}>Tier</div>
             <select
               value={grantTier}
-              onChange={(e) => setGrantTier(e.target.value as 'core' | 'pro' | 'enterprise')}
+              onChange={(e) => setGrantTier(e.target.value as 'core' | 'pro')}
               style={{ background: T.surfaceRaised, color: T.text, border: `1px solid ${T.border}`, padding: '6px 8px', fontFamily: T.sans, fontSize: S.small, width: '100%' }}
             >
               <option value="core">Core</option>
               <option value="pro">Pro</option>
-              <option value="enterprise">Enterprise</option>
             </select>
           </div>
           <div>

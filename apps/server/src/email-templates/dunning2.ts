@@ -16,7 +16,6 @@ export function html(props: Dunning2Props): string {
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Second attempt failed.</p>
     <p style="margin:0 0 14px 0;">One more retry in 3 days. After that, the player stops streaming until we collect. Update your card to avoid an interruption.</p>
     ${button(props.billingPortalUrl, 'Update billing')}
-    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Billing questions: founder@entuned.co.</p>
   `
   return layout({ preheader: 'Update your billing to avoid an interruption.', body })
 }

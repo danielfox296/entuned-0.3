@@ -3111,12 +3111,15 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ──────────────────────────────────────────────────────────────────────
 
   // POST /admin/stores/:id/comp — grant or extend a comp.
-  // Body: { tier: 'core'|'pro'|'enterprise', reason: string, expiresAt?: ISO }
+  // Body: { tier: 'core'|'pro', reason: string, expiresAt?: ISO }
   // Rules:
   //   - tier must outrank the current effective tier (no-op grants rejected
   //     to force the operator to think before clicking).
   //   - reason required, ≥5 chars.
   //   - expiresAt optional; missing = open-ended comp.
+  //   - Enterprise is excluded — there's no self-serve Stripe price for it,
+  //     so an Enterprise comp would have no upgrade path on expiry. Add
+  //     'enterprise' back to this enum when an Enterprise SKU exists.
   //   - mvp_pilot is not a valid comp tier (it's a legacy seed tier; use core).
   app.post('/stores/:id/comp', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
@@ -3124,7 +3127,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (!id) return reply.code(400).send({ error: 'bad_id' })
 
     const Body = z.object({
-      tier: z.enum(['core', 'pro', 'enterprise']),
+      tier: z.enum(['core', 'pro']),
       reason: z.string().trim().min(5, 'reason must be at least 5 chars'),
       expiresAt: z.string().datetime().optional(),
     })

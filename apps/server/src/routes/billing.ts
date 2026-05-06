@@ -438,11 +438,13 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
       return reply.redirect(`${APP_URL}/account?upgrade=no_comp`, 302)
     }
 
-    const targetTier = store.compTier as 'core' | 'pro' | 'enterprise'
-    if (targetTier === 'enterprise') {
-      // Enterprise has no self-serve price. Send them to /account where
-      // they'll see the badge + "contact us" copy (TODO: build this surface).
-      return reply.redirect(`${APP_URL}/account?upgrade=enterprise_contact`, 302)
+    // Enterprise is intentionally excluded from the comp grant API, so
+    // store.compTier is guaranteed to be 'core' or 'pro' here. If a legacy
+    // Enterprise comp exists from before that restriction landed, we fall
+    // back to /account rather than crashing.
+    const targetTier = store.compTier as 'core' | 'pro'
+    if ((targetTier as string) === 'enterprise') {
+      return reply.redirect(`${APP_URL}/account?upgrade=unsupported_tier`, 302)
     }
     const targetPriceId = TIER_TO_PRICE[targetTier]
     if (!targetPriceId) {
