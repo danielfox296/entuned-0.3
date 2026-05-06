@@ -277,6 +277,33 @@ export interface ReferenceTrackRow {
   styleAnalysis: StyleAnalysisRow | null
 }
 
+export interface StoreCompState {
+  id: string
+  paidTier: string
+  compTier: string | null
+  compExpiresAt: string | null
+  effectiveTier: string
+  compReason?: string | null
+  compGrantedAt?: string | null
+  compGrantedByEmail?: string | null
+}
+
+export interface TierHistoryRow {
+  id: string
+  fromTier: string
+  toTier: string
+  source: 'admin_comp' | 'admin_revoke' | 'stripe_webhook' | 'pause' | 'resume' | 'comp_expired' | 'auto_cleared'
+  actorEmail: string | null
+  reason: string | null
+  expiresAt: string | null
+  createdAt: string
+}
+
+export interface TierHistoryResponse {
+  store: StoreCompState
+  history: TierHistoryRow[]
+}
+
 export interface StoreDetail {
   store: { id: string; name: string; timezone: string; clientId: string; clientName: string; goLiveDate: string | null; defaultOutcomeId: string | null; roomLoudnessSamplingEnabled: boolean }
   icps: (IcpRow & { referenceTracks: ReferenceTrackRow[] })[]
@@ -759,6 +786,16 @@ export const api = {
     req<StoreSummary[]>('/admin/stores', {}, token),
   storeDetail: (id: string, token: string) =>
     req<StoreDetail>(`/admin/stores/${id}`, {}, token),
+
+  // ── Comp tier (admin-granted free upgrades) ──
+  // Effective tier = max(paidTier, compTier) while comp is unexpired.
+  // Audit trail in tier_change_logs.
+  storeTierHistory: (id: string, token: string) =>
+    req<TierHistoryResponse>(`/admin/stores/${id}/tier-history`, {}, token),
+  storeCompGrant: (id: string, body: { tier: 'core' | 'pro' | 'enterprise'; reason: string; expiresAt?: string }, token: string) =>
+    req<{ ok: true; store: StoreCompState }>(`/admin/stores/${id}/comp`, { method: 'POST', body: JSON.stringify(body) }, token),
+  storeCompRevoke: (id: string, body: { reason: string }, token: string) =>
+    req<{ ok: true; store: StoreCompState }>(`/admin/stores/${id}/comp`, { method: 'DELETE', body: JSON.stringify(body) }, token),
   clients: (token: string) =>
     req<ClientListRow[]>('/admin/clients', {}, token),
   clientDetail: (id: string, token: string) =>

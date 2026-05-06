@@ -6,6 +6,7 @@ import {
   Button, Input, Select, Section, Field, KV,
   S, useToast, useStoreSelection,
 } from '../../ui/index.js'
+import { TierPanel } from './TierPanel.js'
 
 const COMMON_TZ = [
   'America/Denver', 'America/Chicago', 'America/New_York', 'America/Los_Angeles',
@@ -175,6 +176,8 @@ export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void 
             </Button>
             {dirty && <Button variant="tiny" onClick={() => setDraft({})}>discard</Button>}
           </div>
+
+          <TierPanel storeId={detail.id} storeName={detail.name} />
         </>
       )}
     </div>
