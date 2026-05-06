@@ -123,7 +123,7 @@ function upgradeCopyFor(tier: Tier): UpgradeCopy | null {
     return {
       headline: 'Music tailored to your specific customer.',
       body: 'On Core, your library is built around the people who actually walk into your store. $99 per location, per month.',
-      ctaLabel: 'Upgrade to Core',
+      ctaLabel: 'Unlock Core',
       ctaTier: 'core',
     }
   }
@@ -131,7 +131,7 @@ function upgradeCopyFor(tier: Tier): UpgradeCopy | null {
     return {
       headline: 'Tie what you play to what you sell.',
       body: 'On Pro, schedule outcome rotation through the day and connect Square, Shopify, or Lightspeed. $399 per location, per month.',
-      ctaLabel: 'Upgrade to Pro',
+      ctaLabel: 'Unlock Pro',
       ctaTier: 'pro',
     }
   }

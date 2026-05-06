@@ -10,6 +10,11 @@ import { useTier } from '../lib/tier.jsx'
 
 // /account — profile, billing portal, indemnification cert, sign-out.
 // Profile fields are read-only in v1; rename ships in v1.5.
+//
+// Note on PRO indemnification: PRO = Performance Rights Organization
+// (ASCAP/BMI/SESAC) — the music-licensing umbrella. NOT the Pro tier.
+// Every Entuned plan, including free Essentials, ships indemnified from
+// day one — the cert card is shown to every signed-in user.
 export function Account() {
   const { user, account } = useAuth()
   const { stores, tier } = useTier()
@@ -45,8 +50,9 @@ export function Account() {
               justifyContent: 'space-between', gap: 16,
             }}>
               <div style={{ color: T.textMuted, fontSize: 14 }}>
-                You're on the free Essentials plan. Upgrade to Core to unlock billing management,
-                pause/resume, and tailored music.
+                You're on the free Essentials plan. Unlock Core for music
+                tuned to your specific customer, plus pause / resume and a
+                billing portal.
               </div>
               <a href={api.checkoutUrl('core')} style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -54,26 +60,26 @@ export function Account() {
                 padding: '8px 14px', borderRadius: 3,
                 fontFamily: T.sans, fontSize: 14, fontWeight: 600,
                 textDecoration: 'none', whiteSpace: 'nowrap',
-              }}>Upgrade to Core</a>
+              }}>Unlock Core</a>
             </div>
           )}
         </Card>
 
-        {isPaid && (
-          <Card title="Indemnification certificate">
-            <div style={{
-              display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between', gap: 16,
-            }}>
-              <div style={{ color: T.textMuted, fontSize: 14 }}>
-                Proof of music-licence indemnification, ready to forward to your landlord or franchisor.
-              </div>
-              <Button variant="ghost" onClick={() => alert('Cert download ships in v1.5')}>
-                Download PDF
-              </Button>
+        <Card title="PRO licensing certificate">
+          <div style={{
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between', gap: 16,
+          }}>
+            <div style={{ color: T.textMuted, fontSize: 14, lineHeight: 1.5 }}>
+              Proof of music-rights licensing (ASCAP / BMI / SESAC), ready
+              to forward to your landlord or franchisor. Every Entuned plan
+              is covered from day one.
             </div>
-          </Card>
-        )}
+            <Button variant="ghost" disabled title="We'll email it to you when ready.">
+              Download PDF
+            </Button>
+          </div>
+        </Card>
 
         <Card title="Locations">
           {stores.length === 0 ? (

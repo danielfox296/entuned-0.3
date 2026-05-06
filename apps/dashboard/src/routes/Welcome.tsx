@@ -80,7 +80,7 @@ export function Welcome() {
                   fontFamily: T.heading, color: T.accent,
                   fontWeight: 600, minWidth: 20,
                 }}>02</span>
-                Setting up your account and first location
+                Provisioning your location
               </li>
               <li style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
                 <span style={{

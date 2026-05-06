@@ -27,7 +27,8 @@ export function Locations() {
             color: T.text, letterSpacing: '-0.02em', margin: 0,
           }}>Locations</h1>
           <div style={{ color: T.textDim, fontSize: 14, marginTop: 4 }}>
-            Each location streams its own music feed.
+            Each location plays its own soundtrack — its own player URL,
+            its own pause control.
           </div>
         </div>
         {canAdd ? (
@@ -59,8 +60,8 @@ export function Locations() {
       ) : stores.length === 0 ? (
         <Card>
           <EmptyState>
-            No locations yet. Once you upgrade to Core, we will provision a player URL
-            you can open on any in-store device.
+            We couldn't load your locations. Try refreshing — or reach us
+            at hello@entuned.co if it sticks.
           </EmptyState>
         </Card>
       ) : (
