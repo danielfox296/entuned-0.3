@@ -71,7 +71,15 @@ export interface StoreRow {
   id: string
   name: string
   slug: string
+  // `tier` is the *effective* tier (Stripe-paid OR active comp, whichever
+  // ranks higher). Use this for feature gating throughout the dashboard.
   tier: Tier
+  // `paidTier` is what Stripe is actually charging — exposed so billing
+  // surfaces can show "Core ($99/mo, comped to Pro through Aug 12)" or a
+  // small "comped" badge separate from the underlying paid plan.
+  paidTier: Tier
+  compTier: Tier | null
+  compExpiresAt: string | null
   pausedUntil: string | null
   subscription: StoreSubscriptionSummary | null
 }

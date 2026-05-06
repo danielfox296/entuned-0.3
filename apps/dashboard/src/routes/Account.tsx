@@ -20,6 +20,13 @@ export function Account() {
   const { stores, tier } = useTier()
   const isPaid = TIER_RANK[tier] >= TIER_RANK.core
 
+  // A comp is active on this account if any Store carries one — typically
+  // surfaced as "we comped you up to Pro through <date>" copy. This is not
+  // promotional; it's transparency about why their effective tier outranks
+  // their paid plan.
+  const compedStores = stores.filter((s) => s.compTier !== null)
+  const hasComp = compedStores.length > 0
+
   return (
     <Layout>
       <div style={{ marginBottom: 24 }}>
@@ -37,7 +44,21 @@ export function Account() {
             <span style={{ color: T.textDim }}>Company</span>
             <span style={{ color: T.text }}>{account?.companyName ?? '—'}</span>
             <span style={{ color: T.textDim }}>Plan</span>
-            <span style={{ color: T.text }}>{TIER_LABEL[tier]}</span>
+            <span style={{ color: T.text }}>
+              {TIER_LABEL[tier]}
+              {hasComp && (
+                <span style={{ color: T.accentMuted, marginLeft: 8, fontSize: 12 }}>
+                  {(() => {
+                    const earliest = compedStores
+                      .map((s) => s.compExpiresAt)
+                      .filter((d): d is string => !!d)
+                      .sort()[0]
+                    if (earliest) return `(comped through ${fmtDate(earliest)})`
+                    return '(comped — open-ended)'
+                  })()}
+                </span>
+              )}
+            </span>
           </div>
         </Card>
 
@@ -101,11 +122,19 @@ export function Account() {
                       {PLAYER_URL}/{s.slug}
                     </div>
                   </div>
-                  <span style={{
-                    fontSize: 10, fontWeight: 600, letterSpacing: '0.08em',
-                    color: T.accentMuted, textTransform: 'uppercase',
-                    border: `1px solid ${T.border}`, borderRadius: 3, padding: '1px 6px',
-                  }}>{TIER_LABEL[s.tier] ?? s.tier}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                    <span style={{
+                      fontSize: 10, fontWeight: 600, letterSpacing: '0.08em',
+                      color: T.accentMuted, textTransform: 'uppercase',
+                      border: `1px solid ${T.border}`, borderRadius: 3, padding: '1px 6px',
+                    }}>{TIER_LABEL[s.tier] ?? s.tier}</span>
+                    {s.compTier && (
+                      <span style={{ color: T.textFaint, fontSize: 10 }}>
+                        comped from {TIER_LABEL[s.paidTier] ?? s.paidTier}
+                        {s.compExpiresAt ? ` · until ${fmtDate(s.compExpiresAt)}` : ''}
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -114,6 +143,10 @@ export function Account() {
       </div>
     </Layout>
   )
+}
+
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 function BillingPortalRow() {
