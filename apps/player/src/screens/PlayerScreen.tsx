@@ -153,7 +153,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const schedulePreload = useCallback((durationSec: number) => {
     if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
     if (!Number.isFinite(durationSec) || durationSec <= 0) return;
-    const ms = Math.max(1000, (durationSec - PRELOAD_SECONDS_BEFORE_END - CROSSFADE_MS / 1000) * 1000);
+    const rawMs = (durationSec - PRELOAD_SECONDS_BEFORE_END - CROSSFADE_MS / 1000) * 1000;
+    // If the track is shorter than the crossfade window (or duration was reported
+    // near-zero by iOS before buffering), rawMs ≤ 0. Don't schedule — Math.max(1000)
+    // would floor to 1s and trigger advanceToNext on every track in a 1-second loop.
+    // onTrackEnded (native 'ended' event) reliably handles these short tracks instead.
+    if (rawMs <= 0) return;
+    const ms = Math.max(1000, rawMs);
     preloadTimerRef.current = window.setTimeout(() => {
       preloadTimerRef.current = null; // mark as fired so onTrackEnded's clearTimeout is a no-op
       void advanceToNext();
@@ -458,17 +464,16 @@ export function PlayerScreen({ session, onLogout }: Props) {
         const now = Date.now();
         if (now - lastResumeAttemptRef.current < 2000) return;
         lastResumeAttemptRef.current = now;
-        // Synchronous attempt first: when the screen goes fully dark iOS may
-        // suspend the page and never fire the setTimeout below. An immediate
-        // resume call is no-op if audio is still running but saves us when the
-        // AudioContext was hard-suspended.
+        // Unlock AudioContext immediately — but do NOT call playerRef.current?.resume() here.
+        // With html5:true, resume() calls Howl.play() when playing() is false. On an
+        // OS-interrupted audio element that is briefly paused, play() creates a second
+        // <audio> clone from position 0, overlapping the original — the sustain-loop symptom.
         try {
           const ctx = (window as unknown as { Howler?: { ctx?: AudioContext } }).Howler?.ctx;
           if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
         } catch {}
-        playerRef.current?.resume();
-        // Delayed attempt for short OS interruptions (notification sounds, etc.)
-        // where we need to wait for the system sound to finish before resuming.
+        // Delayed resume handles actual playback restart. If iOS fully suspends the page
+        // before this fires, the visibilitychange handler covers the wake-up resume.
         window.setTimeout(() => {
           if (!wasPlayingRef.current) return;
           try {
