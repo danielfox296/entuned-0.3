@@ -87,9 +87,29 @@ export async function buildNegativeStyle(styleAnalysis: StyleAnalysis): Promise<
   // Dedupe overlapping exclude strings (different sources sometimes name the same drift).
   const merged = Array.from(new Set(fragments.flatMap((f) => f.split(',').map((s) => s.trim()).filter(Boolean))))
 
+  // Soft cap. Suno's exclude box accepts ~500–1000 chars but external research
+  // recommends ~180–200 for efficiency — past that, fragments dilute each other.
+  // We cap at 400 to leave headroom while staying close to the recommended range.
+  // DB rules go in first (most specific to the track), then always-fire, then axes;
+  // the cap drops axis fragments first, since they're the most generic of the three.
+  const negativeStyle = capJoined(merged, NEGATIVE_STYLE_HARD_CAP)
+
   return {
-    negativeStyle: merged.join(', '),
+    negativeStyle,
     firedRuleIds,
     firedAxes: axes.axesFired,
   }
+}
+
+const NEGATIVE_STYLE_HARD_CAP = 400
+
+/** Join terms with ", " up to `cap` chars, preserving full terms (never mid-word). */
+function capJoined(terms: string[], cap: number): string {
+  let out = ''
+  for (const t of terms) {
+    const candidate = out.length === 0 ? t : `${out}, ${t}`
+    if (candidate.length > cap) break
+    out = candidate
+  }
+  return out
 }

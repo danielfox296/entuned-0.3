@@ -1,28 +1,40 @@
-// Arranger — post-processes Bernie's lyrics to inject per-section production tags.
+// Arranger — post-processes Bernie's lyrics to inject per-section production tags
+// and apply chorus escalation across repeats.
 //
-// Suno reads pipe-stacked production cues inside a single bracketed header as a
-// signal to bias the section toward those cues. Format:
-//   [Verse 1 | close-mic | steady medium | acoustic guitar and brushed drums]
-// Pipe `|` acts as AND. Order: section name first → broadest production direction →
-// dynamic/density → instrument call. Max ~4 modifiers; more dilutes.
+// Two output formats are supported, gated by env var ARRANGER_FORMAT:
 //
-// Chorus escalation: identical chorus repetitions read as instructions to produce
-// identical music, which flattens the song's energy arc. The arranger numbers the
-// chorus instances it sees and escalates production cues across repeats: the first
-// chorus is the base; the middle chorus(es) layer in stacked harmonies; the final
-// chorus (whether labeled [Chorus] or [Final Chorus]) gets the biggest treatment —
-// gang vocals on the hook, sustained density. Bernie's lyric variation (final-chorus
-// non-hook line tweaks) is independent and orthogonal.
+//   - 'legacy' (default) — the format we shipped before any external research.
+//     Multi-line, one bracket per directive type:
+//       [Chorus]
+//       [Instrument: A, B]
+//       [Sustained, full]
+//       [Belted]
 //
-// This is a pure function: no DB access, no LLM. Called in createSongSeed() after
-// Bernie returns, before writing SongSeed.lyrics.
+//   - 'pipe' — pipe-stacked single-bracket headers per external Suno research:
+//       [Chorus | belted | sustained full | A and B]
+//     Pipe acts as AND; max ~4 modifiers; broadest → most specific.
+//
+// The pipe format ships behind a flag so we can A/B against the legacy format
+// before fully replacing the production output. Flip `ARRANGER_FORMAT=pipe` on
+// Railway when ready to test.
+//
+// Chorus escalation runs for either format: identical chorus repetitions read as
+// instructions to produce identical music, which flattens the song's energy arc.
+// First chorus = base; middle chorus(es) layer in stacked harmonies; final chorus
+// (whether labeled [Chorus] or [Final Chorus]) gets gang vocals on the hook,
+// sustained-full energy. Bernie's lyric variation on [Final Chorus] is independent.
+//
+// Skipped when the base directive's vocal_delivery is `instrumental`, `wordless`,
+// or `a-cappella` — escalation cues that mention "vocals" or "the hook" would
+// contradict those base states.
+//
+// Pure function: no DB access, no LLM. Called in createSongSeed() after Bernie
+// returns, before writing SongSeed.lyrics.
 
 export interface SectionDirective {
   instruments: string[]
   density?: 'minimal' | 'sparse' | 'medium' | 'full'
-  // v8+: section-level energy character.
   dynamic?: 'steady' | 'building' | 'dropping' | 'stripped' | 'erupting' | 'fade' | 'sustained' | 'retreating'
-  // v8+: section-level vocal staging.
   vocal_delivery?: 'close-mic' | 'distant' | 'whispered' | 'belted' | 'falsetto' | 'stacked' | 'doubled' | 'wordless' | 'instrumental' | 'a-cappella'
 }
 
@@ -30,9 +42,15 @@ export type ArrangementSections = Partial<Record<SectionKey, SectionDirective>>
 
 type SectionKey = 'intro' | 'verse' | 'pre_chorus' | 'chorus' | 'bridge' | 'outro'
 
+type ArrangerFormat = 'legacy' | 'pipe'
+
+function getFormat(): ArrangerFormat {
+  const v = (process.env.ARRANGER_FORMAT ?? '').toLowerCase()
+  return v === 'pipe' ? 'pipe' : 'legacy'
+}
+
 interface SectionMatch {
   key: SectionKey
-  /** True if the original header explicitly used "Final Chorus" wording. */
   explicitFinal: boolean
 }
 
@@ -54,80 +72,61 @@ function normalizeSection(headerContent: string): SectionMatch | null {
   return null
 }
 
-function dynamicWord(d: NonNullable<SectionDirective['dynamic']>): string {
-  return d
+function titleCase(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-function deliveryWord(v: NonNullable<SectionDirective['vocal_delivery']>): string {
-  return v
+const ESCALATION_INCOMPATIBLE_DELIVERY = new Set(['instrumental', 'wordless', 'a-cappella'])
+
+interface ChorusRank {
+  index: number
+  isFinal: boolean
 }
 
-interface BuildOpts {
-  /** For chorus only: which instance (1-indexed) and whether it's the final one. */
-  choruseRank?: { index: number; isFinal: boolean }
+interface EscalationApplied {
+  delivery?: string
+  density?: SectionDirective['density']
+  dynamic?: SectionDirective['dynamic']
 }
 
-/**
- * Compose the bracketed header for a section. Returns the bracket *content* (the
- * part between [ and ]). The caller wraps it.
- *
- * Format: "<Label> | <delivery> | <dynamic> <density> | <instruments>"
- * Each pipe-segment is omitted when empty. Max 4 segments after the label.
- */
-function buildHeaderContent(
-  rawLabel: string,
+/** Compute escalated delivery/density/dynamic for the given chorus instance.
+ *  Returns the original directive values when no escalation should apply (early
+ *  chorus, or base delivery is instrumental/wordless/a-cappella). */
+function applyChorusEscalation(
   directive: SectionDirective | undefined,
-  opts: BuildOpts = {},
-): string {
-  // Determine the label first. For final chorus, force the "Final Chorus" wording so
-  // Suno reads it as a distinct, climactic section.
-  let label = rawLabel.trim()
-  if (opts.choruseRank?.isFinal) {
-    label = label.toLowerCase().includes('final') ? label : 'Final Chorus'
+  rank: ChorusRank | undefined,
+): EscalationApplied {
+  const baseDelivery = directive?.vocal_delivery
+  const baseDensity = directive?.density
+  const baseDynamic = directive?.dynamic
+
+  if (!rank) return { delivery: baseDelivery, density: baseDensity, dynamic: baseDynamic }
+
+  // Skip escalation entirely when the base is incompatible — gang-vocal cues
+  // would contradict an instrumental/wordless/a-cappella section.
+  if (baseDelivery && ESCALATION_INCOMPATIBLE_DELIVERY.has(baseDelivery)) {
+    return { delivery: baseDelivery, density: baseDensity, dynamic: baseDynamic }
   }
 
-  const segments: string[] = []
-
-  // Vocal delivery — escalate across choruses. Applies even without a directive so
-  // the energy arc shows up on tracks that have no per-section arrangement metadata.
-  let delivery: string | undefined = directive?.vocal_delivery ? deliveryWord(directive.vocal_delivery) : undefined
-  if (opts.choruseRank) {
-    const { index, isFinal } = opts.choruseRank
-    if (isFinal) {
-      delivery = delivery ? `${delivery}, gang vocals on the hook` : 'gang vocals on the hook'
-    } else if (index >= 2) {
-      delivery = delivery ? `${delivery}, stacked harmonies` : 'stacked harmonies'
-    }
+  let delivery: string | undefined = baseDelivery
+  if (rank.isFinal) {
+    delivery = delivery ? `${delivery}, gang vocals on the hook` : 'gang vocals on the hook'
+  } else if (rank.index >= 2) {
+    delivery = delivery ? `${delivery}, stacked harmonies` : 'stacked harmonies'
   }
-  if (delivery) segments.push(delivery)
 
-  // Dynamic + density — bumped on final chorus.
-  let dynamic = directive?.dynamic ? dynamicWord(directive.dynamic) : undefined
-  let density = directive?.density
-  if (opts.choruseRank?.isFinal) {
+  let density = baseDensity
+  let dynamic = baseDynamic
+  if (rank.isFinal) {
     if (!density || density === 'minimal' || density === 'sparse' || density === 'medium') density = 'full'
     if (!dynamic || dynamic === 'retreating' || dynamic === 'stripped' || dynamic === 'fade') dynamic = 'sustained'
   }
-  const energy = [dynamic, density].filter(Boolean).join(' ').trim()
-  if (energy) segments.push(energy)
 
-  // Instruments — capped at 3, only when a directive is present.
-  if (directive && directive.instruments.length > 0) {
-    const instruments = directive.instruments.slice(0, 3)
-    const phrase = instruments.length === 1
-      ? instruments[0]
-      : instruments.slice(0, -1).join(', ') + ' and ' + instruments[instruments.length - 1]
-    segments.push(phrase)
-  }
-
-  if (segments.length === 0) return label
-  return `${label} | ${segments.join(' | ')}`
+  return { delivery, density, dynamic }
 }
 
 interface ChorusPlan {
-  /** Total chorus instances in the lyric. Used to mark the last one as "final". */
   totalChoruses: number
-  /** Whether any explicit [Final Chorus] header was found. */
   hasExplicitFinal: boolean
 }
 
@@ -147,36 +146,105 @@ function planChoruses(lyrics: string): ChorusPlan {
   return { totalChoruses: total, hasExplicitFinal }
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Format: legacy (multi-line tags)
+// ──────────────────────────────────────────────────────────────────────────────
+
+function buildLegacyTags(
+  rawLabel: string,
+  directive: SectionDirective | undefined,
+  rank: ChorusRank | undefined,
+): { headerLine: string; extraTags: string[] } {
+  let label = rawLabel.trim()
+  if (rank?.isFinal && !label.toLowerCase().includes('final')) label = 'Final Chorus'
+
+  const esc = applyChorusEscalation(directive, rank)
+  const tags: string[] = []
+
+  if (directive && directive.instruments.length > 0) {
+    tags.push(`[Instrument: ${directive.instruments.slice(0, 3).join(', ')}]`)
+  }
+  if (esc.dynamic) {
+    tags.push(esc.density ? `[${titleCase(esc.dynamic)}, ${esc.density}]` : `[${titleCase(esc.dynamic)}]`)
+  }
+  if (esc.delivery) {
+    // Legacy format uses a separate delivery bracket. Multi-word phrases like
+    // "stacked harmonies" go in as-is.
+    tags.push(`[${titleCase(esc.delivery)}]`)
+  }
+  return { headerLine: `[${label}]`, extraTags: tags }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Format: pipe-stacked single bracket
+// ──────────────────────────────────────────────────────────────────────────────
+
+function buildPipeHeader(
+  rawLabel: string,
+  directive: SectionDirective | undefined,
+  rank: ChorusRank | undefined,
+): string {
+  let label = rawLabel.trim()
+  if (rank?.isFinal && !label.toLowerCase().includes('final')) label = 'Final Chorus'
+
+  const esc = applyChorusEscalation(directive, rank)
+  const segments: string[] = []
+
+  if (esc.delivery) segments.push(esc.delivery)
+
+  const energy = [esc.dynamic, esc.density].filter(Boolean).join(' ').trim()
+  if (energy) segments.push(energy)
+
+  if (directive && directive.instruments.length > 0) {
+    const instruments = directive.instruments.slice(0, 3)
+    const phrase = instruments.length === 1
+      ? instruments[0]
+      : instruments.slice(0, -1).join(', ') + ' and ' + instruments[instruments.length - 1]
+    segments.push(phrase)
+  }
+
+  if (segments.length === 0) return `[${label}]`
+  return `[${label} | ${segments.join(' | ')}]`
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Public entry point
+// ──────────────────────────────────────────────────────────────────────────────
+
 export function injectArrangement(lyrics: string, sections: ArrangementSections): string {
-  // Even when no per-section arrangement directives are present, we still walk the
-  // lyrics so the chorus-escalation pass can rename the final [Chorus] to
-  // [Final Chorus] and add gang-vocal cues. This gives every track an energy arc
-  // regardless of whether the reference's StyleAnalysis has arrangementSections.
+  // Always walk the lyrics — even with no directives, we still want the chorus
+  // escalation pass to rename the final [Chorus] to [Final Chorus] and add
+  // gang-vocal cues. That gives every track an energy arc regardless of whether
+  // the reference's StyleAnalysis has arrangementSections.
   const plan = planChoruses(lyrics)
+  const format = getFormat()
   let chorusSeen = 0
 
   return lyrics
     .split('\n')
-    .map((line) => {
+    .flatMap((line) => {
       const headerMatch = line.match(/^\[([^\]]+)\]$/)
-      if (!headerMatch) return line
+      if (!headerMatch) return [line]
 
       const norm = normalizeSection(headerMatch[1])
-      if (!norm) return line
+      if (!norm) return [line]
 
       const directive = sections[norm.key]
-      let opts: BuildOpts = {}
+      let rank: ChorusRank | undefined
 
       if (norm.key === 'chorus') {
         chorusSeen++
         const isFinal =
           norm.explicitFinal ||
           (!plan.hasExplicitFinal && chorusSeen === plan.totalChoruses && plan.totalChoruses >= 2)
-        opts = { choruseRank: { index: chorusSeen, isFinal } }
+        rank = { index: chorusSeen, isFinal }
       }
 
-      const content = buildHeaderContent(headerMatch[1], directive, opts)
-      return `[${content}]`
+      if (format === 'pipe') {
+        return [buildPipeHeader(headerMatch[1], directive, rank)]
+      }
+      const { headerLine, extraTags } = buildLegacyTags(headerMatch[1], directive, rank)
+      return [headerLine, ...extraTags]
     })
     .join('\n')
 }

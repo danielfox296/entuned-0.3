@@ -1,190 +1,164 @@
-// Lyric-craft rules — overused words + AI-cliché patterns + structural defaults.
+// Lyric-craft rules — overused words + AI-cliché phrases + structural defaults.
 //
-// These are pattern-recognition signals, not strict bans. The edit pass uses them to
-// scrutinize draft lines for abstract-emotional placeholder use and rewrite toward
-// concrete sensory imagery.
+// The blocks are split between draft and edit pass so each pass only carries the
+// rules it actually needs. The draft pass focuses on shape (syllable matching,
+// rhyme-by-function, line endings, even-count defaults). The edit pass focuses on
+// polish (no-go list, replacement strategy, performance typography). This keeps
+// each system prompt well below the cache threshold and prevents the editor from
+// re-litigating structural decisions the draft already made.
 //
-// Sources: external Suno-prompt research files (lyric-craft / overused-words / ai-cliches),
-// adapted for brand in-store music.
+// Sources: external Suno-prompt research (lyric-craft / overused-words / ai-cliches),
+// adapted for brand in-store music. The wordlist is trimmed to the high-frequency
+// AI-emitted offenders rather than the full source list — long flat dumps are
+// weakly conditioned at inference time, so a tighter list with sentence-level
+// patterns does more work per token.
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 1) Overused single words / short phrases — flag for concrete-vs-abstract check.
-// Applies to all morphological variants (plurals, possessives, conjugations).
+// 1) Overused words — high-frequency AI-emitted offenders (trimmed from ~190 to
+// ~60). Apply to all morphological variants (plurals, possessives, conjugations).
 // ──────────────────────────────────────────────────────────────────────────────
 export const OVERUSED_WORDS: readonly string[] = [
-  'abode', 'ancient', 'ascend', 'ashes', 'awakening', 'beyond compare',
-  'beyond the horizon', 'binary', 'boundless sky', 'breaking chains', 'breaking free',
-  'breathtaking', 'breeze', 'burning embers', 'burning passion', 'cascade',
-  'caught in dreams', 'celestial', 'celestial bodies', 'celestial dance', 'chains',
-  'chasing dreams', 'chasing shadows', 'cities crumble', 'city lights',
-  'concrete jungles', 'cosmic journey', 'cosmic light', 'crescendo', 'crimson sky',
-  'cyber heartbeat', 'dancing shadows', 'daring flight', 'delve', 'digital',
-  'digital love', 'distant echoes', 'divine', 'dreaming awake', 'dreamscape',
-  'drifting', 'dusk', 'echo', 'echo chamber', 'echoed past', 'echoes of',
-  'electric dreams', 'electric heart', 'electric pulse', 'electric surge', 'embrace',
-  'enchanted', 'eternal', 'ethereal glow', 'everlasting', 'fade away', 'fading light',
-  'fading memories', 'flame', 'fleeting moments', 'flickering', 'fluid motion',
-  'forgotten tales', 'fractured reality', 'ghosts', 'gleam', 'glow', 'gritty',
-  'guide', 'guiding', 'harmony', 'hazy', 'heart of steel', 'heartbeat', 'hidden',
-  'hollow', 'illuminated', 'illusive', 'in a dream', 'in my mind', 'in the dark',
-  'in the shadows', 'in this journey', 'infinite', 'infinite night', 'inner fire',
-  'into the night', 'kin', 'labyrinths', 'loose chains', 'lost in dreams',
-  'lost in the shadows', 'lunar light', 'maze', 'melancholy', 'melodic', 'melodies',
-  'midnight haze', 'midnight love', 'midnight rebellion', 'mirrors', 'moonlight',
-  'mysterious', 'mystic', 'mystic shadows', 'neon', 'neon dreams', 'neon heartbeat',
-  'neon lights', 'phantom light', 'pulse', 'racing heart beats', 'radiant', 'radiate',
-  'raging storm', 'rebel spirit', 'reborn', 'refrain', 'reprieve', 'resonate',
-  'rhythm', 'rhythm of life', 'rise above', 'rise again', 'rise like a phoenix',
-  'rise up', 'rising', 'river', 'roar', 'seams', 'secret', 'shadows', 'shadows dance',
-  'shattered dreams', 'shattered glass', 'shifting tides', 'shimmering',
-  'shimmering city', 'shining bright', 'silent', 'silent whispers', 'soaring echoes',
-  'sonic waves', 'soulful echoes', 'stand strong', 'stark', 'stark reality',
-  'starlit path', 'starry skies', 'static', 'stories unfold', 'stories untold',
-  'strife', 'superman', 'surge of hope', 'surrender', 'symphony', 'syntax', 'tapestry',
-  'the fray', 'through the darkness', 'timeless', 'timeless soul', 'transcend',
-  'twilight', 'unbound', 'unchained', 'under the stars', 'unfold', 'untold', 'urban',
-  'urban decay', 'urban legends', 'veiled', 'velvet night', 'vibrant hues', 'wake up',
-  'waking life', 'wandering souls', 'whirl', 'whispered lies', 'whispered secrets',
-  'whispering rain', 'whispering winds', 'whispers', 'wild', 'win the fight',
-  'young and free',
+  'ancient', 'ascend', 'ashes', 'awakening', 'breaking chains', 'breaking free',
+  'cascade', 'celestial', 'chains', 'chasing dreams', 'chasing shadows',
+  'city lights', 'concrete jungles', 'cosmic', 'crescendo', 'dancing shadows',
+  'distant echoes', 'divine', 'dreamscape', 'dusk', 'echo chamber', 'echoes of',
+  'electric dreams', 'embrace', 'enchanted', 'eternal', 'ethereal',
+  'everlasting', 'fading light', 'flame', 'flickering', 'forgotten tales',
+  'ghosts', 'glow', 'guiding light', 'harmony', 'hazy', 'heartbeat', 'hidden',
+  'hollow', 'illuminated', 'in the shadows', 'infinite', 'into the night',
+  'labyrinths', 'lost in the shadows', 'midnight', 'mirrors', 'moonlight',
+  'mystic', 'neon', 'phantom', 'pulse', 'radiant', 'raging storm',
+  'rebel spirit', 'reborn', 'resonate', 'rise above', 'rise like a phoenix',
+  'shadows', 'shattered', 'shimmering', 'silent whispers', 'soaring',
+  'starlit', 'starry skies', 'stories untold', 'surrender', 'symphony',
+  'tapestry', 'through the darkness', 'timeless', 'transcend', 'twilight',
+  'unbound', 'unchained', 'under the stars', 'untold', 'urban decay',
+  'velvet night', 'wandering souls', 'whispered secrets', 'whispering winds',
+  'whispers',
 ] as const
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 2) AI-cliché phrase patterns — sentence-level red flags.
-// Recognize the *shape*, not just the literal phrases. Variants are equally clichéd.
+// 2) AI-cliché phrases — literal phrases the editor should rewrite when they
+// appear as abstract emotion rather than concrete sensory detail. Categories
+// are organized for the model's scanning convenience; the categories themselves
+// are not labels the model needs to act on.
 // ──────────────────────────────────────────────────────────────────────────────
-export const AI_CLICHE_PATTERNS: readonly string[] = [
-  // Heartbreak / devotion
-  'I can\'t [live/breathe/exist/function] without you',
-  'You\'re my [everything/world/reason/oxygen/north star/lighthouse]',
-  'My heart [is breaking/is torn/aches/belongs to you/beats for you]',
-  'I\'ll [love/wait/be here/hold on] forever',
-  'You [complete me/make me whole/are the one]',
-  'I\'m [nothing/lost/empty/broken] without you',
-  'Don\'t [leave/let go/walk away/break my heart]',
-  'Take me back / Come back to me / I want you back',
-  'I\'ll never love again / love you till I die',
-  'We were meant to be / You\'re the one that got away',
+export const AI_CLICHE_PHRASES: readonly string[] = [
+  // Devotion / heartbreak
+  'I can\'t live without you', 'You\'re my everything', 'You complete me',
+  'You make me whole', 'My heart is breaking', 'I\'ll love you forever',
+  'I\'ll never let you go', 'You stole my heart', 'You mean the world to me',
+  'I\'m nothing without you', 'My heart belongs to you', 'I can\'t breathe without you',
+  'You\'re the love of my life', 'We were meant to be', 'You\'re the one that got away',
   // Pain / isolation
-  'I\'m [drowning/lost/stuck/trapped] in [tears/darkness/sorrow/regret/silence/the void]',
-  'I\'m [empty/hollow/numb/shattered/broken] inside',
-  'I can\'t [stop/find/see/take/escape] [crying/the pain/the light/it/this]',
-  'I\'m a [ghost/shell/mess] of myself',
-  'I feel [invisible/unwanted/dead inside/nothing]',
-  'I\'m [fading/sinking/falling/spiraling] [away/into darkness/deeper]',
-  'Tears fall like rain',
-  'I\'m haunted by memories / lost in my [mind/thoughts]',
+  'I\'m drowning in tears', 'I\'m lost in the darkness', 'I feel so alone',
+  'I\'m numb to everything', 'I\'m falling apart', 'I\'m haunted by memories',
+  'My world is empty', 'My heart feels hollow', 'I\'m a ghost of myself',
+  'Tears fall like rain', 'I\'m barely holding on', 'I feel dead inside',
   // Time / forever
-  'For [the rest of my life/all my days/all time/all eternity]',
-  'Until [the end of days/the end of time/forever/sunrise/sunset]',
-  'Till [my dying breath/kingdom come/the stars burn out/time stands still]',
-  '[Day/night/year] after [day/night/year]',
-  'From [dusk till dawn/now until forever/here to eternity]',
-  'Through [endless time/the passing years/the hands of time]',
-  'Forever [and always/and ever/more]',
-  '[Endless/timeless/boundless] [nights/days/time/sky]',
-  'I\'ll wait [a lifetime/as long as it takes/forever]',
-  'When [tomorrow comes/yesterday fades/morning breaks/the stars align]',
+  'For the rest of my life', 'Until the end of time', 'Till my dying breath',
+  'Forever and always', 'Through endless time', 'I\'ll wait forever',
+  'From here to eternity', 'When the stars align',
   // Worn metaphors
-  'Heart-as-object: my heart\'s on fire / aches / beats for you',
-  'Body-as-metaphor: ice in my veins, butterflies in my stomach',
-  'Light/dark: you\'re my light, guiding light, light at the end of the tunnel',
-  'Weather: love is a storm, hurricane in my heart',
-  'Astronomy: north star, shooting star, sun in my sky',
-  'Drugs/poison: your love is my drug, under your spell',
-  'Travel: love is a journey, sailing stormy seas',
-  'Battle: love is a battlefield, armor around my heart',
-  'Glass/breaking: broken like glass, pieces of my heart',
-  'Royalty: king and queen of hearts, knight in shining armor',
-  'Fairy tale: pages of a fairytale, phoenix from the ashes',
-  'Falling: head over heels, swept off my feet, floating on cloud nine',
-  // Structural fill-in templates
+  'My heart\'s on fire', 'Ice in my veins', 'You\'re my guiding light',
+  'You\'re my north star', 'You take my breath away', 'Drowning in your love',
+  'You\'re my anchor', 'A hurricane in my heart', 'Love is a battlefield',
+  'Walking through fire', 'Your love is my drug', 'Butterflies in my stomach',
+  'Head over heels', 'Swept off my feet', 'Floating on cloud nine',
+  'Broken like glass', 'Pieces of my heart', 'Knight in shining armor',
+  'Walls around my heart', 'Light at the end of the tunnel',
+  'Sparks fly when we touch', 'Phoenix from the ashes', 'Castles in the air',
+  'You\'re my angel', 'Our hearts beat as one',
+  // Generic bridges
+  'Love will find a way', 'Nothing lasts forever', 'It was always you',
+  'Wish you were here', 'Can\'t stop thinking of you',
+] as const
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 3) Cliché shapes — sentence-level templates. Recognizing the *shape* catches
+// variants that wouldn't appear in the literal phrase list above.
+// ──────────────────────────────────────────────────────────────────────────────
+export const AI_CLICHE_SHAPES: readonly string[] = [
   '"I\'m so [emotion] without you"',
   '"My heart is [adjective]"',
   '"I can\'t [verb] without your love"',
   '"I\'m lost in your [noun]"',
-  '"You left me [feeling]"',
-  '"I\'ll never [verb] again"',
   '"Without you I\'m [adjective]"',
+  '"I\'ll never [verb] again"',
   '"Every night I [verb]"',
-  // Bridging clichés
-  '"Love will find a way"',
-  '"Nothing lasts forever"',
-  '"You and I were meant to be"',
-  '"It was always you"',
-  '"Everything reminds me of you"',
-  '"I still hear your voice"',
-  '"Wish you were here"',
-  '"Can\'t stop thinking of you"',
+  '"Why did you leave me?"',
 ] as const
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 3) Format the rules into a prompt-ready block.
-// Kept compact so the system prompt doesn't balloon.
+// 4) DRAFT-pass craft block — structural shape only. Qualitative principles
+// rather than numeric recipes; numeric recipes flatten variety across a batch.
 // ──────────────────────────────────────────────────────────────────────────────
-export function formatNoGoBlock(): string {
-  return `
-NO-GO list — these are pattern-recognition red flags, not strict bans. When you write a line that contains a flagged word OR matches a flagged shape, ask: am I describing a concrete sensory thing in a specific moment, or am I gesturing at an abstract emotion? If concrete and grounded, fine. If abstract or gestural, rewrite with specific imagery (a particular place, time, object, sensation). Do NOT swap one abstract synonym for another (don't replace "shadows" with "darkness" or "you complete me" with "you make me whole"). The fix is always specificity.
+export const DRAFT_CRAFT_BLOCK = `
+STRUCTURAL CRAFT — Suno aligns musical phrases to lyrical phrases, so the structure encodes performance.
 
-Overused words to scrutinize (apply to plurals, possessives, all conjugations):
-${OVERUSED_WORDS.join(', ')}.
+Within a section, keep line lengths similar to each other; vary line length between sections to differentiate energy. Verses can be more dense; choruses tighter and more chantable. Hip-hop, prog rock, and free-form folk are exceptions where intentional variation is the genre.
 
-AI-cliché shapes to avoid (recognize the pattern, variants are equally clichéd):
-${AI_CLICHE_PATTERNS.map((p) => `- ${p}`).join('\n')}
-`.trim()
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// 4) Structural craft rules — syllable matching, rhyme schemes, section length,
-// performance typography, transitions, chorus escalation.
-// ──────────────────────────────────────────────────────────────────────────────
-export const CRAFT_RULES_BLOCK = `
-STRUCTURAL CRAFT — Suno aligns musical phrases to lyrical phrases, so structure encodes performance.
-
-Syllable counts:
-- Within a section, keep line syllable counts within ±2 of each other (verse: 8/8/9/7 fine; 8/12/5/9 not).
-- Vary syllable count *between* sections to differentiate energy. Verses often 7–10 syl; choruses tighter at 4–8 syl.
-- Genre exception: hip-hop, prog rock, and free-form folk may break this on purpose.
-
-Rhyme scheme by function:
-- Verse (storytelling): ABAB, ABCB, AABA, or ABCA. Forward motion without strong closure.
+Pick rhyme schemes that fit each section's function:
+- Verse (storytelling): ABAB, ABCB, AABA, or ABCA — forward motion without strong closure.
 - Pre-chorus (building tension): ABAB or ABXB with shorter lines.
 - Chorus (memorable, hookable): AABB or ABAB.
-- Bridge (contrast): a scheme different from both verse and chorus.
-- Avoid AABB everywhere — if chorus is AABB, verses must be something else, and vice versa.
-- Mix in slant rhymes, internal rhymes, pararhymes, feminine endings to add texture.
+- Bridge (contrast): a scheme distinct from both verse and chorus.
+- Avoid AABB everywhere — if chorus is AABB, verses use a different scheme; and vice versa.
+- Mix in slant rhymes, internal rhymes, and feminine endings to add texture.
 
 Line endings (stress pattern):
 - Masculine ending (stressed final syllable, e.g. "stone") = closed, lands hard.
-- Feminine ending (unstressed final syllable, e.g. "waiting") = tapering, open, continues.
+- Feminine ending (unstressed final syllable, e.g. "waiting") = open, continues.
 - Be consistent within a section. Switch between sections to mark transitions.
 
-Default section shapes:
-- Verse: 4–8 lines, 7–10 syllables/line.
-- Pre-Chorus: 2–4 lines, 4–7 syllables (shorter, building).
-- Chorus: 4–6 lines, 4–8 syllables (chantable).
-- Bridge: 4–8 lines, often contrasting line length.
-- Outro: 2–4 lines, variable.
-- Default to even line counts (4, 6, 8). Use odd counts (5, 7) only when the disruption serves a purpose.
+Default to even line counts (4, 6, 8). Use odd counts (5, 7) only when the disruption serves a moment — typically to set up a drop or beat switch, where the section's final line breaks the established pattern (different rhyme, different line length, different stress).
 
-Engineering transitions:
-- Smooth transition: matched line counts + consistent endings → Suno produces clean, expected transition.
-- Drop / energy shift: disrupt the final line of the preceding section — break the rhyme, switch stress pattern, use a much shorter or longer line, or break the punctuation pattern. Without disruption, [Drop] tags are often ignored.
+Final-chorus variation (optional): if the song has a [Final Chorus], you may modify 1–2 of the non-hook surrounding lines to signal climax. The hook line itself remains verbatim. Production-cue escalation is handled downstream — that's not your concern.
 
-Chorus escalation across repeats:
-- The first chorus and the last chorus should not feel identical. Default approach: keep the hook line verbatim, but on the FINAL chorus optionally modify 1–2 of the non-hook surrounding lines to signal climax. Production-cue escalation is handled downstream by the arranger; that's not your concern.
-- If you do vary the final chorus, label that section [Final Chorus] (not [Chorus]) so the downstream arranger knows.
-
-Performance typography (use deliberately, not decoratively):
-- ALL CAPS = emphasis or shouted delivery on that word.
-- Elongated vowels ("lo-o-ove") = stretched note.
-- Ellipsis "…" = pause / hesitation / slowdown.
-- Em dash "—" = longer pause than a comma.
-- Hyphenated word ("d-a-s-h-e-d") = sung as one continuous flow.
-- Parentheses "( )" around words = backing-vocal / harmony / call-and-response performance of those words. Square brackets "[ ]" are NEVER performed.
-- An extra blank line within a section = sonic pause for instrumental fill or vocal reset. Do not use blank lines for visual spacing only — they have an audible effect.
-
-Default Suno section markers:
-[Intro], [Verse 1], [Pre-Chorus] (optional), [Chorus], [Verse 2], [Chorus], [Bridge], [Final Chorus], [Outro].
-The hook becomes the chorus and is delivered verbatim every time it appears (including [Final Chorus]); the hook line itself never changes.
+Suno section markers, in approximate order of frequency:
+[Intro] (optional), [Verse 1], [Pre-Chorus] (optional), [Chorus], [Verse 2], [Chorus], [Bridge], [Final Chorus], [Outro] (optional).
+The hook becomes the chorus and is delivered verbatim every time it appears, including [Final Chorus].
 `.trim()
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 5) EDIT-pass craft block — polish rules + performance typography. Performance
+// typography belongs in the edit pass (not draft) so the editor adds it
+// deliberately on lines that earn it, rather than the draft sprinkling it as
+// decoration.
+// ──────────────────────────────────────────────────────────────────────────────
+export const EDIT_CRAFT_BLOCK = `
+EDITING TOWARD PLAYABILITY:
+- Stronger imagery, fewer abstractions.
+- Conversational diction; no slogans, no jargon.
+- Shorter lines where lines feel cluttered.
+- Each verse landing on a phrase that sets up the chorus.
+- Within-section line consistency; between-section variation. (The draft pass should already have this — only adjust lines that visibly break it.)
+- The hook line never changes, anywhere it appears, including [Final Chorus].
+
+PERFORMANCE TYPOGRAPHY — add deliberately on lines that earn it, not decoratively:
+- ALL CAPS = emphasis or shouted delivery on that word. Use rarely.
+- Em dash "—" = longer pause than a comma.
+- Ellipsis "…" = pause / hesitation / slowdown.
+- Hyphenated word ("d-a-s-h-e-d") = sung as one continuous flow.
+- Parentheses "( )" around words = backing-vocal / call-and-response performance of those words. Square brackets "[ ]" are NEVER performed — they are direction to Suno only.
+- An extra blank line within a section = sonic pause for instrumental fill or vocal reset. Do not use blank lines for visual spacing only — they have an audible effect.
+`.trim()
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 6) NO-GO block — wordlist + cliché phrases + cliché shapes. Used by the EDIT
+// pass only.
+// ──────────────────────────────────────────────────────────────────────────────
+export function formatNoGoBlock(): string {
+  return `
+NO-GO list — pattern-recognition red flags, not strict bans. When a draft line contains a flagged word OR matches a flagged shape, ask: am I describing a concrete sensory thing in a specific moment, or am I gesturing at an abstract emotion? If concrete and grounded, fine. If abstract or gestural, rewrite with specific imagery (a particular place, time, object, sensation). Do NOT swap one abstract synonym for another (don't replace "shadows" with "darkness", or "you complete me" with "you make me whole"). The fix is always specificity.
+
+Overused words (apply to plurals, possessives, all conjugations):
+${OVERUSED_WORDS.join(', ')}.
+
+Cliché phrases:
+${AI_CLICHE_PHRASES.map((p) => `- ${p}`).join('\n')}
+
+Cliché shapes (variants of these structures are equally clichéd):
+${AI_CLICHE_SHAPES.map((s) => `- ${s}`).join('\n')}
+`.trim()
+}
