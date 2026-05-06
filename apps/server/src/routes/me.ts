@@ -7,6 +7,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../db.js'
 import { requireAuth } from '../lib/session.js'
+import { effectiveTier, compIsActive, tierRank } from '../lib/tier.js'
 
 interface AuthedClient {
   clientId: string
@@ -20,19 +21,20 @@ function getClient(req: FastifyRequest, reply: FastifyReply): AuthedClient | nul
   return { clientId: req.account.id }
 }
 
-const TIER_RANK: Record<string, number> = { free: 0, core: 1, pro: 2, enterprise: 3 }
-
 // "Primary" Store — the Store the dashboard operates on for single-Store
-// surfaces (e.g. Brand Intake). Picks the highest-tier active Store, breaks
+// surfaces (e.g. Brand Intake). Picks the highest-*effective*-tier active
+// Store (so a Core store comped to Pro outranks a paid Core sibling), breaks
 // ties on createdAt asc. Returns null if the Client has no active Stores.
 async function findPrimaryStore(clientId: string) {
   const stores = await prisma.store.findMany({
     where: { clientId, archivedAt: null },
     orderBy: { createdAt: 'asc' },
-    select: { id: true, tier: true, createdAt: true },
+    select: { id: true, tier: true, compTier: true, compExpiresAt: true, createdAt: true },
   })
   if (stores.length === 0) return null
-  return stores.reduce((best, s) => (TIER_RANK[s.tier] > TIER_RANK[best.tier] ? s : best))
+  return stores.reduce((best, s) =>
+    tierRank(effectiveTier(s)) > tierRank(effectiveTier(best)) ? s : best,
+  )
 }
 
 const IcpInput = z.object({
@@ -87,7 +89,14 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       id: s.id,
       name: s.name,
       slug: s.slug,
-      tier: s.tier,
+      // `tier` is the *effective* tier — paid tier or comp tier, whichever
+      // ranks higher. This is what gates dashboard features. Stripe-paid
+      // tier is exposed separately as `paidTier` so the customer-facing
+      // billing UI can render "Core ($99/mo, comped to Pro through Aug 12)".
+      tier: effectiveTier(s),
+      paidTier: s.tier,
+      compTier: compIsActive(s) ? s.compTier : null,
+      compExpiresAt: compIsActive(s) ? s.compExpiresAt : null,
       pausedUntil: s.pausedUntil,
       subscription: s.subscription
         ? {

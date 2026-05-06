@@ -135,9 +135,17 @@ model Store {
   // `slug` is the URL fragment for music.entuned.co/<slug>. `tier` is a string
   // (not enum) so adding tiers doesn't require a migration.
   slug                        String    @unique
-  tier                        String    @default("mvp_pilot") // 'free' | 'core' | 'pro' | 'enterprise' | 'mvp_pilot'
+  tier                        String    @default("mvp_pilot") // 'free' | 'core' | 'pro' | 'enterprise' | 'mvp_pilot' — Stripe-authoritative
   pausedUntil                 DateTime? @map("paused_until") @db.Timestamptz(6)
   archivedAt                  DateTime? @map("archived_at") @db.Timestamptz(6)
+  // Comp-tier override (admin-granted free upgrade). Effective tier =
+  // max(tier, compTier) while the comp is active. See `effectiveTier()` in
+  // server/src/lib/tier.ts. Schema-side: 03-duke.md "Comp tier" section.
+  compTier                    String?   @map("comp_tier")
+  compExpiresAt               DateTime? @map("comp_expires_at") @db.Timestamptz(6)
+  compReason                  String?   @map("comp_reason")
+  compGrantedById             String?   @map("comp_granted_by") @db.Uuid
+  compGrantedAt               DateTime? @map("comp_granted_at") @db.Timestamptz(6)
   createdAt                   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -157,9 +165,34 @@ model Store {
   retailNextHourlySnapshots RetailNextHourlySnapshot[]
   subscription              Subscription?
   binding                   PlayerBinding?
+  tierChangeLogs            TierChangeLog[]
 
   @@index([clientId])
   @@map("stores")
+}
+
+// ---------- Tier change audit log ----------
+//
+// Append-only timeline of effective-tier transitions for a Store. Written on
+// admin grant/revoke, Stripe webhook tier changes, pause/resume, and comp
+// expiry. `from_tier`/`to_tier` capture *effective* tier (post-comp) so the
+// log reads as a clean entitlement timeline. See 03-duke.md "TierChangeLog".
+
+model TierChangeLog {
+  id         String    @id @default(uuid()) @db.Uuid
+  storeId    String    @map("store_id") @db.Uuid
+  fromTier   String    @map("from_tier")
+  toTier     String    @map("to_tier")
+  source     String    // 'admin_comp' | 'admin_revoke' | 'stripe_webhook' | 'pause' | 'resume' | 'comp_expired' | 'auto_cleared'
+  actorId    String?   @map("actor_id") @db.Uuid
+  reason     String?
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, createdAt(sort: Desc)])
+  @@map("tier_change_logs")
 }
 
 // ---------- Card 4 Gains (ICP) ----------

@@ -8,6 +8,7 @@
 
 import type { FastifyPluginAsync } from 'fastify'
 import { prisma } from '../db.js'
+import { effectiveTier } from '../lib/tier.js'
 
 export const storeRoutes: FastifyPluginAsync = async (app) => {
   // GET /stores/by-slug/:slug → resolves a player URL slug to its Store.
@@ -24,6 +25,8 @@ export const storeRoutes: FastifyPluginAsync = async (app) => {
         name: true,
         slug: true,
         tier: true,
+        compTier: true,
+        compExpiresAt: true,
         timezone: true,
         archivedAt: true,
         pausedUntil: true,
@@ -37,7 +40,9 @@ export const storeRoutes: FastifyPluginAsync = async (app) => {
       id: store.id,
       name: store.name,
       slug: store.slug,
-      tier: store.tier,
+      // Player gets the effective tier — comped Pro stores should play with
+      // Pro entitlements just like real ones.
+      tier: effectiveTier(store),
       timezone: store.timezone,
       pausedUntil: store.pausedUntil,
     })

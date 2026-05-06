@@ -20,6 +20,7 @@
 
 import { prisma } from '../db.js'
 import { sendLifecycle, sendPauseEnding } from './email.js'
+import { effectiveTier } from './tier.js'
 
 const APP_URL = process.env.APP_URL ?? 'https://app.entuned.co'
 const PLAYER_URL = process.env.PLAYER_URL ?? 'https://music.entuned.co'
@@ -362,7 +363,7 @@ async function runScalingCoreToPro(): Promise<DripStats> {
       id: true,
       stores: {
         where: { archivedAt: null },
-        select: { id: true, tier: true, subscription: { select: { id: true } } },
+        select: { id: true, tier: true, compTier: true, compExpiresAt: true, subscription: { select: { id: true } } },
       },
       memberships: {
         where: { role: { in: ['owner', 'manager'] } },
@@ -378,7 +379,12 @@ async function runScalingCoreToPro(): Promise<DripStats> {
     if (!user) continue
     const paid = c.stores.filter((s) => s.subscription !== null)
     if (paid.length < 2) continue
-    if (paid.some((s) => s.tier === 'pro' || s.tier === 'enterprise')) continue
+    // Skip if any paid Store is *effectively* Pro/Enterprise — covers both
+    // real Pro subs and Core stores that have been comped to Pro.
+    if (paid.some((s) => {
+      const eff = effectiveTier(s)
+      return eff === 'pro' || eff === 'enterprise'
+    })) continue
 
     stats.considered++
     const already = await prisma.lifecycleEmailLog.findUnique({
@@ -434,7 +440,7 @@ async function runEstablishedCoreToPro(): Promise<DripStats> {
       id: true,
       stores: {
         where: { archivedAt: null },
-        select: { tier: true },
+        select: { tier: true, compTier: true, compExpiresAt: true },
       },
       memberships: {
         where: { role: { in: ['owner', 'manager'] } },
@@ -448,7 +454,11 @@ async function runEstablishedCoreToPro(): Promise<DripStats> {
   for (const c of clients) {
     const user = c.memberships[0]?.user
     if (!user) continue
-    if (c.stores.some((s) => s.tier === 'pro' || s.tier === 'enterprise')) continue
+    // Skip if any Store is *effectively* Pro/Enterprise (paid or comped).
+    if (c.stores.some((s) => {
+      const eff = effectiveTier(s)
+      return eff === 'pro' || eff === 'enterprise'
+    })) continue
 
     stats.considered++
     const already = await prisma.lifecycleEmailLog.findUnique({
