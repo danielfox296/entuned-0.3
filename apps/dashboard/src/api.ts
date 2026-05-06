@@ -61,6 +61,30 @@ export interface CheckoutSessionResponse {
   status: 'provisioned' | 'pending'
 }
 
+export interface ScheduleSlot {
+  id: string
+  storeId: string
+  dayOfWeek: number
+  startTime: string
+  endTime: string
+  outcomeId: string
+  outcomeTitle: string
+  outcomeDisplayTitle: string | null
+}
+
+export interface ScheduleSlotInput {
+  dayOfWeek: number
+  startTime: string
+  endTime: string
+  outcomeId: string
+}
+
+export interface OutcomeOption {
+  id: string
+  title: string
+  displayTitle: string | null
+}
+
 export interface StoreSubscriptionSummary {
   status: string
   currentPeriodEnd: string | null
@@ -210,4 +234,21 @@ export const api = {
   // links straight to this URL; the server creates a Stripe Checkout session
   // and 303s the browser onward.
   checkoutUrl: (tier: 'core' | 'pro') => `${API_URL}/billing/checkout?tier=${tier}`,
+
+  // ── Schedule (Pro+, scoped to a specific store) ──
+  meSchedule: (storeId: string) =>
+    req<ScheduleSlot[]>(`/me/stores/${encodeURIComponent(storeId)}/schedule`),
+  createScheduleSlot: (storeId: string, body: ScheduleSlotInput) =>
+    req<ScheduleSlot>(`/me/stores/${encodeURIComponent(storeId)}/schedule`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateScheduleSlot: (id: string, body: ScheduleSlotInput) =>
+    req<ScheduleSlot>(`/me/schedule-rows/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  deleteScheduleSlot: (id: string) =>
+    req<{ ok: true }>(`/me/schedule-rows/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  meOutcomes: () => req<OutcomeOption[]>('/me/outcomes'),
 }

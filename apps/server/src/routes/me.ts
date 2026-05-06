@@ -206,4 +206,113 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       return reply.send({ store: updated })
     },
   )
+
+  // ----- Schedule (customer-facing, scoped to client's stores) -----
+
+  function timeToHHMM(d: Date): string {
+    return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
+  }
+  function hhmmToTime(s: string): Date {
+    const [h, m] = s.split(':').map(Number)
+    const d = new Date(0); d.setUTCHours(h!, m!, 0, 0); return d
+  }
+  function hhmmToSec(s: string): number {
+    const [h, m] = s.split(':').map(Number); return (h! * 60 + m!) * 60
+  }
+
+  const ScheduleBody = z.object({
+    dayOfWeek: z.number().int().min(1).max(7),
+    startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+    endTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+    outcomeId: z.string().uuid(),
+  })
+
+  function fmtSlot(r: { id: string; storeId: string; dayOfWeek: number; startTime: Date; endTime: Date; outcomeId: string; outcome: { title: string; displayTitle: string | null } }) {
+    return {
+      id: r.id, storeId: r.storeId, dayOfWeek: r.dayOfWeek,
+      startTime: timeToHHMM(r.startTime), endTime: timeToHHMM(r.endTime),
+      outcomeId: r.outcomeId, outcomeTitle: r.outcome.title, outcomeDisplayTitle: r.outcome.displayTitle,
+    }
+  }
+
+  app.get('/stores/:storeId/schedule', { preHandler: requireAuth }, async (req, reply) => {
+    const ctx = getClient(req, reply); if (!ctx) return
+    const storeId = (req.params as any).storeId as string
+    const store = await prisma.store.findFirst({ where: { id: storeId, clientId: ctx.clientId, archivedAt: null }, select: { id: true } })
+    if (!store) return reply.code(404).send({ error: 'store_not_found' })
+    const rows = await prisma.scheduleSlot.findMany({
+      where: { storeId },
+      orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+      include: { outcome: { select: { title: true, displayTitle: true } } },
+    })
+    return reply.send(rows.map(fmtSlot))
+  })
+
+  app.post('/stores/:storeId/schedule', { preHandler: requireAuth }, async (req, reply) => {
+    const ctx = getClient(req, reply); if (!ctx) return
+    const storeId = (req.params as any).storeId as string
+    const store = await prisma.store.findFirst({ where: { id: storeId, clientId: ctx.clientId, archivedAt: null }, select: { id: true } })
+    if (!store) return reply.code(404).send({ error: 'store_not_found' })
+    const parsed = ScheduleBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
+    if (hhmmToSec(parsed.data.startTime) >= hhmmToSec(parsed.data.endTime)) {
+      return reply.code(400).send({ error: 'start_must_precede_end' })
+    }
+    const newStart = hhmmToSec(parsed.data.startTime), newEnd = hhmmToSec(parsed.data.endTime)
+    const existing = await prisma.scheduleSlot.findMany({ where: { storeId, dayOfWeek: parsed.data.dayOfWeek } })
+    const clash = existing.find((s) => newStart < hhmmToSec(timeToHHMM(s.endTime)) && hhmmToSec(timeToHHMM(s.startTime)) < newEnd)
+    if (clash) return reply.code(409).send({ error: 'schedule_overlap', message: `Overlaps with ${timeToHHMM(clash.startTime)}–${timeToHHMM(clash.endTime)}` })
+    const row = await prisma.scheduleSlot.create({
+      data: { storeId, dayOfWeek: parsed.data.dayOfWeek, startTime: hhmmToTime(parsed.data.startTime), endTime: hhmmToTime(parsed.data.endTime), outcomeId: parsed.data.outcomeId },
+      include: { outcome: { select: { title: true, displayTitle: true } } },
+    })
+    return reply.code(201).send(fmtSlot(row))
+  })
+
+  app.put('/schedule-rows/:id', { preHandler: requireAuth }, async (req, reply) => {
+    const ctx = getClient(req, reply); if (!ctx) return
+    const id = (req.params as any).id as string
+    const parsed = ScheduleBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
+    const current = await prisma.scheduleSlot.findUnique({
+      where: { id },
+      include: { store: { select: { clientId: true } } },
+    })
+    if (!current || current.store.clientId !== ctx.clientId) return reply.code(404).send({ error: 'not_found' })
+    if (hhmmToSec(parsed.data.startTime) >= hhmmToSec(parsed.data.endTime)) {
+      return reply.code(400).send({ error: 'start_must_precede_end' })
+    }
+    const updStart = hhmmToSec(parsed.data.startTime), updEnd = hhmmToSec(parsed.data.endTime)
+    const siblings = await prisma.scheduleSlot.findMany({ where: { storeId: current.storeId, dayOfWeek: parsed.data.dayOfWeek, id: { not: id } } })
+    const clash = siblings.find((s) => updStart < hhmmToSec(timeToHHMM(s.endTime)) && hhmmToSec(timeToHHMM(s.startTime)) < updEnd)
+    if (clash) return reply.code(409).send({ error: 'schedule_overlap', message: `Overlaps with ${timeToHHMM(clash.startTime)}–${timeToHHMM(clash.endTime)}` })
+    const row = await prisma.scheduleSlot.update({
+      where: { id },
+      data: { dayOfWeek: parsed.data.dayOfWeek, startTime: hhmmToTime(parsed.data.startTime), endTime: hhmmToTime(parsed.data.endTime), outcomeId: parsed.data.outcomeId },
+      include: { outcome: { select: { title: true, displayTitle: true } } },
+    })
+    return reply.send(fmtSlot(row))
+  })
+
+  app.delete('/schedule-rows/:id', { preHandler: requireAuth }, async (req, reply) => {
+    const ctx = getClient(req, reply); if (!ctx) return
+    const id = (req.params as any).id as string
+    const current = await prisma.scheduleSlot.findUnique({
+      where: { id },
+      include: { store: { select: { clientId: true } } },
+    })
+    if (!current || current.store.clientId !== ctx.clientId) return reply.code(404).send({ error: 'not_found' })
+    await prisma.scheduleSlot.delete({ where: { id } })
+    return reply.send({ ok: true })
+  })
+
+  // GET /me/outcomes — active outcomes list, for the schedule slot outcome picker.
+  app.get('/outcomes', { preHandler: requireAuth }, async (_req, reply) => {
+    const rows = await prisma.outcome.findMany({
+      where: { supersededAt: null },
+      orderBy: { title: 'asc' },
+      select: { id: true, title: true, displayTitle: true },
+    })
+    return reply.send(rows)
+  })
 }
