@@ -357,6 +357,12 @@ export interface ClientFull {
     id: string; name: string; timezone: string; goLiveDate: string | null
     icps: { id: string; name: string }[]
     defaultOutcome: { id: string; title: string; displayTitle: string | null; version: number } | null
+    tier: 'free' | 'core' | 'pro' | 'enterprise' | 'mvp_pilot'
+    paidTier: string
+    compTier: string | null
+    compExpiresAt: string | null
+    pausedUntil: string | null
+    subscription: { status: string; currentPeriodEnd: string; cancelAtPeriodEnd: boolean } | null
   }[]
   icps: { id: string; name: string; hookCount: number; referenceTrackCount: number; storeCount: number }[]
 }

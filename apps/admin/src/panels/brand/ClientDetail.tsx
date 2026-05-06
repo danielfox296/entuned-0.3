@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
-import type { ClientListRow, ClientFull, ClientPlan, ClientUpdate } from '../../api.js'
+import type { ClientListRow, ClientFull, ClientUpdate } from '../../api.js'
 import { T } from '../../tokens.js'
-import { Button, Input, Select, Textarea, Section, Field, S, useToast, useClientSelection } from '../../ui/index.js'
+import { Button, Input, Textarea, Section, Field, S, useToast, useClientSelection } from '../../ui/index.js'
 import { useClientLogo, setClientLogo, fileToThumbnailDataUrl } from '../../ui/clientLogo.js'
-
-const PLANS: ClientPlan[] = ['mvp_pilot', 'trial', 'paid_pilot', 'production', 'paused', 'inactive']
 
 export function ClientDetail({ onClientsChanged, selectedClient: _summary }: {
   onClientsChanged?: () => void
@@ -117,14 +115,6 @@ export function ClientDetail({ onClientsChanged, selectedClient: _summary }: {
                     onChange={(e) => setDraft({ ...draft, companyName: e.target.value })}
                   />
                 </Field>
-                <Field label="plan">
-                  <Select
-                    value={draft.plan ?? client.plan}
-                    onChange={(e) => setDraft({ ...draft, plan: e.target.value as ClientPlan })}
-                  >
-                    {PLANS.map((p) => <option key={p} value={p}>{p}</option>)}
-                  </Select>
-                </Field>
                 <Field label="POS provider">
                   <Input
                     value={draft.posProvider ?? client.posProvider ?? ''}
@@ -159,23 +149,38 @@ export function ClientDetail({ onClientsChanged, selectedClient: _summary }: {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
               <Section title={`Locations (${client.stores.length})`}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {client.stores.map((s) => (
-                    <div key={s.id} style={listRow}>
-                      <span style={{ color: T.text, fontWeight: 500 }}>{s.name}</span>
-                      <span style={{ color: T.textMuted }}>{s.timezone}</span>
-                      <span style={{ color: s.icps.length > 0 ? T.textMuted : T.textDim }}>
-                        {s.icps.length === 0
-                          ? '(no ICPs)'
-                          : s.icps.length === 1
-                            ? s.icps[0]!.name
-                            : `${s.icps.length} ICPs`}
-                      </span>
-                      <span style={{ color: s.defaultOutcome ? T.text : T.textDim }}>
-                        {s.defaultOutcome ? `default: ${s.defaultOutcome.displayTitle ?? s.defaultOutcome.title}` : 'no default'}
-                      </span>
-                      <span style={{ color: T.textDim }}>{s.goLiveDate ? `live ${s.goLiveDate}` : '—'}</span>
-                    </div>
-                  ))}
+                  {client.stores.map((s) => {
+                    const sub = s.subscription
+                    const subLabel = s.pausedUntil
+                      ? `paused → ${new Date(s.pausedUntil).toISOString().slice(0, 10)}`
+                      : sub
+                        ? sub.cancelAtPeriodEnd
+                          ? `${sub.status} (cancel ${new Date(sub.currentPeriodEnd).toISOString().slice(0, 10)})`
+                          : `${sub.status} → ${new Date(sub.currentPeriodEnd).toISOString().slice(0, 10)}`
+                        : 'no sub'
+                    return (
+                      <div key={s.id} style={listRow}>
+                        <span style={{ color: T.text, fontWeight: 500 }}>{s.name}</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                          <span style={tierPill(s.tier)}>{s.tier}</span>
+                          {s.compTier && (
+                            <span style={{ fontFamily: T.sans, fontSize: 11, color: T.textDim }}>
+                              comp from {s.paidTier}
+                            </span>
+                          )}
+                        </span>
+                        <span style={{ color: T.textMuted, fontFamily: T.sans, fontSize: 12 }}>{subLabel}</span>
+                        <span style={{ color: s.icps.length > 0 ? T.textMuted : T.textDim }}>
+                          {s.icps.length === 0
+                            ? '(no ICPs)'
+                            : s.icps.length === 1
+                              ? s.icps[0]!.name
+                              : `${s.icps.length} ICPs`}
+                        </span>
+                        <span style={{ color: T.textDim }}>{s.goLiveDate ? `live ${s.goLiveDate}` : '—'}</span>
+                      </div>
+                    )
+                  })}
                   {client.stores.length === 0 && (
                     <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>No locations yet — create one in Location</div>
                   )}
@@ -276,9 +281,26 @@ function ClientLogoField({ clientId }: { clientId: string }) {
 }
 
 const listRow: CSSProperties = {
-  display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1.4fr 110px',
+  display: 'grid', gridTemplateColumns: '1.4fr auto 1.2fr 1.2fr 110px',
   gap: 10, padding: '8px 10px',
   background: T.surfaceRaised, border: `1px solid rgba(106, 176, 187, 0.14)`,
   borderRadius: 3, fontFamily: 'Inter, sans-serif', fontSize: 14,
   alignItems: 'center',
+}
+
+function tierPill(tier: string): CSSProperties {
+  const palette: Record<string, { bg: string; fg: string }> = {
+    free: { bg: T.surfaceRaised, fg: T.textDim },
+    mvp_pilot: { bg: T.surfaceRaised, fg: T.textMuted },
+    core: { bg: 'rgba(106, 176, 187, 0.18)', fg: T.accent },
+    pro: { bg: 'rgba(215, 175, 116, 0.20)', fg: '#d7af74' },
+    enterprise: { bg: 'rgba(215, 175, 116, 0.30)', fg: '#d7af74' },
+  }
+  const c = palette[tier] ?? palette.free!
+  return {
+    display: 'inline-block', padding: '2px 8px', borderRadius: 3,
+    background: c.bg, color: c.fg,
+    fontFamily: T.sans, fontSize: 11, fontWeight: 600, letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+  }
 }

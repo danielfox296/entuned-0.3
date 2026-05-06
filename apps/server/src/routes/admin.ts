@@ -37,7 +37,7 @@ import { EDITABLE_TEMPLATE_NAMES } from '../email-templates/seeds.js'
 import { runOneLifecycleDrip, runLifecycleEmails, type LifecycleDripName } from '../lib/lifecycleEmails.js'
 import { runPauseAutoResume } from '../lib/pauseAutoResume.js'
 import { runCompExpiryCron } from '../lib/compExpiry.js'
-import { effectiveTier, tierRank, applyTierChange, type Tier } from '../lib/tier.js'
+import { effectiveTier, compIsActive, tierRank, applyTierChange, type Tier } from '../lib/tier.js'
 
 interface AuthedOp {
   operatorId: string
@@ -366,6 +366,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           include: {
             icps: { where: { archivedAt: null }, select: { id: true, name: true } },
             defaultOutcome: { select: { id: true, title: true, displayTitle: true, version: true } },
+            subscription: { select: { status: true, currentPeriodEnd: true, cancelAtPeriodEnd: true } },
           },
         },
         icps: { where: { archivedAt: null }, orderBy: { name: 'asc' }, select: { id: true, name: true, storeId: true, _count: { select: { hooks: true, referenceTracks: true } } } },
@@ -398,6 +399,20 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         goLiveDate: s.goLiveDate ? s.goLiveDate.toISOString().slice(0, 10) : null,
         icps: s.icps.map((i) => ({ id: i.id, name: i.name })),
         defaultOutcome: s.defaultOutcome,
+        // Real per-store billing state — Stripe-authoritative for paidTier,
+        // effective for entitlement decisions.
+        tier: effectiveTier(s),
+        paidTier: s.tier,
+        compTier: compIsActive(s) ? s.compTier : null,
+        compExpiresAt: compIsActive(s) ? s.compExpiresAt?.toISOString() ?? null : null,
+        pausedUntil: s.pausedUntil?.toISOString() ?? null,
+        subscription: s.subscription
+          ? {
+              status: s.subscription.status,
+              currentPeriodEnd: s.subscription.currentPeriodEnd.toISOString(),
+              cancelAtPeriodEnd: s.subscription.cancelAtPeriodEnd,
+            }
+          : null,
       })),
       icps: client.icps.map((i) => ({
         id: i.id, name: i.name,
