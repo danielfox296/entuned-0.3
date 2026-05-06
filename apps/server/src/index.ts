@@ -18,6 +18,7 @@ import { sessionPlugin } from './lib/session.js'
 import { seedEmailTemplates } from './lib/email.js'
 import { runLifecycleEmails } from './lib/lifecycleEmails.js'
 import { runPauseAutoResume } from './lib/pauseAutoResume.js'
+import { runCompExpiryCron } from './lib/compExpiry.js'
 
 const app = Fastify({
   logger: {
@@ -100,8 +101,19 @@ if (process.env.LIFECYCLE_DRIPS_DISABLED !== '1') {
     } catch (err) {
       app.log.error({ err }, 'lifecycle_drip_tick_failed')
     }
+    // Comp expiry runs after lifecycle drips so a Store that aged past its
+    // comp gets the final compEnded email even if a separate lifecycle
+    // template would have qualified mid-comp (lifecycle templates check
+    // effective tier — once the comp expires here, downstream ticks see
+    // the customer at their paid tier and route correctly).
+    try {
+      const stats = await runCompExpiryCron()
+      app.log.info({ stats }, 'comp_expiry_tick_complete')
+    } catch (err) {
+      app.log.error({ err }, 'comp_expiry_tick_failed')
+    }
   }, { timezone: 'America/Denver' })
-  app.log.info('daily_cron_registered (9am America/Denver — auto-resume + lifecycle drips)')
+  app.log.info('daily_cron_registered (9am America/Denver — auto-resume + lifecycle drips + comp expiry)')
 }
 
 const port = Number(process.env.PORT ?? 3000)

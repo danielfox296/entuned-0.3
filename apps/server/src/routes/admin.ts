@@ -36,6 +36,7 @@ import { LIFECYCLE_TEMPLATES, TEMPLATES, type TemplateName } from '../email-temp
 import { EDITABLE_TEMPLATE_NAMES } from '../email-templates/seeds.js'
 import { runOneLifecycleDrip, runLifecycleEmails, type LifecycleDripName } from '../lib/lifecycleEmails.js'
 import { runPauseAutoResume } from '../lib/pauseAutoResume.js'
+import { runCompExpiryCron } from '../lib/compExpiry.js'
 import { effectiveTier, tierRank, applyTierChange, type Tier } from '../lib/tier.js'
 
 interface AuthedOp {
@@ -3297,6 +3298,20 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     } catch (e: any) {
       req.log.error({ err: e }, 'admin_pause_auto_resume_run_failed')
       return reply.code(500).send({ error: 'pause_auto_resume_failed', message: e?.message ?? 'unknown' })
+    }
+  })
+
+  // POST /admin/comp-expiry/run — operator-triggered comp expiry pass.
+  // Same code path as the daily cron. Runs warning + ended emails and
+  // clears expired comps from Store rows. Idempotent across runs.
+  app.post('/comp-expiry/run', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    try {
+      const stats = await runCompExpiryCron()
+      return { ok: true, stats }
+    } catch (e: any) {
+      req.log.error({ err: e }, 'admin_comp_expiry_run_failed')
+      return reply.code(500).send({ error: 'comp_expiry_failed', message: e?.message ?? 'unknown' })
     }
   })
 }

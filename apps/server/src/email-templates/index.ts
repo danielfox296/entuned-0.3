@@ -18,6 +18,8 @@ import * as freeToCoreNudge from './freeToCoreNudge.js'
 import * as engagedFreeToCore from './engagedFreeToCore.js'
 import * as scalingCoreToPro from './scalingCoreToPro.js'
 import * as establishedCoreToPro from './establishedCoreToPro.js'
+import * as compEnding from './compEnding.js'
+import * as compEnded from './compEnded.js'
 
 export interface TemplateModule<P = any> {
   subject: (props: P) => string
@@ -40,6 +42,8 @@ export const TEMPLATES = {
   engagedFreeToCore,
   scalingCoreToPro,
   establishedCoreToPro,
+  compEnding,
+  compEnded,
 } satisfies Record<string, TemplateModule>
 
 export type TemplateName = keyof typeof TEMPLATES
@@ -53,6 +57,8 @@ export const LIFECYCLE_TEMPLATES = new Set<TemplateName>([
   'engagedFreeToCore',
   'scalingCoreToPro',
   'establishedCoreToPro',
+  'compEnding',
+  'compEnded',
 ])
 
 // Sample props the admin "preview" pane uses when the operator hasn't supplied
@@ -95,5 +101,19 @@ export const TEMPLATE_PROPS_EXAMPLES: Record<TemplateName, Record<string, unknow
   },
   establishedCoreToPro: {
     upgradeUrl: 'https://api.entuned.co/billing/checkout?tier=pro',
+  },
+  compEnding: {
+    effectiveTier: 'pro',
+    paidTier: 'core',
+    daysRemaining: 7,
+    endsOn: 'Aug 12, 2026',
+    upgradeUrl: 'https://api.entuned.co/billing/upgrade-from-comp?store=sample',
+    dashboardUrl: 'https://app.entuned.co',
+  },
+  compEnded: {
+    formerCompTier: 'pro',
+    paidTier: 'core',
+    upgradeUrl: 'https://api.entuned.co/billing/upgrade-from-comp?store=sample',
+    dashboardUrl: 'https://app.entuned.co',
   },
 }

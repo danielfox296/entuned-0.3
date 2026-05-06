@@ -391,6 +391,101 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
+  // ----- GET /billing/upgrade-from-comp — convert a comped tier into a real paid sub -----
+  //
+  // Linked from compEnding / compEnded emails. Two cases:
+  //
+  //   A) Store already has a Stripe subscription (Core paid, comped to Pro):
+  //      swap the subscription's price to the comp tier's price, with
+  //      proration. Local Store.tier syncs via the customer.subscription.updated
+  //      webhook (which also auto-clears the comp). Redirect to
+  //      app.entuned.co/account?upgrade=success.
+  //
+  //   B) Store has no Stripe subscription yet (Free, comped to Core):
+  //      redirect to a fresh Stripe Checkout session at the comp tier.
+  //      The webhook on completion absorbs the orphan free Store and
+  //      auto-clears the comp.
+  //
+  // Auth: requires a cookie session. If the user clicks the email while
+  // logged out, requireAuth's 401 isn't friendly — instead we 302 to
+  // /start?next=… so they can magic-link in and bounce back. Same UX as
+  // the player binding flow.
+  app.get('/billing/upgrade-from-comp', async (req, reply) => {
+    const storeId = (req.query as { store?: string } | undefined)?.store
+    if (!storeId) return reply.code(400).send({ error: 'missing_store_param' })
+
+    if (!req.user || !req.account) {
+      // TODO: dashboard /start does not yet honor `?next=`. After they log
+      // in they'll land on / and need to re-click the email link. Acceptable
+      // papercut for v1 — most upgrade-from-comp clicks happen with an
+      // already-active session. Add `next` support to Start.tsx to close.
+      return reply.redirect(`${APP_URL}/start`, 302)
+    }
+    const clientId = req.account.id
+
+    const store = await prisma.store.findFirst({
+      where: { id: storeId, clientId, archivedAt: null },
+      include: { subscription: true },
+    })
+    if (!store) {
+      return reply.redirect(`${APP_URL}/account?upgrade=not_found`, 302)
+    }
+    if (!store.compTier) {
+      // Comp already cleared (expired + cron ran, or operator revoked, or
+      // they already upgraded). Send them to /account to see their state.
+      return reply.redirect(`${APP_URL}/account?upgrade=no_comp`, 302)
+    }
+
+    const targetTier = store.compTier as 'core' | 'pro' | 'enterprise'
+    if (targetTier === 'enterprise') {
+      // Enterprise has no self-serve price. Send them to /account where
+      // they'll see the badge + "contact us" copy (TODO: build this surface).
+      return reply.redirect(`${APP_URL}/account?upgrade=enterprise_contact`, 302)
+    }
+    const targetPriceId = TIER_TO_PRICE[targetTier]
+    if (!targetPriceId) {
+      return reply.redirect(`${APP_URL}/account?upgrade=price_misconfigured`, 302)
+    }
+
+    try {
+      // Case A: existing subscription → price swap.
+      if (store.subscription) {
+        const stripeSub = await stripe.subscriptions.retrieve(store.subscription.stripeSubscriptionId)
+        const item = stripeSub.items.data[0]
+        if (!item) {
+          req.log.error({ storeId, subId: stripeSub.id }, 'upgrade_from_comp_sub_has_no_items')
+          return reply.redirect(`${APP_URL}/account?upgrade=stripe_error`, 302)
+        }
+        await stripe.subscriptions.update(stripeSub.id, {
+          items: [{ id: item.id, price: targetPriceId }],
+          proration_behavior: 'create_prorations',
+        })
+        // The customer.subscription.updated webhook will pick up the price
+        // change, sync Store.tier, and clear the comp via syncStoreTierFromSubscription.
+        return reply.redirect(`${APP_URL}/account?upgrade=success&tier=${targetTier}`, 302)
+      }
+
+      // Case B: no subscription yet → fresh Checkout. The webhook on
+      // completion will absorb the orphan free Store + auto-clear the comp.
+      const session = await stripe.checkout.sessions.create({
+        mode: 'subscription',
+        line_items: [{ price: targetPriceId, quantity: 1 }],
+        success_url: `${APP_URL}/account?upgrade=success&tier=${targetTier}`,
+        cancel_url: `${APP_URL}/account?upgrade=canceled`,
+        client_reference_id: clientId,
+        customer_email: req.user.email,
+        metadata: { tier: targetTier, clientId, source: 'upgrade_from_comp' },
+        subscription_data: {
+          metadata: { tier: targetTier, clientId, source: 'upgrade_from_comp' },
+        },
+      })
+      return reply.redirect(session.url ?? `${APP_URL}/account?upgrade=checkout_error`, 303)
+    } catch (err: any) {
+      req.log.error({ err, storeId }, 'upgrade_from_comp_failed')
+      return reply.redirect(`${APP_URL}/account?upgrade=stripe_error`, 302)
+    }
+  })
+
   // ----- POST /billing/stores — add a new Store at the same tier -----
   // ASSUMPTION: per-unit pricing. We add 1 to the existing subscription line's
   // quantity rather than creating a new subscription. Flag this in summary

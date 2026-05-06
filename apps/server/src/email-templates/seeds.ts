@@ -234,6 +234,47 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
       upgradeUrl: 'https://api.entuned.co/billing/checkout?tier=pro',
     },
   },
+  compEnding: {
+    subject: 'Your free {{effectiveTier}} upgrade ends {{endsOn}}',
+    preheader: 'Your {{effectiveTier}} upgrade ends in {{daysRemaining}} day(s).',
+    body: `
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">A heads-up: your {{effectiveTier}} upgrade ends in {{daysRemaining}} day(s).</p>
+    <p style="margin:0 0 14px 0;">You&rsquo;ve been on {{effectiveTier}} as a comp from us. That ends on <strong style="color:#E8E4DE;">{{endsOn}}</strong>.</p>
+    <p style="margin:0 0 14px 0;">Two options:</p>
+    <p style="margin:0 0 6px 0;"><strong style="color:#d7af74;">Keep {{effectiveTier}}.</strong> One click and the upgrade becomes a real subscription change &mdash; we&rsquo;ll handle the proration.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Keep {{effectiveTier}}</a></td></tr></table>
+    <p style="margin:18px 0 6px 0;"><strong style="color:#d7af74;">Stay on {{paidTier}}.</strong> Do nothing &mdash; nothing about your billing changes.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open dashboard</a></td></tr></table>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Questions? Reply to this email &mdash; it goes to a real person.</p>
+    `.trim(),
+    propsExample: {
+      effectiveTier: 'pro',
+      paidTier: 'core',
+      daysRemaining: 7,
+      endsOn: 'Aug 12, 2026',
+      upgradeUrl: 'https://api.entuned.co/billing/upgrade-from-comp?store=sample',
+      dashboardUrl: 'https://app.entuned.co',
+    },
+  },
+  compEnded: {
+    subject: 'Your {{formerCompTier}} upgrade ended — pick up where you left off?',
+    preheader: 'Your {{formerCompTier}} upgrade ended. One click brings it back.',
+    body: `
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Your {{formerCompTier}} upgrade just ended.</p>
+    <p style="margin:0 0 14px 0;">You&rsquo;re back on {{paidTier}}. The {{formerCompTier}} features are off.</p>
+    <p style="margin:0 0 14px 0;">If you want to keep {{formerCompTier}}, the upgrade is one click away. We&rsquo;ll prorate so you only pay from today.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Upgrade to {{formerCompTier}}</a></td></tr></table>
+    <p style="margin:18px 0 0 0;">Or stay where you are &mdash; no further action needed.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open dashboard</a></td></tr></table>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Questions? Just reply.</p>
+    `.trim(),
+    propsExample: {
+      formerCompTier: 'pro',
+      paidTier: 'core',
+      upgradeUrl: 'https://api.entuned.co/billing/upgrade-from-comp?store=sample',
+      dashboardUrl: 'https://app.entuned.co',
+    },
+  },
 }
 
 export const EDITABLE_TEMPLATE_NAMES = Object.keys(EDITABLE_TEMPLATES) as TemplateName[]
