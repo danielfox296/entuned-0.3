@@ -506,19 +506,23 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
     if (!existing) {
       return reply.code(400).send({ error: 'no_existing_store' })
     }
-    if (!existing.subscription) {
+    // Comped accounts have no Stripe subscription — skip the billing step.
+    const isComped = !existing.subscription && !!existing.compTier
+    if (!existing.subscription && !isComped) {
       return reply.code(400).send({ error: 'no_subscription_on_existing_store' })
     }
 
     try {
-      // 1) Bump the existing subscription's quantity by one.
-      const stripeSub = await stripe.subscriptions.retrieve(existing.subscription.stripeSubscriptionId)
-      const item = stripeSub.items.data[0]
-      if (!item) return reply.code(500).send({ error: 'stripe_subscription_has_no_items' })
-      await stripe.subscriptions.update(stripeSub.id, {
-        items: [{ id: item.id, quantity: (item.quantity ?? 1) + 1 }],
-        proration_behavior: 'create_prorations',
-      })
+      if (!isComped) {
+        // 1) Bump the existing subscription's quantity by one.
+        const stripeSub = await stripe.subscriptions.retrieve(existing.subscription!.stripeSubscriptionId)
+        const item = stripeSub.items.data[0]
+        if (!item) return reply.code(500).send({ error: 'stripe_subscription_has_no_items' })
+        await stripe.subscriptions.update(stripeSub.id, {
+          items: [{ id: item.id, quantity: (item.quantity ?? 1) + 1 }],
+          proration_behavior: 'create_prorations',
+        })
+      }
 
       // 2) Create the new Store record locally. Note: this Store does NOT get
       // its own Subscription row — it shares the existing one via clientId.
@@ -532,6 +536,14 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
           slug,
           tier: existing.tier,
           timezone: existing.timezone,
+          // Propagate comp so the new location has the same entitlement.
+          ...(isComped && {
+            compTier: existing.compTier,
+            compExpiresAt: existing.compExpiresAt,
+            compReason: existing.compReason,
+            compGrantedById: existing.compGrantedById,
+            compGrantedAt: existing.compGrantedAt,
+          }),
         },
       })
 
