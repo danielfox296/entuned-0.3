@@ -62,6 +62,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [networkError, setNetworkError] = useState<string | null>(null);
   const [online, setOnline] = useState(true);
+  const [buffering, setBuffering] = useState(false);
   const [lovedIds, setLovedIds] = useState<Set<string>>(() => loadLoved());
   const [allOutcomesMode, setAllOutcomesModeState] = useState(false);
 
@@ -76,6 +77,8 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const trackStartedAtRef = useRef<string | null>(null);
   const allOutcomesModeRef = useRef(false);
   const lastResumeAttemptRef = useRef(0);
+  const stallRef = useRef<{ elapsed: number; since: number }>({ elapsed: -1, since: 0 });
+  const bufferingRef = useRef(false);
 
   const setAllOutcomesMode = useCallback((v: boolean) => {
     allOutcomesModeRef.current = v;
@@ -582,6 +585,63 @@ export function PlayerScreen({ session, onLogout }: Props) {
     };
   }, [refill]);
 
+  // ── Stall detection: audio stream frozen (spotty WiFi / CDN buffer gap) ────
+  // Polls elapsed every 2s. If elapsed hasn't advanced for 6s while Howler
+  // reports playing, the audio element is stuck (buffer underrun, CDN stall).
+  // Show a banner at 6s; auto-skip after 20s.
+  useEffect(() => {
+    const WARN_MS = 6_000;
+    const SKIP_MS = 20_000;
+
+    const check = () => {
+      const player = playerRef.current;
+      // Only run when Howler believes the audio is actively playing.
+      if (!player || !player.isPlaying()) {
+        if (bufferingRef.current) { bufferingRef.current = false; setBuffering(false); }
+        stallRef.current = { elapsed: -1, since: Date.now() };
+        return;
+      }
+
+      const p = player.getProgress();
+      if (!p || p.duration <= 0) return;
+      // Last 5% of the track is the natural-end zone — don't false-positive here.
+      if (p.elapsed >= p.duration * 0.95) return;
+
+      const now = Date.now();
+      const stall = stallRef.current;
+
+      if (stall.elapsed < 0 || Math.abs(p.elapsed - stall.elapsed) > 0.1) {
+        // Progress is moving — healthy.
+        stallRef.current = { elapsed: p.elapsed, since: now };
+        if (bufferingRef.current) { bufferingRef.current = false; setBuffering(false); }
+        return;
+      }
+
+      const stalledMs = now - stall.since;
+      if (stalledMs >= WARN_MS && !bufferingRef.current) {
+        console.warn(`[player] audio stalled at ${p.elapsed.toFixed(1)}s / ${p.duration.toFixed(1)}s`);
+        bufferingRef.current = true;
+        setBuffering(true);
+      }
+      if (stalledMs >= SKIP_MS) {
+        console.warn("[player] stall timeout — skipping track");
+        stallRef.current = { elapsed: -1, since: now };
+        bufferingRef.current = false;
+        setBuffering(false);
+        void skip();
+      }
+    };
+
+    const iv = window.setInterval(check, 2_000);
+    return () => clearInterval(iv);
+  }, [skip]);
+
+  // Reset stall clock whenever the playing track changes.
+  useEffect(() => {
+    stallRef.current = { elapsed: -1, since: Date.now() };
+    if (bufferingRef.current) { bufferingRef.current = false; setBuffering(false); }
+  }, [currentItem]);
+
   // ── Resume after tab refocus / screen wake ────────────────────────────────
   useEffect(() => {
     const resume = () => {
@@ -801,6 +861,12 @@ export function PlayerScreen({ session, onLogout }: Props) {
         {networkError ? (
           <div style={{ padding: "10px 24px", background: "rgba(94,162,182,0.08)", border: "1px solid rgba(94,162,182,0.25)", borderRadius: 12, maxWidth: 440, textAlign: "center", fontSize: 12, color: "rgba(94,162,182,0.85)" }}>
             {networkError}
+          </div>
+        ) : null}
+
+        {buffering && !networkError ? (
+          <div style={{ padding: "10px 24px", background: "rgba(215,175,116,0.07)", border: "1px solid rgba(215,175,116,0.22)", borderRadius: 12, maxWidth: 440, textAlign: "center", fontSize: 12, color: "rgba(215,175,116,0.8)" }}>
+            Buffering — poor connection. Will skip if needed.
           </div>
         ) : null}
 
