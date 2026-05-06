@@ -4,6 +4,7 @@
 
 import type { StyleAnalysis, StyleExclusionRule } from '@prisma/client'
 import { prisma } from '../../db.js'
+import { ALWAYS_FIRE_CONTAMINATION, buildAxisExclusions } from './negative-style-axes.js'
 
 const DECOMPOSITION_FIELD_KEYS = [
   'vibePitch',
@@ -45,6 +46,8 @@ function ciContains(haystack: string, needle: string): boolean {
 export interface NegativeStyleResult {
   negativeStyle: string
   firedRuleIds: string[]
+  /** Axis tags from the 5-axis builder that contributed fragments, for provenance. */
+  firedAxes: string[]
 }
 
 export async function buildNegativeStyle(styleAnalysis: StyleAnalysis): Promise<NegativeStyleResult> {
@@ -72,11 +75,21 @@ export async function buildNegativeStyle(styleAnalysis: StyleAnalysis): Promise<
     }
   }
 
-  // Dedupe overlapping exclude strings (different rules sometimes name the same drift).
+  // Always-fire contamination words — Suno mis-triggers on these regardless of context.
+  fragments.push(ALWAYS_FIRE_CONTAMINATION.join(', '))
+
+  // 5-axis builder — opposite genre/instruments/vocal/mood/production + adjacent contamination.
+  const axes = buildAxisExclusions(styleAnalysis)
+  if (axes.fragments.length > 0) {
+    fragments.push(axes.fragments.join(', '))
+  }
+
+  // Dedupe overlapping exclude strings (different sources sometimes name the same drift).
   const merged = Array.from(new Set(fragments.flatMap((f) => f.split(',').map((s) => s.trim()).filter(Boolean))))
 
   return {
     negativeStyle: merged.join(', '),
     firedRuleIds,
+    firedAxes: axes.axesFired,
   }
 }

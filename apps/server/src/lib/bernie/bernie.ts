@@ -71,6 +71,17 @@ async function getOrSeedEditPrompt(): Promise<{ version: number; promptText: str
   return { version: seeded.version, promptText: seeded.promptText }
 }
 
+function countOccurrences(haystack: string, needle: string): number {
+  if (!needle) return 0
+  let count = 0
+  let idx = 0
+  while ((idx = haystack.indexOf(needle, idx)) !== -1) {
+    count++
+    idx += needle.length
+  }
+  return count
+}
+
 function parseLyricJson(text: string): { title: string; lyrics: string } {
   const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
   const start = cleaned.indexOf('{')
@@ -130,10 +141,16 @@ Polish the lyrics per the editor instructions. Preserve the hook verbatim. Outpu
   if (!editBlock?.text) throw new Error('Bernie edit pass returned no text')
   const final = parseLyricJson(editBlock.text)
 
-  // Hook preservation invariant: the polished output must still contain the hook verbatim.
-  if (!final.lyrics.includes(input.hookText)) {
-    // Fall back to the draft if the editor lost the hook. This is rare but the alternative
-    // is shipping lyrics without the hook line, which violates the chorus contract.
+  // Hook preservation invariant: the polished output must contain the hook verbatim
+  // in every chorus instance the draft had. Counting handles [Chorus] + [Final Chorus]:
+  // the editor is allowed to vary non-hook lines in [Final Chorus], but must not drop
+  // or paraphrase the hook line itself.
+  const draftHookCount = countOccurrences(draft.lyrics, input.hookText)
+  const finalHookCount = countOccurrences(final.lyrics, input.hookText)
+  if (finalHookCount < Math.max(1, draftHookCount)) {
+    // Fall back to the draft if the editor lost any hook instance. The alternative is
+    // shipping lyrics with a missing or paraphrased chorus hook, which violates the
+    // chorus contract.
     return {
       title: draft.title,
       lyrics: draft.lyrics,

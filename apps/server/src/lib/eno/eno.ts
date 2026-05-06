@@ -164,9 +164,10 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
       arrangementSections: arrangementSections ?? null,
     })
 
-    const finalLyrics = arrangementSections
-      ? injectArrangement(lyricsRaw.lyrics, arrangementSections)
-      : lyricsRaw.lyrics
+    // Always run injectArrangement: even when arrangementSections is null, the
+    // arranger performs the chorus-escalation pass (rename final [Chorus] to
+    // [Final Chorus], add gang-vocal cues) so every track gets an energy arc.
+    const finalLyrics = injectArrangement(lyricsRaw.lyrics, arrangementSections ?? {})
 
     await prisma.songSeed.update({
       where: { id: songSeed.id },
