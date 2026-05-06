@@ -14,7 +14,7 @@ export function subject(_props: Dunning3Props): string {
 export function html(props: Dunning3Props): string {
   const body = `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Final notice.</p>
-    <p style="margin:0 0 14px 0;">Service pauses end of day unless billing is current. Catalogue and store profile stay intact &mdash; resume any time by updating your card.</p>
+    <p style="margin:0 0 14px 0;">Service pauses end of day unless billing is current. Your library and Brand Intake stay intact &mdash; resume any time by updating your card.</p>
     ${button(props.billingPortalUrl, 'Update billing now')}
     <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Billing questions: founder@entuned.co.</p>
   `

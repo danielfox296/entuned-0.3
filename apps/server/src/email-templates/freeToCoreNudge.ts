@@ -15,16 +15,16 @@ export interface FreeToCoreNudgeProps {
 }
 
 export function subject(_props: FreeToCoreNudgeProps): string {
-  return 'Music written for your customer, not the average shopper'
+  return 'Music tuned to who actually walks into your store'
 }
 
 export function html(props: FreeToCoreNudgeProps): string {
   const body = `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Your store has its own taste. The general catalogue doesn&rsquo;t know that yet.</p>
-    <p style="margin:0 0 14px 0;">On Essentials you&rsquo;re streaming the pool tuned for retail in general. It&rsquo;s good. It&rsquo;s not <em>yours</em>.</p>
-    <p style="margin:0 0 14px 0;">On Core, you answer seven questions about who walks in, and we build a private library around them. $99 per location, per month. No setup fee, no contracts, cancel any time.</p>
-    ${button(props.upgradeUrl, 'Upgrade to Core')}
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">On Core, your library is built around your customer.</p>
+    <p style="margin:0 0 14px 0;">Essentials gives you a soundtrack engineered for retail in general &mdash; Increase Dwell or Infuse Energy on a 100+ song catalogue. It&rsquo;s the same one every store starts on.</p>
+    <p style="margin:0 0 14px 0;">On Core, you answer seven questions about who walks in and we build a private library around them. All research-backed outcomes unlocked. $99 per location, per month. No setup fee, no contracts, cancel any time.</p>
+    ${button(props.upgradeUrl, 'Unlock Core')}
     <p style="margin:18px 0 6px 0;font-size:13px;color:#9a958c;">Your current player: <a href="${props.playerUrl}" style="color:#d7af74;">${props.playerUrl}</a></p>
   `
-  return layout({ preheader: 'Tailored music for your specific customer. $99/loc/mo.', body })
+  return layout({ preheader: 'A library built around your customer. $99 / location / month.', body })
 }

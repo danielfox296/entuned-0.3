@@ -40,9 +40,9 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     <p style="margin:0 0 14px 0;">Two links to get running:</p>
     <p style="margin:0 0 6px 0;"><strong style="color:#d7af74;">1. Dashboard</strong> &mdash; manage your account and add a location.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open dashboard</a></td></tr></table>
-    <p style="margin:14px 0 6px 0;"><strong style="color:#d7af74;">2. Player</strong> &mdash; open this on the in-store device to start playing the general catalogue.</p>
+    <p style="margin:14px 0 6px 0;"><strong style="color:#d7af74;">2. Player</strong> &mdash; open this on any speaker you already have. Pick Increase Dwell or Infuse Energy to start playing.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{playerUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open player</a></td></tr></table>
-    <p style="margin:18px 0 0 0;font-size:14px;">Ready for music tailored to your specific customer? <a href="https://entuned.co/pricing.html" style="color:#d7af74;">Upgrade to Core</a> for a custom catalogue built around your ICP.</p>
+    <p style="margin:18px 0 0 0;font-size:14px;">Ready for music tuned to your specific customer? <a href="https://entuned.co/pricing.html" style="color:#d7af74;">Unlock Core</a> for a private library built around the people who actually walk into your store.</p>
     <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Questions go to founder@entuned.co. Replies hit a real person.</p>
     `.trim(),
     propsExample: {
@@ -56,9 +56,9 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     body: `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">You&rsquo;re on Core.</p>
     <p style="margin:0 0 14px 0;">Two links to get running:</p>
-    <p style="margin:0 0 6px 0;"><strong style="color:#d7af74;">1. Dashboard</strong> &mdash; finish your store profile so we can build the catalogue.</p>
+    <p style="margin:0 0 6px 0;"><strong style="color:#d7af74;">1. Dashboard</strong> &mdash; fill out Brand Intake so we can build a library around your customer.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open dashboard</a></td></tr></table>
-    <p style="margin:14px 0 6px 0;"><strong style="color:#d7af74;">2. Player</strong> &mdash; sign in on the in-store device once your catalogue is ready.</p>
+    <p style="margin:14px 0 6px 0;"><strong style="color:#d7af74;">2. Player</strong> &mdash; sign in on the in-store device once your library is ready.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{playerUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open player</a></td></tr></table>
     <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Questions go to founder@entuned.co. Replies hit a real person.</p>
     `.trim(),
@@ -73,11 +73,11 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     body: `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">You&rsquo;re on Pro.</p>
     <p style="margin:0 0 14px 0;">Two links to get running:</p>
-    <p style="margin:0 0 6px 0;"><strong style="color:#d7af74;">1. Dashboard</strong> &mdash; finish your store profile so we can build the catalogue.</p>
+    <p style="margin:0 0 6px 0;"><strong style="color:#d7af74;">1. Dashboard</strong> &mdash; fill out Brand Intake so we can build a library around your customer.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open dashboard</a></td></tr></table>
-    <p style="margin:14px 0 6px 0;"><strong style="color:#d7af74;">2. Player</strong> &mdash; sign in on the in-store device once your catalogue is ready.</p>
+    <p style="margin:14px 0 6px 0;"><strong style="color:#d7af74;">2. Player</strong> &mdash; sign in on the in-store device once your library is ready.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{playerUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open player</a></td></tr></table>
-    <p style="margin:14px 0 0 0;">Pro includes a human review pass on your first catalogue. Expect a note from us within 48 hours after your store profile is in.</p>
+    <p style="margin:14px 0 0 0;">Pro includes a human review pass on your first library. Expect a note from us within 48 hours after Brand Intake is in.</p>
     <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Questions go to founder@entuned.co. Replies hit a real person.</p>
     `.trim(),
     propsExample: {
@@ -89,8 +89,8 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     subject: 'Your catalogue is ready',
     preheader: 'First catalogue is live. Preview before it hits the floor.',
     body: `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Your first catalogue is live.</p>
-    <p style="margin:0 0 14px 0;">Built against your store profile and ready to play. Preview tracks in the dashboard before they hit the floor.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Your first library is live.</p>
+    <p style="margin:0 0 14px 0;">Built around your customer and ready to play. Preview tracks in the dashboard before they hit the floor.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Preview in dashboard</a></td></tr></table>
     <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">If anything feels off &mdash; tempo, energy, era &mdash; flag it. We re-tune fast.</p>
     `.trim(),
@@ -123,7 +123,7 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     preheader: 'Update your billing to avoid an interruption.',
     body: `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Final notice.</p>
-    <p style="margin:0 0 14px 0;">Service pauses end of day unless billing is current. Catalogue and store profile stay intact &mdash; resume any time by updating your card.</p>
+    <p style="margin:0 0 14px 0;">Service pauses end of day unless billing is current. Your library and Brand Intake stay intact &mdash; resume any time by updating your card.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{billingPortalUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Update billing now</a></td></tr></table>
     <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Billing questions: founder@entuned.co.</p>
     `.trim(),
@@ -141,11 +141,11 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     propsExample: { daysRemaining: 7, dashboardUrl: 'https://app.entuned.co' },
   },
   indemnificationCert: {
-    subject: 'Your Entuned indemnification certificate',
-    preheader: 'IP indemnification certificate attached.',
+    subject: 'Your Entuned PRO licensing certificate',
+    preheader: 'PRO licensing certificate attached.',
     body: `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Your indemnification certificate is ready.</p>
-    <p style="margin:0 0 14px 0;">Covers commercial use of the original music produced for your account. Keep a copy with your licensing records.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Your PRO licensing certificate is ready.</p>
+    <p style="margin:0 0 14px 0;">Proof of music-rights coverage (ASCAP / BMI / SESAC) for the music in your store. Keep a copy with your licensing records &mdash; landlords and franchisors typically ask for it.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{pdfUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Download PDF</a></td></tr></table>
     <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Account ID: <span style="color:#E8E4DE;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">{{accountId}}</span></p>
     <p style="margin:8px 0 0 0;font-size:12px;color:#9a958c;">Audit copy is also stored in your dashboard under Documents.</p>
@@ -156,24 +156,24 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     },
   },
   icpUnfilled: {
-    subject: 'Two minutes to better music for your store',
-    preheader: 'Brand Intake unlocks tailored music. Two minutes.',
+    subject: 'Two minutes to a library built around your customer',
+    preheader: 'Brand Intake tunes the library to your audience. Two minutes.',
     body: `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">You upgraded. We&rsquo;re still playing the average shopper.</p>
-    <p style="margin:0 0 14px 0;">Until you fill out Brand Intake, your player runs on the general catalogue &mdash; the one tuned for nobody in particular. Seven questions, two minutes, and we shift the library to fit your specific customer.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Two minutes to a library built around your customer.</p>
+    <p style="margin:0 0 14px 0;">Your Core account can be tuned to the people who actually walk into your store. The seven Brand Intake questions are what we tune it from &mdash; about who they are, what they value, what would make them leave.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{intakeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open Brand Intake</a></td></tr></table>
-    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">If your customer really is "everyone" &mdash; ignore this. Otherwise, the music gets noticeably better the moment you tell us who walks in.</p>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Fill it once and we get out of the way &mdash; you can come back and re-tune any time.</p>
     `.trim(),
     propsExample: { intakeUrl: 'https://app.entuned.co/intake' },
   },
   freeToCoreNudge: {
-    subject: 'Music written for your customer, not the average shopper',
-    preheader: 'Tailored music for your specific customer. $99/loc/mo.',
+    subject: 'Music tuned to who actually walks into your store',
+    preheader: 'A library built around your customer. $99 / location / month.',
     body: `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Your store has its own taste. The general catalogue doesn&rsquo;t know that yet.</p>
-    <p style="margin:0 0 14px 0;">On Essentials you&rsquo;re streaming the pool tuned for retail in general. It&rsquo;s good. It&rsquo;s not <em>yours</em>.</p>
-    <p style="margin:0 0 14px 0;">On Core, you answer seven questions about who walks in, and we build a private library around them. $99 per location, per month. No setup fee, no contracts, cancel any time.</p>
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Upgrade to Core</a></td></tr></table>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">On Core, your library is built around your customer.</p>
+    <p style="margin:0 0 14px 0;">Essentials gives you a soundtrack engineered for retail in general &mdash; Increase Dwell or Infuse Energy on a 100+ song catalogue. It&rsquo;s the same one every store starts on.</p>
+    <p style="margin:0 0 14px 0;">On Core, you answer seven questions about who walks in and we build a private library around them. All research-backed outcomes unlocked. $99 per location, per month. No setup fee, no contracts, cancel any time.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Unlock Core</a></td></tr></table>
     <p style="margin:18px 0 6px 0;font-size:13px;color:#9a958c;">Your current player: <a href="{{playerUrl}}" style="color:#d7af74;">{{playerUrl}}</a></p>
     `.trim(),
     propsExample: {
@@ -182,14 +182,14 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     },
   },
   engagedFreeToCore: {
-    subject: 'You play hundreds of songs a week on the general pool',
-    preheader: 'Same playback, sharper library. Upgrade to Core.',
+    subject: 'You&rsquo;re putting hundreds of songs through your floor a week',
+    preheader: 'Same playback, sharper library on Core.',
     body: `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">{{songsPlayed}} songs through your store on Essentials.</p>
-    <p style="margin:0 0 14px 0;">You&rsquo;re using the player. The music is working hard for you. It&rsquo;s also tuned to retail in general &mdash; not to your specific customer.</p>
-    <p style="margin:0 0 14px 0;">On Core, the same hours of playback hit a library built around your audience. Same staff, same hours, sharper match.</p>
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Upgrade to Core</a></td></tr></table>
-    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Seven questions, two minutes of intake, and the catalogue retunes around the answers.</p>
+    <p style="margin:0 0 14px 0;">You&rsquo;re using the player. The music is doing real work for you on the catalogue every store starts on.</p>
+    <p style="margin:0 0 14px 0;">On Core, the same hours of playback hit a library built around your specific customer. Same staff, same hours, sharper match.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Unlock Core</a></td></tr></table>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Seven questions, two minutes of intake, and the library retunes around the answers.</p>
     `.trim(),
     propsExample: {
       upgradeUrl: 'https://api.entuned.co/billing/checkout?tier=core',
@@ -197,17 +197,17 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     },
   },
   scalingCoreToPro: {
-    subject: 'You run multiple locations now. Pro is when you stop running them blind.',
+    subject: 'You run multiple locations now. Pro is the next gear.',
     preheader: '{{storeCount}} locations on Core. Pro is the next gear.',
     body: `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">{{storeCount}} locations on Core.</p>
-    <p style="margin:0 0 14px 0;">At one location, eyeballing the floor works. At {{storeCount}}, it doesn&rsquo;t. You can&rsquo;t hear what every store is hearing, and you can&rsquo;t tell which hours need different music.</p>
+    <p style="margin:0 0 14px 0;">At one location, you can hear the floor. At {{storeCount}}, you can&rsquo;t be everywhere &mdash; and you can&rsquo;t tell which hours need different music.</p>
     <p style="margin:0 0 14px 0;">Pro adds two things that pay for themselves at scale:</p>
     <ul style="margin:0 0 14px 0;padding-left:20px;">
       <li style="margin-bottom:6px;"><strong style="color:#d7af74;">Day-parting</strong> &mdash; outcome rotation per location. Morning lull on Increase Dwell, Saturday afternoon on Infuse Energy. One rule, every store.</li>
-      <li><strong style="color:#d7af74;">POS integrations</strong> &mdash; Square / Shopify / Lightspeed. Music outcomes next to hourly transactions, per location. Stop guessing which mix moved.</li>
+      <li><strong style="color:#d7af74;">POS integrations</strong> &mdash; Square / Shopify / Lightspeed. Music outcomes next to hourly transactions, per location. The lift stops being a story and starts being a line item.</li>
     </ul>
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Upgrade to Pro</a></td></tr></table>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Unlock Pro</a></td></tr></table>
     <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">$399 per location, per month. The math works once you can prove the lift.</p>
     `.trim(),
     propsExample: {
@@ -216,18 +216,18 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     },
   },
   establishedCoreToPro: {
-    subject: 'You filled the intake. You stuck around. Pro is where the data starts paying off.',
-    preheader: 'A month of Core. Pro is when the data starts paying off.',
+    subject: 'A month of Core. Pro is where the data starts paying off.',
+    preheader: 'A month of Core. Pro is where the data starts paying off.',
     body: `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">A month of Core, and you finished intake.</p>
-    <p style="margin:0 0 14px 0;">You&rsquo;re past the point where someone else would&rsquo;ve bounced. The library is built around your customer. Now the question changes from <em>does the music fit</em> to <em>does it move the number</em>.</p>
-    <p style="margin:0 0 14px 0;">Pro is the answer:</p>
+    <p style="margin:0 0 14px 0;">The library is built around your customer. The next question is whether the music is moving the number you actually care about.</p>
+    <p style="margin:0 0 14px 0;">Pro is where you find out:</p>
     <ul style="margin:0 0 14px 0;padding-left:20px;">
       <li style="margin-bottom:6px;"><strong style="color:#d7af74;">Lift Reports</strong> &mdash; the music outcome on each shift, mapped to your existing CFO report. Forward it as-is.</li>
       <li style="margin-bottom:6px;"><strong style="color:#d7af74;">POS integrations</strong> &mdash; hourly sales next to what was playing. The lift stops being a story and starts being a line item.</li>
       <li><strong style="color:#d7af74;">Day-parting</strong> &mdash; different outcomes by hour. Match the customer that walks in at 11am vs. 5pm.</li>
     </ul>
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Upgrade to Pro</a></td></tr></table>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Unlock Pro</a></td></tr></table>
     <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">$399 per location, per month. The first time you forward a Lift Report to your CFO, it pays.</p>
     `.trim(),
     propsExample: {
