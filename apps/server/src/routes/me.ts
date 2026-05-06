@@ -41,6 +41,9 @@ const IcpInput = z.object({
   name: z.string().trim().min(1).max(120),
   ageRange: z.string().trim().max(120).optional().nullable(),
   location: z.string().trim().max(240).optional().nullable(),
+  politicalSpectrum: z.string().trim().max(240).optional().nullable(),
+  openness: z.string().trim().max(240).optional().nullable(),
+  fears: z.string().trim().max(2000).optional().nullable(),
   values: z.string().trim().max(2000).optional().nullable(),
   desires: z.string().trim().max(2000).optional().nullable(),
   unexpressedDesires: z.string().trim().max(2000).optional().nullable(),
@@ -52,6 +55,9 @@ function pickIcpFields(row: {
   name: string
   ageRange: string | null
   location: string | null
+  politicalSpectrum: string | null
+  openness: string | null
+  fears: string | null
   values: string | null
   desires: string | null
   unexpressedDesires: string | null
@@ -63,6 +69,9 @@ function pickIcpFields(row: {
     name: row.name,
     ageRange: row.ageRange,
     location: row.location,
+    politicalSpectrum: row.politicalSpectrum,
+    openness: row.openness,
+    fears: row.fears,
     values: row.values,
     desires: row.desires,
     unexpressedDesires: row.unexpressedDesires,
@@ -154,6 +163,9 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       name: parsed.data.name,
       ageRange: parsed.data.ageRange ?? null,
       location: parsed.data.location ?? null,
+      politicalSpectrum: parsed.data.politicalSpectrum ?? null,
+      openness: parsed.data.openness ?? null,
+      fears: parsed.data.fears ?? null,
       values: parsed.data.values ?? null,
       desires: parsed.data.desires ?? null,
       unexpressedDesires: parsed.data.unexpressedDesires ?? null,

@@ -16,20 +16,26 @@ type AnswerKey = keyof IcpInput
 // coffee. The `example` line stays visible under the field (placeholder text
 // disappears on focus, exactly when the user wants to see it most).
 const QUESTIONS: { key: AnswerKey; label: string; example: string }[] = [
-  { key: 'name',                label: 'What do you call them?',
-    example: 'A nickname for this audience, e.g. "Park Meadows lunch crowd"' },
-  { key: 'ageRange',            label: 'How old are they, roughly?',
-    example: 'A range is fine — 28–45, mid-30s, "older millennials"' },
-  { key: 'location',            label: 'Where do they live or shop?',
-    example: 'Neighborhood, city, region — wherever they spend their time' },
-  { key: 'values',              label: 'What matters to them?',
-    example: 'A short list — craft, family, time outdoors, looking sharp' },
-  { key: 'desires',             label: 'What are they here for?',
-    example: 'The thing they’d say if you asked them at the door' },
-  { key: 'unexpressedDesires',  label: 'What do they want but won’t admit?',
-    example: 'The quieter motivation underneath the stated one' },
-  { key: 'turnOffs',            label: 'What would make them leave?',
-    example: 'Tone, words, music — anything that makes them feel out of place' },
+  { key: ‘name’,                label: ‘What do you call them?’,
+    example: ‘A nickname for this audience, e.g. "Park Meadows lunch crowd"’ },
+  { key: ‘ageRange’,            label: ‘How old are they, roughly?’,
+    example: ‘A range is fine — 28–45, mid-30s, "older millennials"’ },
+  { key: ‘location’,            label: ‘Where do they live or shop?’,
+    example: ‘Neighborhood, city, region — wherever they spend their time’ },
+  { key: ‘politicalSpectrum’,   label: ‘How do they lean, politically?’,
+    example: ‘Just the basics — center, traditional, progressive. Only if it shapes their taste.’ },
+  { key: ‘openness’,            label: ‘Are they explorers or creatures of habit?’,
+    example: ‘Do they love discovering new things, or does familiar mean comfortable?’ },
+  { key: ‘fears’,               label: ‘What are they quietly afraid of?’,
+    example: ‘Irrelevance, aging out, looking like they\’re trying too hard — the social fears they\’d never name’ },
+  { key: ‘values’,              label: ‘What matters to them?’,
+    example: ‘A short list — craft, family, time outdoors, looking sharp’ },
+  { key: ‘desires’,             label: ‘What are they here for?’,
+    example: ‘The thing they\’d say if you asked them at the door’ },
+  { key: ‘unexpressedDesires’,  label: ‘What do they want but won\’t admit?’,
+    example: ‘The quieter motivation underneath the stated one’ },
+  { key: ‘turnOffs’,            label: ‘What would make them leave?’,
+    example: ‘Tone, words, music — anything that makes them feel out of place’ },
 ]
 
 // Progressive disclosure: show these three first, reveal the rest behind
@@ -40,6 +46,7 @@ type Answers = Record<AnswerKey, string>
 
 const EMPTY_ANSWERS: Answers = {
   name: '', ageRange: '', location: '',
+  politicalSpectrum: '', openness: '', fears: '',
   values: '', desires: '', unexpressedDesires: '', turnOffs: '',
 }
 
@@ -55,7 +62,7 @@ export function IcpIntake() {
           requiredTier="core"
           currentTier={tier}
           timeToValue="Fill it in and your library starts being built around your audience — usually live on the floor within a few days."
-          detail="Seven questions about who walks in. The answers become your own music library, built around your specific customer instead of the one every store starts on."
+          detail="Ten questions about who walks in. The answers become your own music library, built around your specific customer instead of the one every store starts on."
         />
       </Layout>
     )
@@ -89,6 +96,9 @@ function IcpIntakeForm() {
             name: r.icp.name ?? '',
             ageRange: r.icp.ageRange ?? '',
             location: r.icp.location ?? '',
+            politicalSpectrum: r.icp.politicalSpectrum ?? '',
+            openness: r.icp.openness ?? '',
+            fears: r.icp.fears ?? '',
             values: r.icp.values ?? '',
             desires: r.icp.desires ?? '',
             unexpressedDesires: r.icp.unexpressedDesires ?? '',
@@ -131,6 +141,9 @@ function IcpIntakeForm() {
         name: answers.name.trim(),
         ageRange: answers.ageRange.trim() || null,
         location: answers.location.trim() || null,
+        politicalSpectrum: answers.politicalSpectrum.trim() || null,
+        openness: answers.openness.trim() || null,
+        fears: answers.fears.trim() || null,
         values: answers.values.trim() || null,
         desires: answers.desires.trim() || null,
         unexpressedDesires: answers.unexpressedDesires.trim() || null,
@@ -141,6 +154,9 @@ function IcpIntakeForm() {
         name: icp.name ?? '',
         ageRange: icp.ageRange ?? '',
         location: icp.location ?? '',
+        politicalSpectrum: icp.politicalSpectrum ?? '',
+        openness: icp.openness ?? '',
+        fears: icp.fears ?? '',
         values: icp.values ?? '',
         desires: icp.desires ?? '',
         unexpressedDesires: icp.unexpressedDesires ?? '',
@@ -212,7 +228,7 @@ function IcpIntakeForm() {
   return (
     <Layout>
       <div style={{ marginBottom: 32, maxWidth: 640 }}>
-        <Eyebrow>Brand voice</Eyebrow>
+        <Eyebrow>Your customer</Eyebrow>
         <h1 style={{
           fontFamily: T.heading,
           fontSize: 'clamp(1.7rem, 2.6vw, 2.3rem)',
@@ -267,7 +283,7 @@ function IcpIntakeForm() {
                     color: T.textFaint, fontSize: 13, marginLeft: 10,
                     fontWeight: 400,
                   }}>
-                    Four more questions — they sharpen the music
+                    Seven more questions — they sharpen the music
                   </span>
                 </span>
                 <ArrowRight size={16} strokeWidth={1.75} />

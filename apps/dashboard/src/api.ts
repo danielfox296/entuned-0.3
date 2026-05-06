@@ -112,6 +112,9 @@ export interface IcpInput {
   name: string
   ageRange?: string | null
   location?: string | null
+  politicalSpectrum?: string | null
+  openness?: string | null
+  fears?: string | null
   values?: string | null
   desires?: string | null
   unexpressedDesires?: string | null
