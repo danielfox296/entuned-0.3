@@ -53,3 +53,80 @@ export function compIsActive(store: StoreTierFields, now: Date = new Date()): bo
   if (store.compExpiresAt && store.compExpiresAt <= now) return false
   return true
 }
+
+// ── Mutation helpers ──────────────────────────────────────────────────
+//
+// Every effective-tier transition is wrapped through one of these so the
+// `tier_change_logs` audit row is written atomically with the Store update.
+// Direct `prisma.store.update({ data: { compTier... } })` calls bypass the
+// log — never do that from application code outside this file.
+
+import { prisma } from '../db.js'
+import type { Prisma } from '@prisma/client'
+
+export type TierLogSource =
+  | 'admin_comp'
+  | 'admin_revoke'
+  | 'stripe_webhook'
+  | 'pause'
+  | 'resume'
+  | 'comp_expired'
+  | 'auto_cleared'
+
+interface ApplyChangeArgs {
+  storeId: string
+  /** Effective tier *before* the mutation, computed by the caller pre-update. */
+  fromTier: Tier
+  /** What the Store update should write. Pass exactly the fields you want
+   * to change — anything omitted is left alone. */
+  data: Prisma.StoreUpdateInput
+  source: TierLogSource
+  actorId?: string | null
+  reason?: string | null
+  /** For `admin_comp`: snapshot of `comp_expires_at` granted. */
+  expiresAt?: Date | null
+  tx?: Prisma.TransactionClient
+}
+
+/**
+ * Apply a Store mutation that may change the effective tier, and write the
+ * audit log row in the same transaction. Returns the updated Store row
+ * (with comp fields) so callers can re-derive `effectiveTier()` post-write.
+ *
+ * No-op log when `to` ranks equal to `from` (e.g. revoking a comp that was
+ * already shadowed by a higher paid tier). Caller decides whether to skip.
+ */
+export async function applyTierChange(args: ApplyChangeArgs) {
+  const exec = async (db: Prisma.TransactionClient) => {
+    const updated = await db.store.update({
+      where: { id: args.storeId },
+      data: args.data,
+      select: {
+        id: true,
+        tier: true,
+        compTier: true,
+        compExpiresAt: true,
+        compReason: true,
+        compGrantedById: true,
+        compGrantedAt: true,
+      },
+    })
+    const toTier = effectiveTier(updated)
+    if (toTier !== args.fromTier) {
+      await db.tierChangeLog.create({
+        data: {
+          storeId: args.storeId,
+          fromTier: args.fromTier,
+          toTier,
+          source: args.source,
+          actorId: args.actorId ?? null,
+          reason: args.reason ?? null,
+          expiresAt: args.expiresAt ?? null,
+        },
+      })
+    }
+    return updated
+  }
+  if (args.tx) return exec(args.tx)
+  return prisma.$transaction(exec)
+}

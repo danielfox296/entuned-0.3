@@ -14,6 +14,7 @@
 
 import Stripe from 'stripe'
 import { prisma } from '../db.js'
+import { effectiveTier, applyTierChange } from './tier.js'
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY ?? ''
 const STRIPE_PRICE_ID_PRO = process.env.STRIPE_PRICE_ID_PRO ?? ''
@@ -58,16 +59,18 @@ export async function runPauseAutoResume(): Promise<AutoResumeStats> {
       const restoredTier: 'core' | 'pro' =
         s.subscription.stripePriceId === STRIPE_PRICE_ID_PRO ? 'pro' : 'core'
       try {
-        await prisma.$transaction([
-          prisma.store.update({
-            where: { id: s.id },
-            data: { pausedUntil: null, tier: restoredTier },
-          }),
-          prisma.subscription.update({
-            where: { id: s.subscription.id },
-            data: { status: 'active' },
-          }),
-        ])
+        await applyTierChange({
+          storeId: s.id,
+          fromTier: effectiveTier(s),
+          data: { pausedUntil: null, tier: restoredTier },
+          source: 'resume',
+          actorId: null,
+          reason: 'auto-resume cron (pause window expired)',
+        })
+        await prisma.subscription.update({
+          where: { id: s.subscription.id },
+          data: { status: 'active' },
+        })
         stats.resumed++
       } catch {
         stats.errors++
@@ -88,16 +91,18 @@ export async function runPauseAutoResume(): Promise<AutoResumeStats> {
         // Stripe TS types don't model that case, so we cast through unknown.
         pause_collection: '' as unknown as Stripe.SubscriptionUpdateParams['pause_collection'],
       })
-      await prisma.$transaction([
-        prisma.store.update({
-          where: { id: s.id },
-          data: { pausedUntil: null, tier: restoredTier },
-        }),
-        prisma.subscription.update({
-          where: { id: s.subscription.id },
-          data: { status: 'active' },
-        }),
-      ])
+      await applyTierChange({
+        storeId: s.id,
+        fromTier: effectiveTier(s),
+        data: { pausedUntil: null, tier: restoredTier },
+        source: 'resume',
+        actorId: null,
+        reason: 'auto-resume cron (pause window expired)',
+      })
+      await prisma.subscription.update({
+        where: { id: s.subscription.id },
+        data: { status: 'active' },
+      })
       stats.resumed++
     } catch {
       stats.errors++

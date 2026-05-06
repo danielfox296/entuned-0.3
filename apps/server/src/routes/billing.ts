@@ -18,6 +18,7 @@ import { prisma } from '../db.js'
 import { requireAuth } from '../lib/session.js'
 import { sendWelcome, sendDunning } from '../lib/email.js'
 import { uniqueStoreSlug } from '../lib/account.js'
+import { effectiveTier, tierRank, applyTierChange } from '../lib/tier.js'
 
 // ---------- env ----------
 
@@ -262,6 +263,11 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
               cancelAtPeriodEnd: sub.cancel_at_period_end,
             },
           })
+          // If the customer changed plan via the Customer Portal, the price
+          // id on the sub will differ from what we have on Store.tier.
+          // Re-derive paid tier from the new price and write it through
+          // applyTierChange so the audit log records the transition.
+          await syncStoreTierFromSubscription(sub)
           break
         }
         case 'customer.subscription.deleted': {
@@ -465,9 +471,25 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
         pause_collection: { behavior: 'void' },
       })
       const pausedUntil = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
-      await prisma.store.update({
-        where: { id: store.id },
-        data: { pausedUntil, tier: 'free' },
+      const fromEffective = effectiveTier(store)
+      // Pause drops paid tier to 'free' AND clears any active comp — pausing
+      // a comped Pro Store should not leave the comp covering for the pause.
+      // Operator must re-grant on resume if desired.
+      await applyTierChange({
+        storeId: store.id,
+        fromTier: fromEffective,
+        data: {
+          pausedUntil,
+          tier: 'free',
+          compTier: null,
+          compExpiresAt: null,
+          compReason: null,
+          compGrantedById: null,
+          compGrantedAt: null,
+        },
+        source: 'pause',
+        actorId: null,
+        reason: store.compTier ? `pause cleared active comp (${store.compTier})` : null,
       })
       await prisma.subscription.update({
         where: { id: store.subscription.id },
@@ -504,9 +526,13 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
       await stripe.subscriptions.update(store.subscription.stripeSubscriptionId, {
         pause_collection: '' as unknown as Stripe.SubscriptionUpdateParams['pause_collection'],
       })
-      await prisma.store.update({
-        where: { id: store.id },
+      const fromEffective = effectiveTier(store)
+      await applyTierChange({
+        storeId: store.id,
+        fromTier: fromEffective,
         data: { pausedUntil: null, tier: restoredTier },
+        source: 'resume',
+        actorId: null,
       })
       await prisma.subscription.update({
         where: { id: store.subscription.id },
@@ -576,11 +602,39 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
 
   let store: { id: string; slug: string }
   if (orphanFreeStore) {
-    store = await prisma.store.update({
+    // Look up the orphan's full state so we can compute fromEffective and
+    // run the comp-clear check (paid tier ≥ comp tier auto-clears comp).
+    const orphan = await prisma.store.findUnique({
       where: { id: orphanFreeStore.id },
-      data: { tier },
-      select: { id: true, slug: true },
+      select: { id: true, slug: true, tier: true, compTier: true, compExpiresAt: true },
     })
+    if (!orphan) throw new Error(`orphan store vanished mid-checkout (id=${orphanFreeStore.id})`)
+    const fromEffective = effectiveTier(orphan)
+    const willClearComp =
+      !!orphan.compTier && tierRank(tier as Tier) >= tierRank(orphan.compTier as Tier)
+
+    await applyTierChange({
+      storeId: orphan.id,
+      fromTier: fromEffective,
+      data: {
+        tier,
+        ...(willClearComp
+          ? {
+              compTier: null,
+              compExpiresAt: null,
+              compReason: null,
+              compGrantedById: null,
+              compGrantedAt: null,
+            }
+          : {}),
+      },
+      source: willClearComp ? 'auto_cleared' : 'stripe_webhook',
+      actorId: null,
+      reason: willClearComp
+        ? `paid tier ${tier} via checkout; comp ${orphan.compTier} auto-cleared`
+        : null,
+    })
+    store = { id: orphan.id, slug: orphan.slug }
   } else {
     const baseName = client.name ?? (email ? email.split('@')[0] : 'Store')
     const newSlug = await uniqueStoreSlug(baseName)
@@ -593,6 +647,18 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
         timezone: 'America/Denver',
       },
       select: { id: true, slug: true },
+    })
+    // Fresh paid Store — log a 'free → paid' transition (from is implicitly
+    // 'free' since the row was just created at the paid tier; we still want
+    // an entry in tier_change_logs for completeness).
+    await prisma.tierChangeLog.create({
+      data: {
+        storeId: store.id,
+        fromTier: 'free',
+        toTier: tier,
+        source: 'stripe_webhook',
+        reason: `initial paid checkout (${tier})`,
+      },
     })
   }
   const slug = store.slug
@@ -655,4 +721,75 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
     }
     await sendDunning(dest, nextAttempt as any, portalUrl).catch(() => undefined)
   }
+}
+
+/**
+ * Map a Stripe price id to one of our tier strings. Returns null if the
+ * price id doesn't match a tier we recognize (in which case we leave the
+ * Store tier alone — better than wiping it on a misconfigured price).
+ */
+function tierFromPriceId(priceId: string | undefined | null): Tier | null {
+  if (!priceId) return null
+  if (priceId === STRIPE_PRICE_ID_PRO) return 'pro'
+  if (priceId === STRIPE_PRICE_ID_CORE) return 'core'
+  return null
+}
+
+/**
+ * Reconcile a Store's `tier` with the price id on its Stripe subscription.
+ * Called from `customer.subscription.updated` so plan changes via Customer
+ * Portal are reflected locally. Also invokes the comp-clear rule: if the
+ * new paid tier ranks ≥ active comp, comp is cleared with source=auto_cleared.
+ *
+ * No-op if the local Subscription/Store can't be resolved or the price id
+ * doesn't map to a known tier.
+ */
+async function syncStoreTierFromSubscription(sub: Stripe.Subscription): Promise<void> {
+  const newPriceId = sub.items.data[0]?.price.id
+  const newPaidTier = tierFromPriceId(newPriceId)
+  if (!newPaidTier) return
+
+  const subRow = await prisma.subscription.findUnique({
+    where: { stripeSubscriptionId: sub.id },
+    include: { store: { select: { id: true, tier: true, compTier: true, compExpiresAt: true } } },
+  })
+  if (!subRow?.store) return
+
+  const store = subRow.store
+  const fromEffective = effectiveTier(store)
+  const willClearComp =
+    !!store.compTier && tierRank(newPaidTier) >= tierRank(store.compTier as Tier)
+
+  // Update Subscription.stripePriceId regardless (cheap, keeps cache fresh).
+  await prisma.subscription.update({
+    where: { id: subRow.id },
+    data: { stripePriceId: newPriceId ?? subRow.stripePriceId },
+  })
+
+  if (store.tier === newPaidTier && !willClearComp) return
+
+  // Two logical operations: (1) update paid tier, (2) maybe clear comp.
+  // applyTierChange writes one log row using fromEffective → final effective
+  // post-update. If both happen we want a single transition row, not two.
+  await applyTierChange({
+    storeId: store.id,
+    fromTier: fromEffective,
+    data: {
+      tier: newPaidTier,
+      ...(willClearComp
+        ? {
+            compTier: null,
+            compExpiresAt: null,
+            compReason: null,
+            compGrantedById: null,
+            compGrantedAt: null,
+          }
+        : {}),
+    },
+    source: willClearComp ? 'auto_cleared' : 'stripe_webhook',
+    actorId: null,
+    reason: willClearComp
+      ? `paid tier upgraded to ${newPaidTier}; comp ${store.compTier} auto-cleared`
+      : null,
+  })
 }

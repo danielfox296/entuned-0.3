@@ -36,6 +36,7 @@ import { LIFECYCLE_TEMPLATES, TEMPLATES, type TemplateName } from '../email-temp
 import { EDITABLE_TEMPLATE_NAMES } from '../email-templates/seeds.js'
 import { runOneLifecycleDrip, runLifecycleEmails, type LifecycleDripName } from '../lib/lifecycleEmails.js'
 import { runPauseAutoResume } from '../lib/pauseAutoResume.js'
+import { effectiveTier, tierRank, applyTierChange, type Tier } from '../lib/tier.js'
 
 interface AuthedOp {
   operatorId: string
@@ -3099,6 +3100,188 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       req.log.error({ err: e }, 'admin_lifecycle_run_failed')
       return reply.code(500).send({ error: 'lifecycle_run_failed', message: e?.message ?? 'unknown' })
     }
+  })
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Comp tier — admin-granted free upgrades over the Stripe-paid tier.
+  // Schema: 03-duke.md "Comp tier" section. Effective tier = max(tier, compTier)
+  // while comp is unexpired. All transitions go through `applyTierChange`
+  // which writes a `tier_change_logs` row in the same tx.
+  // ──────────────────────────────────────────────────────────────────────
+
+  // POST /admin/stores/:id/comp — grant or extend a comp.
+  // Body: { tier: 'core'|'pro'|'enterprise', reason: string, expiresAt?: ISO }
+  // Rules:
+  //   - tier must outrank the current effective tier (no-op grants rejected
+  //     to force the operator to think before clicking).
+  //   - reason required, ≥5 chars.
+  //   - expiresAt optional; missing = open-ended comp.
+  //   - mvp_pilot is not a valid comp tier (it's a legacy seed tier; use core).
+  app.post('/stores/:id/comp', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as { id?: string } | undefined)?.id
+    if (!id) return reply.code(400).send({ error: 'bad_id' })
+
+    const Body = z.object({
+      tier: z.enum(['core', 'pro', 'enterprise']),
+      reason: z.string().trim().min(5, 'reason must be at least 5 chars'),
+      expiresAt: z.string().datetime().optional(),
+    })
+    const parsed = Body.safeParse(req.body)
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    }
+
+    const store = await prisma.store.findUnique({
+      where: { id },
+      select: { id: true, tier: true, compTier: true, compExpiresAt: true },
+    })
+    if (!store) return reply.code(404).send({ error: 'store_not_found' })
+
+    const fromTier = effectiveTier(store)
+    const newComp = parsed.data.tier as Tier
+    if (tierRank(newComp) <= tierRank(fromTier)) {
+      return reply.code(400).send({
+        error: 'comp_would_not_change_effective_tier',
+        currentEffective: fromTier,
+        requestedComp: newComp,
+        hint: 'Comp must outrank current effective tier. Pick a higher tier or revoke first.',
+      })
+    }
+
+    const expiresAt = parsed.data.expiresAt ? new Date(parsed.data.expiresAt) : null
+    if (expiresAt && expiresAt <= new Date()) {
+      return reply.code(400).send({ error: 'expires_at_in_past' })
+    }
+
+    const updated = await applyTierChange({
+      storeId: id,
+      fromTier,
+      data: {
+        compTier: newComp,
+        compExpiresAt: expiresAt,
+        compReason: parsed.data.reason,
+        compGrantedById: op.operatorId,
+        compGrantedAt: new Date(),
+      },
+      source: 'admin_comp',
+      actorId: op.operatorId,
+      reason: parsed.data.reason,
+      expiresAt,
+    })
+
+    return reply.send({
+      ok: true,
+      store: {
+        id: updated.id,
+        paidTier: updated.tier,
+        compTier: updated.compTier,
+        compExpiresAt: updated.compExpiresAt,
+        effectiveTier: effectiveTier(updated),
+      },
+    })
+  })
+
+  // DELETE /admin/stores/:id/comp — revoke an active comp.
+  // Body: { reason: string }
+  // The Store row keeps the comp metadata cleared; audit trail lives in
+  // tier_change_logs.
+  app.delete('/stores/:id/comp', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as { id?: string } | undefined)?.id
+    if (!id) return reply.code(400).send({ error: 'bad_id' })
+
+    const Body = z.object({ reason: z.string().trim().min(5) })
+    const parsed = Body.safeParse(req.body)
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    }
+
+    const store = await prisma.store.findUnique({
+      where: { id },
+      select: { id: true, tier: true, compTier: true, compExpiresAt: true },
+    })
+    if (!store) return reply.code(404).send({ error: 'store_not_found' })
+    if (!store.compTier) return reply.code(400).send({ error: 'no_active_comp' })
+
+    const fromTier = effectiveTier(store)
+    const updated = await applyTierChange({
+      storeId: id,
+      fromTier,
+      data: {
+        compTier: null,
+        compExpiresAt: null,
+        compReason: null,
+        compGrantedById: null,
+        compGrantedAt: null,
+      },
+      source: 'admin_revoke',
+      actorId: op.operatorId,
+      reason: parsed.data.reason,
+    })
+
+    return reply.send({
+      ok: true,
+      store: {
+        id: updated.id,
+        paidTier: updated.tier,
+        compTier: updated.compTier,
+        compExpiresAt: updated.compExpiresAt,
+        effectiveTier: effectiveTier(updated),
+      },
+    })
+  })
+
+  // GET /admin/stores/:id/tier-history — audit log for one Store, newest first.
+  app.get('/stores/:id/tier-history', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as { id?: string } | undefined)?.id
+    if (!id) return reply.code(400).send({ error: 'bad_id' })
+
+    const store = await prisma.store.findUnique({
+      where: { id },
+      select: { id: true, tier: true, compTier: true, compExpiresAt: true, compReason: true, compGrantedById: true, compGrantedAt: true },
+    })
+    if (!store) return reply.code(404).send({ error: 'store_not_found' })
+
+    const rows = await prisma.tierChangeLog.findMany({
+      where: { storeId: id },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    })
+
+    // Resolve actor emails for the audit panel.
+    const actorIds = Array.from(new Set(rows.map((r) => r.actorId).filter((x): x is string => !!x)))
+    const actors = actorIds.length
+      ? await prisma.operator.findMany({
+          where: { id: { in: actorIds } },
+          select: { id: true, email: true },
+        })
+      : []
+    const actorEmail = new Map(actors.map((a) => [a.id, a.email]))
+
+    return reply.send({
+      store: {
+        id: store.id,
+        paidTier: store.tier,
+        compTier: store.compTier,
+        compExpiresAt: store.compExpiresAt,
+        compReason: store.compReason,
+        compGrantedAt: store.compGrantedAt,
+        compGrantedByEmail: store.compGrantedById ? actorEmail.get(store.compGrantedById) ?? null : null,
+        effectiveTier: effectiveTier(store),
+      },
+      history: rows.map((r) => ({
+        id: r.id,
+        fromTier: r.fromTier,
+        toTier: r.toTier,
+        source: r.source,
+        actorEmail: r.actorId ? actorEmail.get(r.actorId) ?? null : null,
+        reason: r.reason,
+        expiresAt: r.expiresAt,
+        createdAt: r.createdAt,
+      })),
+    })
   })
 
   // POST /admin/email/pause-auto-resume/run
