@@ -131,7 +131,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     if (!store) return reply.send({ icp: null, store: null })
 
     const icp = await prisma.iCP.findFirst({
-      where: { storeId: store.id },
+      where: { storeId: store.id, archivedAt: null },
       orderBy: { updatedAt: 'desc' },
     })
 
@@ -173,7 +173,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const existing = await prisma.iCP.findFirst({
-      where: { storeId: store.id },
+      where: { storeId: store.id, archivedAt: null },
       orderBy: { updatedAt: 'desc' },
       select: { id: true },
     })
@@ -184,6 +184,232 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
 
     return reply.send({ icp: pickIcpFields(saved) })
   })
+
+  // GET /me/stores/:storeId/icp — ICP for a specific Store.
+  // Explicit per-store alternative to GET /me/icp (which always resolves the
+  // primary store). Multi-location clients use this to load each store's ICP.
+  app.get<{ Params: { storeId: string } }>(
+    '/stores/:storeId/icp',
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const ctx = getClient(req, reply)
+      if (!ctx) return
+
+      const store = await prisma.store.findFirst({
+        where: { id: req.params.storeId, clientId: ctx.clientId, archivedAt: null },
+        select: { id: true },
+      })
+      if (!store) return reply.code(404).send({ error: 'store_not_found' })
+
+      const icp = await prisma.iCP.findFirst({
+        where: { storeId: store.id, archivedAt: null },
+        orderBy: { updatedAt: 'desc' },
+      })
+
+      return reply.send({ icp: icp ? pickIcpFields(icp) : null, store: { id: store.id } })
+    },
+  )
+
+  // POST /me/stores/:storeId/icp — upsert ICP for a specific Store.
+  app.post<{ Params: { storeId: string } }>(
+    '/stores/:storeId/icp',
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const ctx = getClient(req, reply)
+      if (!ctx) return
+
+      const store = await prisma.store.findFirst({
+        where: { id: req.params.storeId, clientId: ctx.clientId, archivedAt: null },
+        select: { id: true },
+      })
+      if (!store) return reply.code(404).send({ error: 'store_not_found' })
+
+      const parsed = IcpInput.safeParse(req.body)
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'invalid_body', issues: parsed.error.issues })
+      }
+
+      const fields = {
+        clientId: ctx.clientId,
+        storeId: store.id,
+        name: parsed.data.name,
+        ageRange: parsed.data.ageRange ?? null,
+        location: parsed.data.location ?? null,
+        politicalSpectrum: parsed.data.politicalSpectrum ?? null,
+        openness: parsed.data.openness ?? null,
+        fears: parsed.data.fears ?? null,
+        values: parsed.data.values ?? null,
+        desires: parsed.data.desires ?? null,
+        unexpressedDesires: parsed.data.unexpressedDesires ?? null,
+        turnOffs: parsed.data.turnOffs ?? null,
+      }
+
+      const existing = await prisma.iCP.findFirst({
+        where: { storeId: store.id },
+        orderBy: { updatedAt: 'desc' },
+        select: { id: true },
+      })
+
+      const saved = existing
+        ? await prisma.iCP.update({ where: { id: existing.id }, data: fields })
+        : await prisma.iCP.create({ data: fields })
+
+      return reply.send({ icp: pickIcpFields(saved) })
+    },
+  )
+
+  // GET /me/stores/:storeId/icps — list all non-archived audiences for a Store.
+  // Pro feature: a Store may have multiple ICPs (Gary, Jen, etc). Each entry
+  // includes its live song count so the dashboard can show "142 songs" per
+  // audience without a second round-trip.
+  app.get<{ Params: { storeId: string } }>(
+    '/stores/:storeId/icps',
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const ctx = getClient(req, reply)
+      if (!ctx) return
+
+      const store = await prisma.store.findFirst({
+        where: { id: req.params.storeId, clientId: ctx.clientId, archivedAt: null },
+        select: { id: true },
+      })
+      if (!store) return reply.code(404).send({ error: 'store_not_found' })
+
+      const icps = await prisma.iCP.findMany({
+        where: { storeId: store.id, archivedAt: null },
+        orderBy: { createdAt: 'asc' },
+      })
+
+      // Active LineageRow counts per ICP, batched to avoid N+1.
+      const counts = icps.length
+        ? await prisma.lineageRow.groupBy({
+            by: ['icpId'],
+            where: { icpId: { in: icps.map((i) => i.id) }, active: true },
+            _count: { _all: true },
+          })
+        : []
+      const countByIcp = new Map(counts.map((c) => [c.icpId, c._count._all]))
+
+      return reply.send({
+        icps: icps.map((i) => ({ ...pickIcpFields(i), songCount: countByIcp.get(i.id) ?? 0 })),
+      })
+    },
+  )
+
+  // POST /me/stores/:storeId/icps — create a new audience for a Store.
+  // Distinct from POST /me/stores/:storeId/icp (singular), which is the Core
+  // upsert. This always creates a new row, supporting Pro's multi-audience model.
+  app.post<{ Params: { storeId: string } }>(
+    '/stores/:storeId/icps',
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const ctx = getClient(req, reply)
+      if (!ctx) return
+
+      const store = await prisma.store.findFirst({
+        where: { id: req.params.storeId, clientId: ctx.clientId, archivedAt: null },
+        select: { id: true },
+      })
+      if (!store) return reply.code(404).send({ error: 'store_not_found' })
+
+      const parsed = IcpInput.safeParse(req.body)
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'invalid_body', issues: parsed.error.issues })
+      }
+
+      const created = await prisma.iCP.create({
+        data: {
+          clientId: ctx.clientId,
+          storeId: store.id,
+          name: parsed.data.name,
+          ageRange: parsed.data.ageRange ?? null,
+          location: parsed.data.location ?? null,
+          politicalSpectrum: parsed.data.politicalSpectrum ?? null,
+          openness: parsed.data.openness ?? null,
+          fears: parsed.data.fears ?? null,
+          values: parsed.data.values ?? null,
+          desires: parsed.data.desires ?? null,
+          unexpressedDesires: parsed.data.unexpressedDesires ?? null,
+          turnOffs: parsed.data.turnOffs ?? null,
+        },
+      })
+
+      return reply.send({ icp: pickIcpFields(created) })
+    },
+  )
+
+  // PUT /me/icps/:icpId — update a specific audience by id.
+  // Validates the ICP belongs to one of the client's stores before writing.
+  app.put<{ Params: { icpId: string } }>(
+    '/icps/:icpId',
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const ctx = getClient(req, reply)
+      if (!ctx) return
+
+      const target = await prisma.iCP.findFirst({
+        where: { id: req.params.icpId, clientId: ctx.clientId, archivedAt: null },
+        select: { id: true },
+      })
+      if (!target) return reply.code(404).send({ error: 'icp_not_found' })
+
+      const parsed = IcpInput.safeParse(req.body)
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'invalid_body', issues: parsed.error.issues })
+      }
+
+      const saved = await prisma.iCP.update({
+        where: { id: target.id },
+        data: {
+          name: parsed.data.name,
+          ageRange: parsed.data.ageRange ?? null,
+          location: parsed.data.location ?? null,
+          politicalSpectrum: parsed.data.politicalSpectrum ?? null,
+          openness: parsed.data.openness ?? null,
+          fears: parsed.data.fears ?? null,
+          values: parsed.data.values ?? null,
+          desires: parsed.data.desires ?? null,
+          unexpressedDesires: parsed.data.unexpressedDesires ?? null,
+          turnOffs: parsed.data.turnOffs ?? null,
+        },
+      })
+
+      return reply.send({ icp: pickIcpFields(saved) })
+    },
+  )
+
+  // POST /me/icps/:icpId/retire — soft-delete an audience and deactivate its
+  // LineageRows so its songs stop playing. Rows are preserved so the audience
+  // and its library can be restored later (no public unretire endpoint yet —
+  // operator-side until we see real demand for self-service restore).
+  app.post<{ Params: { icpId: string } }>(
+    '/icps/:icpId/retire',
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const ctx = getClient(req, reply)
+      if (!ctx) return
+
+      const target = await prisma.iCP.findFirst({
+        where: { id: req.params.icpId, clientId: ctx.clientId, archivedAt: null },
+        select: { id: true },
+      })
+      if (!target) return reply.code(404).send({ error: 'icp_not_found' })
+
+      const now = new Date()
+      await prisma.$transaction([
+        prisma.iCP.update({
+          where: { id: target.id },
+          data: { archivedAt: now },
+        }),
+        prisma.lineageRow.updateMany({
+          where: { icpId: target.id, active: true },
+          data: { active: false },
+        }),
+      ])
+
+      return reply.send({ ok: true, archivedAt: now.toISOString() })
+    },
+  )
 
   // PATCH /me/stores/:id — rename a Store. Only writes to `Store.name`. The
   // slug stays put — it's the URL the customer has likely shared, and we

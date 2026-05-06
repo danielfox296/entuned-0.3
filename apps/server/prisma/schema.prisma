@@ -198,21 +198,26 @@ model TierChangeLog {
 // ---------- Card 4 Gains (ICP) ----------
 
 model ICP {
-  id                 String   @id @default(uuid()) @db.Uuid
-  clientId           String   @map("client_id") @db.Uuid
-  storeId            String   @map("store_id") @db.Uuid
+  id                 String    @id @default(uuid()) @db.Uuid
+  clientId           String    @map("client_id") @db.Uuid
+  storeId            String    @map("store_id") @db.Uuid
   name               String
-  ageRange           String?  @map("age_range")
+  ageRange           String?   @map("age_range")
   location           String?
-  politicalSpectrum  String?  @map("political_spectrum")
+  politicalSpectrum  String?   @map("political_spectrum")
   openness           String?
   fears              String?
   values             String?
   desires            String?
-  unexpressedDesires String?  @map("unexpressed_desires")
-  turnOffs           String?  @map("turn_offs")
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  unexpressedDesires String?   @map("unexpressed_desires")
+  turnOffs           String?   @map("turn_offs")
+  // Customer-dashboard "Retire" — soft-delete. Retired ICPs are hidden from the
+  // dashboard and from generation (Hendrix queries filter `archivedAt: null`),
+  // and their LineageRows are flipped to `active=false`. Rows are preserved so
+  // the audience and its songs can be restored.
+  archivedAt         DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   client           Client            @relation(fields: [clientId], references: [id])
   store            Store             @relation("LocationIcp", fields: [storeId], references: [id])

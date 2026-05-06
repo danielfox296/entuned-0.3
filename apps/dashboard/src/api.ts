@@ -126,6 +126,10 @@ export interface IcpRow extends IcpInput {
   updatedAt: string
 }
 
+export interface IcpListRow extends IcpRow {
+  songCount: number
+}
+
 export interface MeIcpResponse {
   icp: IcpRow | null
   store: { id: string } | null
@@ -208,6 +212,30 @@ export const api = {
     req<{ icp: IcpRow }>('/me/icp', {
       method: 'POST',
       body: JSON.stringify(input),
+    }),
+  meStoreIcp: (storeId: string) =>
+    req<MeIcpResponse>(`/me/stores/${encodeURIComponent(storeId)}/icp`),
+  saveMeStoreIcp: (storeId: string, input: IcpInput) =>
+    req<{ icp: IcpRow }>(`/me/stores/${encodeURIComponent(storeId)}/icp`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  // Pro: multi-audience CRUD scoped to a Store.
+  meStoreIcps: (storeId: string) =>
+    req<{ icps: IcpListRow[] }>(`/me/stores/${encodeURIComponent(storeId)}/icps`),
+  createIcp: (storeId: string, input: IcpInput) =>
+    req<{ icp: IcpRow }>(`/me/stores/${encodeURIComponent(storeId)}/icps`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  updateIcp: (icpId: string, input: IcpInput) =>
+    req<{ icp: IcpRow }>(`/me/icps/${encodeURIComponent(icpId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  retireIcp: (icpId: string) =>
+    req<{ ok: true; archivedAt: string }>(`/me/icps/${encodeURIComponent(icpId)}/retire`, {
+      method: 'POST',
     }),
   addStore: (name: string) =>
     req<{ store: { id: string; name: string; slug: string; tier: Tier } }>('/billing/stores', {

@@ -337,7 +337,7 @@ export async function nextQueue(
   const decidedAt = now.toISOString()
   const store = await prisma.store.findUnique({
     where: { id: storeId },
-    include: { icps: { select: { id: true } } },
+    include: { icps: { where: { archivedAt: null }, select: { id: true } } },
   })
   if (!store) {
     return { storeId, decidedAt, activeOutcome: null, queue: [], fallbackTier: 'none', reason: 'no_pool', roomLoudnessSamplingEnabled: false }

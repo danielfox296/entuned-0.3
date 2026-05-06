@@ -1,23 +1,27 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Plus, Pencil, Archive, MapPin } from 'lucide-react'
 import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
 import { LockScreen } from '../ui/LockScreen.js'
 import { Button, Eyebrow, Input } from '../ui/index.js'
-import { api, TIER_RANK, type IcpInput } from '../api.js'
+import {
+  api, primaryStore, TIER_RANK,
+  type IcpInput, type IcpListRow, type IcpRow, type StoreRow,
+} from '../api.js'
 import { useTier } from '../lib/tier.jsx'
 
-// /intake — Brand intake form. Free users see LockScreen. Core+ see the form,
-// which round-trips through GET/POST /me/icp.
+// /intake — Brand intake.
+//
+// Core: one audience per location, autosave-on-blur form (existing flow).
+// Pro:  many audiences per location. List view with [Add] / [Edit] / [Retire].
+// Free: LockScreen.
+
 type AnswerKey = keyof IcpInput
 
-// Each question reads like something you'd actually ask a shop owner over
-// coffee. The `example` line stays visible under the field (placeholder text
-// disappears on focus, exactly when the user wants to see it most).
 const QUESTIONS: { key: AnswerKey; label: string; example: string }[] = [
   { key: 'name',                label: 'What do you call them?',
-    example: 'A nickname for this audience, e.g. "Park Meadows lunch crowd"' },
+    example: 'A persona name — Gary, Jen, Marcus. Keep it short and human.' },
   { key: 'ageRange',            label: 'How old are they, roughly?',
     example: 'A range is fine — 28–45, mid-30s, "older millennials"' },
   { key: 'location',            label: 'Where do they live or shop?',
@@ -38,8 +42,6 @@ const QUESTIONS: { key: AnswerKey; label: string; example: string }[] = [
     example: 'Tone, words, music — anything that makes them feel out of place' },
 ]
 
-// Progressive disclosure: show these three first, reveal the rest behind
-// "Add more detail" so the form doesn't read as 7 mandatory questions.
 const BASIC_KEYS: AnswerKey[] = ['name', 'ageRange', 'location']
 
 type Answers = Record<AnswerKey, string>
@@ -50,8 +52,44 @@ const EMPTY_ANSWERS: Answers = {
   values: '', desires: '', unexpressedDesires: '', turnOffs: '',
 }
 
+function answersFromIcp(icp: IcpRow): Answers {
+  return {
+    name: icp.name ?? '',
+    ageRange: icp.ageRange ?? '',
+    location: icp.location ?? '',
+    politicalSpectrum: icp.politicalSpectrum ?? '',
+    openness: icp.openness ?? '',
+    fears: icp.fears ?? '',
+    values: icp.values ?? '',
+    desires: icp.desires ?? '',
+    unexpressedDesires: icp.unexpressedDesires ?? '',
+    turnOffs: icp.turnOffs ?? '',
+  }
+}
+
+function inputFromAnswers(a: Answers): IcpInput {
+  return {
+    name: a.name.trim(),
+    ageRange: a.ageRange.trim() || null,
+    location: a.location.trim() || null,
+    politicalSpectrum: a.politicalSpectrum.trim() || null,
+    openness: a.openness.trim() || null,
+    fears: a.fears.trim() || null,
+    values: a.values.trim() || null,
+    desires: a.desires.trim() || null,
+    unexpressedDesires: a.unexpressedDesires.trim() || null,
+    turnOffs: a.turnOffs.trim() || null,
+  }
+}
+
+function hasExtendedFilled(a: Answers): boolean {
+  return QUESTIONS
+    .filter((q) => !BASIC_KEYS.includes(q.key))
+    .some((q) => (a[q.key] ?? '').trim().length > 0)
+}
+
 export function IcpIntake() {
-  const { tier } = useTier()
+  const { stores, tier } = useTier()
 
   if (TIER_RANK[tier] < TIER_RANK.core) {
     return (
@@ -68,7 +106,18 @@ export function IcpIntake() {
     )
   }
 
-  return <IcpIntakeForm />
+  if (TIER_RANK[tier] >= TIER_RANK.pro) {
+    return <ProIcpIntake stores={stores} />
+  }
+
+  return <CoreIcpIntake stores={stores} />
+}
+
+// ─── Core ───────────────────────────────────────────────────────────────────
+
+function CoreIcpIntake({ stores }: { stores: StoreRow[] }) {
+  const primary = primaryStore(stores)
+  return <IcpIntakeForm storeName={primary?.name ?? null} />
 }
 
 type SaveState =
@@ -76,7 +125,7 @@ type SaveState =
   | { kind: 'saving' }
   | { kind: 'saved'; at: number }
 
-function IcpIntakeForm() {
+function IcpIntakeForm({ storeName }: { storeName: string | null }) {
   const [answers, setAnswers] = useState<Answers>(EMPTY_ANSWERS)
   const [loaded, setLoaded] = useState<Answers>(EMPTY_ANSWERS)
   const [loading, setLoading] = useState(true)
@@ -92,27 +141,11 @@ function IcpIntakeForm() {
       .then((r) => {
         if (cancelled) return
         if (r.icp) {
-          const next: Answers = {
-            name: r.icp.name ?? '',
-            ageRange: r.icp.ageRange ?? '',
-            location: r.icp.location ?? '',
-            politicalSpectrum: r.icp.politicalSpectrum ?? '',
-            openness: r.icp.openness ?? '',
-            fears: r.icp.fears ?? '',
-            values: r.icp.values ?? '',
-            desires: r.icp.desires ?? '',
-            unexpressedDesires: r.icp.unexpressedDesires ?? '',
-            turnOffs: r.icp.turnOffs ?? '',
-          }
+          const next = answersFromIcp(r.icp)
           setAnswers(next)
           setLoaded(next)
           setSavedAt(r.icp.updatedAt)
-          // If any of the deeper questions already have answers, expand the
-          // extended section so the user sees their previous work.
-          const hasExtended = QUESTIONS
-            .filter((q) => !BASIC_KEYS.includes(q.key))
-            .some((q) => (next[q.key] ?? '').trim().length > 0)
-          if (hasExtended) setShowExtended(true)
+          if (hasExtendedFilled(next)) setShowExtended(true)
         }
       })
       .catch(() => { if (!cancelled) setError('Could not load your saved intake.') })
@@ -128,8 +161,6 @@ function IcpIntakeForm() {
   const doSave = async (opts: { silent?: boolean } = {}) => {
     if (saveState.kind === 'saving') return
     if (!answers.name.trim()) {
-      // For autosave we never surface a "name required" — just skip.
-      // For explicit save we show the error.
       if (!opts.silent) setError('Audience name is required.')
       return
     }
@@ -137,31 +168,8 @@ function IcpIntakeForm() {
     const wasFirstSave = !savedAt
     setSaveState({ kind: 'saving' })
     try {
-      const payload: IcpInput = {
-        name: answers.name.trim(),
-        ageRange: answers.ageRange.trim() || null,
-        location: answers.location.trim() || null,
-        politicalSpectrum: answers.politicalSpectrum.trim() || null,
-        openness: answers.openness.trim() || null,
-        fears: answers.fears.trim() || null,
-        values: answers.values.trim() || null,
-        desires: answers.desires.trim() || null,
-        unexpressedDesires: answers.unexpressedDesires.trim() || null,
-        turnOffs: answers.turnOffs.trim() || null,
-      }
-      const { icp } = await api.saveMeIcp(payload)
-      const next: Answers = {
-        name: icp.name ?? '',
-        ageRange: icp.ageRange ?? '',
-        location: icp.location ?? '',
-        politicalSpectrum: icp.politicalSpectrum ?? '',
-        openness: icp.openness ?? '',
-        fears: icp.fears ?? '',
-        values: icp.values ?? '',
-        desires: icp.desires ?? '',
-        unexpressedDesires: icp.unexpressedDesires ?? '',
-        turnOffs: icp.turnOffs ?? '',
-      }
+      const { icp } = await api.saveMeIcp(inputFromAnswers(answers))
+      const next = answersFromIcp(icp)
       setAnswers(next)
       setLoaded(next)
       setSavedAt(icp.updatedAt)
@@ -177,20 +185,433 @@ function IcpIntakeForm() {
     }
   }
 
-  // Autosave on blur if the field has a value and the form has changes.
-  // Silent — no user-facing error if it fails (they can still hit Save).
   const onFieldBlur = (k: AnswerKey) => {
     if (!dirty) return
     if (k === 'name' && !answers.name.trim()) return
     doSave({ silent: true })
   }
 
-  if (showSuccess) {
-    return <SuccessState />
+  if (showSuccess) return <SuccessState />
+
+  const basicQs = QUESTIONS.filter((q) => BASIC_KEYS.includes(q.key))
+  const extendedQs = QUESTIONS.filter((q) => !BASIC_KEYS.includes(q.key))
+
+  return (
+    <Layout>
+      <div style={{ marginBottom: 32, maxWidth: 640 }}>
+        <Eyebrow>Your customer</Eyebrow>
+        <h1 style={{
+          fontFamily: T.heading,
+          fontSize: 'clamp(1.7rem, 2.6vw, 2.3rem)',
+          fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.1,
+          color: T.text, margin: '0 0 12px',
+        }}>
+          Who walks into your store?
+        </h1>
+        {storeName && <LocationLabel name={storeName} />}
+        <p style={{
+          fontSize: 15, lineHeight: 1.55,
+          color: T.textDim, margin: 0, maxWidth: '52ch',
+        }}>
+          Each answer changes the music. None of them are wrong, and you can
+          come back and re-tune any time.
+        </p>
+        <SaveIndicator saveState={saveState} savedAt={savedAt} />
+      </div>
+
+      <div style={questionsBlockStyle}>
+        {loading ? (
+          <div style={{ color: T.textDim, fontSize: 14 }}>Loading…</div>
+        ) : (
+          <div style={{ display: 'grid', gap: 28 }}>
+            {basicQs.map((q) => (
+              <QuestionField
+                key={q.key} q={q}
+                value={answers[q.key]}
+                onChange={(v) => update(q.key, v)}
+                onBlur={() => onFieldBlur(q.key)}
+              />
+            ))}
+
+            {!showExtended && (
+              <ExpandExtendedButton onClick={() => setShowExtended(true)} />
+            )}
+            {showExtended && extendedQs.map((q) => (
+              <QuestionField
+                key={q.key} q={q}
+                value={answers[q.key]}
+                onChange={(v) => update(q.key, v)}
+                onBlur={() => onFieldBlur(q.key)}
+              />
+            ))}
+
+            {error && <ErrorRow message={error} />}
+
+            <FormActions
+              right={
+                <>
+                  <Button variant="ghost" onClick={() => setAnswers(loaded)} disabled={!dirty || saveState.kind === 'saving'}>
+                    Reset
+                  </Button>
+                  <Button onClick={() => doSave()} disabled={!dirty || saveState.kind === 'saving'}>
+                    {saveState.kind === 'saving' ? 'Saving…' : (savedAt ? 'Save changes' : 'Tune my music')}
+                  </Button>
+                </>
+              }
+            />
+          </div>
+        )}
+      </div>
+    </Layout>
+  )
+}
+
+// ─── Pro ────────────────────────────────────────────────────────────────────
+
+function ProIcpIntake({ stores }: { stores: StoreRow[] }) {
+  const initial = primaryStore(stores) ?? stores[0]
+  const [selectedStoreId, setSelectedStoreId] = useState<string>(initial?.id ?? '')
+  const [editing, setEditing] = useState<
+    | { mode: 'add' }
+    | { mode: 'edit'; icp: IcpListRow }
+    | null
+  >(null)
+  const [audiences, setAudiences] = useState<IcpListRow[] | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const reload = async () => {
+    if (!selectedStoreId) return
+    setLoading(true)
+    try {
+      const r = await api.meStoreIcps(selectedStoreId)
+      setAudiences(r.icps)
+      setError(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load audiences.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const renderQuestion = (q: { key: AnswerKey; label: string; example: string }) => (
-    <div key={q.key}>
+  useEffect(() => { reload() /* eslint-disable-line react-hooks/exhaustive-deps */ }, [selectedStoreId])
+
+  const selectedStoreName = stores.find((s) => s.id === selectedStoreId)?.name ?? ''
+
+  if (editing) {
+    return (
+      <Layout>
+        <AudienceEditor
+          mode={editing.mode}
+          storeId={selectedStoreId}
+          storeName={selectedStoreName}
+          icp={editing.mode === 'edit' ? editing.icp : null}
+          onDone={() => { setEditing(null); reload() }}
+          onCancel={() => setEditing(null)}
+        />
+      </Layout>
+    )
+  }
+
+  return (
+    <Layout>
+      <div style={{ marginBottom: 24, maxWidth: 760 }}>
+        <Eyebrow>Your audiences</Eyebrow>
+        <h1 style={{
+          fontFamily: T.heading,
+          fontSize: 'clamp(1.7rem, 2.6vw, 2.3rem)',
+          fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.1,
+          color: T.text, margin: '0 0 12px',
+        }}>
+          Who walks in?
+        </h1>
+        <p style={{
+          fontSize: 15, lineHeight: 1.55,
+          color: T.textDim, margin: 0, maxWidth: '60ch',
+        }}>
+          A location can have several personas — Gary, Jen, Marcus.
+          Each one shapes its own slice of the music library.
+        </p>
+      </div>
+
+      {stores.length > 1 && (
+        <LocationPicker
+          stores={stores}
+          value={selectedStoreId}
+          onChange={setSelectedStoreId}
+        />
+      )}
+
+      <AudiencesList
+        audiences={audiences}
+        loading={loading}
+        error={error}
+        storeName={selectedStoreName}
+        onAdd={() => setEditing({ mode: 'add' })}
+        onEdit={(icp) => setEditing({ mode: 'edit', icp })}
+        onRetire={async (icp) => {
+          const ok = window.confirm(
+            `Retire ${icp.name}? Their songs will stop playing — they're not deleted, so we can restore them later.`,
+          )
+          if (!ok) return
+          try {
+            await api.retireIcp(icp.id)
+            reload()
+          } catch (e) {
+            alert(`Retire failed: ${e instanceof Error ? e.message : 'unknown'}`)
+          }
+        }}
+      />
+    </Layout>
+  )
+}
+
+function LocationPicker({ stores, value, onChange }: {
+  stores: StoreRow[]
+  value: string
+  onChange: (id: string) => void
+}) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      marginBottom: 24,
+    }}>
+      <label style={{ fontSize: 13, color: T.textMuted, fontFamily: T.sans }}>
+        Location
+      </label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          background: T.surfaceRaised,
+          border: `1px solid ${T.border}`,
+          color: T.text,
+          fontFamily: T.sans, fontSize: 14,
+          padding: '6px 10px', borderRadius: 4,
+          cursor: 'pointer',
+        }}
+      >
+        {stores.map((s) => (
+          <option key={s.id} value={s.id}>{s.name}</option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+function AudiencesList({
+  audiences, loading, error, storeName,
+  onAdd, onEdit, onRetire,
+}: {
+  audiences: IcpListRow[] | null
+  loading: boolean
+  error: string | null
+  storeName: string
+  onAdd: () => void
+  onEdit: (icp: IcpListRow) => void
+  onRetire: (icp: IcpListRow) => void
+}) {
+  if (loading && audiences === null) {
+    return <div style={{ color: T.textDim, fontSize: 14 }}>Loading…</div>
+  }
+  if (error) return <ErrorRow message={error} />
+
+  return (
+    <div style={{ maxWidth: 760, display: 'grid', gap: 12 }}>
+      {(audiences ?? []).length === 0 ? (
+        <div style={{
+          border: `1px dashed ${T.border}`,
+          borderRadius: 6, padding: 24,
+          color: T.textDim, fontSize: 14, lineHeight: 1.5,
+          fontFamily: T.sans,
+        }}>
+          No audiences yet for {storeName}. Add one and we'll start composing for them.
+        </div>
+      ) : (
+        (audiences ?? []).map((icp) => (
+          <AudienceCard
+            key={icp.id} icp={icp}
+            onEdit={() => onEdit(icp)}
+            onRetire={() => onRetire(icp)}
+          />
+        ))
+      )}
+
+      <button
+        type="button"
+        onClick={onAdd}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          background: 'transparent',
+          border: `1px solid ${T.border}`,
+          color: T.accent,
+          padding: '12px 16px', borderRadius: 4,
+          fontFamily: T.sans, fontSize: 14, fontWeight: 500,
+          cursor: 'pointer',
+          alignSelf: 'flex-start',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.borderActive }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.border }}
+      >
+        <Plus size={14} strokeWidth={2} /> Add an audience
+      </button>
+    </div>
+  )
+}
+
+function AudienceCard({ icp, onEdit, onRetire }: {
+  icp: IcpListRow
+  onEdit: () => void
+  onRetire: () => void
+}) {
+  const subline = [icp.ageRange, icp.location].filter(Boolean).join(' · ')
+
+  return (
+    <div style={{
+      background: T.surfaceRaised,
+      border: `1px solid ${T.border}`,
+      borderRadius: 6, padding: 18,
+      display: 'flex', alignItems: 'center', gap: 12,
+    }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontFamily: T.heading, fontSize: 17, fontWeight: 600,
+          color: T.text, letterSpacing: '-0.01em',
+        }}>
+          {icp.name}
+        </div>
+        <div style={{
+          fontSize: 13, color: T.textDim, marginTop: 4,
+          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+        }}>
+          {subline && <span>{subline}</span>}
+          {subline && <span style={{ color: T.textFaint }}>·</span>}
+          <span style={{ color: T.textMuted }}>
+            {icp.songCount} song{icp.songCount === 1 ? '' : 's'}
+          </span>
+        </div>
+      </div>
+      <button onClick={onEdit} style={iconActionStyle} title="Edit audience">
+        <Pencil size={13} strokeWidth={1.75} /> Edit
+      </button>
+      <button onClick={onRetire} style={iconActionStyle} title="Retire audience">
+        <Archive size={13} strokeWidth={1.75} /> Retire
+      </button>
+    </div>
+  )
+}
+
+function AudienceEditor({
+  mode, storeId, storeName, icp, onDone, onCancel,
+}: {
+  mode: 'add' | 'edit'
+  storeId: string
+  storeName: string
+  icp: IcpListRow | null
+  onDone: () => void
+  onCancel: () => void
+}) {
+  const [answers, setAnswers] = useState<Answers>(
+    icp ? answersFromIcp(icp) : EMPTY_ANSWERS,
+  )
+  const [showExtended, setShowExtended] = useState<boolean>(
+    icp ? hasExtendedFilled(answersFromIcp(icp)) : false,
+  )
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const update = (k: AnswerKey, v: string) =>
+    setAnswers((a) => ({ ...a, [k]: v }))
+
+  const submit = async () => {
+    if (busy) return
+    if (!answers.name.trim()) {
+      setError('Persona name is required.')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const payload = inputFromAnswers(answers)
+      if (mode === 'add') {
+        await api.createIcp(storeId, payload)
+      } else if (icp) {
+        await api.updateIcp(icp.id, payload)
+      }
+      onDone()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed.')
+      setBusy(false)
+    }
+  }
+
+  const basicQs = QUESTIONS.filter((q) => BASIC_KEYS.includes(q.key))
+  const extendedQs = QUESTIONS.filter((q) => !BASIC_KEYS.includes(q.key))
+
+  return (
+    <>
+      <div style={{ marginBottom: 24, maxWidth: 640 }}>
+        <Eyebrow>{mode === 'add' ? 'New audience' : 'Edit audience'}</Eyebrow>
+        <h1 style={{
+          fontFamily: T.heading,
+          fontSize: 'clamp(1.6rem, 2.4vw, 2.1rem)',
+          fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.1,
+          color: T.text, margin: '0 0 12px',
+        }}>
+          {mode === 'add' ? 'Tell us about this persona' : `Editing ${icp?.name ?? 'audience'}`}
+        </h1>
+        <LocationLabel name={storeName} />
+      </div>
+
+      <div style={questionsBlockStyle}>
+        <div style={{ display: 'grid', gap: 28 }}>
+          {basicQs.map((q) => (
+            <QuestionField
+              key={q.key} q={q}
+              value={answers[q.key]}
+              onChange={(v) => update(q.key, v)}
+            />
+          ))}
+
+          {!showExtended && (
+            <ExpandExtendedButton onClick={() => setShowExtended(true)} />
+          )}
+          {showExtended && extendedQs.map((q) => (
+            <QuestionField
+              key={q.key} q={q}
+              value={answers[q.key]}
+              onChange={(v) => update(q.key, v)}
+            />
+          ))}
+
+          {error && <ErrorRow message={error} />}
+
+          <FormActions
+            right={
+              <>
+                <Button variant="ghost" onClick={onCancel} disabled={busy}>Cancel</Button>
+                <Button onClick={submit} disabled={busy}>
+                  {busy ? 'Saving…' : (mode === 'add' ? 'Create audience' : 'Save changes')}
+                </Button>
+              </>
+            }
+          />
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ─── Shared UI bits ─────────────────────────────────────────────────────────
+
+function QuestionField({ q, value, onChange, onBlur }: {
+  q: { key: AnswerKey; label: string; example: string }
+  value: string
+  onChange: (v: string) => void
+  onBlur?: () => void
+}) {
+  return (
+    <div>
       <label style={{
         display: 'block',
         fontFamily: T.heading,
@@ -201,9 +622,9 @@ function IcpIntakeForm() {
         {q.label}
       </label>
       <Input
-        value={answers[q.key]}
-        onChange={(e) => update(q.key, e.target.value)}
-        onBlur={() => onFieldBlur(q.key)}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         style={{
           background: 'transparent',
           border: 'none',
@@ -221,103 +642,71 @@ function IcpIntakeForm() {
       </div>
     </div>
   )
+}
 
-  const basicQs = QUESTIONS.filter((q) => BASIC_KEYS.includes(q.key))
-  const extendedQs = QUESTIONS.filter((q) => !BASIC_KEYS.includes(q.key))
-
+function ExpandExtendedButton({ onClick }: { onClick: () => void }) {
   return (
-    <Layout>
-      <div style={{ marginBottom: 32, maxWidth: 640 }}>
-        <Eyebrow>Your customer</Eyebrow>
-        <h1 style={{
-          fontFamily: T.heading,
-          fontSize: 'clamp(1.7rem, 2.6vw, 2.3rem)',
-          fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.1,
-          color: T.text, margin: '0 0 12px',
-        }}>
-          Who walks into your store?
-        </h1>
-        <p style={{
-          fontSize: 15, lineHeight: 1.55,
-          color: T.textDim, margin: 0, maxWidth: '52ch',
-        }}>
-          Each answer changes the music. None of them are wrong, and you can
-          come back and re-tune any time.
-        </p>
-        <SaveIndicator saveState={saveState} savedAt={savedAt} />
-      </div>
-
-      <div style={{
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
         background: 'transparent',
-        borderLeft: `3px solid ${T.accent}`,
-        paddingLeft: 24,
-        maxWidth: 720,
-      }}>
-        {loading ? (
-          <div style={{ color: T.textDim, fontSize: 14 }}>Loading…</div>
-        ) : (
-          <div style={{ display: 'grid', gap: 28 }}>
-            {basicQs.map(renderQuestion)}
-
-            {!showExtended && (
-              <button
-                type="button"
-                onClick={() => setShowExtended(true)}
-                style={{
-                  background: 'transparent',
-                  border: `1px solid ${T.border}`,
-                  color: T.accent,
-                  padding: '12px 16px',
-                  borderRadius: 4,
-                  fontFamily: T.sans, fontSize: 14, fontWeight: 500,
-                  cursor: 'pointer', textAlign: 'left',
-                  display: 'flex', alignItems: 'center',
-                  justifyContent: 'space-between', gap: 12,
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.borderActive }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.border }}
-              >
-                <span>
-                  Add more detail
-                  <span style={{
-                    color: T.textFaint, fontSize: 13, marginLeft: 10,
-                    fontWeight: 400,
-                  }}>
-                    Seven more questions — they sharpen the music
-                  </span>
-                </span>
-                <ArrowRight size={16} strokeWidth={1.75} />
-              </button>
-            )}
-
-            {showExtended && extendedQs.map(renderQuestion)}
-
-            {error && (
-              <div style={{ color: T.danger, fontSize: 13 }}>{error}</div>
-            )}
-
-            <div style={{
-              display: 'flex', justifyContent: 'flex-end',
-              gap: 12, alignItems: 'center',
-              borderTop: `1px solid ${T.borderSubtle}`,
-              paddingTop: 20, marginTop: 8,
-            }}>
-              <Button variant="ghost" onClick={() => setAnswers(loaded)} disabled={!dirty || saveState.kind === 'saving'}>
-                Reset
-              </Button>
-              <Button onClick={() => doSave()} disabled={!dirty || saveState.kind === 'saving'}>
-                {saveState.kind === 'saving' ? 'Saving…' : (savedAt ? 'Save changes' : 'Tune my music')}
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
-    </Layout>
+        border: `1px solid ${T.border}`,
+        color: T.accent,
+        padding: '12px 16px',
+        borderRadius: 4,
+        fontFamily: T.sans, fontSize: 14, fontWeight: 500,
+        cursor: 'pointer', textAlign: 'left',
+        display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between', gap: 12,
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.borderActive }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.border }}
+    >
+      <span>
+        Add more detail
+        <span style={{
+          color: T.textFaint, fontSize: 13, marginLeft: 10,
+          fontWeight: 400,
+        }}>
+          Seven more questions — they sharpen the music
+        </span>
+      </span>
+      <ArrowRight size={16} strokeWidth={1.75} />
+    </button>
   )
 }
 
-// Live save indicator under the headline. Switches between the persistent
-// "saved at" timestamp and a transient "Saved just now" flash on autosave.
+function FormActions({ right }: { right: React.ReactNode }) {
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'flex-end',
+      gap: 12, alignItems: 'center',
+      borderTop: `1px solid ${T.borderSubtle}`,
+      paddingTop: 20, marginTop: 8,
+    }}>
+      {right}
+    </div>
+  )
+}
+
+function ErrorRow({ message }: { message: string }) {
+  return <div style={{ color: T.danger, fontSize: 13 }}>{message}</div>
+}
+
+function LocationLabel({ name }: { name: string }) {
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6,
+      color: T.textMuted, fontSize: 13, fontFamily: T.sans,
+      marginBottom: 14,
+    }}>
+      <MapPin size={13} strokeWidth={1.75} />
+      <span>For: <span style={{ color: T.text }}>{name}</span></span>
+    </div>
+  )
+}
+
 function SaveIndicator({ saveState, savedAt }: { saveState: SaveState; savedAt: string | null }) {
   if (saveState.kind === 'saving') {
     return (
@@ -352,8 +741,6 @@ function SaveIndicator({ saveState, savedAt }: { saveState: SaveState; savedAt: 
   return null
 }
 
-// Shown after the very first save completes successfully. Marks the high
-// moment instead of leaving the user staring at a "Saved 3:42 PM" timestamp.
 function SuccessState() {
   return (
     <Layout>
@@ -435,4 +822,18 @@ function NextStepRow({ to, title, sub }: { to: string; title: string; sub: strin
       <ArrowRight size={16} strokeWidth={1.75} color={T.accent} />
     </Link>
   )
+}
+
+const questionsBlockStyle: CSSProperties = {
+  background: 'transparent',
+  borderLeft: `3px solid ${T.accent}`,
+  paddingLeft: 24,
+  maxWidth: 720,
+}
+
+const iconActionStyle: CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 6,
+  background: 'transparent', border: `1px solid ${T.border}`,
+  color: T.textMuted, padding: '6px 12px', borderRadius: 3,
+  fontFamily: T.sans, fontSize: 13, cursor: 'pointer',
 }
