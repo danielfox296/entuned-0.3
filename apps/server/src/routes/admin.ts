@@ -1566,9 +1566,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const existing = await prisma.hook.findUnique({ where: { id } })
     if (!existing) return reply.code(404).send({ error: 'not_found' })
-    if (existing.status === 'approved') {
-      return reply.code(409).send({ error: 'approved_hook_immutable', message: 'Approved hooks cannot be edited. Create a new hook instead.' })
-    }
     const row = await prisma.hook.update({
       where: { id }, data: parsed.data,
       include: { outcome: { select: { id: true, title: true, displayTitle: true, version: true } } },
@@ -2075,9 +2072,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const id = (req.params as any).id as string
     const existing = await prisma.hook.findUnique({ where: { id } })
     if (!existing) return reply.code(404).send({ error: 'not_found' })
-    if (existing.status === 'approved') {
-      return reply.code(409).send({ error: 'approved_hook_immutable', message: 'Approved hooks cannot be deleted. Retirement flow not implemented yet.' })
-    }
     await prisma.hook.delete({ where: { id } })
     return { ok: true }
   })

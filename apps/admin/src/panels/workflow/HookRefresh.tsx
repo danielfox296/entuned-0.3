@@ -328,7 +328,15 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
                   <Empty>no approved hooks yet for this outcome</Empty>
                 ) : (
                   (approvedByOutcome[activeOutcome.id] ?? []).map((h) => (
-                    <ApprovedRow key={h.id} hook={h} />
+                    <ApprovedRow
+                      key={h.id}
+                      hook={h}
+                      pendingText={edits[h.id]}
+                      busy={busy.has(h.id)}
+                      onChange={(text) => setEdit(h.id, text)}
+                      onBlur={() => flushEdit(h.id)}
+                      onDelete={() => discard(h.id)}
+                    />
                   ))
                 )}
               </Column>
@@ -382,7 +390,16 @@ function OutcomeTag({ title }: { title: string }) {
   )
 }
 
-function ApprovedRow({ hook }: { hook: HookRowFull }) {
+function ApprovedRow({ hook, pendingText, busy, onChange, onBlur, onDelete }: {
+  hook: HookRowFull
+  pendingText: string | undefined
+  busy: boolean
+  onChange: (text: string) => void
+  onBlur: () => void
+  onDelete: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const text = pendingText !== undefined ? pendingText : hook.text
   return (
     <div style={{
       background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
@@ -390,10 +407,50 @@ function ApprovedRow({ hook }: { hook: HookRowFull }) {
       flexDirection: 'column', gap: 8,
     }}>
       <OutcomeTag title={outcomeLabel(hook.outcome)} />
-      <div style={{
-        fontFamily: T.sans, fontSize: 14, color: T.text,
-        lineHeight: 1.5, whiteSpace: 'pre-wrap',
-      }}>{hook.text}</div>
+      {editing ? (
+        <textarea
+          value={text}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={() => { onBlur(); setEditing(false) }}
+          autoFocus
+          disabled={busy}
+          rows={3}
+          style={{
+            background: T.bg, color: T.text, border: `1px solid ${T.border}`,
+            borderRadius: 3, padding: '8px 10px', fontFamily: T.sans, fontSize: 14,
+            lineHeight: 1.5, resize: 'vertical', outline: 'none',
+          }}
+        />
+      ) : (
+        <div
+          onClick={() => setEditing(true)}
+          style={{
+            fontFamily: T.sans, fontSize: 14, color: T.text,
+            lineHeight: 1.5, whiteSpace: 'pre-wrap', cursor: 'text',
+          }}
+        >{text}</div>
+      )}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        {!editing && (
+          <button
+            onClick={() => setEditing(true)}
+            style={{
+              background: 'transparent', border: `1px solid ${T.border}`,
+              color: T.textMuted, padding: '4px 10px', borderRadius: 3,
+              fontFamily: T.sans, fontSize: 12, cursor: 'pointer',
+            }}
+          >edit</button>
+        )}
+        <button
+          onClick={onDelete}
+          disabled={busy}
+          style={{
+            background: 'transparent', border: `1px solid ${T.border}`,
+            color: T.danger, padding: '4px 10px', borderRadius: 3,
+            fontFamily: T.sans, fontSize: 12, cursor: 'pointer',
+          }}
+        >delete</button>
+      </div>
     </div>
   )
 }
