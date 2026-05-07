@@ -686,8 +686,6 @@ export interface DraftedHook {
 }
 
 export type StyleAnalysisUpdate = Partial<{
-  status: 'draft' | 'verified'
-  confidence: 'low' | 'medium' | 'high' | null
   vibePitch: string | null
   eraProductionSignature: string | null
   instrumentationPalette: string | null
@@ -836,8 +834,8 @@ export const api = {
       { method: 'POST' },
       token,
     ),
-  decomposeReferenceTrack: (id: string, force: boolean, token: string) =>
-    req<StyleAnalysisRow>(`/admin/reference-tracks/${id}/decompose${force ? '?force=1' : ''}`, { method: 'POST' }, token),
+  decomposeReferenceTrack: (id: string, token: string) =>
+    req<StyleAnalysisRow>(`/admin/reference-tracks/${id}/decompose`, { method: 'POST' }, token),
   decomposeAllReferenceTracks: (token: string) =>
     req<{ total: number; processed: number; failed: number; errors: { id: string; artist: string; title: string; error: string }[] }>('/admin/reference-tracks/decompose-all', { method: 'POST' }, token),
   rejectReferenceTrack: (id: string, token: string) =>

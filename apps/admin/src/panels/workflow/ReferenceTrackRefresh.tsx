@@ -242,11 +242,11 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
     }
   }
 
-  const analyze = async (t: ReferenceTrackRow, force = false) => {
+  const analyze = async (t: ReferenceTrackRow) => {
     const token = getToken(); if (!token) return
     setAnalyzing((s) => new Set(s).add(t.id))
     try {
-      await api.decomposeReferenceTrack(t.id, force, token)
+      await api.decomposeReferenceTrack(t.id, token)
       await refetch()
       toast.success('reference track decomposed')
     } catch (e: any) {
@@ -361,7 +361,7 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
         onClose={() => setOpenTrackId(null)}
         onSaved={() => { refetch() }}
         analyzing={openTrack ? analyzing.has(openTrack.id) : false}
-        onAnalyze={(force) => openTrack && analyze(openTrack, force)}
+        onAnalyze={() => openTrack && analyze(openTrack)}
         onResolvedPreview={refetch}
       />
     </div>
@@ -632,7 +632,7 @@ function ApprovedRow({ track, analyzing, onOpen, onResolvedPreview }: {
         <span>·</span>
         {track.useCount > 0 && <><span>in use</span><span>·</span></>}
         <span style={{ color: analysis ? T.accent : T.textDim }}>
-          {analysis ? `decomposed (${analysis.status})` : 'not decomposed'}
+          {analysis ? 'decomposed' : 'not decomposed'}
         </span>
       </div>
       {/* Decomposition (first-time and re-decompose) lives only inside the
@@ -750,7 +750,7 @@ function StyleAnalysisModal({ track, onClose, onSaved, analyzing, onAnalyze, onR
   onClose: () => void
   onSaved: () => void
   analyzing: boolean
-  onAnalyze: (force: boolean) => void
+  onAnalyze: () => void
   onResolvedPreview: () => void
 }) {
   const toast = useToast()
@@ -793,7 +793,7 @@ function StyleAnalysisModal({ track, onClose, onSaved, analyzing, onAnalyze, onR
       footer={analysis ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
           <button
-            onClick={() => onAnalyze(true)}
+            onClick={onAnalyze}
             disabled={analyzing || saving}
             style={ghostBtnStyle}
             title="discard the current decomposition and run again"
@@ -835,7 +835,7 @@ function StyleAnalysisModal({ track, onClose, onSaved, analyzing, onAnalyze, onR
               Not decomposed yet.
             </div>
             <div>
-              <Button onClick={() => onAnalyze(false)} disabled={analyzing}>
+              <Button onClick={onAnalyze} disabled={analyzing}>
                 {analyzing ? 'decomposing…' : 'decompose'}
               </Button>
             </div>
@@ -843,35 +843,6 @@ function StyleAnalysisModal({ track, onClose, onSaved, analyzing, onAnalyze, onR
           </div>
         ) : (
           <>
-            <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10,
-              paddingBottom: 10, borderBottom: `1px solid ${T.borderSubtle}`,
-            }}>
-              <Field label="status">
-                <select
-                  value={v('status', analysis.status)}
-                  onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as any }))}
-                  style={inputStyle}
-                >
-                  <option value="draft">draft</option>
-                  <option value="verified">verified</option>
-                </select>
-              </Field>
-              <Field label="confidence">
-                <select
-                  value={v('confidence', analysis.confidence) ?? ''}
-                  onChange={(e) => setDraft((d) => ({ ...d, confidence: (e.target.value || null) as any }))}
-                  style={inputStyle}
-                >
-                  <option value="">—</option>
-                  <option value="low">low</option>
-                  <option value="medium">medium</option>
-                  <option value="high">high</option>
-                </select>
-              </Field>
-            </div>
-
-            {/* Narrative fields, two per row. */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {ANALYSIS_FIELDS.map(({ key, label }) => (
                 <Field key={key} label={label}>
@@ -885,11 +856,10 @@ function StyleAnalysisModal({ track, onClose, onSaved, analyzing, onAnalyze, onR
               ))}
             </div>
 
-            {analyzing && <LlmProgress etaSeconds={30} label="re-analyzing track" />}
+            {analyzing && <LlmProgress etaSeconds={30} label="re-decomposing track" />}
 
             <div style={{ fontFamily: T.mono, fontSize: 12, color: T.textDim }}>
-              instructions v{analysis.styleAnalyzerInstructionsVersion}
-              {analysis.verifiedAt ? ` · verified ${new Date(analysis.verifiedAt).toLocaleDateString()}` : ''}
+              rules v{analysis.styleAnalyzerInstructionsVersion}
             </div>
           </>
         )}

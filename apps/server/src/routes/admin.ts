@@ -776,6 +776,39 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         where: { id },
         data: { status: 'approved', approvedAt: new Date(), approvedById: op.operatorId },
       })
+      // Fire-and-forget: auto-decompose on approval
+      decompose({
+        artist: row.artist,
+        title: row.title,
+        year: row.year ?? undefined,
+        operatorNotes: row.operatorNotes ?? undefined,
+      }).then(async (result) => {
+        const data = {
+          styleAnalyzerInstructionsVersion: result.rulesVersion,
+          status: 'draft',
+          verifiedAt: null,
+          verifiedById: null,
+          confidence: result.output.confidence,
+          vibePitch: result.output.vibe_pitch,
+          eraProductionSignature: result.output.era_production_signature,
+          instrumentationPalette: result.output.instrumentation_palette,
+          standoutElement: result.output.standout_element,
+          arrangementShape: result.output.arrangement_shape ?? null,
+          dynamicCurve: result.output.dynamic_curve ?? null,
+          vocalCharacter: result.output.vocal_character,
+          vocalArrangement: result.output.vocal_arrangement,
+          harmonicAndGroove: result.output.harmonic_and_groove,
+          arrangementSections: result.output.arrangement_sections ?? Prisma.JsonNull,
+          arrangementVersion: result.output.arrangement_sections ? result.rulesVersion : null,
+        }
+        await prisma.styleAnalysis.upsert({
+          where: { referenceTrackId: id },
+          create: { referenceTrackId: id, ...data },
+          update: data,
+        })
+      }).catch((e) => {
+        console.error(`[auto-decompose] failed for ${row.artist} — ${row.title}:`, e.message)
+      })
       return row
     } catch {
       return reply.code(404).send({ error: 'not_found' })
@@ -800,33 +833,63 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       status: 'pending',
       ...(bucket ? { bucket: bucket as (typeof allowedBuckets)[number] } : {}),
     }
-    const targets = await prisma.referenceTrack.findMany({ where, select: { id: true } })
+    const targets = await prisma.referenceTrack.findMany({ where, select: { id: true, artist: true, title: true, year: true, operatorNotes: true } })
     if (targets.length === 0) return { approvedCount: 0, ids: [] as string[] }
     const ids = targets.map((t) => t.id)
     await prisma.referenceTrack.updateMany({
       where: { id: { in: ids } },
       data: { status: 'approved', approvedAt: new Date(), approvedById: op.operatorId },
     })
+    // Fire-and-forget: auto-decompose all approved tracks
+    for (const ref of targets) {
+      decompose({
+        artist: ref.artist,
+        title: ref.title,
+        year: ref.year ?? undefined,
+        operatorNotes: ref.operatorNotes ?? undefined,
+      }).then(async (result) => {
+        const data = {
+          styleAnalyzerInstructionsVersion: result.rulesVersion,
+          status: 'draft',
+          verifiedAt: null,
+          verifiedById: null,
+          confidence: result.output.confidence,
+          vibePitch: result.output.vibe_pitch,
+          eraProductionSignature: result.output.era_production_signature,
+          instrumentationPalette: result.output.instrumentation_palette,
+          standoutElement: result.output.standout_element,
+          arrangementShape: result.output.arrangement_shape ?? null,
+          dynamicCurve: result.output.dynamic_curve ?? null,
+          vocalCharacter: result.output.vocal_character,
+          vocalArrangement: result.output.vocal_arrangement,
+          harmonicAndGroove: result.output.harmonic_and_groove,
+          arrangementSections: result.output.arrangement_sections ?? Prisma.JsonNull,
+          arrangementVersion: result.output.arrangement_sections ? result.rulesVersion : null,
+        }
+        await prisma.styleAnalysis.upsert({
+          where: { referenceTrackId: ref.id },
+          create: { referenceTrackId: ref.id, ...data },
+          update: data,
+        })
+      }).catch((e) => {
+        console.error(`[auto-decompose] failed for ${ref.artist} — ${ref.title}:`, e.message)
+      })
+    }
     return { approvedCount: ids.length, ids }
   })
 
   // --- Decompose now: runs Claude with web search; upserts StyleAnalysis row. ---
-  // Always overwrites the existing draft; verified rows return 409 unless ?force=1.
-  // Pending suggestions cannot be decomposed — approve first.
+  // Always overwrites any existing analysis. Pending suggestions cannot be
+  // decomposed — approve first.
   app.post('/reference-tracks/:id/decompose', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
-    const force = (req.query as any)?.force === '1'
     const ref = await prisma.referenceTrack.findUnique({
       where: { id },
-      include: { styleAnalysis: true },
     })
     if (!ref) return reply.code(404).send({ error: 'not_found' })
     if (ref.status === 'pending') {
       return reply.code(409).send({ error: 'pending_reference_track', message: 'Approve the suggestion before decomposing.' })
-    }
-    if (ref.styleAnalysis && ref.styleAnalysis.status === 'verified' && !force) {
-      return reply.code(409).send({ error: 'verified_style_analysis_exists', message: 'Pass ?force=1 to overwrite a verified decomposition.' })
     }
     let result
     try {
@@ -866,10 +929,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return row
   })
 
-  // --- Hand-edit a StyleAnalysis. status drives draft/verified lifecycle. ---
   const DecompositionUpdateBody = z.object({
-    status: z.enum(['draft', 'verified']).optional(),
-    confidence: z.enum(['low', 'medium', 'high']).nullable().optional(),
     vibePitch: z.string().nullable().optional(),
     eraProductionSignature: z.string().nullable().optional(),
     instrumentationPalette: z.string().nullable().optional(),
@@ -2317,22 +2377,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const id = (req.params as any).id as string
     const parsed = DecompositionUpdateBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const existing = await prisma.styleAnalysis.findUnique({ where: { id }, select: { verifiedAt: true, status: true } })
-    const wasVerified = !!existing?.verifiedAt && existing.status === 'verified'
-    const data: any = { ...parsed.data }
-    if (parsed.data.status === 'verified') {
-      data.verifiedAt = new Date()
-      data.verifiedById = op.operatorId
-    } else if (parsed.data.status === 'draft') {
-      data.verifiedAt = null
-      data.verifiedById = null
-    }
     try {
-      const row = await prisma.styleAnalysis.update({ where: { id }, data })
-      const warning = wasVerified && row.status !== 'verified'
-        ? 'Edited a previously verified decomposition. Re-verify when ready.'
-        : undefined
-      return { ...row, _warning: warning }
+      const row = await prisma.styleAnalysis.update({ where: { id }, data: parsed.data })
+      return row
     } catch {
       return reply.code(404).send({ error: 'not_found' })
     }
