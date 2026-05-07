@@ -88,10 +88,9 @@ export function Start() {
         <>
           <Headline>Start your store's soundtrack.</Headline>
           <Sub>
-            Pick a vibe — slow the room down (Increase Dwell) or lift
-            the energy — and Entuned plays original, retail-licensed
-            music through your existing speakers. Free forever, no
-            card.
+            Pick a vibe — slow the room down (Linger) or lift the
+            energy — and Entuned plays original, retail-licensed music
+            through your existing speakers. Free forever, no card.
           </Sub>
           <details style={{
             marginTop: 14, fontSize: 13, color: T.textFaint,
