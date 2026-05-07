@@ -191,7 +191,7 @@ function QueueCard({ queue, reason }: {
             }}>
               <span style={{ fontFamily: T.sans, fontSize: S.small, color: T.accentMuted }}>{i + 1}</span>
               <span style={{ fontFamily: T.sans, fontSize: S.small, color: T.text }}>
-                {q.hookText ?? <span style={{ color: T.textDim }}>(hook {q.hookId.slice(0, 8)})</span>}
+                {q.title ?? q.hookText ?? <span style={{ color: T.textDim }}>—</span>}
               </span>
               <span style={{ fontFamily: T.sans, fontSize: S.label, color: T.textMuted }}>
                 {q.outcomeDisplayTitle ?? q.outcomeTitle ?? q.outcomeId.slice(0, 8)}
@@ -325,6 +325,7 @@ function eventDetail(e: PlaybackEventRow): string {
   if (label) parts.push(label)
   if (e.reportReason) parts.push(`reason: ${e.reportReason}`)
   if (e.operatorEmail) parts.push(e.operatorEmail)
-  if (e.songId) parts.push(`song ${e.songId.slice(0, 8)}`)
+  if (e.songTitle) parts.push(e.songTitle)
+  else if (e.songId) parts.push(`song ${e.songId.slice(0, 8)}`)
   return parts.join(' · ')
 }

@@ -592,6 +592,7 @@ export interface QueueEntry {
   audioUrl: string
   hookId: string
   outcomeId: string
+  title: string | null
   hookText: string | null
   outcomeTitle: string | null
   outcomeDisplayTitle: string | null
@@ -602,6 +603,7 @@ export interface PlaybackEventRow {
   eventType: string
   occurredAt: string
   songId: string | null
+  songTitle: string | null
   hookId: string | null
   outcomeId: string | null
   outcomeTitle: string | null

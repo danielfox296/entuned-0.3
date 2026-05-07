@@ -1666,6 +1666,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         take: 30,
         include: {
           operator: { select: { id: true, email: true } },
+          song: { select: { lineageRows: { select: { songSeed: { select: { title: true } } }, take: 1 } } },
         },
       }),
     ])
@@ -1722,6 +1723,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         eventType: e.eventType,
         occurredAt: e.occurredAt,
         songId: e.songId,
+        songTitle: e.song?.lineageRows?.[0]?.songSeed?.title ?? null,
         hookId: e.hookId,
         outcomeId: e.outcomeId,
         outcomeTitle: e.outcomeId ? (outcomeById.get(e.outcomeId)?.title ?? null) : null,
