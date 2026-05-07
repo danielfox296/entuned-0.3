@@ -57,7 +57,7 @@ To make songs for a single ICP under a store, you only need gates 3, 4, 5 (the I
 
 ### Step 0a — Set default outcome (if missing)
 
-Outcomes are NOT the legacy 4-mode set from GENERATION.md (`dwell_extension`, etc). The live system has 9 named outcomes: **Calm, Lift Energy, Reinforce Brand, Convert Browsers, Move Through, Linger, Impulse Buy, Increase Order Value, Add More Items**. Pick from those.
+The live system has 9 named outcomes: **Calm, Lift Energy, Reinforce Brand, Convert Browsers, Move Through, Linger, Impulse Buy, Increase Order Value, Add More Items**. Pick from those.
 
 Heuristic for picking from ICP psychographic intake:
 | ICP signal | → Outcome |

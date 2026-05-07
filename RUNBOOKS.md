@@ -190,8 +190,8 @@ POST /admin/stores/$STORE_ID/schedule
 ```
 
 Repeat for every window. Common pattern for retail:
-- Opening 2 hrs → Linger (Dwell Extension)
-- Lunch window → Move (Dwell Compression)
+- Opening 2 hrs → Linger
+- Lunch window → Move Through
 - Afternoon prime → Move
 - Evening wind-down → Linger
 - Saturday peak all-day → Move

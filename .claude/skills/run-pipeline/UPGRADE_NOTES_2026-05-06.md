@@ -19,10 +19,9 @@ Issues found during a pipeline run for Marissa (hello@entuned.co / Core / ICP `d
 - The pipeline must handle that bootstrap (likely: derive reference tracks from the free-text "desires" + "turn-offs" fields, write voice notes from psychographic profile, then fall through to seed-hooks).
 - Fix for skill: add Step 0 — "Bootstrap an empty ICP" — before Step 1 assessment.
 
-### 4. Outcome taxonomy in DB has diverged from GENERATION.md
-- GENERATION.md still names 4 player-mode outcomes: `dwell_extension`, `transaction_value`, `unit_addition`, `dwell_compression`.
-- Live DB has 9 named outcomes: Calm, Lift Energy, Reinforce Brand, Convert Browsers, Move Through, Linger, Impulse Buy, Increase Order Value, Add More Items.
-- Fix for skill: drop the 4-mode framing; query `Outcome` table at runtime and pick the best-fit by ICP psychographic. Update GENERATION.md too.
+### 4. Outcome taxonomy — RESOLVED
+- GENERATION.md updated to use the current 9 display names: Calm, Lift Energy, Reinforce Brand, Convert Browsers, Move Through, Linger, Impulse Buy, Increase Order Value, Add More Items.
+- Legacy 4-mode slugs removed from all docs. Hendrix API now returns `displayTitle` to player.
 
 ### 5. Default-outcome picker should be psychographic-driven (not operator guess)
 - Picked "Convert Browsers" for Marissa from her stated desires ("just browsing… looking for a good value on a wow item") — a 5-second judgment call but currently fully manual.
