@@ -350,10 +350,10 @@ function MultiDayForm({ draft, outcomes, busy, onChange, onSubmit }: {
 // Static preview shown inside LockScreen for sub-Pro users.
 function SchedulePreview() {
   const rows = [
-    { label: 'Weekday mornings', when: 'Mon–Fri · 9:00–11:00 AM', outcome: 'Increase Dwell', color: T.accent },
-    { label: 'Lunch rush',       when: 'Mon–Fri · 12:00–2:00 PM', outcome: 'Infuse Energy',  color: T.slate },
-    { label: 'Saturday floor',   when: 'Sat · 11:00 AM–4:00 PM',  outcome: 'Infuse Energy',  color: T.slate },
-    { label: 'Sunday wind-down', when: 'Sun · 3:00–6:00 PM',      outcome: 'Increase Dwell', color: T.accent },
+    { label: 'Weekday mornings', when: 'Mon–Fri · 9:00–11:00 AM', outcome: 'Linger',      color: T.accent },
+    { label: 'Lunch rush',       when: 'Mon–Fri · 12:00–2:00 PM', outcome: 'Lift Energy',  color: T.slate },
+    { label: 'Saturday floor',   when: 'Sat · 11:00 AM–4:00 PM',  outcome: 'Lift Energy',  color: T.slate },
+    { label: 'Sunday wind-down', when: 'Sun · 3:00–6:00 PM',      outcome: 'Linger',      color: T.accent },
   ]
   return (
     <div style={{ padding: 20 }}>

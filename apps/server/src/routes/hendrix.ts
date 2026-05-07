@@ -82,7 +82,7 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
     const countMap = new Map(counts.map((c) => [c.outcomeId, c._count._all]))
     return outcomes.map((o) => ({
       outcomeId: o.id,
-      title: o.title,
+      title: o.displayTitle ?? o.title,
       tempoBpm: o.tempoBpm,
       mode: o.mode,
       poolSize: countMap.get(o.id) ?? 0,

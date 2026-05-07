@@ -325,8 +325,8 @@ async function injectAdIfDue(storeId: string, queue: QueueItem[], now: Date): Pr
 }
 
 async function serializeOutcome(r: { outcomeId: string; source: 'selection' | 'schedule' | 'default'; expiresAt?: Date }) {
-  const o = await prisma.outcome.findUnique({ where: { id: r.outcomeId }, select: { title: true } })
-  return { outcomeId: r.outcomeId, title: o?.title ?? r.outcomeId, source: r.source, expiresAt: r.expiresAt?.toISOString() }
+  const o = await prisma.outcome.findUnique({ where: { id: r.outcomeId }, select: { title: true, displayTitle: true } })
+  return { outcomeId: r.outcomeId, title: o?.displayTitle ?? o?.title ?? r.outcomeId, source: r.source, expiresAt: r.expiresAt?.toISOString() }
 }
 
 export async function nextQueue(
