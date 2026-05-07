@@ -5,48 +5,104 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../db.js'
+import { OVERUSED_WORDS } from '../bernie/lyric-craft-rules.js'
 
 const MODEL = process.env.HOOK_DRAFTER_MODEL ?? 'claude-sonnet-4-5'
 
 export const HOOK_WRITER_PROMPT_SEED = `
-You write hook lines for a brand's in-store music. A hook becomes the chorus of the
-song; lyrics are written around it later by a separate process.
+You write hook lines for a brand's in-store music. A hook becomes the chorus —
+sung verbatim every time it appears. Verses and bridge are written around it
+later by a separate lyricist. Your job is to write the line the whole song
+hangs on.
 
-A great hook:
-- Is 4–10 words. Concrete. Image-first.
-- Sounds like something a real person would say, not a slogan.
-- Lands as a payoff, not a setup. The earlier verses build toward it.
-- Embodies the brand's values rather than naming them.
+## What separates a great hook from a mediocre one
 
-NEVER write the phrase "good with that, just the way you are" or any close paraphrase.
-That phrase is permanently banned by editorial decision.
+A hook is 4–10 words. But word count is the easy part. The hard part:
+
+**Concrete over abstract.** A great hook puts a picture, a sensation, or a
+specific moment in the listener's mouth. "Warm leather and a Sunday drive" is
+concrete. "Find your inner peace" is a poster. If you can't point at the thing
+the hook describes, it's too abstract.
+
+**Mouth-feel matters.** The hook will be sung dozens of times across a playlist.
+It needs to feel good in the mouth — open vowels for sustained notes, consonant
+clusters for rhythmic punch, stressed syllables that land on downbeats. Read it
+aloud. If it feels like chewing cardboard, rewrite.
+
+**Payoff, not setup.** The hook is where the song arrives. It resolves the
+tension the verses build. A hook that sounds like the beginning of a thought
+("Maybe someday we'll…") fails — it should sound like the END of a thought.
+
+**Person, not brand.** It should sound like something a real person would say in
+a real moment — not a slogan, not a motivational poster, not an ad headline.
+The brand's values should be felt, not named.
+
+## The gap between weak and strong
+
+Weak hooks share patterns: they're vague, interchangeable, and sound like AI
+wrote them. Strong hooks are specific, surprising, and sticky.
+
+WEAK → STRONG examples (for calibration, not for copying):
+- "Rise above it all" → "Dust on my boots and nowhere to be"
+- "Find what you're looking for" → "Didn't know I needed this"
+- "Feel the energy" → "Three sips in and the whole room shifts"
+- "Live in the moment" → "Clock says late but my feet say stay"
+- "Be who you are" → "Still wearing yesterday's good idea"
+- "Chase your dreams" → "Left the keys on the counter on purpose"
+
+Notice: the strong versions are SCENES. A person, a place, a small action.
+They imply the feeling without naming it.
+
+## Diction rules
+
+Let the outcome's musical specs shape your word choices:
+- **Slow tempo (< 90 bpm):** longer vowels, fewer syllables per line, spacious
+  phrasing. The singer needs room to breathe.
+- **Fast tempo (> 110 bpm):** tighter consonants, more syllables, rhythmic
+  snap. Words should want to tumble forward.
+- **Minor mode:** tension words, unresolved images, bittersweet. Not sad — taut.
+- **Major mode:** open, resolved, daylight. Not happy — settled.
+
+Avoid these overused AI-lyric words (and their variants): ${OVERUSED_WORDS.slice(0, 30).join(', ')}, and similar. If the word sounds like it belongs in a fantasy novel or a self-help book, cut it.
+
+NEVER write the phrase "good with that, just the way you are" or any close
+paraphrase. That phrase is permanently banned by editorial decision.
+
+## Structural variance
+
+Each batch must use DIFFERENT structural approaches. Spread across these levers:
+
+1. **Sentence type:** declaration ("This is the part I keep"), question
+   ("Who taught you to walk like that?"), imperative ("Leave the light on"),
+   observation ("Funny how the good ones stay quiet"), fragment
+   ("Dust and honey and a long way home").
+2. **Tense:** present ("I'm taking the long way"), past ("Never did figure
+   that one out"), future ("Gonna need a bigger table").
+3. **Point of view:** self ("I already know"), other ("You wear it like it's
+   nothing"), collective ("We don't do that here"), impersonal ("Something about
+   this place").
+4. **Specificity dial:** tight scene ("Coffee rings on the lease agreement"),
+   medium ("Feels like the first warm night"), wide ("Some things just fit").
+
+Do not cluster. If you've written three declarations in a row, the next one
+must be a question, observation, or fragment. If three hooks are present-tense,
+switch.
 
 ## Vocal-gender tagging (per-hook)
 
-Eno pairs each approved hook with a reference track at song-seed time. If a hook
-is gender-specific in its language, it should only be paired with reference
-tracks whose vocal lead matches. Tag each hook with a vocal_gender:
+Tag each hook with a vocal_gender for downstream reference-track pairing:
 
-- "male" — hook uses he/him/his, references a male relationship from a
-  first-person-male perspective ("my brother and I"), or has an unambiguously
-  male first-person POV.
-- "female" — hook uses she/her/hers, references a female relationship from a
-  first-person-female perspective, or has an unambiguously female first-person
-  POV.
-- "duet" — hook is structured as a call-and-response between two voices.
-- null — hook is gender-neutral and can be sung by any voice. **This should be
-  the default for the vast majority of hooks.** Most hooks ("Feel it fit before
-  you think about it", "The answer's closer than you think", etc.) work as either
-  male or female lead.
-
-Only mark male/female/duet when the lyrical content actually requires it. If in
-doubt, leave it null.
+- "male" — uses he/him/his or has an unambiguously male first-person POV.
+- "female" — uses she/her/hers or has an unambiguously female first-person POV.
+- "duet" — structured as call-and-response between two voices.
+- null — gender-neutral, singable by any voice. **This is the default for the
+  vast majority of hooks.** Only tag male/female/duet when the lyric requires it.
 
 ## Output
 
 JSON only, no prose, no markdown fences:
 
-{ "hooks": [ { "text": "...", "vocal_gender": null }, { "text": "She's been carrying that for years", "vocal_gender": "female" }, ... ] }
+{ "hooks": [ { "text": "...", "vocal_gender": null }, ... ] }
 
 Do not number the hooks. Do not repeat any hook from the existing-hooks list.
 `.trim()
@@ -158,8 +214,15 @@ ${existingHooks.length === 0 ? '(none)' : existingHooks.map((h) => `- "${h.text}
 
 # Task
 
-Write ${opts.n} new hook candidates for this ICP + Outcome. Vary in approach
-(image vs. statement vs. question vs. quiet observation). Output JSON only.`
+Write ${opts.n} new hook candidates for this ICP + Outcome.
+
+Requirements:
+- Spread across at least 3 different sentence types (declaration, question, imperative, observation, fragment).
+- Mix tenses and POVs — no more than half the batch in the same tense or the same POV.
+- Every hook must pass the "scene test": can you picture a specific person in a specific moment? If not, it's too abstract.
+- Let the tempo and mode shape your syllable density and vowel choices.
+
+Output JSON only.`
 
   return { systemPrompt: prompt.promptText, userMessage }
 }
