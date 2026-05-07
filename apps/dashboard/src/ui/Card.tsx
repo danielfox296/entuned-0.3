@@ -11,7 +11,7 @@ export function Card({ children, title, subtitle, style }: {
     <div style={{
       background: T.surfaceRaised,
       border: `1px solid ${T.border}`,
-      borderRadius: 6,
+      borderRadius: 12,
       padding: 24,
       ...style,
     }}>
@@ -48,7 +48,7 @@ export function EmptyState({ children }: { children: ReactNode }) {
       padding: 28,
       background: T.accentGlow,
       border: `1px dashed ${T.accentMuted}`,
-      borderRadius: 6,
+      borderRadius: 12,
       color: T.textMuted,
       fontFamily: T.sans,
       fontSize: 14,

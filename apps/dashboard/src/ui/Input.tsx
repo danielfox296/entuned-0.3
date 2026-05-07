@@ -8,7 +8,7 @@ const baseField: CSSProperties = {
   fontFamily: T.sans,
   fontSize: 15,
   padding: '10px 12px',
-  borderRadius: 4,
+  borderRadius: 10,
   outline: 'none',
   width: '100%',
   boxSizing: 'border-box',

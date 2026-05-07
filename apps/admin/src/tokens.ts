@@ -1,41 +1,42 @@
-// Design tokens — Entuned design system (colors_and_type.css → v0.3 admin)
-// Single source of truth for all inline styles across the admin shell and panels.
+// Design tokens — Entuned unified design system
+// Matches the brand site (entuned.co / "Bowie"). Single source of truth
+// for all inline styles across the admin shell and panels.
 
 export const T = {
-  // ── Surfaces (widened ramp — value-step hierarchy) ────────────
-  bg:            '#191916',   // ink — warm near-black
-  surface:       '#232320',   // bg-alt — sidebar, status bar
-  surfaceRaised: '#2a2a26',   // bg-card — cards, inputs
-  surfaceHover:  '#353530',   // bg-stats — elevated band, hovered rows
-  inkDeep:       '#141412',   // footer, deepest surface
+  // ── Surfaces ──────────────────────────────────────────────────
+  bg:            '#20201c',
+  surface:       '#282824',
+  surfaceRaised: '#302f2a',
+  surfaceHover:  '#3a3935',
+  inkDeep:       '#1a1a17',
 
-  // ── Borders (softened — accent reserved for active states) ────
-  border:        'rgba(150, 210, 220, 0.20)',   // primary divider
-  borderSubtle:  'rgba(150, 210, 220, 0.10)',   // secondary divider
-  borderActive:  'rgba(150, 210, 220, 0.55)',   // focus / active divider
+  // ── Borders (teal-tinted) ─────────────────────────────────────
+  border:        'rgba(80, 146, 156, 0.20)',
+  borderSubtle:  'rgba(80, 146, 156, 0.10)',
+  borderActive:  'rgba(80, 146, 156, 0.55)',
 
-  // ── Text (lights lightened ~20% toward white) ─────────────────
-  text:          '#eef4f6',                      // ice — primary
-  textMuted:     'rgba(238, 244, 246, 0.92)',    // secondary labels
-  textDim:       'rgba(238, 244, 246, 0.78)',    // tertiary / faint
-  textFaint:     'rgba(238, 244, 246, 0.60)',    // placeholder, disabled
+  // ── Text ──────────────────────────────────────────────────────
+  text:          '#d4e1e5',
+  textMuted:     'rgba(212, 225, 229, 0.85)',
+  textDim:       'rgba(212, 225, 229, 0.65)',
+  textFaint:     'rgba(212, 225, 229, 0.50)',
 
-  // ── Accent (teal — lightened) ──────────────────────────────────
-  accent:        '#88c0c9',                      // primary brand accent
-  accentHover:   '#9bcfd7',                      // hover / lift
-  accentMuted:   'rgba(136, 192, 201, 0.78)',    // readable teal label text
-  accentGlow:    'rgba(136, 192, 201, 0.16)',    // subtle bg tint / active row
+  // ── Accent (teal — brand primary) ─────────────────────────────
+  accent:        '#50929c',
+  accentHover:   '#6aacb5',
+  accentMuted:   'rgba(80, 146, 156, 0.78)',
+  accentGlow:    'rgba(80, 146, 156, 0.16)',
 
-  // ── Secondary accents ──────────────────────────────────────────
-  gold:          '#e8b458',   // secondary — use sparingly
+  // ── Secondary accents ─────────────────────────────────────────
+  gold:          '#d7af74',
 
-  // ── Status ─────────────────────────────────────────────────────
+  // ── Status ────────────────────────────────────────────────────
   danger:        '#E24B4A',
   success:       '#52C47A',
-  warn:          '#e8b458',
+  warn:          '#d7af74',
 
-  // ── Typography ─────────────────────────────────────────────────
+  // ── Typography ────────────────────────────────────────────────
   heading:       "'Manrope', sans-serif",
   sans:          "'Inter', sans-serif",
-  mono:          "'Inter', sans-serif",   // aliased — no monospace on public surfaces
+  mono:          "'Inter', sans-serif",
 } as const

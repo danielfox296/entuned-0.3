@@ -150,7 +150,7 @@ function DayColumn({ day, rows, outcomes, onChanged }: {
   return (
     <div style={{
       background: T.surface, border: `1px solid ${T.border}`,
-      borderRadius: 4, padding: 10, minHeight: 120,
+      borderRadius: 10, padding: 10, minHeight: 120,
     }}>
       <div style={{
         fontSize: 11, color: T.accentMuted, fontFamily: T.sans,
@@ -194,7 +194,7 @@ function RowItem({ row, outcomes, onChanged }: {
 
   if (editing) {
     return (
-      <div style={{ background: T.accentGlow, border: `1px solid ${T.accentMuted}`, borderRadius: 3, padding: 8 }}>
+      <div style={{ background: T.accentGlow, border: `1px solid ${T.accentMuted}`, borderRadius: 8, padding: 8 }}>
         <SlotForm
           draft={editing}
           outcomes={outcomes}
@@ -211,7 +211,7 @@ function RowItem({ row, outcomes, onChanged }: {
   return (
     <div style={{
       background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
-      borderRadius: 3, padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 4,
+      borderRadius: 8, padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 4,
     }}>
       <div style={{ fontFamily: T.sans, fontSize: 12, color: T.text, fontWeight: 500 }}>
         {row.startTime}–{row.endTime}
@@ -282,7 +282,7 @@ function MultiDayForm({ draft, outcomes, busy, onChange, onSubmit }: {
   return (
     <div style={{
       background: T.accentGlow, border: `1px solid ${T.accentMuted}`,
-      borderRadius: 4, padding: 16, display: 'flex', flexDirection: 'column', gap: 14,
+      borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 14,
     }}>
       <div>
         <label style={labelStyle}>Days</label>
@@ -299,7 +299,7 @@ function MultiDayForm({ draft, outcomes, busy, onChange, onSubmit }: {
                   border: `1px solid ${on ? T.accent : T.borderSubtle}`,
                   color: on ? T.bg : T.text,
                   fontFamily: T.sans, fontSize: 11,
-                  padding: '4px 10px', borderRadius: 3, cursor: 'pointer',
+                  padding: '4px 10px', borderRadius: 8, cursor: 'pointer',
                   textTransform: 'uppercase', letterSpacing: '0.04em',
                 }}
               >{d.short}</button>
@@ -311,7 +311,7 @@ function MultiDayForm({ draft, outcomes, busy, onChange, onSubmit }: {
             style={{
               background: 'transparent', border: `1px solid ${T.borderSubtle}`,
               color: T.textDim, fontFamily: T.sans, fontSize: 11,
-              padding: '4px 10px', borderRadius: 3, cursor: 'pointer',
+              padding: '4px 10px', borderRadius: 8, cursor: 'pointer',
               textTransform: 'uppercase', letterSpacing: '0.04em', marginLeft: 4,
             }}
           >{allDays ? 'None' : 'All'}</button>
@@ -369,7 +369,7 @@ function SchedulePreview() {
           <div style={{
             fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
             color: r.color, textTransform: 'uppercase',
-            border: `1px solid ${r.color}`, padding: '3px 8px', borderRadius: 3,
+            border: `1px solid ${r.color}`, padding: '3px 8px', borderRadius: 8,
             justifySelf: 'start',
           }}>
             {r.outcome}
@@ -390,5 +390,5 @@ const selectStyle: CSSProperties = {
   width: '100%',
   background: T.surfaceRaised, border: `1px solid ${T.border}`,
   color: T.text, fontFamily: T.sans, fontSize: 13,
-  padding: '6px 8px', borderRadius: 3, cursor: 'pointer',
+  padding: '6px 8px', borderRadius: 8, cursor: 'pointer',
 }

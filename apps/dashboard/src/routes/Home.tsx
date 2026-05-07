@@ -74,7 +74,7 @@ function PlayerLinkRow({ url }: { url: string }) {
         flex: 1, minWidth: 240,
         background: T.inkDeep,
         border: `1px solid ${T.borderSubtle}`,
-        borderRadius: 4, padding: '8px 12px',
+        borderRadius: 10, padding: '8px 12px',
         fontFamily: T.mono, fontSize: 13,
         color: T.text,
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -86,7 +86,7 @@ function PlayerLinkRow({ url }: { url: string }) {
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
           background: 'transparent', border: `1px solid ${T.border}`,
-          color: T.textMuted, padding: '7px 12px', borderRadius: 3,
+          color: T.textMuted, padding: '7px 12px', borderRadius: 8,
           fontFamily: T.sans, fontSize: 13, cursor: 'pointer',
         }}
       >
@@ -100,7 +100,7 @@ function PlayerLinkRow({ url }: { url: string }) {
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
           background: T.accent, color: T.bg,
-          padding: '8px 12px', borderRadius: 3,
+          padding: '8px 12px', borderRadius: 8,
           fontFamily: T.sans, fontSize: 13, fontWeight: 600,
           textDecoration: 'none',
         }}
@@ -147,7 +147,7 @@ function UpgradeCard({ tier }: { tier: Tier }) {
     <div style={{
       background: 'linear-gradient(135deg, rgba(215,175,116,0.10) 0%, rgba(215,175,116,0.03) 100%)',
       border: `1px solid ${T.border}`,
-      borderRadius: 6, padding: 24,
+      borderRadius: 12, padding: 24,
     }}>
       <div style={{
         fontFamily: T.heading, fontSize: 18, fontWeight: 500,
@@ -166,7 +166,7 @@ function UpgradeCard({ tier }: { tier: Tier }) {
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
           background: T.accent, color: T.bg,
-          padding: '10px 18px', borderRadius: 4,
+          padding: '10px 18px', borderRadius: 10,
           fontFamily: T.sans, fontSize: 14, fontWeight: 600,
           textDecoration: 'none',
         }}

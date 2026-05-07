@@ -742,7 +742,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
         width: "100vw",
         minHeight: "100vh",
         overflow: "hidden",
-        background: "radial-gradient(ellipse at center, #1a1a1f 0%, #0a0a0a 55%, #050505 100%)",
+        background: "radial-gradient(ellipse at center, #282824 0%, #20201c 55%, #1a1a17 100%)",
         display: "flex",
         flexDirection: "column",
       }}
@@ -827,7 +827,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
           {allOutcomesMode && currentItem ? (() => {
             const outcomeTitle = outcomes.find((o) => o.outcomeId === currentItem.outcomeId)?.title ?? null;
             return outcomeTitle ? (
-              <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2.5, color: "rgba(94,162,182,0.65)", textTransform: "uppercase", textAlign: "center", marginBottom: 6 }}>
+              <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2.5, color: "rgba(80,146,156,0.65)", textTransform: "uppercase", textAlign: "center", marginBottom: 6 }}>
                 {outcomeTitle}
               </div>
             ) : null;
@@ -859,7 +859,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
         {currentItem ? <ProgressBar getProgress={getProgress} /> : null}
 
         {networkError ? (
-          <div style={{ padding: "10px 24px", background: "rgba(94,162,182,0.08)", border: "1px solid rgba(94,162,182,0.25)", borderRadius: 12, maxWidth: 440, textAlign: "center", fontSize: 12, color: "rgba(94,162,182,0.85)" }}>
+          <div style={{ padding: "10px 24px", background: "rgba(80,146,156,0.08)", border: "1px solid rgba(80,146,156,0.25)", borderRadius: 12, maxWidth: 440, textAlign: "center", fontSize: 12, color: "rgba(80,146,156,0.85)" }}>
             {networkError}
           </div>
         ) : null}
@@ -943,8 +943,8 @@ export function PlayerScreen({ session, onLogout }: Props) {
             gap: 12,
             padding: "16px 28px",
             borderRadius: 100,
-            background: "rgba(94,162,182,0.09)",
-            border: "1px solid rgba(94,162,182,0.22)",
+            background: "rgba(80,146,156,0.09)",
+            border: "1px solid rgba(80,146,156,0.22)",
             backdropFilter: "blur(12px)",
             WebkitBackdropFilter: "blur(12px)",
             cursor: "pointer",

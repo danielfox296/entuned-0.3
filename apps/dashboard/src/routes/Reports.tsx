@@ -44,7 +44,7 @@ function ReportsPreview() {
           <div key={m.label} style={{
             background: T.surfaceRaised,
             border: `1px solid ${T.borderSubtle}`,
-            borderRadius: 4, padding: '16px 18px',
+            borderRadius: 10, padding: '16px 18px',
           }}>
             <div style={{
               fontSize: 11, fontWeight: 500, letterSpacing: '0.12em',

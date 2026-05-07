@@ -84,7 +84,7 @@ export function Account() {
               <a href={api.checkoutUrl('core')} style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 background: T.accent, color: T.bg,
-                padding: '8px 14px', borderRadius: 3,
+                padding: '8px 14px', borderRadius: 8,
                 fontFamily: T.sans, fontSize: 14, fontWeight: 600,
                 textDecoration: 'none', whiteSpace: 'nowrap',
               }}>Unlock Core</a>
@@ -132,7 +132,7 @@ export function Account() {
                     <span style={{
                       fontSize: 10, fontWeight: 600, letterSpacing: '0.08em',
                       color: T.accentMuted, textTransform: 'uppercase',
-                      border: `1px solid ${T.border}`, borderRadius: 3, padding: '1px 6px',
+                      border: `1px solid ${T.border}`, borderRadius: 8, padding: '1px 6px',
                     }}>{TIER_LABEL[s.tier] ?? s.tier}</span>
                     {s.compTier && (
                       <span style={{ color: T.textFaint, fontSize: 10 }}>

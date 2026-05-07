@@ -43,7 +43,7 @@ export function Locations() {
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
               background: 'transparent', border: `1px solid ${T.border}`,
-              color: T.textMuted, padding: '8px 14px', borderRadius: 3,
+              color: T.textMuted, padding: '8px 14px', borderRadius: 8,
               fontFamily: T.sans, fontSize: 14, textDecoration: 'none',
             }}
             title="Add location requires Core"
@@ -99,7 +99,7 @@ function StoreCard({ store, canPause, onChanged }: {
     <div style={{
       background: T.surfaceRaised,
       border: `1px solid ${T.border}`,
-      borderRadius: 6, padding: 20,
+      borderRadius: 12, padding: 20,
     }}>
       <div style={{
         display: 'flex', alignItems: 'center',
@@ -113,7 +113,7 @@ function StoreCard({ store, canPause, onChanged }: {
             <span style={{
               fontSize: 10, fontWeight: 600, letterSpacing: '0.08em',
               color: T.accentMuted, textTransform: 'uppercase',
-              border: `1px solid ${T.border}`, borderRadius: 3, padding: '1px 6px',
+              border: `1px solid ${T.border}`, borderRadius: 8, padding: '1px 6px',
             }}>{TIER_LABEL[store.tier as Tier] ?? store.tier}</span>
             {isPaused && (
               <span style={{ fontSize: 12, color: T.warn }}>
@@ -187,7 +187,7 @@ function StoreNameRow({ store, onChanged }: { store: StoreRow; onChanged: () => 
           aria-label="Rename location"
           style={{
             background: 'transparent', border: 'none', padding: 2,
-            color: T.textDim, cursor: 'pointer', borderRadius: 3,
+            color: T.textDim, cursor: 'pointer', borderRadius: 8,
             display: 'inline-flex', alignItems: 'center',
           }}
         >
@@ -276,7 +276,7 @@ function AddLocationModal({ onClose, onAdded }: {
           width: '100%', maxWidth: 460,
           background: T.surface,
           border: `1px solid ${T.border}`,
-          borderRadius: 8,
+          borderRadius: 12,
           boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
           padding: 24,
         }}
@@ -356,7 +356,7 @@ function PlayerUrlRow({ url }: { url: string }) {
         flex: 1, minWidth: 240,
         background: T.inkDeep,
         border: `1px solid ${T.borderSubtle}`,
-        borderRadius: 4, padding: '7px 12px',
+        borderRadius: 10, padding: '7px 12px',
         fontFamily: T.mono, fontSize: 13, color: T.text,
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>
@@ -427,7 +427,7 @@ function PauseControl({ store, canPause, isPaused, onChanged }: {
         background: 'transparent',
         border: `1px solid ${isPaused ? T.accent : T.border}`,
         color: isPaused ? T.accent : T.textMuted,
-        padding: '6px 12px', borderRadius: 3,
+        padding: '6px 12px', borderRadius: 8,
         fontFamily: T.sans, fontSize: 13,
         cursor: busy ? 'default' : 'pointer',
         opacity: busy ? 0.6 : 1,
@@ -442,14 +442,14 @@ function PauseControl({ store, canPause, isPaused, onChanged }: {
 const iconBtnStyle: CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 6,
   background: 'transparent', border: `1px solid ${T.border}`,
-  color: T.textMuted, padding: '6px 12px', borderRadius: 3,
+  color: T.textMuted, padding: '6px 12px', borderRadius: 8,
   fontFamily: T.sans, fontSize: 13, cursor: 'pointer',
 }
 
 const openLinkStyle: CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 6,
   background: T.accent, color: T.bg,
-  padding: '7px 12px', borderRadius: 3,
+  padding: '7px 12px', borderRadius: 8,
   fontFamily: T.sans, fontSize: 13, fontWeight: 600,
   textDecoration: 'none',
 }

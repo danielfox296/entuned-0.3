@@ -1,11 +1,14 @@
 :root {
-  --bg: #0a0a0a;
-  --bg-elev: #161616;
+  --bg: #20201c;
+  --bg-elev: #282824;
   --fg: #d4e1e5;
   --fg-dim: rgba(212, 225, 229, 0.55);
   --fg-disabled: rgba(212, 225, 229, 0.25);
-  --accent: rgba(94, 162, 182, 0.95);
-  --border: rgba(212, 225, 229, 0.12);
+  --accent: #50929c;
+  --accent-hover: #6aacb5;
+  --accent-glow: rgba(80, 146, 156, 0.16);
+  --gold: #d7af74;
+  --border: rgba(80, 146, 156, 0.20);
   --radius: 12px;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
   font-size: 16px;

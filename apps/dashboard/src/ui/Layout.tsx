@@ -72,7 +72,7 @@ export function Layout({ children }: { children: ReactNode }) {
             fontSize: 10, fontWeight: 600, letterSpacing: '0.08em',
             color: T.accent, textTransform: 'uppercase',
             border: `1px solid ${T.borderActive}`,
-            borderRadius: 3, padding: '2px 6px',
+            borderRadius: 8, padding: '2px 6px',
           }}>{TIER_LABEL[tier]}</span>
         </div>
 
@@ -151,7 +151,7 @@ function NavRow({ item, unlocked }: { item: NavSpec; unlocked: boolean }) {
             fontSize: 10, fontWeight: 600, letterSpacing: '0.06em',
             color: isRoadmap ? T.textFaint : T.accentMuted,
             border: `1px solid ${isRoadmap ? T.borderSubtle : T.border}`,
-            borderRadius: 3, padding: '1px 5px',
+            borderRadius: 8, padding: '1px 5px',
             textTransform: 'uppercase',
           }}>
             <Lock size={9} strokeWidth={2} /> {badgeLabel}
@@ -173,7 +173,7 @@ function Tooltip({ item }: { item: NavSpec }) {
       position: 'absolute', left: 'calc(100% + 8px)', top: 4, zIndex: 10,
       width: 240, background: T.inkDeep,
       border: `1px solid ${T.border}`,
-      borderRadius: 6, padding: '12px 14px',
+      borderRadius: 12, padding: '12px 14px',
       boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
       pointerEvents: 'none',
     }}>

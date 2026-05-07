@@ -387,7 +387,7 @@ function LocationPicker({ stores, value, onChange }: {
           border: `1px solid ${T.border}`,
           color: T.text,
           fontFamily: T.sans, fontSize: 14,
-          padding: '6px 10px', borderRadius: 4,
+          padding: '6px 10px', borderRadius: 10,
           cursor: 'pointer',
         }}
       >
@@ -421,7 +421,7 @@ function AudiencesList({
       {(audiences ?? []).length === 0 ? (
         <div style={{
           border: `1px dashed ${T.border}`,
-          borderRadius: 6, padding: 24,
+          borderRadius: 12, padding: 24,
           color: T.textDim, fontSize: 14, lineHeight: 1.5,
           fontFamily: T.sans,
         }}>
@@ -445,7 +445,7 @@ function AudiencesList({
           background: 'transparent',
           border: `1px solid ${T.border}`,
           color: T.accent,
-          padding: '12px 16px', borderRadius: 4,
+          padding: '12px 16px', borderRadius: 10,
           fontFamily: T.sans, fontSize: 14, fontWeight: 500,
           cursor: 'pointer',
           alignSelf: 'flex-start',
@@ -470,7 +470,7 @@ function AudienceCard({ icp, onEdit, onRetire }: {
     <div style={{
       background: T.surfaceRaised,
       border: `1px solid ${T.border}`,
-      borderRadius: 6, padding: 18,
+      borderRadius: 12, padding: 18,
       display: 'flex', alignItems: 'center', gap: 12,
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -654,7 +654,7 @@ function ExpandExtendedButton({ onClick }: { onClick: () => void }) {
         border: `1px solid ${T.border}`,
         color: T.accent,
         padding: '12px 16px',
-        borderRadius: 4,
+        borderRadius: 10,
         fontFamily: T.sans, fontSize: 14, fontWeight: 500,
         cursor: 'pointer', textAlign: 'left',
         display: 'flex', alignItems: 'center',
@@ -768,7 +768,7 @@ function SuccessState() {
           padding: 24,
           background: T.surfaceRaised,
           border: `1px solid ${T.border}`,
-          borderRadius: 6,
+          borderRadius: 12,
           display: 'grid', gap: 16,
         }}>
           <div style={{
@@ -800,7 +800,7 @@ function NextStepRow({ to, title, sub }: { to: string; title: string; sub: strin
       padding: '12px 14px',
       background: 'transparent',
       border: `1px solid ${T.borderSubtle}`,
-      borderRadius: 4,
+      borderRadius: 10,
       textDecoration: 'none',
       color: T.text,
       transition: 'border-color 0.15s ease',
@@ -834,6 +834,6 @@ const questionsBlockStyle: CSSProperties = {
 const iconActionStyle: CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 6,
   background: 'transparent', border: `1px solid ${T.border}`,
-  color: T.textMuted, padding: '6px 12px', borderRadius: 3,
+  color: T.textMuted, padding: '6px 12px', borderRadius: 8,
   fontFamily: T.sans, fontSize: 13, cursor: 'pointer',
 }

@@ -103,7 +103,7 @@ export function Start() {
               display: 'block',
               background: 'transparent',
               border: `1px solid ${T.border}`,
-              borderRadius: 4,
+              borderRadius: 10,
               padding: '11px 14px',
               fontSize: 14,
               color: T.text,

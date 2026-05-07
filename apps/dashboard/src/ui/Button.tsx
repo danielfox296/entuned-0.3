@@ -44,7 +44,7 @@ function variantStyle(v: ButtonVariant, active: boolean): CSSProperties {
         background: active ? T.accent : T.surfaceRaised,
         color: active ? T.bg : T.textMuted,
         border: 'none',
-        borderRadius: 4,
+        borderRadius: 10,
         padding: '10px 18px',
         fontFamily: T.sans,
         fontSize: 14,
@@ -56,7 +56,7 @@ function variantStyle(v: ButtonVariant, active: boolean): CSSProperties {
         border: `1px solid ${T.border}`,
         color: T.textMuted,
         padding: '8px 14px',
-        borderRadius: 3,
+        borderRadius: 8,
         fontFamily: T.sans,
         fontSize: 14,
       }
@@ -66,7 +66,7 @@ function variantStyle(v: ButtonVariant, active: boolean): CSSProperties {
         border: `1px solid ${T.danger}`,
         color: T.danger,
         padding: '8px 14px',
-        borderRadius: 3,
+        borderRadius: 8,
         fontFamily: T.sans,
         fontSize: 14,
       }

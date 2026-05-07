@@ -64,8 +64,8 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, onSelect, on
               textAlign: "left",
               padding: "14px 16px",
               borderRadius: 12,
-              border: `1px solid ${allOutcomesMode ? "rgba(94,162,182,0.55)" : "rgba(212,225,229,0.12)"}`,
-              background: allOutcomesMode ? "rgba(94,162,182,0.16)" : "rgba(212,225,229,0.04)",
+              border: `1px solid ${allOutcomesMode ? "rgba(80,146,156,0.55)" : "rgba(212,225,229,0.12)"}`,
+              background: allOutcomesMode ? "rgba(80,146,156,0.16)" : "rgba(212,225,229,0.04)",
               color: "rgba(212,225,229,0.9)",
               cursor: "pointer",
               display: "flex",
@@ -74,7 +74,7 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, onSelect, on
               gap: 12,
             }}
           >
-            <span style={{ fontSize: 15, fontWeight: 500, letterSpacing: 0.5, textTransform: "uppercase", color: allOutcomesMode ? "rgba(94,162,182,1)" : "rgba(212,225,229,0.95)" }}>
+            <span style={{ fontSize: 15, fontWeight: 500, letterSpacing: 0.5, textTransform: "uppercase", color: allOutcomesMode ? "rgba(80,146,156,1)" : "rgba(212,225,229,0.95)" }}>
               All Outcomes
             </span>
             <span style={{ fontSize: 11, fontWeight: 400, letterSpacing: 1, color: "rgba(212,225,229,0.45)" }}>
@@ -98,8 +98,8 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, onSelect, on
                   textAlign: "left",
                   padding: "14px 16px",
                   borderRadius: 12,
-                  border: `1px solid ${active ? "rgba(94,162,182,0.55)" : "rgba(212,225,229,0.12)"}`,
-                  background: active ? "rgba(94,162,182,0.16)" : "rgba(212,225,229,0.04)",
+                  border: `1px solid ${active ? "rgba(80,146,156,0.55)" : "rgba(212,225,229,0.12)"}`,
+                  background: active ? "rgba(80,146,156,0.16)" : "rgba(212,225,229,0.04)",
                   color: "rgba(212,225,229,0.9)",
                   cursor: empty ? "not-allowed" : "pointer",
                   opacity: empty ? 0.4 : 1,
@@ -109,7 +109,7 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, onSelect, on
                   gap: 12,
                 }}
               >
-                <span style={{ fontSize: 15, fontWeight: 500, letterSpacing: 0.5, textTransform: "uppercase", color: active ? "rgba(94,162,182,1)" : "rgba(212,225,229,0.95)" }}>
+                <span style={{ fontSize: 15, fontWeight: 500, letterSpacing: 0.5, textTransform: "uppercase", color: active ? "rgba(80,146,156,1)" : "rgba(212,225,229,0.95)" }}>
                   {o.title}
                 </span>
                 <span style={{ fontSize: 11, fontWeight: 400, letterSpacing: 1, color: "rgba(212,225,229,0.45)" }}>

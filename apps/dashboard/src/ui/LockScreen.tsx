@@ -49,7 +49,7 @@ export function LockScreen({
       <div style={{
         background: T.surfaceRaised,
         border: `1px solid ${T.border}`,
-        borderRadius: 6,
+        borderRadius: 12,
         padding: 28,
       }}>
         <div style={{
@@ -96,7 +96,7 @@ export function LockScreen({
               background: T.accent,
               color: T.bg,
               padding: '10px 18px',
-              borderRadius: 4,
+              borderRadius: 10,
               fontFamily: T.sans,
               fontSize: 14,
               fontWeight: 600,
@@ -128,7 +128,7 @@ export function LockScreen({
           <div style={{
             position: 'relative',
             border: `1px dashed ${T.border}`,
-            borderRadius: 6,
+            borderRadius: 12,
             padding: 0,
             overflow: 'hidden',
             background: T.surface,

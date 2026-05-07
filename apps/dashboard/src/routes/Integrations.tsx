@@ -36,7 +36,7 @@ function IntegrationsPreview() {
           padding: '14px 16px',
           background: T.surfaceRaised,
           border: `1px solid ${T.borderSubtle}`,
-          borderRadius: 4,
+          borderRadius: 10,
         }}>
           <div style={{
             fontSize: 14, color: T.text, fontWeight: 500, fontFamily: T.heading,

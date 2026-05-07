@@ -14,9 +14,9 @@ export const S = {
   xl:  20,
   xxl: 28,
 
-  // Radius
-  r2: 2,
-  r3: 3,
-  r4: 4,
-  r6: 6,
+  // Radius (soft rounded)
+  r2: 6,
+  r3: 8,
+  r4: 10,
+  r6: 12,
 } as const

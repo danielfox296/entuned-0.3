@@ -57,7 +57,7 @@ export function LoginScreen({ onAuthed }: Props) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "radial-gradient(ellipse at center, #1a1a1f 0%, #0a0a0a 60%, #050505 100%)",
+        background: "radial-gradient(ellipse at center, #282824 0%, #20201c 60%, #1a1a17 100%)",
         padding: 20,
       }}
     >

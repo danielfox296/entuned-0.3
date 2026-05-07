@@ -89,8 +89,8 @@ const shellStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  background: '#0a0a0a',
-  color: '#E8E4DE',
-  fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
+  background: '#20201c',
+  color: '#d4e1e5',
+  fontFamily: "'Inter', sans-serif",
   fontSize: 14,
 };

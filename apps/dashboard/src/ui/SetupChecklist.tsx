@@ -58,7 +58,7 @@ export function SetupChecklist({ tier, hasLocation }: Props) {
     <div style={{
       background: T.surfaceRaised,
       border: `1px solid ${T.border}`,
-      borderRadius: 6,
+      borderRadius: 12,
       padding: 24,
     }}>
       <div style={{
@@ -97,7 +97,7 @@ function ProgressBar({ done, total }: { done: number; total: number }) {
     <div style={{
       width: 120, height: 4,
       background: T.borderSubtle,
-      borderRadius: 2, overflow: 'hidden',
+      borderRadius: 6, overflow: 'hidden',
     }}>
       <div style={{
         width: `${pct}%`, height: '100%',
@@ -115,7 +115,7 @@ function ChecklistRow({ step }: { step: Step }) {
       padding: '10px 14px',
       background: step.done ? 'transparent' : T.surface,
       border: `1px solid ${step.done ? T.borderSubtle : T.border}`,
-      borderRadius: 4,
+      borderRadius: 10,
       textDecoration: 'none',
       color: T.text,
       transition: 'border-color 0.15s ease',
