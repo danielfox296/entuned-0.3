@@ -632,7 +632,7 @@ function ApprovedRow({ track, analyzing, onOpen, onResolvedPreview }: {
         <span>·</span>
         {track.useCount > 0 && <><span>in use</span><span>·</span></>}
         <span style={{ color: analysis ? T.accent : T.textDim }}>
-          {analysis ? 'decomposed' : 'not decomposed'}
+          {analysis ? 'ready' : 'not ready'}
         </span>
       </div>
       {/* Decomposition (first-time and re-decompose) lives only inside the
