@@ -135,11 +135,28 @@ export interface DraftHooksResult {
  * Pulled out so the admin can preview the exact context without firing an
  * LLM call.
  */
+function extractTrigrams(text: string): Set<string> {
+  const words = text.toLowerCase().replace(/[^a-z' -]/g, ' ').split(/\s+/).filter(w => w.length > 1)
+  const trigrams = new Set<string>()
+  for (let i = 0; i < words.length - 2; i++) {
+    trigrams.add(`${words[i]} ${words[i + 1]} ${words[i + 2]}`)
+  }
+  return trigrams
+}
+
+function sharesTooManyTrigrams(candidate: string, existingTrigrams: Set<string>): boolean {
+  const candidateTrigrams = extractTrigrams(candidate)
+  for (const tg of candidateTrigrams) {
+    if (existingTrigrams.has(tg)) return true
+  }
+  return false
+}
+
 export async function buildHookDrafterContext(opts: {
   icpId: string
   outcomeId: string
   n: number
-}): Promise<{ systemPrompt: string; userMessage: string }> {
+}): Promise<{ systemPrompt: string; userMessage: string; existingHookTexts: string[] }> {
   const [icp, outcome, prompt] = await Promise.all([
     prisma.iCP.findUniqueOrThrow({ where: { id: opts.icpId }, include: { client: true } }),
     prisma.outcome.findUniqueOrThrow({
@@ -226,7 +243,8 @@ Requirements:
 
 Output JSON only.`
 
-  return { systemPrompt: prompt.promptText, userMessage }
+  const existingHookTexts = existingHooks.map((h) => h.text)
+  return { systemPrompt: prompt.promptText, userMessage, existingHookTexts }
 }
 
 export async function draftHooks(opts: {
@@ -238,7 +256,7 @@ export async function draftHooks(opts: {
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
   const client = new Anthropic({ apiKey })
 
-  const { systemPrompt, userMessage } = await buildHookDrafterContext(opts)
+  const { systemPrompt, userMessage, existingHookTexts } = await buildHookDrafterContext(opts)
 
   const response = await client.messages.create({
     model: MODEL,
@@ -281,5 +299,12 @@ export async function draftHooks(opts: {
     })
     .filter((h): h is DraftedHook => h !== null)
 
-  return { hooks, rawText: raw, promptUsed: systemPrompt }
+  const existingTrigrams = new Set<string>()
+  for (const t of existingHookTexts) {
+    for (const tg of extractTrigrams(t)) existingTrigrams.add(tg)
+  }
+
+  const deduped = hooks.filter((h) => !sharesTooManyTrigrams(h.text, existingTrigrams))
+
+  return { hooks: deduped, rawText: raw, promptUsed: systemPrompt }
 }
