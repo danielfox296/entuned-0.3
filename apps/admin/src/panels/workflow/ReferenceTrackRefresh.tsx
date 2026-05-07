@@ -62,6 +62,7 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
 
   const pending = tracks.filter((t) => t.status === 'pending')
   const approved = tracks.filter((t) => t.status === 'approved')
+  const archived = tracks.filter((t) => t.status === 'archived')
   const openTrack = openTrackId ? tracks.find((t) => t.id === openTrackId) ?? null : null
 
   // Eagerly resolve covers + previews for any tracks that haven't been
@@ -242,6 +243,20 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
     }
   }
 
+  const archive = async (t: ReferenceTrackRow) => {
+    const token = getToken(); if (!token) return
+    setPendingMutation((s) => new Set(s).add(t.id))
+    try {
+      await api.archiveReferenceTrack(t.id, token)
+      await refetch()
+      toast.success('reference track archived')
+    } catch (e: any) {
+      toast.error(e.message ?? 'failed to archive reference track')
+    } finally {
+      setPendingMutation((s) => { const next = new Set(s); next.delete(t.id); return next })
+    }
+  }
+
   const analyze = async (t: ReferenceTrackRow) => {
     const token = getToken(); if (!token) return
     setAnalyzing((s) => new Set(s).add(t.id))
@@ -347,10 +362,13 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
                 track={t}
                 analyzing={analyzing.has(t.id)}
                 onOpen={() => setOpenTrackId(t.id)}
+                onArchive={() => archive(t)}
+                archiving={pendingMutation.has(t.id)}
                 onResolvedPreview={refetch}
               />
             ))
           )}
+          {archived.length > 0 && <ArchivedSection tracks={archived} />}
         </Column>
       </div>
 
@@ -597,10 +615,12 @@ function PendingRow({ track, edit, busy, onChange, onBlur, onApprove, onDiscard,
   )
 }
 
-function ApprovedRow({ track, analyzing, onOpen, onResolvedPreview }: {
+function ApprovedRow({ track, analyzing, onOpen, onArchive, archiving, onResolvedPreview }: {
   track: ReferenceTrackRow
   analyzing: boolean
   onOpen: () => void
+  onArchive: () => void
+  archiving: boolean
   onResolvedPreview: () => void
 }) {
   const analysis = track.styleAnalysis
@@ -623,6 +643,12 @@ function ApprovedRow({ track, analyzing, onOpen, onResolvedPreview }: {
           </span>
           {track.year && <span style={{ color: T.textDim, fontWeight: 400 }}> ({track.year})</span>}
         </button>
+        <button
+          onClick={onArchive}
+          disabled={archiving}
+          title="archive this reference track"
+          style={ghostBtnStyle}
+        >{archiving ? '…' : 'archive'}</button>
       </div>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
@@ -635,8 +661,6 @@ function ApprovedRow({ track, analyzing, onOpen, onResolvedPreview }: {
           {analysis ? 'ready' : 'not ready'}
         </span>
       </div>
-      {/* Decomposition (first-time and re-decompose) lives only inside the
-          edit modal so it's never accidentally clickable from the list. */}
       {analyzing && <LlmProgress etaSeconds={30} label="decomposing track" />}
     </div>
   )
@@ -699,6 +723,42 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       }}>{label}</span>
       {children}
     </label>
+  )
+}
+
+function ArchivedSection({ tracks }: { tracks: ReferenceTrackRow[] }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ marginTop: 4 }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          ...tinyLinkStyle,
+          display: 'flex', alignItems: 'center', gap: 4,
+        }}
+      >
+        {open ? '▾' : '▸'} archived ({tracks.length})
+      </button>
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+          {tracks.map((t) => (
+            <div key={t.id} style={{
+              fontFamily: T.sans, fontSize: 13, color: T.textDim,
+              padding: '6px 10px',
+              background: T.bg,
+              border: `1px solid ${T.borderSubtle}`,
+              borderRadius: 3,
+            }}>
+              {t.artist} — {t.title}
+              {t.year ? ` (${t.year})` : ''}
+              <span style={{ marginLeft: 8, fontFamily: T.mono, fontSize: 11 }}>
+                {BUCKET_LABEL[t.bucket]}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

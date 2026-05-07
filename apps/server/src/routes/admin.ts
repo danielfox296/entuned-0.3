@@ -815,6 +815,20 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
+  app.post('/reference-tracks/:id/archive', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    try {
+      const row = await prisma.referenceTrack.update({
+        where: { id },
+        data: { status: 'archived' },
+      })
+      return row
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
+    }
+  })
+
   // --- Bulk-approve every pending reference track on an ICP. Optional `bucket`
   // query param scopes the approval to one bucket; omit to approve all pending
   // across all buckets on this ICP. ---

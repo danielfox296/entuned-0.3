@@ -254,7 +254,7 @@ export interface StyleAnalysisRow {
   updatedAt: string
 }
 
-export type ReferenceTrackStatus = 'pending' | 'approved' | 'rejected'
+export type ReferenceTrackStatus = 'pending' | 'approved' | 'rejected' | 'archived'
 
 export interface ReferenceTrackRow {
   id: string
@@ -840,6 +840,8 @@ export const api = {
     req<{ total: number; processed: number; failed: number; errors: { id: string; artist: string; title: string; error: string }[] }>('/admin/reference-tracks/decompose-all', { method: 'POST' }, token),
   rejectReferenceTrack: (id: string, token: string) =>
     req<ReferenceTrackRow>(`/admin/reference-tracks/${id}/reject`, { method: 'POST' }, token),
+  archiveReferenceTrack: (id: string, token: string) =>
+    req<ReferenceTrackRow>(`/admin/reference-tracks/${id}/archive`, { method: 'POST' }, token),
   approveReferenceTrack: (id: string, token: string) =>
     req<ReferenceTrackRow>(`/admin/reference-tracks/${id}/approve`, { method: 'POST' }, token),
   approveAllPendingReferenceTracks: (icpId: string, bucket: TasteCategory | undefined, token: string) =>

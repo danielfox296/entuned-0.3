@@ -242,7 +242,7 @@ async function pickReferenceTrack(icpId: string, hookGender: HookVocalGender): P
   // pushes the next iteration toward a different track. Tiebreak randomly
   // so single-seed runs also vary across calls.
   const tracks = await prisma.referenceTrack.findMany({
-    where: { icpId, styleAnalysis: { isNot: null } },
+    where: { icpId, status: 'approved', styleAnalysis: { isNot: null } },
     include: {
       styleAnalysis: true,
       songSeeds: { select: { status: true } },
