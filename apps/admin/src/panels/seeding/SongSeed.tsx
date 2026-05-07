@@ -11,7 +11,6 @@ export function SongSeed({ songSeedId, onClose, embedded }: { songSeedId: string
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [takes, setTakes] = useState<{ sourceUrl: string }[]>([{ sourceUrl: '' }, { sourceUrl: '' }])
-  const [accepted, setAccepted] = useState(false)
   const [exclusionRules, setExclusionRules] = useState<StyleExclusionRuleRow[] | null>(null)
   const [showFiredRules, setShowFiredRules] = useState(false)
   const [uploadMode, setUploadMode] = useState<'urls' | 'files'>('urls')
@@ -41,7 +40,7 @@ export function SongSeed({ songSeedId, onClose, embedded }: { songSeedId: string
 
   const accept = async () => {
     const token = getToken(); if (!token) return
-    setBusy('accept'); setErr(null); setAccepted(false)
+    setBusy('accept'); setErr(null)
     try {
       if (uploadMode === 'files') {
         if (droppedFiles.length === 0) { setErr('Drop at least one MP3 file.'); setBusy(null); return }
@@ -51,10 +50,9 @@ export function SongSeed({ songSeedId, onClose, embedded }: { songSeedId: string
         if (validTakes.length === 0) { setErr('Add at least one source URL.'); setBusy(null); return }
         await api.acceptSongSeed(songSeedId, { takes: validTakes }, token)
       }
-      setAccepted(true)
       await load()
-    } catch (e: any) { setErr(e.message) }
-    finally { setBusy(null) }
+      onClose()
+    } catch (e: any) { setErr(e.message); setBusy(null) }
   }
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -259,11 +257,6 @@ export function SongSeed({ songSeedId, onClose, embedded }: { songSeedId: string
                 ? (uploadMode === 'files' ? 'uploading…' : 'downloading + uploading…')
                 : 'accept takes'}
             </Button>
-            {accepted && (
-              <span style={{ fontSize: S.small, fontFamily: T.sans, color: T.success }}>
-                ✓ takes received — Song Entries created
-              </span>
-            )}
           </div>
         </div>
       )}
