@@ -22,7 +22,7 @@ function getClient(req: FastifyRequest, reply: FastifyReply): AuthedClient | nul
 }
 
 // "Primary" Store — the Store the dashboard operates on for single-Store
-// surfaces (e.g. Brand Intake). Picks the highest-*effective*-tier active
+// surfaces (e.g. Customer Profile). Picks the highest-*effective*-tier active
 // Store (so a Core store comped to Pro outranks a paid Core sibling), breaks
 // ties on createdAt asc. Returns null if the Client has no active Stores.
 async function findPrimaryStore(clientId: string) {

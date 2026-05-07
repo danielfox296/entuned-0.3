@@ -41,9 +41,9 @@ export function SetupChecklist({ tier, hasLocation }: Props) {
   }, [isPaid])
 
   const steps: Step[] = [
-    { id: 'account',  label: 'Create your account',         to: '/account',   done: true },
-    { id: 'location', label: 'Add your first location',     to: '/locations', done: hasLocation },
-    { id: 'icp',      label: 'Tell us about your audience', to: '/intake',    done: icpFilled, hide: !isPaid },
+    { id: 'account',  label: 'Account ready',                to: '/account',   done: true },
+    { id: 'location', label: 'First location ready',         to: '/locations', done: hasLocation },
+    { id: 'icp',      label: 'Set up your Customer Profile', to: '/intake',    done: icpFilled, hide: !isPaid },
   ]
 
   const visible = steps.filter((s) => !s.hide)

@@ -1,6 +1,6 @@
 // Behavioral upgrade trigger — Core → Pro, "established" signal.
 //
-// Fires for Core Clients who have completed Brand Intake AND have been on
+// Fires for Core Clients who have completed Customer Profile AND have been on
 // Core for ≥30 days. The signal: they engaged with the product (filled the
 // ICP) and stuck around (paid for a month). Pro's flagship pitch is that the
 // data starts paying off — Lift Reports, integrations, day-parting.

@@ -151,14 +151,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
   }, [fetchNext, emit]);
 
   const refreshOutcomes = useCallback(async () => {
-    // Outcome management is operator-only — slug-mode (freemium) plays
-    // whatever default outcome the Store has and doesn't surface picker UI.
-    if (session.mode === 'slug') return;
     try {
-      const r = await api.outcomes(session.storeId, session.token);
+      const r = session.mode === 'slug' && session.slug
+        ? await api.outcomesBySlug(session.slug)
+        : await api.outcomes(session.storeId, session.token);
       setOutcomes(r);
     } catch (e) { console.warn("[player] outcomes failed", e); }
-  }, [session.mode, session.storeId, session.token]);
+  }, [session.mode, session.slug, session.storeId, session.token]);
 
   const schedulePreload = useCallback((durationSec: number) => {
     if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
@@ -361,7 +360,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
 
   const handleSelectOutcome = useCallback(async (outcomeId: string) => {
     try {
-      await api.outcomeSelection(session.storeId, outcomeId, session.token);
+      if (session.mode === 'slug' && session.slug) {
+        await api.outcomeSelectionBySlug(session.slug, outcomeId);
+      } else {
+        await api.outcomeSelection(session.storeId, outcomeId, session.token);
+      }
       setAllOutcomesMode(false);
       setShowOutcomeModal(false);
       setQueue([]);
@@ -373,11 +376,15 @@ export function PlayerScreen({ session, onLogout }: Props) {
       console.error(e);
       setError("Could not change outcome.");
     }
-  }, [session.storeId, session.token, refill, refreshOutcomes, playFromQueue, setAllOutcomesMode]);
+  }, [session.mode, session.slug, session.storeId, session.token, refill, refreshOutcomes, playFromQueue, setAllOutcomesMode]);
 
   const handleClearOutcome = useCallback(async () => {
     try {
-      await api.clearOutcomeSelection(session.storeId, session.token);
+      if (session.mode === 'slug' && session.slug) {
+        await api.clearOutcomeSelectionBySlug(session.slug);
+      } else {
+        await api.clearOutcomeSelection(session.storeId, session.token);
+      }
       setAllOutcomesMode(false);
       setShowOutcomeModal(false);
       setQueue([]);
@@ -388,12 +395,16 @@ export function PlayerScreen({ session, onLogout }: Props) {
       console.error(e);
       setError("Could not clear outcome selection.");
     }
-  }, [session.storeId, session.token, refill, refreshOutcomes, setAllOutcomesMode]);
+  }, [session.mode, session.slug, session.storeId, session.token, refill, refreshOutcomes, setAllOutcomesMode]);
 
   const handleSelectAll = useCallback(async () => {
     try {
       // Clear any server-side operator selection so we're not overriding a schedule.
-      await api.clearOutcomeSelection(session.storeId, session.token).catch(() => {/* ok if already clear */});
+      if (session.mode === 'slug' && session.slug) {
+        await api.clearOutcomeSelectionBySlug(session.slug).catch(() => {/* ok if already clear */});
+      } else {
+        await api.clearOutcomeSelection(session.storeId, session.token).catch(() => {/* ok if already clear */});
+      }
       setAllOutcomesMode(true);
       setShowOutcomeModal(false);
       setQueue([]);
@@ -405,7 +416,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
       console.error(e);
       setError("Could not switch to all-outcomes mode.");
     }
-  }, [session.storeId, session.token, refill, refreshOutcomes, playFromQueue, setAllOutcomesMode]);
+  }, [session.mode, session.slug, session.storeId, session.token, refill, refreshOutcomes, playFromQueue, setAllOutcomesMode]);
 
   const handleLove = useCallback(() => {
     const cur = currentRef.current;
@@ -734,7 +745,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
     return () => clearInterval(iv);
   }, [isPlaying]);
 
-  const activeTitle = allOutcomesMode ? "All" : (activeOutcome?.title ?? "—");
+  const activeTitle = allOutcomesMode ? "All" : (activeOutcome?.title ?? "Tap to choose");
   const expiresLabel = !allOutcomesMode && activeOutcome?.source === "selection" && activeOutcome.expiresAt
     ? `Selected · until ${new Date(activeOutcome.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
     : null;
@@ -742,6 +753,14 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const headerLine = session.clientName
     ? `${session.clientName}: ${session.storeName}`
     : session.storeName;
+
+  // Dynamic browser tab title — bookmarked URLs self-identify by store
+  // name instead of all reading "Entuned." Tracks store renames live.
+  useEffect(() => {
+    const prev = document.title;
+    document.title = `${headerLine} · Entuned`;
+    return () => { document.title = prev; };
+  }, [headerLine]);
 
   return (
     <div
@@ -916,6 +935,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
                 disabled={idle}
                 onClick={idle ? undefined : handleLove}
                 aria-label="Love this track"
+                title={loved ? "Loved — tap to unfavorite" : "Love this track — we play it more"}
                 style={{ background: "none", border: "none", cursor: idle ? "not-allowed" : "pointer", padding: 8, lineHeight: 0, opacity: idle ? 0.55 : 1 }}
               >
                 <svg width="22" height="22" viewBox="0 0 24 24">
@@ -931,6 +951,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
                 disabled={idle}
                 onClick={idle ? undefined : () => setShowReportModal(true)}
                 aria-label="Report this track"
+                title="Something off about this track? Flag it — we'll stop playing it."
                 style={{ background: "none", border: "none", cursor: idle ? "not-allowed" : "pointer", padding: 8, lineHeight: 0, opacity: idle ? 0.55 : 1 }}
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none">

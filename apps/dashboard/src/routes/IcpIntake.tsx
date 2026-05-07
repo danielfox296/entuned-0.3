@@ -21,7 +21,7 @@ type AnswerKey = keyof IcpInput
 
 const QUESTIONS: { key: AnswerKey; label: string; example: string }[] = [
   { key: 'name',                label: 'What do you call them?',
-    example: 'A persona name — Gary, Jen, Marcus. Keep it short and human.' },
+    example: 'A short, human name for this customer — "morning regulars," "after-school students," "date-night couples."' },
   { key: 'ageRange',            label: 'How old are they, roughly?',
     example: 'A range is fine — 28–45, mid-30s, "older millennials"' },
   { key: 'location',            label: 'Where do they live or shop?',
@@ -95,7 +95,7 @@ export function IcpIntake() {
     return (
       <Layout>
         <LockScreen
-          tabName="Brand Intake"
+          tabName="Customer Profile"
           valueLine="Music tailored to the people who actually walk into your store."
           requiredTier="core"
           currentTier={tier}
@@ -329,8 +329,9 @@ function ProIcpIntake({ stores }: { stores: StoreRow[] }) {
           fontSize: 15, lineHeight: 1.55,
           color: T.textDim, margin: 0, maxWidth: '60ch',
         }}>
-          A location can have several personas — Gary, Jen, Marcus.
-          Each one shapes its own slice of the music library.
+          A location can have a few different customers — morning
+          regulars, after-school students, date-night couples. Each one
+          shapes its own slice of the music library.
         </p>
       </div>
 

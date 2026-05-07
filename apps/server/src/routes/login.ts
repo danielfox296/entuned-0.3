@@ -256,7 +256,15 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
     '/magic-link',
     {
       config: {
-        rateLimit: { max: 5, timeWindow: '15 minutes' },
+        rateLimit: {
+          max: 5,
+          timeWindow: '15 minutes',
+          errorResponseBuilder: (_req, ctx) => ({
+            error: 'rate_limited',
+            message: `We just sent you a few sign-in links. Wait about ${Math.ceil((ctx.ttl ?? 60_000) / 60_000)} minute${ctx.ttl && ctx.ttl > 60_000 ? 's' : ''} and try again, or check your inbox / spam.`,
+            retryAfterSeconds: Math.ceil((ctx.ttl ?? 60_000) / 1000),
+          }),
+        },
       },
     },
     async (req, reply) => {
@@ -291,17 +299,22 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
   )
 
   // ----- GET /verify?token=...&next=... -----
+  // On failure, redirect to APP_URL/start?error=<code> with a friendly UI
+  // instead of returning raw JSON. The /start page handles the flash and
+  // the "request a new link" affordance.
   app.get('/verify', async (req, reply) => {
     const q = (req.query as { token?: string; next?: string } | undefined) ?? {}
     const token = q.token
-    if (!token || typeof token !== 'string') {
-      return reply.code(400).send({ error: 'missing_token' })
+    const failRedirect = (code: 'missing_token' | 'invalid_token' | 'token_already_used' | 'token_expired') => {
+      const url = `${appUrl()}/start?error=${code}`
+      return reply.redirect(url, 302)
     }
+    if (!token || typeof token !== 'string') return failRedirect('missing_token')
     const tokenHash = sha256Hex(token)
     const row = await prisma.magicLinkToken.findUnique({ where: { tokenHash } })
-    if (!row) return reply.code(400).send({ error: 'invalid_token' })
-    if (row.consumedAt) return reply.code(400).send({ error: 'token_already_used' })
-    if (row.expiresAt.getTime() < Date.now()) return reply.code(400).send({ error: 'token_expired' })
+    if (!row) return failRedirect('invalid_token')
+    if (row.consumedAt) return failRedirect('token_already_used')
+    if (row.expiresAt.getTime() < Date.now()) return failRedirect('token_expired')
 
     await prisma.magicLinkToken.update({ where: { id: row.id }, data: { consumedAt: new Date() } })
     const user = await findOrCreateUserByEmail(row.email)

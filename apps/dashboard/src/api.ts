@@ -21,6 +21,16 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
+    // If the server sent a structured `{error, message}` payload, surface
+    // `message` as the Error's message so UI code can display it directly.
+    let parsed: { error?: string; message?: string } | null = null
+    try { parsed = JSON.parse(body) } catch { /* not json */ }
+    if (parsed?.message) {
+      const e = new Error(parsed.message) as Error & { status?: number; code?: string }
+      e.status = res.status
+      e.code = parsed.error
+      throw e
+    }
     throw new Error(`${res.status} ${res.statusText}: ${body}`)
   }
   // Some endpoints (logout etc.) return 204 — guard json parse.

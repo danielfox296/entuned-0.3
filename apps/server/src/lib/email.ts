@@ -57,9 +57,59 @@ interface SendArgs {
   html: string
 }
 
+/**
+ * Convert our HTML email bodies to a plaintext fallback suitable for the
+ * `text` MIME part. Critical: keeps every `<a href="...">` URL on its own
+ * line so the SMTP/Resend transport's quoted-printable encoder can't soft-
+ * break a URL in the middle (which has historically mangled magic-link
+ * tokens — the `=` after `?token` was being interpreted as a QP soft-break
+ * marker, eating the `=` sign and silently breaking copy-paste sign-in).
+ */
+function htmlToText(html: string): string {
+  // 1. Replace <a href="URL">text</a> with `text (URL)` — URL on its own
+  //    rendered position so it never sits adjacent to a `?token=` marker
+  //    with nowhere clean to wrap.
+  let out = html.replace(/<a\s+[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, href, text) => {
+    const cleanText = text.replace(/<[^>]+>/g, '').trim()
+    if (!cleanText || cleanText === href) return `\n${href}\n`
+    return `${cleanText}\n${href}\n`
+  })
+  // 2. Drop all remaining tags. Convert <br>, <p>, <li> to newlines first
+  //    so paragraphs survive.
+  out = out
+    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6]|tr)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+  // 3. Decode the entities our templates actually use.
+  out = out
+    .replace(/&mdash;/g, '—')
+    .replace(/&ndash;/g, '–')
+    .replace(/&rsquo;/g, '’')
+    .replace(/&lsquo;/g, '‘')
+    .replace(/&rdquo;/g, '”')
+    .replace(/&ldquo;/g, '“')
+    .replace(/&hellip;/g, '…')
+    .replace(/&middot;/g, '·')
+    .replace(/&times;/g, '×')
+    .replace(/&amp;/g, '&')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+  // 4. Collapse whitespace runs but preserve paragraph breaks.
+  out = out
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  return out
+}
+
 /** Internal — actually dispatch (or dry-run log). */
 async function dispatch(args: SendArgs): Promise<SendResult> {
   const c = getClient()
+  const text = htmlToText(args.html)
   if (!c) {
     console.log('[email:dry-run]', JSON.stringify({
       from: FROM,
@@ -67,6 +117,7 @@ async function dispatch(args: SendArgs): Promise<SendResult> {
       to: args.to,
       subject: args.subject,
       htmlBytes: args.html.length,
+      textBytes: text.length,
     }))
     return { ok: true, dryRun: true }
   }
@@ -77,6 +128,7 @@ async function dispatch(args: SendArgs): Promise<SendResult> {
       replyTo: REPLY_TO,
       subject: args.subject,
       html: args.html,
+      text,
     })
     if (res.error) return { ok: false, error: res.error.message }
     return { ok: true, id: res.data?.id }

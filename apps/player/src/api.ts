@@ -110,16 +110,29 @@ export const api = {
     req<StoreBySlug>(`/stores/by-slug/${encodeURIComponent(slug)}`),
   outcomes: (storeId: string, token: string) =>
     req<OutcomeOption[]>(`/hendrix/outcomes?store_id=${encodeURIComponent(storeId)}`, {}, token),
+  // Slug-mode: no Authorization header. Slug is the auth.
+  outcomesBySlug: (slug: string) =>
+    req<OutcomeOption[]>(`/hendrix/outcomes?slug=${encodeURIComponent(slug)}`),
   outcomeSelection: (storeId: string, outcomeId: string, token: string) =>
     req<{ outcomeId: string; expiresAt: string }>('/hendrix/outcome-selection', {
       method: 'POST',
       body: JSON.stringify({ store_id: storeId, outcome_id: outcomeId }),
     }, token),
+  outcomeSelectionBySlug: (slug: string, outcomeId: string) =>
+    req<{ outcomeId: string; expiresAt: string }>('/hendrix/outcome-selection', {
+      method: 'POST',
+      body: JSON.stringify({ slug, outcome_id: outcomeId }),
+    }),
   clearOutcomeSelection: (storeId: string, token: string) =>
     req<{ ok: true }>('/hendrix/outcome-selection/clear', {
       method: 'POST',
       body: JSON.stringify({ store_id: storeId }),
     }, token),
+  clearOutcomeSelectionBySlug: (slug: string) =>
+    req<{ ok: true }>('/hendrix/outcome-selection/clear', {
+      method: 'POST',
+      body: JSON.stringify({ slug }),
+    }),
   emit: (event: OutgoingEvent | OutgoingEvent[]) => {
     const body = Array.isArray(event) ? { events: event } : event
     return req<{ accepted: number }>('/events', { method: 'POST', body: JSON.stringify(body) })

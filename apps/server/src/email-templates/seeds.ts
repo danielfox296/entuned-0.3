@@ -34,14 +34,13 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
   },
   welcomeFree: {
     subject: 'Welcome to Entuned Free',
-    preheader: 'Your Entuned Free account is active. Two next steps inside.',
+    preheader: 'Open the player on the device that drives your shop speakers. Pick an outcome. Music starts.',
     body: `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">You&rsquo;re on Entuned Free.</p>
-    <p style="margin:0 0 14px 0;">Two links to get running:</p>
-    <p style="margin:0 0 6px 0;"><strong style="color:#d7af74;">1. Dashboard</strong> &mdash; manage your account and add a location.</p>
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open dashboard</a></td></tr></table>
-    <p style="margin:14px 0 6px 0;"><strong style="color:#d7af74;">2. Player</strong> &mdash; open this on any speaker you already have. Pick Increase Dwell or Infuse Energy to start playing.</p>
+    <p style="margin:0 0 14px 0;"><strong style="color:#d7af74;">Start here:</strong> open the player on whatever device drives your shop&rsquo;s speakers (the laptop behind the counter, an iPad, a Bluetooth-paired phone). Pick Increase Dwell or Lift Energy. Music starts.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{playerUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open player</a></td></tr></table>
+    <p style="margin:22px 0 6px 0;font-size:14px;color:#9a958c;">When you have a minute &mdash; the dashboard is where you manage your account, add another location, or upgrade.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open dashboard</a></td></tr></table>
     <p style="margin:18px 0 0 0;font-size:14px;">Ready for music tuned to your specific customer? <a href="https://entuned.co/pricing.html" style="color:#d7af74;">Unlock Core</a> for a private library built around the people who actually walk into your store.</p>
     <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Replies hit a real person.</p>
     `.trim(),
@@ -56,7 +55,7 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     body: `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">You&rsquo;re on Core.</p>
     <p style="margin:0 0 14px 0;">Two links to get running:</p>
-    <p style="margin:0 0 6px 0;"><strong style="color:#d7af74;">1. Dashboard</strong> &mdash; fill out Brand Intake so we can build a library around your customer.</p>
+    <p style="margin:0 0 6px 0;"><strong style="color:#d7af74;">1. Dashboard</strong> &mdash; fill out Customer Profile so we can build a library around your customer.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open dashboard</a></td></tr></table>
     <p style="margin:14px 0 6px 0;"><strong style="color:#d7af74;">2. Player</strong> &mdash; sign in on the in-store device once your library is ready.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{playerUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open player</a></td></tr></table>
@@ -73,11 +72,11 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     body: `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">You&rsquo;re on Pro.</p>
     <p style="margin:0 0 14px 0;">Two links to get running:</p>
-    <p style="margin:0 0 6px 0;"><strong style="color:#d7af74;">1. Dashboard</strong> &mdash; fill out Brand Intake so we can build a library around your customer.</p>
+    <p style="margin:0 0 6px 0;"><strong style="color:#d7af74;">1. Dashboard</strong> &mdash; fill out Customer Profile so we can build a library around your customer.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open dashboard</a></td></tr></table>
     <p style="margin:14px 0 6px 0;"><strong style="color:#d7af74;">2. Player</strong> &mdash; sign in on the in-store device once your library is ready.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{playerUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open player</a></td></tr></table>
-    <p style="margin:14px 0 0 0;">Pro includes a human review pass on your first library. Expect a note from us within 48 hours after Brand Intake is in.</p>
+    <p style="margin:14px 0 0 0;">Pro includes a human review pass on your first library. Expect a note from us within 48 hours after Customer Profile is in.</p>
     <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Replies hit a real person.</p>
     `.trim(),
     propsExample: {
@@ -121,7 +120,7 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     preheader: 'Update your billing to avoid an interruption.',
     body: `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Final notice.</p>
-    <p style="margin:0 0 14px 0;">Service pauses end of day unless billing is current. Your library and Brand Intake stay intact &mdash; resume any time by updating your card.</p>
+    <p style="margin:0 0 14px 0;">Service pauses end of day unless billing is current. Your library and Customer Profile stay intact &mdash; resume any time by updating your card.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{billingPortalUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Update billing now</a></td></tr></table>
     `.trim(),
     propsExample: { billingPortalUrl: 'https://billing.stripe.com/sample' },
@@ -154,11 +153,11 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
   },
   icpUnfilled: {
     subject: 'Two minutes to a library built around your customer',
-    preheader: 'Brand Intake tunes the library to your audience. Two minutes.',
+    preheader: 'Customer Profile tunes the library to your audience. Two minutes.',
     body: `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Two minutes to a library built around your customer.</p>
-    <p style="margin:0 0 14px 0;">Your Core account can be tuned to the people who actually walk into your store. The seven Brand Intake questions are what we tune it from &mdash; about who they are, what they value, what would make them leave.</p>
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{intakeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Open Brand Intake</a></td></tr></table>
+    <p style="margin:0 0 14px 0;">Your Core account can be tuned to the people who actually walk into your store. The seven Customer Profile questions are what we tune it from &mdash; about who they are, what they value, what would make them leave.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{intakeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Set up Customer Profile</a></td></tr></table>
     <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Fill it once and we get out of the way &mdash; you can come back and re-tune any time.</p>
     `.trim(),
     propsExample: { intakeUrl: 'https://app.entuned.co/intake' },
@@ -168,7 +167,7 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     preheader: 'A library built around your customer. $99 / location / month.',
     body: `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">On Core, your library is built around your customer.</p>
-    <p style="margin:0 0 14px 0;">Entuned Free gives you a soundtrack engineered for retail in general &mdash; Increase Dwell or Infuse Energy on a 100+ song catalogue. It&rsquo;s the same one every store starts on.</p>
+    <p style="margin:0 0 14px 0;">Entuned Free gives you a soundtrack engineered for retail in general &mdash; Increase Dwell or Lift Energy on a 100+ song catalogue. It&rsquo;s the same one every store starts on.</p>
     <p style="margin:0 0 14px 0;">On Core, you answer seven questions about who walks in and we build a private library around them. All research-backed outcomes unlocked. $99 per location, per month. No setup fee, no contracts, cancel any time.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Unlock Core</a></td></tr></table>
     <p style="margin:18px 0 6px 0;font-size:13px;color:#9a958c;">Your current player: <a href="{{playerUrl}}" style="color:#d7af74;">{{playerUrl}}</a></p>
@@ -201,7 +200,7 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     <p style="margin:0 0 14px 0;">At one location, you can hear the floor. At {{storeCount}}, you can&rsquo;t be everywhere &mdash; and you can&rsquo;t tell which hours need different music.</p>
     <p style="margin:0 0 14px 0;">Pro adds two things that pay for themselves at scale:</p>
     <ul style="margin:0 0 14px 0;padding-left:20px;">
-      <li style="margin-bottom:6px;"><strong style="color:#d7af74;">Day-parting</strong> &mdash; outcome rotation per location. Morning lull on Increase Dwell, Saturday afternoon on Infuse Energy. One rule, every store.</li>
+      <li style="margin-bottom:6px;"><strong style="color:#d7af74;">Day-parting</strong> &mdash; outcome rotation per location. Morning lull on Increase Dwell, Saturday afternoon on Lift Energy. One rule, every store.</li>
       <li><strong style="color:#d7af74;">POS integrations</strong> &mdash; Square / Shopify / Lightspeed. Music outcomes next to hourly transactions, per location. The lift stops being a story and starts being a line item.</li>
     </ul>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#d7af74;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;">Unlock Pro</a></td></tr></table>

@@ -15,6 +15,16 @@ export function Start() {
   // handshake so logged-out clicks on links like /billing/upgrade-from-comp
   // route the user back to where they were trying to go after auth.
   const next = searchParams.get('next') ?? undefined
+  const errorParam = searchParams.get('error')
+
+  // Map redirect-error codes from /login/verify into friendly copy.
+  const linkErrorCopy = (() => {
+    if (!errorParam) return null
+    if (errorParam === 'token_expired') return 'That sign-in link expired. Send a new one — they only last 15 minutes.'
+    if (errorParam === 'token_already_used') return 'That sign-in link was already used. Send a new one.'
+    if (errorParam === 'invalid_token' || errorParam === 'missing_token') return "We couldn't read that sign-in link. Send a new one — sometimes copy-paste from email mangles the URL."
+    return 'Sign-in link didn\'t work. Send a new one below.'
+  })()
 
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState(false)
@@ -54,22 +64,73 @@ export function Start() {
             lineHeight: 1.55,
           }}>
             Didn't land? It's worth a peek in spam — sometimes new domains get
-            filtered. You can also try a different address.
+            filtered.
           </div>
+          <button
+            type="button"
+            onClick={() => { setSent(false); setEmail(''); setError(null) }}
+            style={{
+              marginTop: 18,
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              color: T.accent,
+              fontSize: 14,
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              fontFamily: T.sans,
+            }}
+          >
+            Try a different email →
+          </button>
         </>
       ) : (
         <>
           <Headline>Start your store's soundtrack.</Headline>
           <Sub>
-            Pick an outcome — Increase Dwell or Infuse Energy — and play
-            it through any speaker you already have. Free, indefinite,
-            no card required.
+            Pick a vibe — slow the room down (Increase Dwell) or lift
+            the energy — and Entuned plays original, retail-licensed
+            music through your existing speakers. Free forever, no
+            card.
           </Sub>
+          <details style={{
+            marginTop: 14, fontSize: 13, color: T.textFaint,
+            lineHeight: 1.55,
+          }}>
+            <summary style={{
+              cursor: 'pointer', color: T.textMuted, fontSize: 13,
+              padding: '4px 0',
+            }}>
+              How does it actually play through my speakers?
+            </summary>
+            <div style={{ marginTop: 8, paddingLeft: 4 }}>
+              Entuned is a web player. After you sign in, you get a URL
+              like <code style={{ fontSize: 12, color: T.text }}>music.entuned.co/your-shop</code>.
+              Open that on whatever device feeds your shop's speakers
+              — the laptop behind the counter, an iPad, a phone paired
+              over Bluetooth, a Sonos via AirPlay. Press play. Music
+              starts. No app to install, no hardware to buy.
+            </div>
+          </details>
           <div style={{
-            marginTop: 6, fontSize: 13, color: T.textFaint,
+            marginTop: 14, fontSize: 13, color: T.textFaint,
           }}>
             We'll email you a sign-in link. Click it and you're in.
           </div>
+
+          {linkErrorCopy && (
+            <div style={{
+              marginTop: 18,
+              padding: '14px 16px',
+              background: 'rgba(240,153,123,0.08)',
+              borderLeft: `3px solid ${T.danger}`,
+              color: T.text,
+              fontSize: 14,
+              lineHeight: 1.55,
+            }}>
+              {linkErrorCopy}
+            </div>
+          )}
 
           <form onSubmit={submit} style={{ display: 'grid', gap: 18, marginTop: 32 }}>
             <div>
