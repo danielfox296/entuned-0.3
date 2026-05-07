@@ -392,6 +392,18 @@ model LyricEditPrompt {
   @@map("lyric_edit_prompts")
 }
 
+model LyricBanEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  category  String
+  text      String
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([category, text])
+  @@index([category])
+  @@map("lyric_ban_entries")
+}
+
 // ---------- Card 10 Hook Writer Prompt (per-ICP) ----------
 
 model HookWriterPrompt {

@@ -132,6 +132,15 @@ export interface StyleExclusionRuleRow {
   note: string | null
 }
 
+export type LyricBanCategory = 'overused_word' | 'cliche_phrase' | 'cliche_shape'
+
+export interface LyricBanEntryRow {
+  id: string
+  category: LyricBanCategory
+  text: string
+  note: string | null
+}
+
 export interface StyleTemplateRow {
   id: string
   version: number
@@ -759,6 +768,15 @@ export const api = {
     req<StyleExclusionRuleRow>(`/admin/style-exclusion-rules/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   deleteStyleExclusionRule: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/style-exclusion-rules/${id}`, { method: 'DELETE' }, token),
+
+  lyricBanEntries: (token: string) =>
+    req<LyricBanEntryRow[]>('/admin/lyric-ban-entries', {}, token),
+  createLyricBanEntry: (body: Omit<LyricBanEntryRow, 'id'>, token: string) =>
+    req<LyricBanEntryRow>('/admin/lyric-ban-entries', { method: 'POST', body: JSON.stringify(body) }, token),
+  updateLyricBanEntry: (id: string, body: Omit<LyricBanEntryRow, 'id'>, token: string) =>
+    req<LyricBanEntryRow>(`/admin/lyric-ban-entries/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+  deleteLyricBanEntry: (id: string, token: string) =>
+    req<{ ok: true }>(`/admin/lyric-ban-entries/${id}`, { method: 'DELETE' }, token),
 
   styleTemplate: (token: string) =>
     req<{ latest: StyleTemplateRow | null; history: StyleTemplateRow[] }>('/admin/style-template', {}, token),

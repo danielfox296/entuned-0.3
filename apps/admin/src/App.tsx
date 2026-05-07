@@ -13,6 +13,7 @@ import { useClientLogo } from './ui/clientLogo.js'
 import { DecomposerRules } from './panels/engine/DecomposerRules.js'
 import { FailureRules } from './panels/engine/FailureRules.js'
 import { LyricPrompts } from './panels/engine/LyricPrompts.js'
+import { LyricBanList } from './panels/engine/LyricBanList.js'
 import { OutcomeFactorPrompt } from './panels/engine/OutcomeFactorPrompt.js'
 import { OutcomeLyricFactor } from './panels/engine/OutcomeLyricFactor.js'
 import { ReferenceTrackPrompt } from './panels/engine/ReferenceTrackPrompt.js'
@@ -54,7 +55,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Outcome Library', 'Style Rules', 'Lyric Rules', 'Dry Run'],
     description: '' },
   { key: 'engine', label: 'Prompts & Rules', short: 'Prompts & Rules', icon: Settings,
-    cards: ['Hook Drafter', 'Decomposition', 'Style Exclusion Rules', 'Lyric Prompts', 'Reference Track Suggester'],
+    cards: ['Hook Drafter', 'Decomposition', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Reference Track Suggester'],
     description: '' },
   { key: 'catalogue', label: 'Library', short: 'Library', icon: Music2,
     cards: ['Song Browser', 'Flagged Review', 'Pool Depth'],
@@ -275,6 +276,7 @@ function EngineRouter({ cards }: { cards: string[] }) {
       {active === 'Hook Drafter' && <HookDrafterPrompt />}
       {active === 'Decomposition' && <DecomposerRules />}
       {active === 'Style Exclusion Rules' && <FailureRules />}
+      {active === 'Lyric Ban List' && <LyricBanList />}
       {active === 'Lyric Prompts' && <LyricPrompts />}
       {active === 'Reference Track Suggester' && <ReferenceTrackPrompt />}
     </div>

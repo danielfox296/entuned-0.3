@@ -106,6 +106,12 @@ const ReferenceTrackPromptPostBody = z.object({ templateText: z.string().min(1),
 
 const LyricPromptPostBody = z.object({ promptText: z.string().min(1), notes: z.string().optional() })
 
+const LyricBanEntryBody = z.object({
+  category: z.enum(['overused_word', 'cliche_phrase', 'cliche_shape']),
+  text: z.string().min(1),
+  note: z.string().nullable().optional(),
+})
+
 export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- MusicologicalRules -----
 
@@ -312,6 +318,58 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.operatorId },
     })
     return row
+  })
+
+  // ----- LyricBanEntries (overused words / cliché phrases / cliché shapes) -----
+
+  app.get('/lyric-ban-entries', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const rows = await prisma.lyricBanEntry.findMany({ orderBy: [{ category: 'asc' }, { text: 'asc' }] })
+    return rows
+  })
+
+  app.post('/lyric-ban-entries', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = LyricBanEntryBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.lyricBanEntry.create({
+        data: { category: parsed.data.category, text: parsed.data.text, note: parsed.data.note ?? null },
+      })
+      return row
+    } catch (e: any) {
+      if (e?.code === 'P2002') return reply.code(409).send({ error: 'duplicate', message: 'Entry already exists for this category + text' })
+      throw e
+    }
+  })
+
+  app.put('/lyric-ban-entries/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = LyricBanEntryBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.lyricBanEntry.update({
+        where: { id },
+        data: { category: parsed.data.category, text: parsed.data.text, note: parsed.data.note ?? null },
+      })
+      return row
+    } catch (e: any) {
+      if (e?.code === 'P2025') return reply.code(404).send({ error: 'not_found' })
+      if (e?.code === 'P2002') return reply.code(409).send({ error: 'duplicate', message: 'Entry already exists for this category + text' })
+      throw e
+    }
+  })
+
+  app.delete('/lyric-ban-entries/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    try {
+      await prisma.lyricBanEntry.delete({ where: { id } })
+      return { ok: true }
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
+    }
   })
 
   // ----- Brand: Stores / ICPs / ReferenceTracks / Decompositions -----

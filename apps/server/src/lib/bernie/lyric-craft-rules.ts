@@ -146,9 +146,44 @@ PERFORMANCE TYPOGRAPHY — add deliberately on lines that earn it, not decorativ
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 6) NO-GO block — wordlist + cliché phrases + cliché shapes. Used by the EDIT
-// pass only.
+// pass only. Pulls from DB (lyric_ban_entries) with hardcoded fallback.
 // ──────────────────────────────────────────────────────────────────────────────
-export function formatNoGoBlock(): string {
+import { prisma } from '../../db.js'
+
+export async function loadBanEntries(): Promise<{ overusedWords: string[]; clichePhrases: string[]; clicheShapes: string[] }> {
+  const rows = await prisma.lyricBanEntry.findMany({ orderBy: [{ category: 'asc' }, { text: 'asc' }] })
+  if (rows.length === 0) {
+    return {
+      overusedWords: [...OVERUSED_WORDS],
+      clichePhrases: [...AI_CLICHE_PHRASES],
+      clicheShapes: [...AI_CLICHE_SHAPES],
+    }
+  }
+  return {
+    overusedWords: rows.filter((r) => r.category === 'overused_word').map((r) => r.text),
+    clichePhrases: rows.filter((r) => r.category === 'cliche_phrase').map((r) => r.text),
+    clicheShapes: rows.filter((r) => r.category === 'cliche_shape').map((r) => r.text),
+  }
+}
+
+export async function formatNoGoBlock(): Promise<string> {
+  const { overusedWords, clichePhrases, clicheShapes } = await loadBanEntries()
+  return `
+NO-GO list — pattern-recognition red flags, not strict bans. When a draft line contains a flagged word OR matches a flagged shape, ask: am I describing a concrete sensory thing in a specific moment, or am I gesturing at an abstract emotion? If concrete and grounded, fine. If abstract or gestural, rewrite with specific imagery (a particular place, time, object, sensation). Do NOT swap one abstract synonym for another (don't replace "shadows" with "darkness", or "you complete me" with "you make me whole"). The fix is always specificity.
+
+Overused words (apply to plurals, possessives, all conjugations):
+${overusedWords.join(', ')}.
+
+Cliché phrases:
+${clichePhrases.map((p) => `- ${p}`).join('\n')}
+
+Cliché shapes (variants of these structures are equally clichéd):
+${clicheShapes.map((s) => `- ${s}`).join('\n')}
+`.trim()
+}
+
+/** Synchronous fallback using hardcoded lists (for cold-start / seed prompts). */
+export function formatNoGoBlockSync(): string {
   return `
 NO-GO list — pattern-recognition red flags, not strict bans. When a draft line contains a flagged word OR matches a flagged shape, ask: am I describing a concrete sensory thing in a specific moment, or am I gesturing at an abstract emotion? If concrete and grounded, fine. If abstract or gestural, rewrite with specific imagery (a particular place, time, object, sensation). Do NOT swap one abstract synonym for another (don't replace "shadows" with "darkness", or "you complete me" with "you make me whole"). The fix is always specificity.
 

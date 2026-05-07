@@ -5,7 +5,7 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../db.js'
-import { OVERUSED_WORDS } from '../bernie/lyric-craft-rules.js'
+import { OVERUSED_WORDS, loadBanEntries } from '../bernie/lyric-craft-rules.js'
 
 const MODEL = process.env.HOOK_DRAFTER_MODEL ?? 'claude-sonnet-4-5'
 

@@ -7,7 +7,7 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../db.js'
-import { DRAFT_CRAFT_BLOCK, EDIT_CRAFT_BLOCK, formatNoGoBlock } from '../bernie/lyric-craft-rules.js'
+import { DRAFT_CRAFT_BLOCK, EDIT_CRAFT_BLOCK, formatNoGoBlockSync } from '../bernie/lyric-craft-rules.js'
 
 const MODEL = process.env.LYRICIST_MODEL ?? 'claude-sonnet-4-5'
 
@@ -21,7 +21,7 @@ export interface LyricOutput {
   lyrics: string
 }
 
-const NO_GO_BLOCK = formatNoGoBlock()
+const NO_GO_BLOCK = formatNoGoBlockSync()
 
 export const DRAFT_PROMPT_SEED = `
 You write lyrics for a brand's in-store music. The hook is given to you — the rest is
