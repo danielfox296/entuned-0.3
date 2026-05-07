@@ -431,16 +431,6 @@ function ApprovedRow({ hook, pendingText, busy, onChange, onBlur, onDelete }: {
         >{text}</div>
       )}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        {!editing && (
-          <button
-            onClick={() => setEditing(true)}
-            style={{
-              background: 'transparent', border: `1px solid ${T.border}`,
-              color: T.textMuted, padding: '4px 10px', borderRadius: 3,
-              fontFamily: T.sans, fontSize: 12, cursor: 'pointer',
-            }}
-          >edit</button>
-        )}
         <button
           onClick={onDelete}
           disabled={busy}
