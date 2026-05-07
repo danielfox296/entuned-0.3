@@ -45,9 +45,14 @@ export async function uploadBuffer(key: string, body: Buffer, contentType: strin
 
 /**
  * Resolve a Suno share/song page URL to a direct CDN audio URL.
- * Short links (suno.com/s/<code>) and song pages (suno.com/song/<uuid>)
- * both follow the same pattern: UUID maps to cdn1.suno.ai/<uuid>.mp3.
- * Non-Suno URLs are returned unchanged.
+ *
+ * As of 2026-05, Suno serves audio via two paths:
+ *   - Newer tracks: https://audiopipe.suno.ai/?item_id=<uuid>&format=mp3
+ *   - Older tracks: https://cdn1.suno.ai/<uuid>.mp3
+ *
+ * audiopipe is the more reliable endpoint (covers both); cdn1 returns 403
+ * for many recently-generated tracks. We try audiopipe first, fall back
+ * to cdn1. Direct (non-suno.com) URLs are returned unchanged.
  */
 async function resolveAudioUrl(url: string): Promise<string> {
   if (!/suno\.com\/(s\/|song\/)/i.test(url)) return url
@@ -56,7 +61,7 @@ async function resolveAudioUrl(url: string): Promise<string> {
   const finalUrl = res.url
   const m = finalUrl.match(/\/song\/([0-9a-f-]{36})/i)
   if (!m) throw new Error(`could not extract Suno song UUID from ${url} (resolved to ${finalUrl})`)
-  return `https://cdn1.suno.ai/${m[1]}.mp3`
+  return `https://audiopipe.suno.ai/?item_id=${m[1]}&format=mp3`
 }
 
 /**
