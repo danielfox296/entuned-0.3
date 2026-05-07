@@ -20,38 +20,43 @@ hangs on.
 A hook is 4–10 words. But word count is the easy part. The hard part:
 
 **Concrete over abstract.** A great hook puts a picture, a sensation, or a
-specific moment in the listener's mouth. "Warm leather and a Sunday drive" is
-concrete. "Find your inner peace" is a poster. If you can't point at the thing
-the hook describes, it's too abstract.
+specific moment in the listener's mouth. It names a thing you could photograph
+or a sensation you could feel on your skin. If the hook could be a poster
+caption or a motivational quote, it's too abstract — rewrite with a specific
+object, place, texture, or action.
 
 **Mouth-feel matters.** The hook will be sung dozens of times across a playlist.
 It needs to feel good in the mouth — open vowels for sustained notes, consonant
-clusters for rhythmic punch, stressed syllables that land on downbeats. Read it
+clusters for rhythmic punch, stressed syllables that land on downbeats. Say it
 aloud. If it feels like chewing cardboard, rewrite.
 
 **Payoff, not setup.** The hook is where the song arrives. It resolves the
-tension the verses build. A hook that sounds like the beginning of a thought
-("Maybe someday we'll…") fails — it should sound like the END of a thought.
+tension the verses build. It should sound like the END of a thought, not the
+beginning of one.
 
 **Person, not brand.** It should sound like something a real person would say in
 a real moment — not a slogan, not a motivational poster, not an ad headline.
 The brand's values should be felt, not named.
 
-## The gap between weak and strong
+## How to tell a weak hook from a strong one
 
-Weak hooks share patterns: they're vague, interchangeable, and sound like AI
-wrote them. Strong hooks are specific, surprising, and sticky.
+Weak hooks are ABSTRACT — they name emotions, use imperative verbs telling the
+listener what to feel, and could apply to any brand or any song. They sound
+interchangeable. Test: if you swap it into a completely different brand's
+playlist and it still works, it's too generic.
 
-WEAK → STRONG examples (for calibration, not for copying):
-- "Rise above it all" → "Dust on my boots and nowhere to be"
-- "Find what you're looking for" → "Didn't know I needed this"
-- "Feel the energy" → "Three sips in and the whole room shifts"
-- "Live in the moment" → "Clock says late but my feet say stay"
-- "Be who you are" → "Still wearing yesterday's good idea"
-- "Chase your dreams" → "Left the keys on the counter on purpose"
+Strong hooks are SCENES — they contain a specific object, sensation, time of
+day, or small human action. They imply the emotion without naming it. Test: can
+you picture a specific person in a specific moment? If yes, it's concrete
+enough. If no, add a sensory detail or replace the abstraction with the thing
+that CAUSES the feeling.
 
-Notice: the strong versions are SCENES. A person, a place, a small action.
-They imply the feeling without naming it.
+Hooks that use these patterns are almost always weak — avoid them:
+- "Find your [noun]" / "Feel the [noun]" / "Chase your [noun]"
+- "[Verb] like never before"
+- "This is where [abstract thing] begins"
+- "More than [noun]" / "Beyond the [noun]"
+- Any hook that works as an ad tagline for a car, a sneaker, AND a bank
 
 ## Diction rules
 
@@ -72,21 +77,18 @@ paraphrase. That phrase is permanently banned by editorial decision.
 
 Each batch must use DIFFERENT structural approaches. Spread across these levers:
 
-1. **Sentence type:** declaration ("This is the part I keep"), question
-   ("Who taught you to walk like that?"), imperative ("Leave the light on"),
-   observation ("Funny how the good ones stay quiet"), fragment
-   ("Dust and honey and a long way home").
-2. **Tense:** present ("I'm taking the long way"), past ("Never did figure
-   that one out"), future ("Gonna need a bigger table").
-3. **Point of view:** self ("I already know"), other ("You wear it like it's
-   nothing"), collective ("We don't do that here"), impersonal ("Something about
-   this place").
-4. **Specificity dial:** tight scene ("Coffee rings on the lease agreement"),
-   medium ("Feels like the first warm night"), wide ("Some things just fit").
+1. **Sentence type:** declaration, question, imperative, observation, fragment.
+   No more than 2 of the same type in a row.
+2. **Tense:** present, past, future. No more than half the batch in one tense.
+3. **Point of view:** self (I/me), other (you), collective (we), impersonal
+   (no pronoun). No more than half the batch in one POV.
+4. **Specificity dial:** tight scene (names an object or place), medium
+   (names a sensation or time), wide (names a feeling through implication).
+   At least one of each in every batch of 6+.
 
-Do not cluster. If you've written three declarations in a row, the next one
-must be a question, observation, or fragment. If three hooks are present-tense,
-switch.
+Do not cluster. Alternate deliberately. If you catch yourself in a groove
+(similar rhythm, similar sentence shape, similar imagery), break the pattern
+hard — change the sentence type, the tense, AND the POV simultaneously.
 
 ## Vocal-gender tagging (per-hook)
 
