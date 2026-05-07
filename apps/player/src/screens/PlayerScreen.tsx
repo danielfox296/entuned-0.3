@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type QueueItem, type ActiveOutcome, type OutcomeOption, type AudioEventType } from "../api.js";
 import { CrossfadePlayer } from "../audio/crossfade-player.js";
 import { LoudnessSampler } from "../audio/loudness-sampler.js";
+import { bufferEvent, flushNow } from "../lib/event-buffer.js";
 import { CircleButton } from "../components/CircleButton.js";
 import { DarkHalo } from "../components/DarkHalo.js";
 import { ProgressBar } from "../components/ProgressBar.js";
@@ -96,7 +97,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
 
   const emit = useCallback((event_type: AudioEventType, item?: QueueItem | null, extra?: { report_reason?: string; outcome_id?: string }) => {
     const isAd = item?.type === "ad";
-    api.emit({
+    const event = {
       event_type,
       store_id: session.storeId,
       occurred_at: new Date().toISOString(),
@@ -108,7 +109,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
       report_reason: extra?.report_reason ?? null,
       outcome_id: extra?.outcome_id ?? (isAd ? null : item?.outcomeId ?? null),
       extra: isAd ? { assetId: item.assetId, campaignId: item.campaignId } : undefined,
-    }).catch((e) => console.warn("[player] emit failed", e));
+    };
+    // Session-boundary events flush immediately; everything else batches.
+    if (event_type === 'operator_login' || event_type === 'operator_logout') {
+      api.emit(event).catch((e) => console.warn("[player] emit failed", e));
+    } else {
+      bufferEvent(event);
+    }
   }, [session.storeId, session.operatorId]);
 
   // Returns the raw server queue so callers can use it immediately without
@@ -489,13 +496,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
     });
     samplerRef.current = new LoudnessSampler({
       onSample: (s) => {
-        api.emit({
+        bufferEvent({
           event_type: "room_loudness_sample",
           store_id: session.storeId,
           occurred_at: new Date().toISOString(),
           operator_id: session.operatorId,
           extra: s,
-        }).catch((e) => console.warn("[player] loudness sample emit failed", e));
+        });
       },
       isPlaying: () => playerRef.current?.isPlaying() ?? false,
     });
@@ -520,6 +527,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
       samplerRef.current?.stop();
       samplerRef.current = null;
       samplerStartedRef.current = false;
+      flushNow();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

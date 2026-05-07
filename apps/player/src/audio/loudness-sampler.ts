@@ -15,7 +15,7 @@ export type LoudnessSampleEvent = {
 
 export type SamplerStartResult = 'granted' | 'denied' | 'unavailable'
 
-const DEFAULT_INTERVAL_MS = 60_000
+const DEFAULT_INTERVAL_MS = 300_000
 const SAMPLE_WINDOW_MS = 500
 
 // A-weighting biquad cascade. Standard 4-stage cascade approximating IEC 61672-1 class 2,

@@ -83,14 +83,15 @@ export const eventsRoutes: FastifyPluginAsync = async (app) => {
 
     // Update campaign play state counters.
     // song_complete → increment songs_played_since_ad for the store.
+    // Uses updateMany instead of upsert so stores without campaigns (no row) are a no-op.
+    // The row is created by the ad_play path below when a campaign first fires.
     const songCompleteStores = [...new Set(
       events.filter((e) => e.event_type === 'song_complete').map((e) => e.store_id),
     )]
     await Promise.all(songCompleteStores.map((storeId) =>
-      prisma.campaignPlayState.upsert({
+      prisma.campaignPlayState.updateMany({
         where: { storeId },
-        update: { songsPlayedSinceAd: { increment: 1 } },
-        create: { storeId, songsPlayedSinceAd: 1 },
+        data: { songsPlayedSinceAd: { increment: 1 } },
       }),
     ))
 
