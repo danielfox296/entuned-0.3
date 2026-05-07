@@ -499,7 +499,7 @@ model SongSeed {
   terminalAt DateTime? @map("terminal_at") @db.Timestamptz(6)
 
   songSeedBatch  SongSeedBatch   @relation(fields: [songSeedBatchId], references: [id])
-  hook           Hook            @relation(fields: [hookId], references: [id])
+  hook           Hook            @relation(fields: [hookId], references: [id], onDelete: Cascade)
   outcome        Outcome         @relation(fields: [outcomeId], references: [id])
   referenceTrack ReferenceTrack? @relation(fields: [referenceTrackId], references: [id])
   lineageRows    LineageRow[]
@@ -640,7 +640,7 @@ model LineageRow {
 
   song     Song      @relation(fields: [songId], references: [id])
   outcome  Outcome   @relation(fields: [outcomeId], references: [id])
-  hook     Hook?     @relation(fields: [hookId], references: [id])
+  hook     Hook?     @relation(fields: [hookId], references: [id], onDelete: SetNull)
   songSeed SongSeed? @relation(fields: [songSeedId], references: [id])
 
   @@index([icpId, outcomeId, active])
