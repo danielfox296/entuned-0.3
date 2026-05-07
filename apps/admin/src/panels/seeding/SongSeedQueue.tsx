@@ -148,29 +148,52 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
 
 function SeedListRow({ sub, onOpen }: { sub: SongSeedRow; onOpen: () => void }) {
   const ref = sub.referenceTrack
+  const outcomeName = sub.outcome.displayTitle ?? sub.outcome.title
   return (
     <div
       onClick={onOpen}
       style={{
         background: T.surface, border: `1px solid ${T.border}`,
-        borderRadius: 4, padding: '10px 14px', cursor: 'pointer',
-        display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 14, alignItems: 'center',
+        borderRadius: 4, padding: '12px 16px', cursor: 'pointer',
+        display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, alignItems: 'center',
       }}
     >
-      {/* Left: title */}
-      <span style={{ fontSize: 14, fontFamily: T.sans, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {sub.title ?? sub.hook.text}
-      </span>
+      {/* Left: primary info — outcome, hook, title */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            fontSize: 11, fontFamily: T.mono, fontWeight: 600, color: T.accent,
+            background: T.accentGlow, border: `1px solid ${T.accentMuted}`,
+            borderRadius: 3, padding: '2px 7px', whiteSpace: 'nowrap', flexShrink: 0,
+          }}>
+            {outcomeName}
+          </span>
+          <span style={{
+            fontSize: 14, fontFamily: T.sans, color: T.text, fontWeight: 500,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {sub.hook.text}
+          </span>
+        </div>
+        {sub.title && sub.title !== sub.hook.text && (
+          <span style={{
+            fontSize: 12, fontFamily: T.mono, color: T.textDim, paddingLeft: 1,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {sub.title}
+          </span>
+        )}
+      </div>
 
-      {/* Middle: album art for decomposed inspiration reference track */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
+      {/* Right: reference track with art */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
         {ref?.coverUrl ? (
           <img
             src={ref.coverUrl}
             alt={`${ref.artist} — ${ref.title}`}
             title={`${ref.artist} — ${ref.title}`}
             style={{
-              width: 40, height: 40, borderRadius: 3, objectFit: 'cover',
+              width: 36, height: 36, borderRadius: 3, objectFit: 'cover',
               border: `1px solid ${T.borderSubtle}`, display: 'block',
             }}
           />
@@ -178,28 +201,30 @@ function SeedListRow({ sub, onOpen }: { sub: SongSeedRow; onOpen: () => void }) 
           <div
             title={ref ? `${ref.artist} — ${ref.title}` : 'no reference track'}
             style={{
-              width: 40, height: 40, borderRadius: 3,
+              width: 36, height: 36, borderRadius: 3,
               background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               fontFamily: T.mono, fontSize: 10, color: T.textDim,
             }}
           >{ref ? '♪' : '—'}</div>
         )}
-        <span style={{
-          fontSize: 12, fontFamily: T.mono, color: T.textDim,
-          maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
-          {ref ? `${ref.artist} — ${ref.title}` : 'no ref'}
-        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, maxWidth: 160 }}>
+          <span style={{
+            fontSize: 12, fontFamily: T.sans, color: T.textMuted, fontWeight: 500,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {ref ? ref.title : '—'}
+          </span>
+          {ref && (
+            <span style={{
+              fontSize: 11, fontFamily: T.mono, color: T.textDim,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {ref.artist}
+            </span>
+          )}
+        </div>
       </div>
-
-      {/* Right: outcome */}
-      <span style={{
-        fontSize: 13, fontFamily: T.mono, color: T.textMuted, textAlign: 'right',
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-      }}>
-        {sub.outcome.displayTitle ?? sub.outcome.title}
-      </span>
     </div>
   )
 }
