@@ -30,7 +30,7 @@ export function Schedule() {
           requiredTier="pro"
           currentTier={tier}
           timeToValue="Schedule rules apply on the next playback rotation — usually within an hour."
-          detail="On Pro you'd schedule Increase Dwell for the morning lull and Infuse Energy for Saturday afternoon — automatically, with one rule."
+          detail="On Pro you'd schedule Linger for the morning lull and Lift Energy for Saturday afternoon — automatically, with one rule."
           preview={<SchedulePreview />}
         />
       </Layout>
