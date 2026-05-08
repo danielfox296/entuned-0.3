@@ -39,20 +39,25 @@ export function Start() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: `linear-gradient(rgba(20,20,18,0.72), rgba(20,20,18,0.88)), url('/hero-start.jpg')`,
+      background: `linear-gradient(rgba(20,20,18,0.83), rgba(20,20,18,0.95)), url('/hero-start.jpg')`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       display: 'flex',
+      flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
       fontFamily: T.sans,
-      padding: 24,
+      padding: '56px 64px',
       color: T.text,
     }}>
+      <div style={{ marginBottom: 48 }}>
+        <Logo height={55} />
+      </div>
+
       <div className="start-grid" style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
-        gap: 64,
+        gap: 96,
         maxWidth: 1040,
         width: '100%',
         alignItems: 'center',
@@ -60,13 +65,10 @@ export function Start() {
 
         {/* LEFT — value prop */}
         <div>
-          <div style={{ marginBottom: 32 }}>
-            <Logo />
-          </div>
           <h1 style={{
             fontFamily: T.heading,
             fontWeight: 700,
-            fontSize: 'clamp(2.4rem, 4vw, 3.6rem)',
+            fontSize: 'clamp(2.8rem, 4.5vw, 4rem)',
             letterSpacing: '-0.02em',
             lineHeight: 1.08,
             color: T.text,
@@ -76,9 +78,9 @@ export function Start() {
             Music engineered for your store.
           </h1>
           <p style={{
-            fontSize: 17,
+            fontSize: 19,
             lineHeight: 1.6,
-            color: T.textDim,
+            color: T.textMuted,
             margin: '0 0 28px',
             maxWidth: '38ch',
           }}>
@@ -90,8 +92,8 @@ export function Start() {
             display: 'flex',
             flexDirection: 'column',
             gap: 14,
-            fontSize: 14,
-            color: T.textMuted,
+            fontSize: 15,
+            color: T.text,
           }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
               <span style={{ color: T.accent, flexShrink: 0 }}>→</span>
