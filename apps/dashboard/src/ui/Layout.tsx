@@ -1,13 +1,14 @@
-import { useState, type ReactNode } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { useState, useEffect, type ReactNode } from 'react'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   Home as HomeIcon, MapPin, UserCircle2, LogOut,
-  Sparkles, CalendarClock, Plug, BarChart3, Lock,
+  Sparkles, CalendarClock, Plug, BarChart3, Lock, Menu, X,
 } from 'lucide-react'
 import { T } from '../tokens.js'
 import { api, TIER_LABEL, TIER_PRICE, TIER_RANK, type Tier } from '../api.js'
 import { useAuth } from '../lib/auth.jsx'
 import { useTier } from '../lib/tier.jsx'
+import { Logo } from './Logo.js'
 
 type Icon = typeof HomeIcon
 
@@ -22,13 +23,13 @@ interface NavSpec {
 }
 
 const NAV: NavSpec[] = [
-  { to: '/',             label: 'Home',         icon: HomeIcon,      requires: 'free',    features: [] },
-  { to: '/locations',    label: 'Locations',    icon: MapPin,        requires: 'free',    features: [] },
+  { to: '/',             label: 'Home',             icon: HomeIcon,      requires: 'free',    features: [] },
+  { to: '/locations',    label: 'Locations',        icon: MapPin,        requires: 'free',    features: [] },
   { to: '/intake',       label: 'Customer Profile', icon: Sparkles,      requires: 'core',    features: ['Music tuned to your specific customer', 'A library built around who walks in'] },
-  { to: '/schedule',     label: 'Schedule',     icon: CalendarClock, requires: 'pro',     features: ['Time-of-day outcome rotation', 'Day-parting rules'] },
-  { to: '/integrations', label: 'Integrations', icon: Plug,          requires: 'pro',     features: ['Square, Shopify, Lightspeed', 'Tie music to sales'] },
-  { to: '/reports',      label: 'Reports',      icon: BarChart3,     requires: 'roadmap', features: ['Lift Reports', 'Rolling out with v2'] },
-  { to: '/account',      label: 'Account',      icon: UserCircle2,   requires: 'free',    features: [] },
+  { to: '/schedule',     label: 'Schedule',         icon: CalendarClock, requires: 'pro',     features: ['Time-of-day outcome rotation', 'Day-parting rules'] },
+  { to: '/integrations', label: 'Integrations',     icon: Plug,          requires: 'pro',     features: ['Square, Shopify, Lightspeed', 'Tie music to sales'] },
+  { to: '/reports',      label: 'Reports',          icon: BarChart3,     requires: 'roadmap', features: ['Lift Reports', 'Rolling out with v2'] },
+  { to: '/account',      label: 'Account',          icon: UserCircle2,   requires: 'free',    features: [] },
 ]
 
 function tierUnlocks(currentTier: Tier, requires: NavSpec['requires']): boolean {
@@ -37,24 +38,164 @@ function tierUnlocks(currentTier: Tier, requires: NavSpec['requires']): boolean 
   return TIER_RANK[currentTier] >= TIER_RANK[requires]
 }
 
-// App shell with a sidebar nav. Every authenticated route renders inside.
+function useMobile() {
+  const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const handler = (e: MediaQueryListEvent) => setMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+  return mobile
+}
+
 export function Layout({ children }: { children: ReactNode }) {
   const { user, account } = useAuth()
   const { tier } = useTier()
   const navigate = useNavigate()
+  const location = useLocation()
+  const mobile = useMobile()
+  const [drawerOpen, setDrawerOpen] = useState(false)
+
+  // Close drawer on route change
+  useEffect(() => { setDrawerOpen(false) }, [location.pathname])
+  // Close drawer when resizing back to desktop
+  useEffect(() => { if (!mobile) setDrawerOpen(false) }, [mobile])
 
   const handleLogout = async () => {
     try { await api.logout() } catch { /* ignore — clearing client state is enough */ }
     navigate('/start', { replace: true })
   }
 
+  const navItems = NAV.map((item) => (
+    <NavRow key={item.to} item={item} unlocked={tierUnlocks(tier, item.requires)} showTooltip={!mobile} />
+  ))
+
+  const userFooter = (
+    <div style={{ borderTop: `1px solid ${T.borderSubtle}`, padding: '12px 20px' }}>
+      <div style={{ fontSize: 12, color: T.textDim, marginBottom: 2 }}>
+        {account?.companyName ?? '—'}
+      </div>
+      <div style={{
+        fontSize: 12, color: T.textFaint,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        marginBottom: 10,
+      }}>
+        {user?.email ?? ''}
+      </div>
+      <button
+        onClick={handleLogout}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          background: 'transparent', border: 'none', padding: 0,
+          color: T.textDim, fontFamily: T.sans, fontSize: 12,
+          cursor: 'pointer',
+        }}
+      >
+        <LogOut size={12} strokeWidth={1.75} /> Sign out
+      </button>
+    </div>
+  )
+
+  if (mobile) {
+    return (
+      <div style={{ width: '100%', minHeight: '100vh', background: T.bg, color: T.text, fontFamily: T.sans }}>
+        {/* Sticky top bar */}
+        <div style={{
+          position: 'sticky', top: 0, zIndex: 30,
+          height: 52, padding: '0 16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: T.surface, borderBottom: `1px solid ${T.border}`,
+        }}>
+          <button
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open menu"
+            style={{
+              background: 'transparent', border: 'none', padding: 4,
+              color: T.text, cursor: 'pointer',
+              display: 'flex', alignItems: 'center',
+            }}
+          >
+            <Menu size={20} strokeWidth={1.75} />
+          </button>
+          <Logo height={22} />
+          {/* spacer matches hamburger width for visual centering */}
+          <div style={{ width: 28 }} />
+        </div>
+
+        {/* Backdrop */}
+        {drawerOpen && (
+          <div
+            onClick={() => setDrawerOpen(false)}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 40,
+              background: 'rgba(0,0,0,0.6)',
+              backdropFilter: 'blur(2px)',
+            }}
+          />
+        )}
+
+        {/* Slide-in drawer */}
+        <div style={{
+          position: 'fixed', top: 0, left: 0, zIndex: 50,
+          width: 280, height: '100vh',
+          background: T.surface, borderRight: `1px solid ${T.border}`,
+          display: 'flex', flexDirection: 'column',
+          transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          willChange: 'transform',
+        }}>
+          <div style={{
+            height: 52, padding: '0 12px 0 20px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            borderBottom: `1px solid ${T.borderSubtle}`, flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                fontFamily: T.heading, fontSize: 18, fontWeight: 700,
+                color: T.text, letterSpacing: '-0.02em',
+              }}>entuned</span>
+              <span style={{
+                fontSize: 10, fontWeight: 600, letterSpacing: '0.08em',
+                color: T.accent, textTransform: 'uppercase',
+                border: `1px solid ${T.borderActive}`,
+                borderRadius: 8, padding: '2px 6px',
+              }}>{TIER_LABEL[tier]}</span>
+            </div>
+            <button
+              onClick={() => setDrawerOpen(false)}
+              aria-label="Close menu"
+              style={{
+                background: 'transparent', border: 'none', padding: 4,
+                color: T.textDim, cursor: 'pointer',
+                display: 'flex', alignItems: 'center',
+              }}
+            >
+              <X size={18} strokeWidth={1.75} />
+            </button>
+          </div>
+
+          <div style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
+            {navItems}
+          </div>
+          {userFooter}
+        </div>
+
+        {/* Page content */}
+        <div style={{ padding: '24px 16px' }}>
+          {children}
+        </div>
+      </div>
+    )
+  }
+
+  // Desktop: fixed sidebar
   return (
     <div style={{
       width: '100%', height: '100vh', display: 'flex',
       background: T.bg, color: T.text, fontFamily: T.sans,
       overflow: 'hidden',
     }}>
-      {/* Sidebar */}
       <div style={{
         width: 240, background: T.surface,
         borderRight: `1px solid ${T.border}`,
@@ -76,41 +217,12 @@ export function Layout({ children }: { children: ReactNode }) {
           }}>{TIER_LABEL[tier]}</span>
         </div>
 
-        <div style={{ flex: 1, padding: '12px 0' }}>
-          {NAV.map((item) => (
-            <NavRow key={item.to} item={item} unlocked={tierUnlocks(tier, item.requires)} />
-          ))}
+        <div style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
+          {navItems}
         </div>
-
-        <div style={{
-          borderTop: `1px solid ${T.borderSubtle}`,
-          padding: '12px 20px',
-        }}>
-          <div style={{ fontSize: 12, color: T.textDim, marginBottom: 2 }}>
-            {account?.companyName ?? '—'}
-          </div>
-          <div style={{
-            fontSize: 12, color: T.textFaint,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            marginBottom: 10,
-          }}>
-            {user?.email ?? ''}
-          </div>
-          <button
-            onClick={handleLogout}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: 'transparent', border: 'none', padding: 0,
-              color: T.textDim, fontFamily: T.sans, fontSize: 12,
-              cursor: 'pointer',
-            }}
-          >
-            <LogOut size={12} strokeWidth={1.75} /> Sign out
-          </button>
-        </div>
+        {userFooter}
       </div>
 
-      {/* Main content */}
       <div style={{ flex: 1, overflow: 'auto', padding: '32px 40px' }}>
         {children}
       </div>
@@ -118,7 +230,7 @@ export function Layout({ children }: { children: ReactNode }) {
   )
 }
 
-function NavRow({ item, unlocked }: { item: NavSpec; unlocked: boolean }) {
+function NavRow({ item, unlocked, showTooltip }: { item: NavSpec; unlocked: boolean; showTooltip: boolean }) {
   const [hover, setHover] = useState(false)
   const isRoadmap = item.requires === 'roadmap'
   const showBadge = !unlocked
@@ -159,7 +271,7 @@ function NavRow({ item, unlocked }: { item: NavSpec; unlocked: boolean }) {
         )}
       </NavLink>
 
-      {hover && showBadge && <Tooltip item={item} />}
+      {hover && showBadge && showTooltip && <Tooltip item={item} />}
     </div>
   )
 }
