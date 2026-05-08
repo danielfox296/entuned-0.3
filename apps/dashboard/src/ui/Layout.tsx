@@ -65,7 +65,7 @@ export function Layout({ children }: { children: ReactNode }) {
   ))
 
   const accountFooter = (
-    <div style={{ borderTop: `1px solid ${T.borderSubtle}` }}>
+    <div style={{ borderTop: `1px solid ${T.borderSubtle}`, paddingBottom: 16 }}>
       <NavLink
         to="/account"
         style={({ isActive }) => ({
