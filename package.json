@@ -13,5 +13,11 @@
     "dev:dashboard": "pnpm --filter @entuned/dashboard dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck"
+  },
+  "pnpm": {
+    "overrides": {
+      "fast-xml-builder": "^1.1.7",
+      "js-yaml": "^4.1.1"
+    }
   }
 }
