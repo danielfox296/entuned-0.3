@@ -246,6 +246,10 @@ async function googleCallbackHandler(req: FastifyRequest, reply: FastifyReply) {
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
   }
 
+  // Same free-tier provisioning as the magic-link path. Idempotent — backfills
+  // any Google-signup users that pre-date this call.
+  await ensureFreeClientForUser(user.id, normalizedEmail)
+
   setSessionCookie(reply, user.id)
   return reply.redirect(nextDest ?? `${appUrl()}/`, 302)
 }
