@@ -935,6 +935,15 @@ export const api = {
 
   liveStore: (id: string, token: string) =>
     req<LiveStoreView>(`/admin/stores/${id}/live`, {}, token),
+  storeEvents: (id: string, opts: { before?: string; limit?: number }, token: string) => {
+    const params = new URLSearchParams()
+    if (opts.before) params.set('before', opts.before)
+    if (opts.limit) params.set('limit', String(opts.limit))
+    const qs = params.toString()
+    return req<{ events: PlaybackEventRow[]; nextBefore: string | null }>(
+      `/admin/stores/${id}/events${qs ? `?${qs}` : ''}`, {}, token,
+    )
+  },
   setOutcomeSelection: (id: string, outcomeId: string, token: string) =>
     req<{ outcomeId: string; expiresAt: string }>(`/admin/stores/${id}/outcome-selection`, { method: 'POST', body: JSON.stringify({ outcomeId }) }, token),
   clearOutcomeSelection: (id: string, token: string) =>

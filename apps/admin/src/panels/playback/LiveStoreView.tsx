@@ -41,7 +41,7 @@ export function LiveStoreView() {
         <>
           <ActiveAndOverride data={data} onChange={load} />
           <QueueCard queue={data.queue} fallbackTier={data.fallbackTier} reason={data.reason} />
-          <RecentEvents events={data.recentEvents} />
+          <RecentEvents storeId={storeId!} initialEvents={data.recentEvents} />
         </>
       )}
     </div>
@@ -204,7 +204,19 @@ function QueueCard({ queue, reason }: {
   )
 }
 
-function RecentEvents({ events }: { events: PlaybackEventRow[] }) {
+function RecentEvents({ storeId, initialEvents }: { storeId: string; initialEvents: PlaybackEventRow[] }) {
+  const [events, setEvents] = useState<PlaybackEventRow[]>(initialEvents)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [exhausted, setExhausted] = useState(initialEvents.length < 30)
+  const [loadErr, setLoadErr] = useState<string | null>(null)
+
+  // Reset whenever the parent reloads (new store selected, refresh clicked).
+  useEffect(() => {
+    setEvents(initialEvents)
+    setExhausted(initialEvents.length < 30)
+    setLoadErr(null)
+  }, [initialEvents])
+
   // Build the set of event types actually present in the current window so the
   // filter row only shows chips that have data (no dead chips for never-emitted types).
   const types = Array.from(new Set(events.map((e) => e.eventType))).sort()
@@ -215,8 +227,26 @@ function RecentEvents({ events }: { events: PlaybackEventRow[] }) {
     if (next.has(t)) next.delete(t); else next.add(t)
     setExcluded(next)
   }
+
+  const loadOlder = async () => {
+    const token = getToken(); if (!token) return
+    const oldest = events[events.length - 1]
+    if (!oldest) return
+    setLoadingMore(true)
+    setLoadErr(null)
+    try {
+      const res = await api.storeEvents(storeId, { before: oldest.occurredAt, limit: 50 }, token)
+      setEvents((prev) => [...prev, ...res.events])
+      if (!res.nextBefore) setExhausted(true)
+    } catch (e: any) {
+      setLoadErr(e.message)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
   return (
-    <Section title="Recent events" subtitle={`Showing ${visible.length} of ${events.length}`}>
+    <Section title="Event Stream" subtitle={`Showing ${visible.length} of ${events.length}${exhausted ? '' : '+'}`}>
       {types.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
           {types.map((t) => {
@@ -249,18 +279,28 @@ function RecentEvents({ events }: { events: PlaybackEventRow[] }) {
           {visible.map((e) => <EventRow key={e.id} event={e} />)}
         </div>
       )}
+      {loadErr && <div style={{ marginTop: 10, fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{loadErr}</div>}
+      {!exhausted && events.length > 0 && (
+        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'center' }}>
+          <Button variant="ghost" onClick={loadOlder} busy={loadingMore}>
+            {loadingMore ? 'loading…' : 'Load older'}
+          </Button>
+        </div>
+      )}
     </Section>
   )
 }
 
 function EventRow({ event }: { event: PlaybackEventRow }) {
-  const t = new Date(event.occurredAt).toLocaleTimeString()
+  const d = new Date(event.occurredAt)
+  const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
   const color = eventColor(event.eventType)
   const detail = eventDetail(event)
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: '80px 160px 1fr',
+      gridTemplateColumns: '70px 80px 160px 1fr',
       gap: 12,
       padding: '5px 8px',
       fontFamily: T.sans,
@@ -268,7 +308,8 @@ function EventRow({ event }: { event: PlaybackEventRow }) {
       alignItems: 'center',
       borderBottom: `1px solid ${T.borderSubtle}`,
     }}>
-      <span style={{ color: T.textDim }}>{t}</span>
+      <span style={{ color: T.textDim }}>{date}</span>
+      <span style={{ color: T.textDim }}>{time}</span>
       <span style={{ color }}>{prettyEventType(event.eventType)}</span>
       <span style={{
         color: T.textMuted,

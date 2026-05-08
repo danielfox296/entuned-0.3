@@ -1865,6 +1865,58 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
+  // Paginated playback events for the Event Stream card. Cursor-based:
+  // pass `before` (an ISO occurredAt) to fetch older rows. Returns
+  // `nextBefore` (ISO of the last row, or null if no more data).
+  app.get('/stores/:id/events', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const q = req.query as { before?: string; limit?: string }
+    const limit = Math.min(Math.max(Number(q.limit) || 50, 1), 200)
+    const beforeDate = q.before ? new Date(q.before) : null
+    if (beforeDate && Number.isNaN(beforeDate.getTime())) {
+      return reply.code(400).send({ error: 'bad_before' })
+    }
+
+    const events = await prisma.playbackEvent.findMany({
+      where: {
+        storeId: id,
+        ...(beforeDate ? { occurredAt: { lt: beforeDate } } : {}),
+      },
+      orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+      take: limit,
+      include: {
+        operator: { select: { id: true, email: true } },
+        song: { select: { lineageRows: { select: { songSeed: { select: { title: true } } }, take: 1 } } },
+      },
+    })
+
+    const outcomeIds = [...new Set(events.map((e) => e.outcomeId).filter((x): x is string => !!x))]
+    const outcomeRows = outcomeIds.length
+      ? await prisma.outcome.findMany({ where: { id: { in: outcomeIds } }, select: { id: true, title: true, displayTitle: true } })
+      : []
+    const outcomeById = new Map(outcomeRows.map((o) => [o.id, o]))
+
+    return {
+      events: events.map((e) => ({
+        id: e.id,
+        eventType: e.eventType,
+        occurredAt: e.occurredAt,
+        songId: e.songId,
+        songTitle: e.song?.lineageRows?.[0]?.songSeed?.title ?? null,
+        hookId: e.hookId,
+        outcomeId: e.outcomeId,
+        outcomeTitle: e.outcomeId ? (outcomeById.get(e.outcomeId)?.title ?? null) : null,
+        outcomeDisplayTitle: e.outcomeId ? (outcomeById.get(e.outcomeId)?.displayTitle ?? null) : null,
+        operatorId: e.operatorId,
+        operatorEmail: e.operator?.email ?? null,
+        reportReason: e.reportReason,
+        extra: e.extra ?? null,
+      })),
+      nextBefore: events.length === limit ? events[events.length - 1].occurredAt : null,
+    }
+  })
+
   const OverrideBody = z.object({ outcomeId: z.string().uuid() })
 
   app.post('/stores/:id/outcome-selection', async (req, reply) => {
