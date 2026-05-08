@@ -32,23 +32,19 @@ export function Home() {
       <div style={{ display: 'grid', gap: 16, maxWidth: 720 }}>
         <SetupChecklist tier={tier} hasLocation={stores.length > 0} />
 
-        {/* Setup status */}
-        <Card>
-          {loading ? (
+        {loading ? (
+          <Card>
             <div style={{ color: T.textDim, fontSize: 14 }}>Loading…</div>
-          ) : headlineStore && playerUrl ? (
-            <div>
-              <div style={{ color: T.textMuted, fontSize: 14, marginBottom: 10 }}>
-                Your player is ready.
-              </div>
-              <PlayerLinkRow url={playerUrl} />
-            </div>
-          ) : (
+          </Card>
+        ) : playerUrl ? (
+          <PlayerHeroCard url={playerUrl} />
+        ) : (
+          <Card>
             <div style={{ color: T.textMuted, fontSize: 14 }}>
               Add your first location from the <strong>Locations</strong> tab to get started.
             </div>
-          )}
-        </Card>
+          </Card>
+        )}
 
         {/* PLG card — placed BELOW setup line per SSOT (Daniel decision 2026-05-04) */}
         <UpgradeCard tier={tier} />
@@ -57,7 +53,7 @@ export function Home() {
   )
 }
 
-function PlayerLinkRow({ url }: { url: string }) {
+function PlayerHeroCard({ url }: { url: string }) {
   const [copied, setCopied] = useState(false)
 
   const copy = async () => {
@@ -69,44 +65,68 @@ function PlayerLinkRow({ url }: { url: string }) {
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+    <div style={{
+      background: T.surfaceRaised,
+      border: `1px solid ${T.border}`,
+      borderRadius: 12, padding: 24,
+    }}>
       <div style={{
-        flex: 1, minWidth: 240,
-        background: T.inkDeep,
-        border: `1px solid ${T.borderSubtle}`,
-        borderRadius: 10, padding: '8px 12px',
-        fontFamily: T.mono, fontSize: 13,
-        color: T.text,
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
+        color: T.accentMuted, textTransform: 'uppercase', marginBottom: 8,
       }}>
-        {url}
+        Your player
       </div>
-      <button
-        onClick={copy}
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          background: 'transparent', border: `1px solid ${T.border}`,
-          color: T.textMuted, padding: '7px 12px', borderRadius: 8,
-          fontFamily: T.sans, fontSize: 13, cursor: 'pointer',
-        }}
-      >
-        {copied ? <Check size={13} strokeWidth={2} /> : <Copy size={13} strokeWidth={2} />}
-        {copied ? 'Copied' : 'Copy'}
-      </button>
+      <div style={{
+        fontFamily: T.heading, fontSize: 20, fontWeight: 600,
+        color: T.text, letterSpacing: '-0.01em', marginBottom: 20,
+      }}>
+        Music is ready. Open your player.
+      </div>
+
       <a
         href={url}
         target="_blank"
         rel="noreferrer"
         style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
           background: T.accent, color: T.bg,
-          padding: '8px 12px', borderRadius: 8,
-          fontFamily: T.sans, fontSize: 13, fontWeight: 600,
-          textDecoration: 'none',
+          padding: '14px 24px', borderRadius: 10,
+          fontFamily: T.sans, fontSize: 16, fontWeight: 700,
+          textDecoration: 'none', width: '100%', boxSizing: 'border-box',
+          letterSpacing: '-0.01em',
         }}
       >
-        <ExternalLink size={13} strokeWidth={2} /> Open
+        <ExternalLink size={17} strokeWidth={2.5} />
+        Open Player
       </a>
+
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, flexWrap: 'wrap',
+      }}>
+        <div style={{
+          flex: 1, minWidth: 180,
+          background: T.inkDeep,
+          border: `1px solid ${T.borderSubtle}`,
+          borderRadius: 8, padding: '6px 10px',
+          fontFamily: T.mono, fontSize: 12,
+          color: T.textFaint,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {url}
+        </div>
+        <button
+          onClick={copy}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            background: 'transparent', border: `1px solid ${T.border}`,
+            color: T.textMuted, padding: '6px 12px', borderRadius: 8,
+            fontFamily: T.sans, fontSize: 13, cursor: 'pointer', flexShrink: 0,
+          }}
+        >
+          {copied ? <Check size={13} strokeWidth={2} /> : <Copy size={13} strokeWidth={2} />}
+          {copied ? 'Copied' : 'Copy link'}
+        </button>
+      </div>
     </div>
   )
 }
