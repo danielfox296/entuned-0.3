@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { prisma } from '../db.js'
 import { requireAuth } from '../lib/session.js'
 import { effectiveTier, compIsActive, tierRank } from '../lib/tier.js'
+import { uniqueStoreSlug } from '../lib/account.js'
 
 interface AuthedClient {
   clientId: string
@@ -88,11 +89,34 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     const ctx = getClient(req, reply)
     if (!ctx) return
 
-    const stores = await prisma.store.findMany({
+    let stores = await prisma.store.findMany({
       where: { clientId: ctx.clientId, archivedAt: null },
       orderBy: { createdAt: 'asc' },
       include: { subscription: true },
     })
+
+    // Backstop: every authenticated Client must have ≥1 active Store so the
+    // dashboard always has a player URL to surface. ensureFreeClientForUser
+    // covers fresh signups, but pre-2026-05-04 sessions and operator-link
+    // hooks can still land here with zero stores. Provision a free Store
+    // inline so the user never sees a Locations-tab dead-end.
+    if (stores.length === 0) {
+      const slug = await uniqueStoreSlug(req.user?.email ?? 'store')
+      await prisma.store.create({
+        data: {
+          clientId: ctx.clientId,
+          name: 'Main',
+          slug,
+          tier: 'free',
+          timezone: 'America/Denver',
+        },
+      })
+      stores = await prisma.store.findMany({
+        where: { clientId: ctx.clientId, archivedAt: null },
+        orderBy: { createdAt: 'asc' },
+        include: { subscription: true },
+      })
+    }
 
     const rows = stores.map((s) => ({
       id: s.id,
