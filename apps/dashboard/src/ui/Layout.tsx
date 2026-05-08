@@ -142,16 +142,13 @@ export function Layout({ children }: { children: ReactNode }) {
             borderBottom: `1px solid ${T.borderSubtle}`, flexShrink: 0,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{
-                fontFamily: T.heading, fontSize: 18, fontWeight: 700,
-                color: T.text, letterSpacing: '-0.02em',
-              }}>entuned</span>
+              <Logo height={20} />
               <span style={{
                 fontSize: 10, fontWeight: 600, letterSpacing: '0.08em',
                 color: T.accent, textTransform: 'uppercase',
                 border: `1px solid ${T.borderActive}`,
                 borderRadius: 8, padding: '2px 6px',
-              }}>{TIER_LABEL[tier]}</span>
+              }}>{TIER_LABEL[tier].replace('Entuned ', '')}</span>
             </div>
             <button
               onClick={() => setDrawerOpen(false)}
@@ -196,16 +193,13 @@ export function Layout({ children }: { children: ReactNode }) {
           height: 56, padding: '0 20px', display: 'flex', alignItems: 'center', gap: 8,
           borderBottom: `1px solid ${T.borderSubtle}`,
         }}>
-          <span style={{
-            fontFamily: T.heading, fontSize: 18, fontWeight: 700,
-            color: T.text, letterSpacing: '-0.02em',
-          }}>entuned</span>
+          <Logo height={20} />
           <span style={{
             fontSize: 10, fontWeight: 600, letterSpacing: '0.08em',
             color: T.accent, textTransform: 'uppercase',
             border: `1px solid ${T.borderActive}`,
             borderRadius: 8, padding: '2px 6px',
-          }}>{TIER_LABEL[tier]}</span>
+          }}>{TIER_LABEL[tier].replace('Entuned ', '')}</span>
         </div>
 
         <div style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
