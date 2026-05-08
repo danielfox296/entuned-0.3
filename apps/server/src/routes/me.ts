@@ -51,6 +51,32 @@ const IcpInput = z.object({
   turnOffs: z.string().trim().max(2000).optional().nullable(),
 })
 
+const ONBOARDING_GATE_DAYS_SINCE_SIGNUP = 7
+const ONBOARDING_GATE_DISTINCT_PLAY_DAYS = 4
+
+async function computeOnboardingGate(userId: string, storeIds: string[]): Promise<boolean> {
+  // Time-based half — cheap, no event lookup needed.
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { createdAt: true },
+  })
+  if (user) {
+    const ageMs = Date.now() - user.createdAt.getTime()
+    if (ageMs >= ONBOARDING_GATE_DAYS_SINCE_SIGNUP * 24 * 60 * 60 * 1000) return true
+  }
+
+  // Usage-based half — count distinct UTC calendar days with a song_start event.
+  if (storeIds.length === 0) return false
+  const rows = await prisma.$queryRaw<{ days: bigint }[]>`
+    SELECT COUNT(DISTINCT (occurred_at AT TIME ZONE 'UTC')::date) AS days
+    FROM playback_events
+    WHERE store_id = ANY(${storeIds}::uuid[])
+      AND event_type = 'song_start'
+  `
+  const days = Number(rows[0]?.days ?? 0n)
+  return days >= ONBOARDING_GATE_DISTINCT_PLAY_DAYS
+}
+
 function pickIcpFields(row: {
   id: string
   name: string
@@ -140,7 +166,16 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
         : null,
     }))
 
-    return reply.send({ stores: rows })
+    // Onboarding gate — gates the upsell card and locked sidebar items for
+    // free-tier users. Tripped (and stays tripped) when EITHER:
+    //   • ≥7 days since signup, OR
+    //   • ≥4 distinct calendar days (UTC) with a song_start event across this
+    //     Client's stores.
+    // Both conditions are monotonic, so the result is naturally sticky — no
+    // dedicated DB column needed.
+    const gateTripped = await computeOnboardingGate(req.user!.id, stores.map((s) => s.id))
+
+    return reply.send({ stores: rows, onboardingGateTripped: gateTripped })
   })
 
   // GET /me/icp — current ICP for the authed Client's primary Store.

@@ -253,8 +253,12 @@ export async function sendLifecycle(
 
 // ── One function per template (typed props) ──────────────────────────────
 
-export async function sendMagicLink(to: string, link: string): Promise<SendResult> {
-  return sendTemplate('magicLink', to, { link })
+export async function sendMagicLink(
+  to: string,
+  link: string,
+  playerLink?: string,
+): Promise<SendResult> {
+  return sendTemplate('magicLink', to, { link, ...(playerLink ? { playerLink } : {}) })
 }
 
 export async function sendOperatorPasswordReset(to: string, link: string): Promise<SendResult> {

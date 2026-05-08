@@ -18,6 +18,10 @@ hero:
   copy: "Copy link"
   copied: "Copied"
 
+# Pre-gate onboarding nudge — replaces the upsell card while a free user hasn't
+# crossed the usage threshold (≥4 distinct play days OR ≥7 days since signup).
+preGateNote: "Play music in your store for a few days. We'll show you what's next."
+
 # Upgrade card copy — varies by current tier.
 # free → has stat; core → no stat; pro/enterprise → no card.
 upgrade:

@@ -5,6 +5,10 @@ import { T } from '../tokens.js'
 interface TierContextValue {
   stores: StoreRow[]
   tier: Tier
+  /** Onboarding gate — true once the customer has either ≥7 days since signup
+   * OR ≥4 distinct calendar days with a song_start event. Gates the upsell
+   * card and locked sidebar items for free-tier users. */
+  onboardingGateTripped: boolean
   loading: boolean
   refresh: () => void
 }
@@ -21,6 +25,7 @@ const TierContext = createContext<TierContextValue | null>(null)
 // Subsequent refreshes do NOT re-block — `loading` is exposed for inline spinners.
 export function TierProvider({ children }: { children: ReactNode }) {
   const [stores, setStores] = useState<StoreRow[]>([])
+  const [onboardingGateTripped, setOnboardingGateTripped] = useState(false)
   const [loading, setLoading] = useState(true)
   const [hydrated, setHydrated] = useState(false)
   const [tick, setTick] = useState(0)
@@ -29,8 +34,16 @@ export function TierProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     setLoading(true)
     api.meStores()
-      .then((r) => { if (!cancelled) setStores(r.stores) })
-      .catch(() => { if (!cancelled) setStores([]) })
+      .then((r) => {
+        if (cancelled) return
+        setStores(r.stores)
+        setOnboardingGateTripped(Boolean(r.onboardingGateTripped))
+      })
+      .catch(() => {
+        if (cancelled) return
+        setStores([])
+        setOnboardingGateTripped(false)
+      })
       .finally(() => {
         if (cancelled) return
         setLoading(false)
@@ -42,9 +55,10 @@ export function TierProvider({ children }: { children: ReactNode }) {
   const value = useMemo<TierContextValue>(() => ({
     stores,
     tier: highestTier(stores),
+    onboardingGateTripped,
     loading,
     refresh: () => setTick((n) => n + 1),
-  }), [stores, loading])
+  }), [stores, onboardingGateTripped, loading])
 
   if (!hydrated) {
     return (

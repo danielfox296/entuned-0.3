@@ -69,6 +69,28 @@ function magicLinkBaseUrl(): string {
   return v
 }
 
+function playerUrl(): string {
+  return (process.env.PLAYER_URL ?? 'https://music.entuned.co').replace(/\/$/, '')
+}
+
+// Resolve the player URL for a user's primary (oldest, non-archived) store.
+// Used when the magic-link email asks the verify route to land in the player.
+// Returns null if the user has no active stores — caller falls back to dashboard.
+async function resolvePlayerUrlForUser(userId: string): Promise<string | null> {
+  const membership = await prisma.clientMembership.findFirst({
+    where: { userId },
+    select: { clientId: true },
+  })
+  if (!membership) return null
+  const store = await prisma.store.findFirst({
+    where: { clientId: membership.clientId, archivedAt: null },
+    orderBy: { createdAt: 'asc' },
+    select: { slug: true },
+  })
+  if (!store) return null
+  return `${playerUrl()}/${store.slug}`
+}
+
 function googleClient(): OAuth2Client {
   const clientId = process.env.GOOGLE_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
@@ -297,9 +319,18 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
         // Bake `next` into the link itself so the email round-trips it without
         // needing a schema column. /verify validates again on the way back —
         // belt + suspenders, since the email payload is essentially user input.
-        const nextParam = validatedNext ? `&next=${encodeURIComponent(validatedNext)}` : ''
-        const link = `${magicLinkBaseUrl()}?token=${encodeURIComponent(tokenRaw)}${nextParam}`
-        await sendMagicLink(email, link)
+        const baseLink = `${magicLinkBaseUrl()}?token=${encodeURIComponent(tokenRaw)}`
+        if (validatedNext) {
+          // Caller-specified destination (e.g. /billing/upgrade-from-comp). Single
+          // link, classic flow — preserves backward compat for non-default flows.
+          const link = `${baseLink}&next=${encodeURIComponent(validatedNext)}`
+          await sendMagicLink(email, link)
+        } else {
+          // Default: two-link email. Primary CTA opens the player; secondary text
+          // link opens the dashboard. Both share one one-shot token.
+          const playerLink = `${baseLink}&next=player`
+          await sendMagicLink(email, baseLink, playerLink)
+        }
       } catch (err) {
         req.log.error({ err }, 'magic-link send failed')
         // Still return 200 to avoid leaking existence / failure mode.
@@ -333,6 +364,14 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
       return reply.redirect(`${appUrl()}/start?error=account_disabled`, 302)
     }
     setSessionCookie(reply, user.id, user.tokenVersion)
+    // `next=player` is a sentinel: resolve to the user's primary store's
+    // player URL. Cross-origin (music.entuned.co), so safeNext can't be used —
+    // the destination is server-derived from authed user state, not user input.
+    if (q.next === 'player') {
+      const playerDest = await resolvePlayerUrlForUser(user.id)
+      if (playerDest) return reply.redirect(playerDest, 302)
+      // Fall through to dashboard if the user somehow has no store.
+    }
     // Re-validate `next` on the way out — the link was constructed by us
     // but we don't trust the email transport. safeNext returns null for
     // anything that isn't a same-origin (APP_URL or API_URL) destination.

@@ -50,7 +50,7 @@ function useMobile() {
 
 export function Layout({ children }: { children: ReactNode }) {
   const { user } = useAuth()
-  const { tier } = useTier()
+  const { tier, onboardingGateTripped } = useTier()
   const location = useLocation()
   const mobile = useMobile()
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -60,7 +60,14 @@ export function Layout({ children }: { children: ReactNode }) {
   // Close drawer when resizing back to desktop
   useEffect(() => { if (!mobile) setDrawerOpen(false) }, [mobile])
 
-  const navItems = NAV.map((item) => (
+  // Pre-gate free users see only what they can touch — Home + Locations.
+  // Locked items (Customer Profile, Schedule, Integrations, Reports) reappear
+  // once the onboarding gate trips. Paid tiers always see everything.
+  const visibleNav = (tier === 'free' && !onboardingGateTripped)
+    ? NAV.filter((item) => item.requires === 'free')
+    : NAV
+
+  const navItems = visibleNav.map((item) => (
     <NavRow key={item.to} item={item} unlocked={tierUnlocks(tier, item.requires)} showTooltip={!mobile} />
   ))
 

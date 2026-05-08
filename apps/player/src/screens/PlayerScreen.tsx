@@ -8,6 +8,7 @@ import { DarkHalo } from "../components/DarkHalo.js";
 import { ProgressBar } from "../components/ProgressBar.js";
 import { OutcomeModal } from "../components/OutcomeModal.js";
 import { ReportModal, type ReportReason } from "../components/ReportModal.js";
+import { TooltipTour, tourSeen, type TourStep } from "../components/TooltipTour.js";
 import { saveSession, type Session } from "../lib/storage.js";
 import logoUrl from "/entuned_logo.png";
 import lockscreenArtUrl from "/lockscreen-art.png";
@@ -66,6 +67,31 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const [buffering, setBuffering] = useState(false);
   const [lovedIds, setLovedIds] = useState<Set<string>>(() => loadLoved());
   const [allOutcomesMode, setAllOutcomesModeState] = useState(false);
+
+  // Onboarding tour — fires once per device on first launch (slug or operator).
+  // Targets the outcome selector, love, and report — the three most product-
+  // defining controls. Marked seen on completion or skip via TooltipTour.
+  // Defer to post-mount so target refs are populated before the tour reads them.
+  const outcomeRef = useRef<HTMLDivElement | null>(null);
+  const loveRef = useRef<HTMLButtonElement | null>(null);
+  const reportRef = useRef<HTMLButtonElement | null>(null);
+  const [tourActive, setTourActive] = useState<boolean>(false);
+  useEffect(() => {
+    if (tourSeen()) return;
+    // One frame after mount so refs are attached and the layout has settled.
+    const t = setTimeout(() => setTourActive(true), 50);
+    return () => clearTimeout(t);
+  }, []);
+  // Welcome flash — only on first visit, slug-mode only (operators don't need
+  // a "your music is ready" greeting; they signed in deliberately).
+  const [showWelcome, setShowWelcome] = useState<boolean>(
+    () => session.mode === 'slug' && !tourSeen(),
+  );
+  useEffect(() => {
+    if (!showWelcome) return;
+    const t = setTimeout(() => setShowWelcome(false), 4500);
+    return () => clearTimeout(t);
+  }, [showWelcome]);
 
   const queueRef = useRef<QueueItem[]>([]);
   queueRef.current = queue;
@@ -931,6 +957,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
           return (
             <div style={{ display: "flex", gap: 56, justifyContent: "center", alignItems: "center" }}>
               <button
+                ref={loveRef}
                 type="button"
                 disabled={idle}
                 onClick={idle ? undefined : handleLove}
@@ -947,11 +974,12 @@ export function PlayerScreen({ session, onLogout }: Props) {
                 </svg>
               </button>
               <button
+                ref={reportRef}
                 type="button"
                 disabled={idle}
                 onClick={idle ? undefined : () => setShowReportModal(true)}
                 aria-label="Report this track"
-                title="Something off about this track? Flag it — we'll stop playing it."
+                title="Something off about this track? Flag it."
                 style={{ background: "none", border: "none", cursor: idle ? "not-allowed" : "pointer", padding: 8, lineHeight: 0, opacity: idle ? 0.55 : 1 }}
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -965,6 +993,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
 
       <div style={{ display: "flex", justifyContent: "center", padding: "16px 24px 44px" }}>
         <div
+          ref={outcomeRef}
           onClick={() => setShowOutcomeModal(true)}
           style={{
             display: "inline-flex",
@@ -1013,6 +1042,70 @@ export function PlayerScreen({ session, onLogout }: Props) {
 
       {showReportModal ? (
         <ReportModal onSelect={handleReport} onClose={() => setShowReportModal(false)} />
+      ) : null}
+
+      {/* First-visit welcome flash — slug-mode only, auto-dismisses. */}
+      {showWelcome ? (
+        <div
+          onClick={() => setShowWelcome(false)}
+          style={{
+            position: "fixed", top: 72, left: "50%", transform: "translateX(-50%)",
+            zIndex: 40,
+            background: "rgba(28,28,24,0.85)",
+            border: "1px solid rgba(215,175,116,0.4)",
+            borderRadius: 999,
+            padding: "10px 22px",
+            color: "rgba(212,225,229,0.9)",
+            fontSize: 13, letterSpacing: 1.2,
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            cursor: "pointer",
+          }}
+        >
+          Music is ready
+        </div>
+      ) : null}
+
+      {/* Persistent "Manage your account" link — slug-mode only. Operators
+          already have logout/store-switch in the header. */}
+      {session.mode === 'slug' ? (
+        <a
+          href="https://app.entuned.co"
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            position: "fixed", bottom: 14, right: 18, zIndex: 5,
+            fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase",
+            color: "rgba(212,225,229,0.35)",
+            textDecoration: "none",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          Manage your account
+        </a>
+      ) : null}
+
+      {tourActive ? (
+        <TooltipTour
+          steps={[
+            {
+              target: outcomeRef.current,
+              body: "Pick what the music should do — Linger or Lift Energy. Or play All Outcomes. Unlock more with Core.",
+              placement: "above",
+            },
+            {
+              target: loveRef.current,
+              body: "A track lands? Tap love. We'll lean into what works for your room.",
+              placement: "above",
+            },
+            {
+              target: reportRef.current,
+              body: "Not right for the room? Tap report and tell us why.",
+              placement: "above",
+            },
+          ] satisfies TourStep[]}
+          onClose={() => setTourActive(false)}
+        />
       ) : null}
     </div>
   );
