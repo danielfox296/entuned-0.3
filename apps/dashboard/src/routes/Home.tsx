@@ -141,8 +141,8 @@ interface UpgradeCopy {
 function upgradeCopyFor(tier: Tier): UpgradeCopy | null {
   if (tier === 'free') {
     return {
-      headline: 'Music tailored to your specific customer.',
-      body: 'On Core, your library is built around the people who actually walk into your store. $99 per location, per month.',
+      headline: '8–12% willingness-to-pay lift when the music matches your customer.',
+      body: 'Areni & Kim (1993), North et al. (1999): when shoppers hear music that matches how they read themselves, they spend more. Core builds your library around your ICP. $99 per location, per month.',
       ctaLabel: 'Unlock Core',
       ctaTier: 'core',
     }
