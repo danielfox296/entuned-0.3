@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, LogOut } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
 import { Card, EmptyState } from '../ui/Card.js'
@@ -18,6 +19,12 @@ import { useTier } from '../lib/tier.jsx'
 export function Account() {
   const { user, account } = useAuth()
   const { stores, tier } = useTier()
+  const navigate = useNavigate()
+
+  const handleLogout = async () => {
+    try { await api.logout() } catch { /* ignore — clearing client state is enough */ }
+    navigate('/start', { replace: true })
+  }
   const isPaid = TIER_RANK[tier] >= TIER_RANK.core
   const hasStripeSubscription = stores.some((s) => s.subscription !== null)
 
@@ -105,6 +112,27 @@ export function Account() {
             <Button variant="ghost" disabled title="We'll email it to you when ready.">
               Download PDF
             </Button>
+          </div>
+        </Card>
+
+        <Card title="Session">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+            <div style={{ fontSize: 14, color: T.textMuted }}>
+              Signed in as <span style={{ color: T.text }}>{user?.email}</span>
+            </div>
+            <button
+              onClick={handleLogout}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7,
+                background: 'transparent',
+                border: `1px solid ${T.border}`,
+                borderRadius: 8, padding: '7px 14px',
+                color: T.textMuted, fontFamily: T.sans, fontSize: 13,
+                cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              <LogOut size={13} strokeWidth={1.75} /> Sign out
+            </button>
           </div>
         </Card>
 

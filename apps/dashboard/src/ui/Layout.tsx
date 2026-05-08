@@ -1,11 +1,11 @@
 import { useState, useEffect, type ReactNode } from 'react'
-import { NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import {
-  Home as HomeIcon, MapPin, UserCircle2, LogOut,
+  Home as HomeIcon, MapPin, UserCircle2,
   Sparkles, CalendarClock, Plug, BarChart3, Lock, Menu, X,
 } from 'lucide-react'
 import { T } from '../tokens.js'
-import { api, TIER_LABEL, TIER_PRICE, TIER_RANK, type Tier } from '../api.js'
+import { TIER_LABEL, TIER_PRICE, TIER_RANK, type Tier } from '../api.js'
 import { useAuth } from '../lib/auth.jsx'
 import { useTier } from '../lib/tier.jsx'
 import { Logo } from './Logo.js'
@@ -29,7 +29,6 @@ const NAV: NavSpec[] = [
   { to: '/schedule',     label: 'Schedule',         icon: CalendarClock, requires: 'pro',     features: ['Time-of-day outcome rotation', 'Day-parting rules'] },
   { to: '/integrations', label: 'Integrations',     icon: Plug,          requires: 'pro',     features: ['Square, Shopify, Lightspeed', 'Tie music to sales'] },
   { to: '/reports',      label: 'Reports',          icon: BarChart3,     requires: 'roadmap', features: ['Lift Reports', 'Rolling out with v2'] },
-  { to: '/account',      label: 'Account',          icon: UserCircle2,   requires: 'free',    features: [] },
 ]
 
 function tierUnlocks(currentTier: Tier, requires: NavSpec['requires']): boolean {
@@ -50,9 +49,8 @@ function useMobile() {
 }
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { user, account } = useAuth()
+  const { user } = useAuth()
   const { tier } = useTier()
-  const navigate = useNavigate()
   const location = useLocation()
   const mobile = useMobile()
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -62,38 +60,31 @@ export function Layout({ children }: { children: ReactNode }) {
   // Close drawer when resizing back to desktop
   useEffect(() => { if (!mobile) setDrawerOpen(false) }, [mobile])
 
-  const handleLogout = async () => {
-    try { await api.logout() } catch { /* ignore — clearing client state is enough */ }
-    navigate('/start', { replace: true })
-  }
-
   const navItems = NAV.map((item) => (
     <NavRow key={item.to} item={item} unlocked={tierUnlocks(tier, item.requires)} showTooltip={!mobile} />
   ))
 
-  const userFooter = (
-    <div style={{ borderTop: `1px solid ${T.borderSubtle}`, padding: '12px 20px' }}>
-      <div style={{ fontSize: 12, color: T.textDim, marginBottom: 2 }}>
-        {account?.companyName ?? '—'}
-      </div>
-      <div style={{
-        fontSize: 12, color: T.textFaint,
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        marginBottom: 10,
-      }}>
-        {user?.email ?? ''}
-      </div>
-      <button
-        onClick={handleLogout}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          background: 'transparent', border: 'none', padding: 0,
-          color: T.textDim, fontFamily: T.sans, fontSize: 12,
-          cursor: 'pointer',
-        }}
+  const accountFooter = (
+    <div style={{ borderTop: `1px solid ${T.borderSubtle}` }}>
+      <NavLink
+        to="/account"
+        style={({ isActive }) => ({
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '12px 20px',
+          color: isActive ? T.text : T.textMuted,
+          background: isActive ? T.accentGlow : 'transparent',
+          borderLeft: isActive ? `2px solid ${T.accent}` : '2px solid transparent',
+          textDecoration: 'none',
+        })}
       >
-        <LogOut size={12} strokeWidth={1.75} /> Sign out
-      </button>
+        <UserCircle2 size={15} strokeWidth={1.75} style={{ flexShrink: 0 }} />
+        <span style={{
+          fontSize: 13, flex: 1,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {user?.email ?? '—'}
+        </span>
+      </NavLink>
     </div>
   )
 
@@ -178,7 +169,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <div style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
             {navItems}
           </div>
-          {userFooter}
+          {accountFooter}
         </div>
 
         {/* Page content */}
@@ -220,7 +211,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <div style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
           {navItems}
         </div>
-        {userFooter}
+        {accountFooter}
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: '32px 40px' }}>
