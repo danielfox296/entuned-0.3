@@ -1,0 +1,55 @@
+# account — editable text content
+# Edit this file to change copy on the /account screen.
+# Vite HMR will refresh the page automatically.
+
+heading: "Account"
+
+# Profile card — read-only field labels (rename ships in v1.5)
+profile:
+  title: "Profile"
+  email_label: "Email"
+  company_label: "Company"
+  plan_label: "Plan"
+  empty_value: "—"
+  # The "(comped through <date>)" / "(comped — open-ended)" suffix is built
+  # in TSX from these two strings; the date is interpolated.
+  comped_through_prefix: "(comped through "
+  comped_through_suffix: ")"
+  comped_open_ended: "(comped — open-ended)"
+
+# Billing card — three branches: paid+stripe, paid+comp, free
+billing:
+  title: "Billing"
+  comped_body: "Your account is currently comped — there's no active subscription to manage. If you have questions, reach out to us."
+  free_body: "You're on Entuned Free. Unlock Core for music tuned to your specific customer, plus pause / resume and a billing portal."
+  free_cta: "Unlock Core"
+  portal_body: "Manage subscription, payment method, and invoices in Stripe."
+  portal_cta: "Open billing portal"
+  portal_error_prefix: "Couldn't open billing portal: "
+  portal_error_unknown: "unknown error"
+
+# PRO licensing certificate card
+# (PRO = Performance Rights Organization — ASCAP/BMI/SESAC, NOT the Pro tier.)
+cert:
+  title: "PRO licensing certificate"
+  body: "Proof of music-rights licensing (ASCAP / BMI / SESAC), ready to forward to your landlord or franchisor. Every Entuned plan is covered from day one."
+  cta: "Download PDF"
+  cta_tooltip: "We'll email it to you when ready."
+
+# Session card — sign-out
+session:
+  title: "Session"
+  # "Signed in as <email>" — split because the email is dynamic JSX
+  signed_in_as: "Signed in as "
+  sign_out: "Sign out"
+
+# Locations card — quick list view of stores
+locations:
+  title: "Locations"
+  # The empty state has inline <strong>; split into pre/strong/post
+  empty_pre: "You have no locations yet. Add one from the "
+  empty_strong: "Locations"
+  empty_post: " tab."
+  # "comped from <tier> · until <date>" — built in TSX
+  comped_from_prefix: "comped from "
+  comped_until_prefix: " · until "

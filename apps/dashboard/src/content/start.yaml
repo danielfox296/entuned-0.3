@@ -1,0 +1,43 @@
+# start — editable text content
+# Edit this file to change copy on the /start (sign-in) screen.
+# Vite HMR will refresh the page automatically.
+
+# Magic-link error messages keyed by ?error= query param value.
+# Map keys mirror the URL token; the catch-all is `default`.
+link_errors:
+  token_expired: "That sign-in link expired. Send a new one — they only last 15 minutes."
+  token_already_used: "That sign-in link was already used. Send a new one."
+  invalid_token: "We couldn't read that sign-in link. Send a new one — sometimes copy-paste from email mangles the URL."
+  missing_token: "We couldn't read that sign-in link. Send a new one — sometimes copy-paste from email mangles the URL."
+  default: "Sign-in link didn't work. Send a new one below."
+
+# Generic submit-error fallback when the API throws something unstructured
+generic_error: "something went wrong"
+
+# LEFT — value prop
+value:
+  headline: "Music that works your floor."
+  body: "Original, retail-licensed, generated for the customers in front of you. Free forever. No card. Plays through your existing speakers."
+  bullet_1: "Licensed from day one: no ASCAP, BMI, or SESAC exposure"
+  bullet_2: "Choose Linger or Lift: music designed around an outcome, not a mood"
+  bullet_3: "No app: plays from a web browser on any device"
+
+# RIGHT — auth panel
+auth:
+  # Sent state (after they request a magic link)
+  sent_headline: "Check your inbox."
+  # The "We sent a sign-in link to <email>." sentence has the email inline as
+  # styled JSX, so we split: pre-email then post-email.
+  sent_pre_email: "We sent a sign-in link to "
+  sent_post_email: ". Click it and you're in."
+  sent_spam_note: "Didn't land? Check spam — sometimes new domains get filtered."
+  sent_try_different: "Try a different email →"
+  # Default state
+  headline: "Get started."
+  sub: "We'll email you a sign-in link. Click it and you're in."
+  email_label: "Your email"
+  email_placeholder: "you@yourstore.com"
+  submit: "Get my sign-in link"
+  submit_busy: "Sending…"
+  divider: "or"
+  google: "Continue with Google"

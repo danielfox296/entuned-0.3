@@ -8,6 +8,7 @@ import { Button } from '../ui/index.js'
 import { api, TIER_LABEL, TIER_RANK, PLAYER_URL } from '../api.js'
 import { useAuth } from '../lib/auth.jsx'
 import { useTier } from '../lib/tier.jsx'
+import content from '../content/account.yaml'
 
 // /account — profile, billing portal, indemnification cert, sign-out.
 // Profile fields are read-only in v1; rename ships in v1.5.
@@ -41,17 +42,17 @@ export function Account() {
         <h1 style={{
           fontFamily: T.heading, fontSize: 28, fontWeight: 700,
           color: T.text, letterSpacing: '-0.02em', margin: 0,
-        }}>Account</h1>
+        }}>{content.heading}</h1>
       </div>
 
       <div style={{ display: 'grid', gap: 16, maxWidth: 720 }}>
-        <Card title="Profile">
+        <Card title={content.profile.title}>
           <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', rowGap: 8, fontSize: 14 }}>
-            <span style={{ color: T.textDim }}>Email</span>
-            <span style={{ color: T.text }}>{user?.email ?? '—'}</span>
-            <span style={{ color: T.textDim }}>Company</span>
-            <span style={{ color: T.text }}>{account?.companyName ?? '—'}</span>
-            <span style={{ color: T.textDim }}>Plan</span>
+            <span style={{ color: T.textDim }}>{content.profile.email_label}</span>
+            <span style={{ color: T.text }}>{user?.email ?? content.profile.empty_value}</span>
+            <span style={{ color: T.textDim }}>{content.profile.company_label}</span>
+            <span style={{ color: T.text }}>{account?.companyName ?? content.profile.empty_value}</span>
+            <span style={{ color: T.textDim }}>{content.profile.plan_label}</span>
             <span style={{ color: T.text }}>
               {TIER_LABEL[tier]}
               {hasComp && (
@@ -61,8 +62,8 @@ export function Account() {
                       .map((s) => s.compExpiresAt)
                       .filter((d): d is string => !!d)
                       .sort()[0]
-                    if (earliest) return `(comped through ${fmtDate(earliest)})`
-                    return '(comped — open-ended)'
+                    if (earliest) return `${content.profile.comped_through_prefix}${fmtDate(earliest)}${content.profile.comped_through_suffix}`
+                    return content.profile.comped_open_ended
                   })()}
                 </span>
               )}
@@ -70,13 +71,12 @@ export function Account() {
           </div>
         </Card>
 
-        <Card title="Billing">
+        <Card title={content.billing.title}>
           {isPaid && hasStripeSubscription ? (
             <BillingPortalRow />
           ) : isPaid && hasComp ? (
             <div style={{ color: T.textMuted, fontSize: 14 }}>
-              Your account is currently comped — there's no active subscription
-              to manage. If you have questions, reach out to us.
+              {content.billing.comped_body}
             </div>
           ) : (
             <div style={{
@@ -84,9 +84,7 @@ export function Account() {
               justifyContent: 'space-between', gap: 16,
             }}>
               <div style={{ color: T.textMuted, fontSize: 14 }}>
-                You're on Entuned Free. Unlock Core for music
-                tuned to your specific customer, plus pause / resume and a
-                billing portal.
+                {content.billing.free_body}
               </div>
               <a href={api.checkoutUrl('core')} style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -94,31 +92,29 @@ export function Account() {
                 padding: '8px 14px', borderRadius: 8,
                 fontFamily: T.sans, fontSize: 14, fontWeight: 600,
                 textDecoration: 'none', whiteSpace: 'nowrap',
-              }}>Unlock Core</a>
+              }}>{content.billing.free_cta}</a>
             </div>
           )}
         </Card>
 
-        <Card title="PRO licensing certificate">
+        <Card title={content.cert.title}>
           <div style={{
             display: 'flex', alignItems: 'center',
             justifyContent: 'space-between', gap: 16,
           }}>
             <div style={{ color: T.textMuted, fontSize: 14, lineHeight: 1.5 }}>
-              Proof of music-rights licensing (ASCAP / BMI / SESAC), ready
-              to forward to your landlord or franchisor. Every Entuned plan
-              is covered from day one.
+              {content.cert.body}
             </div>
-            <Button variant="ghost" disabled title="We'll email it to you when ready.">
-              Download PDF
+            <Button variant="ghost" disabled title={content.cert.cta_tooltip}>
+              {content.cert.cta}
             </Button>
           </div>
         </Card>
 
-        <Card title="Session">
+        <Card title={content.session.title}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
             <div style={{ fontSize: 14, color: T.textMuted }}>
-              Signed in as <span style={{ color: T.text }}>{user?.email}</span>
+              {content.session.signed_in_as}<span style={{ color: T.text }}>{user?.email}</span>
             </div>
             <button
               onClick={handleLogout}
@@ -131,15 +127,15 @@ export function Account() {
                 cursor: 'pointer', flexShrink: 0,
               }}
             >
-              <LogOut size={13} strokeWidth={1.75} /> Sign out
+              <LogOut size={13} strokeWidth={1.75} /> {content.session.sign_out}
             </button>
           </div>
         </Card>
 
-        <Card title="Locations">
+        <Card title={content.locations.title}>
           {stores.length === 0 ? (
             <EmptyState>
-              You have no locations yet. Add one from the <strong>Locations</strong> tab.
+              {content.locations.empty_pre}<strong>{content.locations.empty_strong}</strong>{content.locations.empty_post}
             </EmptyState>
           ) : (
             <div style={{ display: 'grid', gap: 8 }}>
@@ -164,8 +160,8 @@ export function Account() {
                     }}>{TIER_LABEL[s.tier] ?? s.tier}</span>
                     {s.compTier && (
                       <span style={{ color: T.textFaint, fontSize: 10 }}>
-                        comped from {TIER_LABEL[s.paidTier] ?? s.paidTier}
-                        {s.compExpiresAt ? ` · until ${fmtDate(s.compExpiresAt)}` : ''}
+                        {content.locations.comped_from_prefix}{TIER_LABEL[s.paidTier] ?? s.paidTier}
+                        {s.compExpiresAt ? `${content.locations.comped_until_prefix}${fmtDate(s.compExpiresAt)}` : ''}
                       </span>
                     )}
                   </div>
@@ -192,7 +188,7 @@ function BillingPortalRow() {
       const { url } = await api.billingPortal()
       window.location.href = url
     } catch (e: any) {
-      alert(`Couldn't open billing portal: ${e?.message ?? 'unknown error'}`)
+      alert(`${content.billing.portal_error_prefix}${e?.message ?? content.billing.portal_error_unknown}`)
       setBusy(false)
     }
   }
@@ -202,11 +198,11 @@ function BillingPortalRow() {
       justifyContent: 'space-between', gap: 16,
     }}>
       <div style={{ color: T.textMuted, fontSize: 14 }}>
-        Manage subscription, payment method, and invoices in Stripe.
+        {content.billing.portal_body}
       </div>
       <Button variant="ghost" onClick={open} busy={busy}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <ExternalLink size={13} strokeWidth={2} /> Open billing portal
+          <ExternalLink size={13} strokeWidth={2} /> {content.billing.portal_cta}
         </span>
       </Button>
     </div>

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { T } from '../tokens.js'
 import { Button, Eyebrow, Input, Logo } from '../ui/index.js'
 import { api } from '../api.js'
+import content from '../content/start.yaml'
 
 export function Start() {
   const [searchParams] = useSearchParams()
@@ -11,10 +12,8 @@ export function Start() {
 
   const linkErrorCopy = (() => {
     if (!errorParam) return null
-    if (errorParam === 'token_expired') return 'That sign-in link expired. Send a new one — they only last 15 minutes.'
-    if (errorParam === 'token_already_used') return 'That sign-in link was already used. Send a new one.'
-    if (errorParam === 'invalid_token' || errorParam === 'missing_token') return "We couldn't read that sign-in link. Send a new one — sometimes copy-paste from email mangles the URL."
-    return 'Sign-in link didn\'t work. Send a new one below.'
+    const map = content.link_errors as Record<string, string>
+    return map[errorParam] ?? map.default
   })()
 
   const [email, setEmail] = useState('')
@@ -30,7 +29,7 @@ export function Start() {
       await api.requestMagicLink(email, next)
       setSent(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'something went wrong')
+      setError(err instanceof Error ? err.message : content.generic_error)
     } finally {
       setBusy(false)
     }
@@ -78,7 +77,7 @@ export function Start() {
             margin: '0 0 20px',
             maxWidth: '18ch',
           }}>
-            Music that works your floor.
+            {content.value.headline}
           </h1>
           <p style={{
             fontSize: 19,
@@ -87,9 +86,7 @@ export function Start() {
             margin: '0 0 28px',
             maxWidth: '38ch',
           }}>
-            Original, retail-licensed, generated for the customers
-            in front of you. Free forever. No card. Plays through
-            your existing speakers.
+            {content.value.body}
           </p>
           <div style={{
             display: 'flex',
@@ -100,15 +97,15 @@ export function Start() {
           }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
               <span style={{ color: T.accent, flexShrink: 0 }}>→</span>
-              <span>Licensed from day one: no ASCAP, BMI, or SESAC exposure</span>
+              <span>{content.value.bullet_1}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
               <span style={{ color: T.accent, flexShrink: 0 }}>→</span>
-              <span>Choose Linger or Lift: music designed around an outcome, not a mood</span>
+              <span>{content.value.bullet_2}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
               <span style={{ color: T.accent, flexShrink: 0 }}>→</span>
-              <span>No app: plays from a web browser on any device</span>
+              <span>{content.value.bullet_3}</span>
             </div>
           </div>
         </div>
@@ -123,10 +120,11 @@ export function Start() {
         }}>
           {sent ? (
             <>
-              <AuthHeadline>Check your inbox.</AuthHeadline>
+              <AuthHeadline>{content.auth.sent_headline}</AuthHeadline>
               <p style={{ fontSize: 15, lineHeight: 1.55, color: T.textDim, margin: '0 0 20px' }}>
-                We sent a sign-in link to{' '}
-                <span style={{ color: T.text }}>{email}</span>. Click it and you're in.
+                {content.auth.sent_pre_email}
+                <span style={{ color: T.text }}>{email}</span>
+                {content.auth.sent_post_email}
               </p>
               <div style={{
                 padding: '14px 16px',
@@ -136,7 +134,7 @@ export function Start() {
                 fontSize: 14,
                 lineHeight: 1.55,
               }}>
-                Didn't land? Check spam — sometimes new domains get filtered.
+                {content.auth.sent_spam_note}
               </div>
               <button
                 type="button"
@@ -153,17 +151,17 @@ export function Start() {
                   fontFamily: T.sans,
                 }}
               >
-                Try a different email →
+                {content.auth.sent_try_different}
               </button>
             </>
           ) : (
             <>
-              <AuthHeadline>Get started.</AuthHeadline>
+              <AuthHeadline>{content.auth.headline}</AuthHeadline>
               <p style={{
                 fontSize: 14, lineHeight: 1.55,
                 color: T.textFaint, margin: '0 0 6px',
               }}>
-                We'll email you a sign-in link. Click it and you're in.
+                {content.auth.sub}
               </p>
 
               {linkErrorCopy && (
@@ -182,13 +180,13 @@ export function Start() {
 
               <form onSubmit={submit} style={{ display: 'grid', gap: 18, marginTop: 24 }}>
                 <div>
-                  <Eyebrow>Your email</Eyebrow>
+                  <Eyebrow>{content.auth.email_label}</Eyebrow>
                   <BigInput
                     type="email"
                     value={email}
                     required
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@yourstore.com"
+                    placeholder={content.auth.email_placeholder}
                     autoFocus
                   />
                 </div>
@@ -199,12 +197,12 @@ export function Start() {
 
                 <div style={{ marginTop: 4 }}>
                   <Button type="submit" busy={busy}>
-                    {busy ? 'Sending…' : 'Get my sign-in link'}
+                    {busy ? content.auth.submit_busy : content.auth.submit}
                   </Button>
                 </div>
               </form>
 
-              <Divider />
+              <Divider label={content.auth.divider} />
 
               <a
                 href={api.googleLoginUrl(next)}
@@ -221,7 +219,7 @@ export function Start() {
                   fontFamily: T.sans,
                 }}
               >
-                Continue with Google
+                {content.auth.google}
               </a>
             </>
           )}
@@ -272,7 +270,7 @@ function BigInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   )
 }
 
-function Divider() {
+function Divider({ label }: { label: string }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 10,
@@ -281,7 +279,7 @@ function Divider() {
       letterSpacing: '0.12em', textTransform: 'uppercase',
     }}>
       <div style={{ flex: 1, height: 1, background: T.borderSubtle }} />
-      or
+      {label}
       <div style={{ flex: 1, height: 1, background: T.borderSubtle }} />
     </div>
   )

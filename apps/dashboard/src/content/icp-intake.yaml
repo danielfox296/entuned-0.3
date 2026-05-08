@@ -1,0 +1,123 @@
+# icp-intake — editable text content
+# Edit this file to change copy on the /intake screen.
+# Vite HMR will refresh the page automatically.
+
+# LockScreen content shown to free-tier users
+lock:
+  tab_name: "Customer Profile"
+  value_line: "Music tailored to the people who actually walk into your store."
+  time_to_value: "Fill it in and your library starts being built around your audience — usually live on the floor within a few days."
+  detail: "Ten questions about who walks in. The answers become your own music library, built around your specific customer instead of the one every store starts on."
+
+# The 10 intake questions. Order is meaningful — first 3 are BASIC; the rest
+# are the extended set behind "Add more detail."
+questions:
+  name:
+    label: "What do you call them?"
+    example: 'A short, human name for this customer — "morning regulars," "after-school students," "date-night couples."'
+  age_range:
+    label: "How old are they, roughly?"
+    example: 'A range is fine — 28–45, mid-30s, "older millennials"'
+  location:
+    label: "Where do they live or shop?"
+    example: "Neighborhood, city, region — wherever they spend their time"
+  political_spectrum:
+    label: "How do they lean, politically?"
+    example: "Just the basics — center, traditional, progressive. Only if it shapes their taste."
+  openness:
+    label: "Are they explorers or creatures of habit?"
+    example: "Do they love discovering new things, or does familiar mean comfortable?"
+  fears:
+    label: "What are they quietly afraid of?"
+    example: "Irrelevance, aging out, looking like they're trying too hard — the social fears they'd never name"
+  values:
+    label: "What matters to them?"
+    example: "A short list — craft, family, time outdoors, looking sharp"
+  desires:
+    label: "What are they here for?"
+    example: "The thing they'd say if you asked them at the door"
+  unexpressed_desires:
+    label: "What do they want but won't admit?"
+    example: "The quieter motivation underneath the stated one"
+  turn_offs:
+    label: "What would make them leave?"
+    example: "Tone, words, music — anything that makes them feel out of place"
+
+# Core (single-audience) intake form
+core:
+  eyebrow: "Your customer"
+  headline: "Who walks into your store?"
+  intro: "Each answer changes the music. None of them are wrong, and you can come back and re-tune any time."
+  loading: "Loading…"
+  load_failed: "Could not load your saved intake."
+  name_required: "Audience name is required."
+  save_failed: "Save failed."
+  reset: "Reset"
+  save_changes: "Save changes"
+  tune_my_music: "Tune my music"
+  saving: "Saving…"
+
+# Save-state indicator copy
+save_indicator:
+  saving: "Saving…"
+  saved_just_now: "Saved just now"
+  # "Saved <localized timestamp>" — prefix only; timestamp built in TSX
+  saved_at_prefix: "Saved "
+
+# Pro (multi-audience) list view
+pro:
+  eyebrow: "Your audiences"
+  headline: "Who walks in?"
+  intro: "A location can have a few different customers — morning regulars, after-school students, date-night couples. Each one shapes its own slice of the music library."
+  location_label: "Location"
+  add_audience: "Add an audience"
+  load_failed: "Could not load audiences."
+  # AudienceCard
+  song_singular: " song"
+  song_plural: " songs"
+  edit: "Edit"
+  edit_title: "Edit audience"
+  retire: "Retire"
+  retire_title: "Retire audience"
+  # Empty list — has interpolated store name
+  empty_prefix: "No audiences yet for "
+  empty_suffix: ". Add one and we'll start composing for them."
+  # Retire confirm — has interpolated audience name
+  retire_confirm_prefix: "Retire "
+  retire_confirm_suffix: "? Their songs will stop playing — they're not deleted, so we can restore them later."
+  retire_failed_prefix: "Retire failed: "
+  retire_failed_unknown: "unknown"
+
+# Audience editor (Pro — add/edit modal-ish flow)
+editor:
+  eyebrow_add: "New audience"
+  eyebrow_edit: "Edit audience"
+  headline_add: "Tell us about this persona"
+  # "Editing <name>" / fallback when name is missing
+  headline_edit_prefix: "Editing "
+  headline_edit_fallback: "audience"
+  name_required: "Persona name is required."
+  save_failed: "Save failed."
+  cancel: "Cancel"
+  create: "Create audience"
+  save: "Save changes"
+  saving: "Saving…"
+
+# Expand-extended button (the "more questions" reveal)
+expand:
+  label: "Add more detail"
+  hint: "Seven more questions — they sharpen the music"
+
+# Location label ("For: <store name>")
+location_label_prefix: "For: "
+
+# Success state shown after first save
+success:
+  eyebrow: "You're tuned in"
+  headline: "Your music is being tuned."
+  body: "We'll start composing your library around these answers. New tracks usually land on your floor within a few days. You can come back and adjust any time — every change carries forward."
+  next_eyebrow: "What's next"
+  next_add_location_title: "Add another location"
+  next_add_location_sub: "One subscription, multiple stores — billing is prorated."
+  next_see_playing_title: "See what's playing"
+  next_see_playing_sub: "Your home tab has the player URL — open it on any in-store device."

@@ -1,0 +1,21 @@
+# integrations — editable text content
+# Edit this file to change copy on the /integrations screen.
+# Vite HMR will refresh the page automatically.
+
+# LockScreen content (Pro+ in v2; locked for everyone today)
+lock:
+  tab_name: "Integrations"
+  value_line: "Connect Square, Shopify, or Lightspeed. Tie what's playing to what's selling."
+  time_to_value: "POS data flows in within a day of connecting. Music–sales overlay shows up that night."
+  detail: "On Pro you'd see hourly transactions next to your music outcomes, so you can prove the lift instead of guessing it."
+
+# Preview rows shown inside the LockScreen
+preview:
+  square_name: "Square"
+  square_status: "Connected · syncing"
+  shopify_name: "Shopify"
+  shopify_status: "Available"
+  lightspeed_name: "Lightspeed"
+  lightspeed_status: "Available"
+  toast_name: "Toast"
+  toast_status: "Coming soon"

@@ -1,0 +1,33 @@
+# home — editable text content
+# Edit this file to change copy on the / (Home) screen.
+# Vite HMR will refresh the page automatically.
+
+# Loading + empty states for the player hero
+loading: "Loading…"
+
+# Empty state when no locations exist yet — has inline <strong> so split.
+empty:
+  pre: "Add your first location from the "
+  strong: "Locations"
+  post: " tab to get started."
+
+# Player hero card — shown once a location exists
+hero:
+  headline: "Music is ready. Open your player."
+  open_player: "Open Player"
+  copy: "Copy link"
+  copied: "Copied"
+
+# Upgrade card copy — varies by current tier.
+# free → has stat; core → no stat; pro/enterprise → no card.
+upgrade:
+  free:
+    stat: "8–12%"
+    stat_label: "increase in willingness to pay"
+    headline: "Music built around your customer."
+    body: "When your music matches the people who walk through your door, they stay longer and spend more. Core builds your library around your specific customer — their taste, their identity, their vibe. $99 per location, per month."
+    cta_label: "Unlock Core"
+  core:
+    headline: "Tie what you play to what you sell."
+    body: "On Pro, schedule outcome rotation through the day and connect Square, Shopify, or Lightspeed. $399 per location, per month."
+    cta_label: "Unlock Pro"

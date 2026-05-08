@@ -1,0 +1,55 @@
+# locations — editable text content
+# Edit this file to change copy on the /locations screen.
+# Vite HMR will refresh the page automatically.
+
+heading: "Locations"
+subheading: "Each location plays its own soundtrack — its own player URL, its own pause control."
+
+# Add-location button (Core+ unlocked vs locked)
+add:
+  cta: "Add my location"
+  locked_cta: "Add my location · Core"
+  locked_tooltip: "Add location requires Core"
+
+# List states
+loading: "Loading locations…"
+empty: "We couldn't load your locations. Try refreshing — or reach us at hello@entuned.co if it sticks."
+
+# Per-store card
+store:
+  paused_until_prefix: "Paused until "
+  rename_title: "Rename"
+  rename_aria: "Rename location"
+  save: "Save"
+  save_busy: "Saving…"
+  cancel: "Cancel"
+  rename_required: "Name is required."
+  rename_failed: "Rename failed."
+
+# Add-location modal
+modal:
+  title: "Add a location"
+  body: "We bump your subscription by one location and provision a new player URL. Billing is prorated automatically."
+  close_aria: "Close"
+  name_label: "Location name"
+  name_placeholder: "e.g. Park Meadows"
+  name_required: "Location name is required."
+  add_failed: "Add location failed."
+  cancel: "Cancel"
+  submit: "Add my location"
+  submit_busy: "Adding…"
+
+# Player URL row
+url_row:
+  copy: "Copy"
+  copied: "Copied"
+  open: "Open"
+
+# Pause control
+pause:
+  locked: "Pause · Core"
+  pause: "Pause"
+  resume: "Resume"
+  confirm: "Pause this location for up to 60 days? Music stops; you stop being charged. You can resume anytime."
+  failed_prefix: "Failed: "
+  failed_unknown: "unknown error"

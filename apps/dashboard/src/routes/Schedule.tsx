@@ -7,15 +7,16 @@ import { Button, Input } from '../ui/index.js'
 import { api, TIER_RANK } from '../api.js'
 import type { ScheduleSlot, ScheduleSlotInput, OutcomeOption } from '../api.js'
 import { useTier } from '../lib/tier.jsx'
+import content from '../content/schedule.yaml'
 
 const DAYS = [
-  { dow: 1, label: 'Monday',    short: 'Mon' },
-  { dow: 2, label: 'Tuesday',   short: 'Tue' },
-  { dow: 3, label: 'Wednesday', short: 'Wed' },
-  { dow: 4, label: 'Thursday',  short: 'Thu' },
-  { dow: 5, label: 'Friday',    short: 'Fri' },
-  { dow: 6, label: 'Saturday',  short: 'Sat' },
-  { dow: 7, label: 'Sunday',    short: 'Sun' },
+  { dow: 1, label: content.days.monday_label,    short: content.days.monday_short },
+  { dow: 2, label: content.days.tuesday_label,   short: content.days.tuesday_short },
+  { dow: 3, label: content.days.wednesday_label, short: content.days.wednesday_short },
+  { dow: 4, label: content.days.thursday_label,  short: content.days.thursday_short },
+  { dow: 5, label: content.days.friday_label,    short: content.days.friday_short },
+  { dow: 6, label: content.days.saturday_label,  short: content.days.saturday_short },
+  { dow: 7, label: content.days.sunday_label,    short: content.days.sunday_short },
 ]
 
 export function Schedule() {
@@ -25,12 +26,12 @@ export function Schedule() {
     return (
       <Layout>
         <LockScreen
-          tabName="Schedule"
-          valueLine="Time-of-day outcome rotation. Music shifts as your customer mix changes through the day."
+          tabName={content.lock.tab_name}
+          valueLine={content.lock.value_line}
           requiredTier="pro"
           currentTier={tier}
-          timeToValue="Schedule rules apply on the next playback rotation — usually within an hour."
-          detail="On Pro you'd schedule Linger for the morning lull and Lift Energy for Saturday afternoon — automatically, with one rule."
+          timeToValue={content.lock.time_to_value}
+          detail={content.lock.detail}
           preview={<SchedulePreview />}
         />
       </Layout>
@@ -43,7 +44,7 @@ export function Schedule() {
         <h1 style={{
           fontFamily: T.heading, fontSize: 28, fontWeight: 700,
           color: T.text, letterSpacing: '-0.02em', margin: 0,
-        }}>Schedule</h1>
+        }}>{content.heading}</h1>
       </div>
       <ScheduleEditor stores={stores} />
     </Layout>
@@ -81,7 +82,7 @@ function ScheduleEditor({ stores }: { stores: { id: string; name: string }[] }) 
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {stores.length > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <label style={labelStyle}>Location</label>
+          <label style={labelStyle}>{content.editor.location_label}</label>
           <select
             value={storeId}
             onChange={(e) => setStoreId(e.target.value)}
@@ -94,7 +95,7 @@ function ScheduleEditor({ stores }: { stores: { id: string; name: string }[] }) 
 
       {err && <div style={{ fontSize: 13, color: T.danger, fontFamily: T.sans }}>{err}</div>}
 
-      {storeId && !rows && <div style={{ color: T.textMuted, fontFamily: T.sans, fontSize: 13 }}>Loading…</div>}
+      {storeId && !rows && <div style={{ color: T.textMuted, fontFamily: T.sans, fontSize: 13 }}>{content.editor.loading}</div>}
 
       {storeId && rows && (
         <>
@@ -102,7 +103,7 @@ function ScheduleEditor({ stores }: { stores: { id: string; name: string }[] }) 
             <Button
               variant={adding ? 'ghost' : 'primary'}
               onClick={() => setAdding(adding ? null : { daysOfWeek: [1], startTime: '09:00', endTime: '12:00', outcomeId: '' })}
-            >{adding ? 'Cancel' : '+ New rule'}</Button>
+            >{adding ? content.editor.cancel : content.editor.new_rule}</Button>
           </div>
 
           {adding && (
@@ -162,7 +163,7 @@ function DayColumn({ day, rows, outcomes, onChanged }: {
         <span style={{ color: T.textDim }}>{rows.length || ''}</span>
       </div>
       {rows.length === 0 && (
-        <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: 11, padding: '4px 0' }}>—</div>
+        <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: 11, padding: '4px 0' }}>{content.editor.empty_day}</div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {rows.map((r) => <RowItem key={r.id} row={r} outcomes={outcomes} onChanged={onChanged} />)}
@@ -201,7 +202,7 @@ function RowItem({ row, outcomes, onChanged }: {
           onChange={setEditing as any}
           onSubmit={save}
           onCancel={() => setEditing(null)}
-          submitLabel={busy === 'save' ? '…' : 'Save'}
+          submitLabel={busy === 'save' ? '…' : content.editor.save}
         />
         {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.sans, marginTop: 4 }}>{err}</div>}
       </div>
@@ -220,8 +221,8 @@ function RowItem({ row, outcomes, onChanged }: {
         {row.outcomeDisplayTitle ?? row.outcomeTitle}
       </div>
       <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
-        <Button variant="ghost" onClick={() => setEditing({ dayOfWeek: row.dayOfWeek, startTime: row.startTime, endTime: row.endTime, outcomeId: row.outcomeId })} disabled={!!busy}>edit</Button>
-        <Button variant="danger" onClick={remove} disabled={busy === 'delete'}>×</Button>
+        <Button variant="ghost" onClick={() => setEditing({ dayOfWeek: row.dayOfWeek, startTime: row.startTime, endTime: row.endTime, outcomeId: row.outcomeId })} disabled={!!busy}>{content.editor.edit}</Button>
+        <Button variant="danger" onClick={remove} disabled={busy === 'delete'}>{content.editor.delete}</Button>
       </div>
       {err && <div style={{ fontSize: 11, color: T.danger, fontFamily: T.sans }}>{err}</div>}
     </div>
@@ -241,17 +242,17 @@ function SlotForm({ draft, outcomes, onChange, onSubmit, onCancel, submitLabel }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div>
-        <label style={labelStyle}>Start</label>
+        <label style={labelStyle}>{content.editor.start_label}</label>
         <Input type="time" value={draft.startTime} onChange={(e) => set('startTime', e.target.value)} />
       </div>
       <div>
-        <label style={labelStyle}>End</label>
+        <label style={labelStyle}>{content.editor.end_label}</label>
         <Input type="time" value={draft.endTime} onChange={(e) => set('endTime', e.target.value)} />
       </div>
       <div>
-        <label style={labelStyle}>Outcome</label>
+        <label style={labelStyle}>{content.editor.outcome_label}</label>
         <select value={draft.outcomeId} onChange={(e) => set('outcomeId', e.target.value)} style={selectStyle}>
-          <option value="" disabled>— pick —</option>
+          <option value="" disabled>{content.editor.outcome_pick_placeholder}</option>
           {(outcomes ?? []).map((o) => (
             <option key={o.id} value={o.id}>{o.displayTitle ?? o.title}</option>
           ))}
@@ -259,7 +260,7 @@ function SlotForm({ draft, outcomes, onChange, onSubmit, onCancel, submitLabel }
       </div>
       <div style={{ display: 'flex', gap: 6 }}>
         <Button onClick={onSubmit} disabled={!valid}>{submitLabel}</Button>
-        {onCancel && <Button variant="ghost" onClick={onCancel}>Cancel</Button>}
+        {onCancel && <Button variant="ghost" onClick={onCancel}>{content.editor.cancel}</Button>}
       </div>
     </div>
   )
@@ -278,6 +279,7 @@ function MultiDayForm({ draft, outcomes, busy, onChange, onSubmit }: {
   }
   const allDays = draft.daysOfWeek.length === 7
   const valid = draft.daysOfWeek.length > 0 && !!draft.outcomeId && draft.startTime < draft.endTime
+  const isSingular = draft.daysOfWeek.length === 1
 
   return (
     <div style={{
@@ -285,7 +287,7 @@ function MultiDayForm({ draft, outcomes, busy, onChange, onSubmit }: {
       borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 14,
     }}>
       <div>
-        <label style={labelStyle}>Days</label>
+        <label style={labelStyle}>{content.editor.days_label}</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 4 }}>
           {DAYS.map((d) => {
             const on = draft.daysOfWeek.includes(d.dow)
@@ -314,22 +316,22 @@ function MultiDayForm({ draft, outcomes, busy, onChange, onSubmit }: {
               padding: '4px 10px', borderRadius: 8, cursor: 'pointer',
               textTransform: 'uppercase', letterSpacing: '0.04em', marginLeft: 4,
             }}
-          >{allDays ? 'None' : 'All'}</button>
+          >{allDays ? content.editor.toggle_none : content.editor.toggle_all}</button>
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
         <div>
-          <label style={labelStyle}>Start</label>
+          <label style={labelStyle}>{content.editor.start_label}</label>
           <Input type="time" value={draft.startTime} onChange={(e) => onChange({ ...draft, startTime: e.target.value })} />
         </div>
         <div>
-          <label style={labelStyle}>End</label>
+          <label style={labelStyle}>{content.editor.end_label}</label>
           <Input type="time" value={draft.endTime} onChange={(e) => onChange({ ...draft, endTime: e.target.value })} />
         </div>
         <div>
-          <label style={labelStyle}>Outcome</label>
+          <label style={labelStyle}>{content.editor.outcome_label}</label>
           <select value={draft.outcomeId} onChange={(e) => onChange({ ...draft, outcomeId: e.target.value })} style={selectStyle}>
-            <option value="" disabled>— pick —</option>
+            <option value="" disabled>{content.editor.outcome_pick_placeholder}</option>
             {(outcomes ?? []).map((o) => (
               <option key={o.id} value={o.id}>{o.displayTitle ?? o.title}</option>
             ))}
@@ -339,8 +341,8 @@ function MultiDayForm({ draft, outcomes, busy, onChange, onSubmit }: {
       <div>
         <Button onClick={onSubmit} disabled={!valid || busy}>
           {busy
-            ? `Creating ${draft.daysOfWeek.length} rule${draft.daysOfWeek.length === 1 ? '' : 's'}…`
-            : `Create ${draft.daysOfWeek.length} rule${draft.daysOfWeek.length === 1 ? '' : 's'}`}
+            ? `${content.editor.create_busy_prefix}${draft.daysOfWeek.length}${isSingular ? content.editor.create_busy_suffix_singular : content.editor.create_busy_suffix_plural}`
+            : `${content.editor.create_prefix}${draft.daysOfWeek.length}${isSingular ? content.editor.create_suffix_singular : content.editor.create_suffix_plural}`}
         </Button>
       </div>
     </div>
@@ -350,10 +352,10 @@ function MultiDayForm({ draft, outcomes, busy, onChange, onSubmit }: {
 // Static preview shown inside LockScreen for sub-Pro users.
 function SchedulePreview() {
   const rows = [
-    { label: 'Weekday mornings', when: 'Mon–Fri · 9:00–11:00 AM', outcome: 'Linger',      color: T.accent },
-    { label: 'Lunch rush',       when: 'Mon–Fri · 12:00–2:00 PM', outcome: 'Lift Energy',  color: T.slate },
-    { label: 'Saturday floor',   when: 'Sat · 11:00 AM–4:00 PM',  outcome: 'Lift Energy',  color: T.slate },
-    { label: 'Sunday wind-down', when: 'Sun · 3:00–6:00 PM',      outcome: 'Linger',      color: T.accent },
+    { label: content.preview.weekday_label,  when: content.preview.weekday_when,  outcome: content.preview.weekday_outcome,  color: T.accent },
+    { label: content.preview.lunch_label,    when: content.preview.lunch_when,    outcome: content.preview.lunch_outcome,    color: T.slate },
+    { label: content.preview.saturday_label, when: content.preview.saturday_when, outcome: content.preview.saturday_outcome, color: T.slate },
+    { label: content.preview.sunday_label,   when: content.preview.sunday_when,   outcome: content.preview.sunday_outcome,   color: T.accent },
   ]
   return (
     <div style={{ padding: 20 }}>

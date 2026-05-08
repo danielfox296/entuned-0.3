@@ -6,6 +6,7 @@ import { Card } from '../ui/Card.js'
 import { SetupChecklist } from '../ui/SetupChecklist.js'
 import { api, PLAYER_URL, primaryStore, type Tier } from '../api.js'
 import { useTier } from '../lib/tier.jsx'
+import content from '../content/home.yaml'
 
 // /  — authenticated home. Tier label + setup status + (free/core only) an
 // upgrade card + a quick link to the player URL. No now-playing widget. Ever.
@@ -21,14 +22,14 @@ export function Home() {
 
         {loading ? (
           <Card>
-            <div style={{ color: T.textDim, fontSize: 14 }}>Loading…</div>
+            <div style={{ color: T.textDim, fontSize: 14 }}>{content.loading}</div>
           </Card>
         ) : playerUrl ? (
           <PlayerHeroCard url={playerUrl} />
         ) : (
           <Card>
             <div style={{ color: T.textMuted, fontSize: 14 }}>
-              Add your first location from the <strong>Locations</strong> tab to get started.
+              {content.empty.pre}<strong>{content.empty.strong}</strong>{content.empty.post}
             </div>
           </Card>
         )}
@@ -61,7 +62,7 @@ function PlayerHeroCard({ url }: { url: string }) {
         fontFamily: T.heading, fontSize: 20, fontWeight: 600,
         color: T.text, letterSpacing: '-0.01em', marginBottom: 20,
       }}>
-        Music is ready. Open your player.
+        {content.hero.headline}
       </div>
 
       <a
@@ -78,7 +79,7 @@ function PlayerHeroCard({ url }: { url: string }) {
         }}
       >
         <ExternalLink size={17} strokeWidth={2.5} />
-        Open Player
+        {content.hero.open_player}
       </a>
 
       <div style={{
@@ -105,7 +106,7 @@ function PlayerHeroCard({ url }: { url: string }) {
           }}
         >
           {copied ? <Check size={13} strokeWidth={2} /> : <Copy size={13} strokeWidth={2} />}
-          {copied ? 'Copied' : 'Copy link'}
+          {copied ? content.hero.copied : content.hero.copy}
         </button>
       </div>
     </div>
@@ -124,19 +125,19 @@ interface UpgradeCopy {
 function upgradeCopyFor(tier: Tier): UpgradeCopy | null {
   if (tier === 'free') {
     return {
-      stat: '8–12%',
-      statLabel: 'increase in willingness to pay',
-      headline: 'Music built around your customer.',
-      body: 'When your music matches the people who walk through your door, they stay longer and spend more. Core builds your library around your specific customer — their taste, their identity, their vibe. $99 per location, per month.',
-      ctaLabel: 'Unlock Core',
+      stat: content.upgrade.free.stat,
+      statLabel: content.upgrade.free.stat_label,
+      headline: content.upgrade.free.headline,
+      body: content.upgrade.free.body,
+      ctaLabel: content.upgrade.free.cta_label,
       ctaTier: 'core',
     }
   }
   if (tier === 'core') {
     return {
-      headline: 'Tie what you play to what you sell.',
-      body: 'On Pro, schedule outcome rotation through the day and connect Square, Shopify, or Lightspeed. $399 per location, per month.',
-      ctaLabel: 'Unlock Pro',
+      headline: content.upgrade.core.headline,
+      body: content.upgrade.core.body,
+      ctaLabel: content.upgrade.core.cta_label,
       ctaTier: 'pro',
     }
   }

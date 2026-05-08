@@ -1,6 +1,7 @@
 import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
 import { LockScreen } from '../ui/LockScreen.js'
+import content from '../content/reports.yaml'
 
 // /reports — locked for ALL tiers in v1 per Daniel decision 2026-05-04.
 // The tab functions as a roadmap teaser. No upgrade CTA. Single shared copy.
@@ -8,8 +9,8 @@ export function Reports() {
   return (
     <Layout>
       <LockScreen
-        tabName="Reports"
-        valueLine="Lift in your existing CFO report."
+        tabName={content.lock.tab_name}
+        valueLine={content.lock.value_line}
         requiredTier="roadmap"
         preview={<ReportsPreview />}
       />
@@ -25,14 +26,14 @@ export function Reports() {
 function ReportsPreview() {
   const metrics = [
     {
-      label: 'Dwell time',
-      value: '+15–25%',
-      source: 'Peer-reviewed retail-audio studies (Milliman 1982 et al.)',
+      label: content.preview.dwell_label,
+      value: content.preview.dwell_value,
+      source: content.preview.dwell_source,
     },
     {
-      label: 'Willingness to pay',
-      value: '+8–12%',
-      source: 'Areni & Kim 1993; North et al. 1999',
+      label: content.preview.wtp_label,
+      value: content.preview.wtp_value,
+      source: content.preview.wtp_source,
     },
   ]
   return (
@@ -71,9 +72,7 @@ function ReportsPreview() {
         marginTop: 14,
         fontSize: 12, color: T.textFaint, fontFamily: T.sans, lineHeight: 1.5,
       }}>
-        Ranges from published research, not single-store guarantees. Your
-        Reports tab will compare each fortnight against a matched-control
-        period from your own data.
+        {content.preview.footnote}
       </div>
     </div>
   )

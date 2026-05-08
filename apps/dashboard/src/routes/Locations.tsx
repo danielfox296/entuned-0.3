@@ -6,6 +6,7 @@ import { Card, EmptyState } from '../ui/Card.js'
 import { Button, Input } from '../ui/index.js'
 import { api, PLAYER_URL, TIER_LABEL, TIER_RANK, type StoreRow, type Tier } from '../api.js'
 import { useTier } from '../lib/tier.jsx'
+import content from '../content/locations.yaml'
 
 // /locations — list of stores under this Client. v1: copyable player URL,
 // pause/resume (Core+), add-location (Core+ — gated; free shows upgrade).
@@ -25,16 +26,15 @@ export function Locations() {
           <h1 style={{
             fontFamily: T.heading, fontSize: 28, fontWeight: 700,
             color: T.text, letterSpacing: '-0.02em', margin: 0,
-          }}>Locations</h1>
+          }}>{content.heading}</h1>
           <div style={{ color: T.textDim, fontSize: 14, marginTop: 4 }}>
-            Each location plays its own soundtrack — its own player URL,
-            its own pause control.
+            {content.subheading}
           </div>
         </div>
         {canAdd ? (
           <Button onClick={() => setAddOpen(true)}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <Plus size={14} strokeWidth={2} /> Add my location
+              <Plus size={14} strokeWidth={2} /> {content.add.cta}
             </span>
           </Button>
         ) : (
@@ -46,22 +46,21 @@ export function Locations() {
               color: T.textMuted, padding: '8px 14px', borderRadius: 8,
               fontFamily: T.sans, fontSize: 14, textDecoration: 'none',
             }}
-            title="Add location requires Core"
+            title={content.add.locked_tooltip}
           >
-            <Lock size={12} strokeWidth={2} /> Add my location · Core
+            <Lock size={12} strokeWidth={2} /> {content.add.locked_cta}
           </a>
         )}
       </div>
 
       {loading ? (
         <Card>
-          <div style={{ color: T.textDim, fontSize: 14 }}>Loading locations…</div>
+          <div style={{ color: T.textDim, fontSize: 14 }}>{content.loading}</div>
         </Card>
       ) : stores.length === 0 ? (
         <Card>
           <EmptyState>
-            We couldn't load your locations. Try refreshing — or reach us
-            at hello@entuned.co if it sticks.
+            {content.empty}
           </EmptyState>
         </Card>
       ) : (
@@ -117,7 +116,7 @@ function StoreCard({ store, canPause, onChanged }: {
             }}>{TIER_LABEL[store.tier as Tier] ?? store.tier}</span>
             {isPaused && (
               <span style={{ fontSize: 12, color: T.warn }}>
-                Paused until {new Date(store.pausedUntil!).toLocaleDateString()}
+                {content.store.paused_until_prefix}{new Date(store.pausedUntil!).toLocaleDateString()}
               </span>
             )}
           </div>
@@ -154,7 +153,7 @@ function StoreNameRow({ store, onChanged }: { store: StoreRow; onChanged: () => 
     const trimmed = draft.trim()
     if (busy) return
     if (!trimmed) {
-      setError('Name is required.')
+      setError(content.store.rename_required)
       return
     }
     if (trimmed === store.name) {
@@ -168,7 +167,7 @@ function StoreNameRow({ store, onChanged }: { store: StoreRow; onChanged: () => 
       onChanged()
       setEditing(false)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Rename failed.')
+      setError(e instanceof Error ? e.message : content.store.rename_failed)
     } finally {
       setBusy(false)
     }
@@ -183,8 +182,8 @@ function StoreNameRow({ store, onChanged }: { store: StoreRow; onChanged: () => 
         }}>{store.name}</div>
         <button
           onClick={() => setEditing(true)}
-          title="Rename"
-          aria-label="Rename location"
+          title={content.store.rename_title}
+          aria-label={content.store.rename_aria}
           style={{
             background: 'transparent', border: 'none', padding: 2,
             color: T.textDim, cursor: 'pointer', borderRadius: 8,
@@ -212,10 +211,10 @@ function StoreNameRow({ store, onChanged }: { store: StoreRow; onChanged: () => 
           style={{ flex: 1, maxWidth: 360 }}
         />
         <Button onClick={save} disabled={busy}>
-          {busy ? 'Saving…' : 'Save'}
+          {busy ? content.store.save_busy : content.store.save}
         </Button>
         <Button variant="ghost" onClick={() => setEditing(false)} disabled={busy}>
-          Cancel
+          {content.store.cancel}
         </Button>
       </div>
       {error && (
@@ -245,7 +244,7 @@ function AddLocationModal({ onClose, onAdded }: {
     const trimmed = name.trim()
     if (busy) return
     if (!trimmed) {
-      setError('Location name is required.')
+      setError(content.modal.name_required)
       return
     }
     setBusy(true)
@@ -255,7 +254,7 @@ function AddLocationModal({ onClose, onAdded }: {
       onAdded()
       onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Add location failed.')
+      setError(e instanceof Error ? e.message : content.modal.add_failed)
       setBusy(false)
     }
   }
@@ -289,15 +288,14 @@ function AddLocationModal({ onClose, onAdded }: {
             <h2 style={{
               fontFamily: T.heading, fontSize: 18, fontWeight: 600,
               color: T.text, margin: 0, letterSpacing: '-0.01em',
-            }}>Add a location</h2>
+            }}>{content.modal.title}</h2>
             <div style={{ color: T.textDim, fontSize: 13, marginTop: 4, lineHeight: 1.5 }}>
-              We bump your subscription by one location and provision a new
-              player URL. Billing is prorated automatically.
+              {content.modal.body}
             </div>
           </div>
           <button
             onClick={() => !busy && onClose()}
-            aria-label="Close"
+            aria-label={content.modal.close_aria}
             style={{
               background: 'transparent', border: 'none', padding: 4,
               color: T.textDim, cursor: 'pointer',
@@ -312,13 +310,13 @@ function AddLocationModal({ onClose, onAdded }: {
           display: 'block', fontSize: 13, color: T.textMuted,
           marginBottom: 6, fontFamily: T.sans,
         }}>
-          Location name
+          {content.modal.name_label}
         </label>
         <Input
           ref={inputRef}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Park Meadows"
+          placeholder={content.modal.name_placeholder}
           disabled={busy}
           onKeyDown={(e) => {
             if (e.key === 'Enter') submit()
@@ -330,9 +328,9 @@ function AddLocationModal({ onClose, onAdded }: {
         )}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 18 }}>
-          <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>{content.modal.cancel}</Button>
           <Button onClick={submit} disabled={busy}>
-            {busy ? 'Adding…' : 'Add my location'}
+            {busy ? content.modal.submit_busy : content.modal.submit}
           </Button>
         </div>
       </div>
@@ -364,10 +362,10 @@ function PlayerUrlRow({ url }: { url: string }) {
       </div>
       <button onClick={copy} style={iconBtnStyle}>
         {copied ? <Check size={13} strokeWidth={2} /> : <Copy size={13} strokeWidth={2} />}
-        {copied ? 'Copied' : 'Copy'}
+        {copied ? content.url_row.copied : content.url_row.copy}
       </button>
       <a href={url} target="_blank" rel="noreferrer" style={openLinkStyle}>
-        <ExternalLink size={13} strokeWidth={2} /> Open
+        <ExternalLink size={13} strokeWidth={2} /> {content.url_row.open}
       </a>
     </div>
   )
@@ -387,7 +385,7 @@ function PauseControl({ store, canPause, isPaused, onChanged }: {
         fontSize: 12, color: T.textFaint, fontFamily: T.sans,
         display: 'inline-flex', alignItems: 'center', gap: 4,
       }}>
-        <Lock size={11} strokeWidth={2} /> Pause · Core
+        <Lock size={11} strokeWidth={2} /> {content.pause.locked}
       </span>
     )
   }
@@ -404,7 +402,7 @@ function PauseControl({ store, canPause, isPaused, onChanged }: {
       if (isPaused) {
         await api.resumeStore(store.id)
       } else {
-        if (!confirm('Pause this location for up to 60 days? Music stops; you stop being charged. You can resume anytime.')) {
+        if (!confirm(content.pause.confirm)) {
           setBusy(false)
           return
         }
@@ -412,7 +410,7 @@ function PauseControl({ store, canPause, isPaused, onChanged }: {
       }
       onChanged()
     } catch (e: any) {
-      alert(`Failed: ${e?.message ?? 'unknown error'}`)
+      alert(`${content.pause.failed_prefix}${e?.message ?? content.pause.failed_unknown}`)
     } finally {
       setBusy(false)
     }
@@ -434,7 +432,7 @@ function PauseControl({ store, canPause, isPaused, onChanged }: {
       }}
     >
       {isPaused ? <Play size={12} strokeWidth={2} /> : <Pause size={12} strokeWidth={2} />}
-      {isPaused ? 'Resume' : 'Pause'}
+      {isPaused ? content.pause.resume : content.pause.pause}
     </button>
   )
 }

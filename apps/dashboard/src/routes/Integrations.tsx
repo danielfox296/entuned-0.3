@@ -2,6 +2,7 @@ import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
 import { LockScreen } from '../ui/LockScreen.js'
 import { useTier } from '../lib/tier.jsx'
+import content from '../content/integrations.yaml'
 
 // /integrations — Pro+ in v2. Always LockScreen for now.
 export function Integrations() {
@@ -9,12 +10,12 @@ export function Integrations() {
   return (
     <Layout>
       <LockScreen
-        tabName="Integrations"
-        valueLine="Connect Square, Shopify, or Lightspeed. Tie what's playing to what's selling."
+        tabName={content.lock.tab_name}
+        valueLine={content.lock.value_line}
         requiredTier="pro"
         currentTier={tier}
-        timeToValue="POS data flows in within a day of connecting. Music–sales overlay shows up that night."
-        detail="On Pro you'd see hourly transactions next to your music outcomes, so you can prove the lift instead of guessing it."
+        timeToValue={content.lock.time_to_value}
+        detail={content.lock.detail}
         preview={<IntegrationsPreview />}
       />
     </Layout>
@@ -23,10 +24,10 @@ export function Integrations() {
 
 function IntegrationsPreview() {
   const integrations = [
-    { name: 'Square',     status: 'Connected · syncing',   color: T.accent },
-    { name: 'Shopify',    status: 'Available',             color: T.textDim },
-    { name: 'Lightspeed', status: 'Available',             color: T.textDim },
-    { name: 'Toast',      status: 'Coming soon',           color: T.textFaint },
+    { name: content.preview.square_name,     status: content.preview.square_status,     color: T.accent },
+    { name: content.preview.shopify_name,    status: content.preview.shopify_status,    color: T.textDim },
+    { name: content.preview.lightspeed_name, status: content.preview.lightspeed_status, color: T.textDim },
+    { name: content.preview.toast_name,      status: content.preview.toast_status,      color: T.textFaint },
   ]
   return (
     <div style={{ padding: 20, display: 'grid', gap: 10 }}>

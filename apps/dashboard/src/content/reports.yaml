@@ -1,0 +1,20 @@
+# reports — editable text content
+# Edit this file to change copy on the /reports screen.
+# Vite HMR will refresh the page automatically.
+
+# LockScreen content (locked for ALL tiers in v1 per Daniel decision 2026-05-04;
+# the tab functions as a roadmap teaser. No upgrade CTA. Single shared copy.)
+lock:
+  tab_name: "Reports"
+  value_line: "Lift in your existing CFO report."
+
+# Preview shows two metrics with PUBLISHED, ATTRIBUTED ranges from
+# peer-reviewed retail-audio research. Numbers should match the brand site.
+preview:
+  dwell_label: "Dwell time"
+  dwell_value: "+15–25%"
+  dwell_source: "Peer-reviewed retail-audio studies (Milliman 1982 et al.)"
+  wtp_label: "Willingness to pay"
+  wtp_value: "+8–12%"
+  wtp_source: "Areni & Kim 1993; North et al. 1999"
+  footnote: "Ranges from published research, not single-store guarantees. Your Reports tab will compare each fortnight against a matched-control period from your own data."

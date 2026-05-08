@@ -1,0 +1,71 @@
+# schedule — editable text content
+# Edit this file to change copy on the /schedule screen.
+# Vite HMR will refresh the page automatically.
+
+heading: "Schedule"
+
+# LockScreen content shown to sub-Pro users
+lock:
+  tab_name: "Schedule"
+  value_line: "Time-of-day outcome rotation. Music shifts as your customer mix changes through the day."
+  time_to_value: "Schedule rules apply on the next playback rotation — usually within an hour."
+  detail: "On Pro you'd schedule Linger for the morning lull and Lift Energy for Saturday afternoon — automatically, with one rule."
+
+# Editor — multi-day form, day columns, slot rows
+editor:
+  loading: "Loading…"
+  location_label: "Location"
+  new_rule: "+ New rule"
+  cancel: "Cancel"
+  empty_day: "—"
+  # SlotForm — single-row inline editor
+  start_label: "Start"
+  end_label: "End"
+  outcome_label: "Outcome"
+  outcome_pick_placeholder: "— pick —"
+  save: "Save"
+  # MultiDayForm
+  days_label: "Days"
+  toggle_all: "All"
+  toggle_none: "None"
+  edit: "edit"
+  delete: "×"
+  # MultiDayForm submit button — count is dynamic, suffix toggles by plurality
+  create_busy_prefix: "Creating "
+  create_busy_suffix_singular: " rule…"
+  create_busy_suffix_plural: " rules…"
+  create_prefix: "Create "
+  create_suffix_singular: " rule"
+  create_suffix_plural: " rules"
+
+# Static preview shown inside LockScreen
+preview:
+  weekday_label: "Weekday mornings"
+  weekday_when: "Mon–Fri · 9:00–11:00 AM"
+  weekday_outcome: "Linger"
+  lunch_label: "Lunch rush"
+  lunch_when: "Mon–Fri · 12:00–2:00 PM"
+  lunch_outcome: "Lift Energy"
+  saturday_label: "Saturday floor"
+  saturday_when: "Sat · 11:00 AM–4:00 PM"
+  saturday_outcome: "Lift Energy"
+  sunday_label: "Sunday wind-down"
+  sunday_when: "Sun · 3:00–6:00 PM"
+  sunday_outcome: "Linger"
+
+# Day-of-week labels
+days:
+  monday_label: "Monday"
+  monday_short: "Mon"
+  tuesday_label: "Tuesday"
+  tuesday_short: "Tue"
+  wednesday_label: "Wednesday"
+  wednesday_short: "Wed"
+  thursday_label: "Thursday"
+  thursday_short: "Thu"
+  friday_label: "Friday"
+  friday_short: "Fri"
+  saturday_label: "Saturday"
+  saturday_short: "Sat"
+  sunday_label: "Sunday"
+  sunday_short: "Sun"

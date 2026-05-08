@@ -35,8 +35,9 @@ in dev. Production picks it up on the next `vite build` (runs in CI).
 Wired via `@modyfi/vite-plugin-yaml` in `vite.config.ts`. Type shim for
 `*.yaml` imports lives in `src/vite-env.d.ts`.
 
-**Currently YAML-ified:** `Welcome.tsx`. Remaining routes still inline
-their copy — extract to YAML when touching them, or in a sweep.
+**Currently YAML-ified:** all routes. `Welcome`, `Start`, `Home`,
+`Account`, `Locations`, `IcpIntake`, `Schedule`, `Reports`, `Integrations`.
+When adding a new route, create `src/content/<route>.yaml` alongside it.
 
 ## Operating rules
 
