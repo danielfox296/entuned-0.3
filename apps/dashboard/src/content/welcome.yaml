@@ -21,6 +21,6 @@ ready:
 error:
   eyebrow: "Hmm"
   headline: "We hit a snag finishing up."
-  sub_fallback: "Email hello@entuned.co and we'll sort it in minutes."
+  sub_fallback: "Email hello@entuned.co and we'll sort it quickly."
   missing_session: "Missing checkout session id."
   generic: "Failed to confirm checkout."

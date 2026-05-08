@@ -130,6 +130,38 @@ Verify in DB:
 GET /admin/song-seeds?icpId=...&status=queued
 ```
 
+## Step 3.5 — Seed coverage gate (REQUIRED before populate-songs)
+
+**Never start populate-songs until this gate is green for every requested ICP × outcome combo.**
+
+Even if Daniel says "seeds are already queued," run this check — the queue is often partial.
+
+For each (icpId, outcomeId) pair in ARGUMENTS:
+
+```js
+// Run from Dash tab
+const h = {'authorization': 'Bearer ' + localStorage.getItem('entuned.admin.token')};
+const r = await fetch(`https://api.entuned.co/admin/song-seeds?icpId=ICP_ID&status=queued&limit=1`, {headers: h});
+const d = await r.json();
+// d.total === 0 → missing seeds for this combo
+```
+
+Build a coverage matrix: list every (ICP, outcome) combo, note queued seed count. Any combo with 0 seeds is a gap.
+
+**For each gap:**
+1. Check if that ICP already has approved hooks for the outcome:
+   ```js
+   const hooks = await (await fetch(`https://api.entuned.co/admin/icps/ICP_ID/hooks`, {headers: h})).json();
+   const approved = hooks.filter(h => h.status === 'approved' && h.outcomeId === OUTCOME_ID);
+   ```
+   If `approved.length === 0`: run Step 2 (Hook Writing) for that ICP × outcome first.
+
+2. Then run Step 3 (Hook → Prompt) for that ICP × outcome to produce queued seeds.
+
+3. Re-query the queue to confirm seeds now exist before moving on.
+
+Do NOT proceed to Step 4 with any zero-seed combo. A partial queue produces partial results and silent coverage gaps.
+
 ## Step 4 — Suno generation (populate-songs)
 
 Run the `populate-songs` skill. Critical points learned this run:
