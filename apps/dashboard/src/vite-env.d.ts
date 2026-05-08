@@ -7,3 +7,8 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+declare module '*.yaml' {
+  const value: any
+  export default value
+}

@@ -1,0 +1,26 @@
+# welcome — editable text content
+# Edit this file to change copy on the /welcome screen.
+# Vite HMR will refresh the page automatically.
+
+# Pending state — Stripe checkout is finishing
+pending:
+  eyebrow: "Almost ready"
+  headline: "Setting up your store."
+  sub: "About five seconds. Here's what's happening:"
+  step_1: "Activating your subscription"
+  step_2: "Provisioning your location"
+  step_3: "Loading your starter library"
+
+# Ready state — provisioned, redirecting to /intake
+ready:
+  eyebrow: "You're in"
+  headline: "You're all set."
+  sub: "Taking you to a few quick questions — three answers and your music starts taking shape."
+
+# Error state — something went wrong confirming the checkout
+error:
+  eyebrow: "Hmm"
+  headline: "We hit a snag finishing up."
+  sub_fallback: "Email hello@entuned.co and we'll sort it in minutes."
+  missing_session: "Missing checkout session id."
+  generic: "Failed to confirm checkout."

@@ -18,6 +18,26 @@ Customer-facing dashboard for v0.3. Companion to `apps/admin` (operator) and
   out with `credentials: 'include'`.
 - Port **5179** (server 3000, player 5177, admin 5178, dashboard 5179)
 
+## Editable text content (YAML)
+
+User-visible copy lives in `src/content/<route>.yaml`, mirroring the
+brand site (`bowie`) pattern. Components import the YAML directly:
+
+```ts
+import content from '../content/welcome.yaml'
+// ...
+<Headline>{content.pending.headline}</Headline>
+```
+
+To change copy, edit the YAML — Vite HMR refreshes the page instantly
+in dev. Production picks it up on the next `vite build` (runs in CI).
+
+Wired via `@modyfi/vite-plugin-yaml` in `vite.config.ts`. Type shim for
+`*.yaml` imports lives in `src/vite-env.d.ts`.
+
+**Currently YAML-ified:** `Welcome.tsx`. Remaining routes still inline
+their copy — extract to YAML when touching them, or in a sweep.
+
 ## Operating rules
 
 - **Push after edits.** Daniel runs everything live.

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { T } from '../tokens.js'
 import { Eyebrow, Logo } from '../ui/index.js'
 import { api } from '../api.js'
+import content from '../content/welcome.yaml'
 
 // /welcome?session=cs_... — landing page after Stripe Checkout returns.
 // Confirms the account is provisioned, then routes to the ICP intake wizard.
@@ -20,7 +21,7 @@ export function Welcome() {
   useEffect(() => {
     if (!sessionId) {
       setStatus('error')
-      setError('Missing checkout session id.')
+      setError(content.error.missing_session)
       return
     }
     let cancelled = false
@@ -42,7 +43,7 @@ export function Welcome() {
       .catch((err) => {
         if (cancelled) return
         setStatus('error')
-        setError(err instanceof Error ? err.message : 'Failed to confirm checkout.')
+        setError(err instanceof Error ? err.message : content.error.generic)
       })
     return () => { cancelled = true }
   }, [sessionId, navigate])
@@ -60,9 +61,9 @@ export function Welcome() {
 
         {status === 'pending' && (
           <>
-            <Eyebrow>Almost ready</Eyebrow>
-            <Headline>Setting up your store.</Headline>
-            <Sub>About five seconds. Here's what's happening:</Sub>
+            <Eyebrow>{content.pending.eyebrow}</Eyebrow>
+            <Headline>{content.pending.headline}</Headline>
+            <Sub>{content.pending.sub}</Sub>
             <ol style={{
               margin: '20px 0 0', padding: 0, listStyle: 'none',
               display: 'grid', gap: 10, color: T.textMuted,
@@ -73,21 +74,21 @@ export function Welcome() {
                   fontFamily: T.heading, color: T.accent,
                   fontWeight: 600, minWidth: 20,
                 }}>01</span>
-                Activating your subscription
+                {content.pending.step_1}
               </li>
               <li style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
                 <span style={{
                   fontFamily: T.heading, color: T.accent,
                   fontWeight: 600, minWidth: 20,
                 }}>02</span>
-                Provisioning your location
+                {content.pending.step_2}
               </li>
               <li style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
                 <span style={{
                   fontFamily: T.heading, color: T.accent,
                   fontWeight: 600, minWidth: 20,
                 }}>03</span>
-                Loading your starter library
+                {content.pending.step_3}
               </li>
             </ol>
             <Pulse />
@@ -95,17 +96,17 @@ export function Welcome() {
         )}
         {status === 'ready' && (
           <>
-            <Eyebrow>You're in</Eyebrow>
-            <Headline>You're all set.</Headline>
-            <Sub>Taking you to a few quick questions — three answers and your music starts taking shape.</Sub>
+            <Eyebrow>{content.ready.eyebrow}</Eyebrow>
+            <Headline>{content.ready.headline}</Headline>
+            <Sub>{content.ready.sub}</Sub>
           </>
         )}
         {status === 'error' && (
           <>
-            <Eyebrow>Hmm</Eyebrow>
-            <Headline>We hit a snag finishing up.</Headline>
+            <Eyebrow>{content.error.eyebrow}</Eyebrow>
+            <Headline>{content.error.headline}</Headline>
             <Sub style={{ color: T.danger }}>
-              {error ?? "Email hello@entuned.co and we'll sort it in minutes."}
+              {error ?? content.error.sub_fallback}
             </Sub>
           </>
         )}
