@@ -47,12 +47,15 @@ export function Start() {
       alignItems: 'center',
       justifyContent: 'center',
       fontFamily: T.sans,
-      padding: '56px 64px',
+      padding: '28px 64px 56px',
       color: T.text,
     }}>
-      <div style={{ marginBottom: 48 }}>
+      <a
+        href="https://entuned.co"
+        style={{ display: 'block', marginBottom: 48 }}
+      >
         <Logo height={55} />
-      </div>
+      </a>
 
       <div className="start-grid" style={{
         display: 'grid',
@@ -75,7 +78,7 @@ export function Start() {
             margin: '0 0 20px',
             maxWidth: '18ch',
           }}>
-            Music engineered for your store.
+            Music that works your floor.
           </h1>
           <p style={{
             fontSize: 19,
@@ -84,9 +87,9 @@ export function Start() {
             margin: '0 0 28px',
             maxWidth: '38ch',
           }}>
-            Original, retail-licensed music tuned to
-            the people who walk into your store. Free forever,
-            no card, plays through your existing speakers.
+            Original, retail-licensed, generated for the customers
+            in front of you. Free forever. No card. Plays through
+            your existing speakers.
           </p>
           <div style={{
             display: 'flex',
@@ -97,15 +100,15 @@ export function Start() {
           }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
               <span style={{ color: T.accent, flexShrink: 0 }}>→</span>
-              <span>PRO-indemnified from day one — no ASCAP, BMI, SESAC</span>
+              <span>Licensed from day one: no ASCAP, BMI, or SESAC exposure</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
               <span style={{ color: T.accent, flexShrink: 0 }}>→</span>
-              <span>Pick Linger or Lift Energy — outcome-designed for your floor</span>
+              <span>Choose Linger or Lift: music designed around an outcome, not a mood</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
               <span style={{ color: T.accent, flexShrink: 0 }}>→</span>
-              <span>No app to install — plays from a URL on any device</span>
+              <span>No app: plays from a web browser on any device</span>
             </div>
           </div>
         </div>
