@@ -548,7 +548,7 @@ function readResetTokenFromHash(): string | null {
   return t && t.length > 0 ? t : null
 }
 
-function Login({ onLogin }: { onLogin: (token: string) => void }) {
+function Login({ onLogin, onLeaveReset }: { onLogin: (token: string) => void; onLeaveReset?: () => void }) {
   const [mode, setMode] = useState<AuthMode>(() => readResetTokenFromHash() ? 'reset' : 'login')
   const [email, setEmail] = useState('daniel@entuned.co')
   const [password, setPassword] = useState('')
@@ -595,7 +595,8 @@ function Login({ onLogin }: { onLogin: (token: string) => void }) {
             }}
             onBack={() => {
               window.history.replaceState(null, '', window.location.pathname + window.location.search)
-              setMode('login'); setError(null); setInfo(null)
+              if (onLeaveReset) onLeaveReset()
+              else { setMode('login'); setError(null); setInfo(null) }
             }}
           />
         )}
@@ -777,6 +778,10 @@ export function App() {
   const [active, setActive] = useNavGroup('workflows')
   const [collapsed, setCollapsed] = useState(false)
   const [showChangePassword, setShowChangePassword] = useState(false)
+  // Reset-password hash takes priority over normal auth — the operator clicking
+  // the email link may already be signed in (Dash auto-auths in many setups);
+  // the main shell would otherwise eat the hash. Cleared on successful reset.
+  const [resetMode, setResetMode] = useState(() => !!readResetTokenFromHash())
 
   // Verify token
   useEffect(() => {
@@ -798,10 +803,13 @@ export function App() {
     setMe(null)
   }
 
-  if (!token || !me) {
+  if (resetMode || !token || !me) {
     return (
       <ToastProvider>
-        <Login onLogin={handleLogin} />
+        <Login
+          onLogin={(t) => { setResetMode(false); handleLogin(t) }}
+          onLeaveReset={resetMode && token && me ? () => setResetMode(false) : undefined}
+        />
       </ToastProvider>
     )
   }
