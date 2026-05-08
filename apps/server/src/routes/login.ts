@@ -116,9 +116,13 @@ interface GoogleUserinfo {
   name?: string
 }
 
-async function findOrCreateUserByEmail(email: string, name?: string | null): Promise<{ id: string; email: string; name: string | null }> {
+async function findOrCreateUserByEmail(email: string, name?: string | null): Promise<{ id: string; email: string; name: string | null; disabledAt: Date | null; tokenVersion: number }> {
   const normalized = email.trim().toLowerCase()
   const existing = await prisma.user.findUnique({ where: { email: normalized } })
+  if (existing && existing.disabledAt) {
+    // Disabled accounts can't be re-activated by signing in; admin must un-disable.
+    return { id: existing.id, email: existing.email, name: existing.name, disabledAt: existing.disabledAt, tokenVersion: existing.tokenVersion }
+  }
   const user = existing
     ? await prisma.user.update({ where: { id: existing.id }, data: { lastLoginAt: new Date() } })
     : await prisma.user.create({
@@ -129,7 +133,7 @@ async function findOrCreateUserByEmail(email: string, name?: string | null): Pro
   // the operator-link hook: matches existing Client.contact_email and
   // attaches membership instead of creating a duplicate Client.
   await ensureFreeClientForUser(user.id, normalized)
-  return { id: user.id, email: user.email, name: user.name }
+  return { id: user.id, email: user.email, name: user.name, disabledAt: user.disabledAt, tokenVersion: user.tokenVersion }
 }
 
 // Google OAuth handlers — defined but NOT registered in v1.
@@ -242,15 +246,18 @@ async function googleCallbackHandler(req: FastifyRequest, reply: FastifyReply) {
       },
     })
   } else {
+    if (user.disabledAt) {
+      return reply.code(403).send({ error: 'account_disabled' })
+    }
     // Existing user logging in — bump lastLoginAt.
-    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+    user = await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
   }
 
   // Same free-tier provisioning as the magic-link path. Idempotent — backfills
   // any Google-signup users that pre-date this call.
   await ensureFreeClientForUser(user.id, normalizedEmail)
 
-  setSessionCookie(reply, user.id)
+  setSessionCookie(reply, user.id, user.tokenVersion)
   return reply.redirect(nextDest ?? `${appUrl()}/`, 302)
 }
 
@@ -322,7 +329,10 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
 
     await prisma.magicLinkToken.update({ where: { id: row.id }, data: { consumedAt: new Date() } })
     const user = await findOrCreateUserByEmail(row.email)
-    setSessionCookie(reply, user.id)
+    if (user.disabledAt) {
+      return reply.redirect(`${appUrl()}/start?error=account_disabled`, 302)
+    }
+    setSessionCookie(reply, user.id, user.tokenVersion)
     // Re-validate `next` on the way out — the link was constructed by us
     // but we don't trust the email transport. safeNext returns null for
     // anything that isn't a same-origin (APP_URL or API_URL) destination.

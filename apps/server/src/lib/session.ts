@@ -20,6 +20,11 @@ const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60 // 30 days
 
 export interface SessionPayload {
   userId: string
+  // Token version. Bumped on admin-triggered revoke or email change.
+  // attachSession rejects mismatches. Optional in payload for back-compat with
+  // cookies issued before this field was added — those treat as version 0 and
+  // fail-shut once tokenVersion bumps for any reason.
+  tv?: number
   // `iat` / `exp` are added by jsonwebtoken automatically.
 }
 
@@ -74,8 +79,8 @@ function cookieOptions(): {
 }
 
 /** Sign a session JWT for a user and write it to the response cookie. */
-export function setSessionCookie(reply: FastifyReply, userId: string): string {
-  const token = jwt.sign({ userId } satisfies SessionPayload, getJwtSecret(), {
+export function setSessionCookie(reply: FastifyReply, userId: string, tokenVersion: number): string {
+  const token = jwt.sign({ userId, tv: tokenVersion } satisfies SessionPayload, getJwtSecret(), {
     expiresIn: SESSION_TTL_SECONDS,
   })
   reply.setCookie(COOKIE_NAME, token, cookieOptions())
@@ -92,7 +97,7 @@ export function verifySessionToken(token: string): SessionPayload | null {
   try {
     const decoded = jwt.verify(token, getJwtSecret()) as SessionPayload & { iat: number; exp: number }
     if (!decoded.userId) return null
-    return { userId: decoded.userId }
+    return { userId: decoded.userId, tv: decoded.tv ?? 0 }
   } catch {
     return null
   }
@@ -120,6 +125,18 @@ async function attachSession(request: FastifyRequest, reply: FastifyReply): Prom
     },
   })
   if (!user) return
+  // Soft-disabled accounts can't resolve a session; clear the stale cookie so
+  // the SPA stops thinking the user is signed in.
+  if (user.disabledAt) {
+    clearSessionCookie(reply)
+    return
+  }
+  // Token version mismatch ⇒ session was revoked (admin action, email change,
+  // etc.). Clear the cookie so the SPA bounces to /start.
+  if (user.tokenVersion !== (payload.tv ?? 0)) {
+    clearSessionCookie(reply)
+    return
+  }
 
   request.user = { id: user.id, email: user.email, name: user.name }
   // Resolves first ClientMembership for now; a multi-client switcher comes later.
@@ -132,7 +149,7 @@ async function attachSession(request: FastifyRequest, reply: FastifyReply): Prom
   }
 
   // Rolling expiry: re-issue the cookie so the 30-day window slides forward.
-  setSessionCookie(reply, user.id)
+  setSessionCookie(reply, user.id, user.tokenVersion)
 }
 
 // Wrapped with fastify-plugin so the onRequest hook escapes encapsulation

@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   Sparkles, CalendarDays, Settings, Music2,
-  FlaskConical, Lightbulb, Activity, ListChecks, Target, ShoppingCart, Mail,
+  FlaskConical, Lightbulb, Activity, ListChecks, Target, ShoppingCart, Mail, Users as UsersIcon,
 } from 'lucide-react'
 import { api, getToken, setToken, clearToken } from './api.js'
 import type { MeResponse, ClientListRow, StoreSummary, StoreDetail } from './api.js'
@@ -33,6 +33,7 @@ import { FlaggedReview } from './panels/catalogue/FlaggedReview.js'
 import { WorkflowRouter } from './panels/workflow/WorkflowRouter.js'
 import { SalesDataIngest } from './panels/salesdata/SalesDataIngest.js'
 import { EmailTemplates } from './panels/email/EmailTemplates.js'
+import { UsersPanel } from './panels/users/UsersPanel.js'
 import { useNavGroup, useNavSub } from './nav.js'
 
 // ── Surface groups (from admin-ui.md, priority order) ──────────
@@ -66,6 +67,9 @@ const GROUPS: SurfaceGroup[] = [
   { key: 'email', label: 'Email', short: 'Email', icon: Mail,
     cards: ['Templates'],
     description: '' },
+  { key: 'users', label: 'Customers', short: 'Customers', icon: UsersIcon,
+    cards: ['Users'],
+    description: '' },
   { key: 'experiments', label: 'Experiments', short: 'Experiments', icon: FlaskConical,
     cards: ['Experiment Editor', 'Experiment Detail', 'Results'],
     description: '', deferred: true },
@@ -78,9 +82,10 @@ const GROUPS: SurfaceGroup[] = [
 ]
 
 // ── Sidebar ────────────────────────────────────────────────────
-function Sidebar({ active, onSelect, collapsed, onToggle, email, onLogout }: {
+function Sidebar({ active, onSelect, collapsed, onToggle, email, onLogout, onChangePassword }: {
   active: string; onSelect: (k: string) => void
   collapsed: boolean; onToggle: () => void; email: string; onLogout: () => void
+  onChangePassword: () => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   // Close the dropdown on any outside click.
@@ -171,6 +176,15 @@ function Sidebar({ active, onSelect, collapsed, onToggle, email, onLogout }: {
               }}
             >
               <button
+                onClick={() => { setMenuOpen(false); onChangePassword() }}
+                style={{
+                  width: '100%', background: 'transparent', border: 'none',
+                  padding: '6px 10px', textAlign: 'left',
+                  fontSize: 13, color: T.text, fontFamily: T.sans,
+                  cursor: 'pointer', borderRadius: 3,
+                }}
+              >Change password</button>
+              <button
                 onClick={() => { setMenuOpen(false); onLogout() }}
                 style={{
                   width: '100%', background: 'transparent', border: 'none',
@@ -221,7 +235,8 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
          group.key === 'outcomes' ? <OutcomesRouter cards={group.cards} /> :
          group.key === 'catalogue' ? <CatalogueRouter cards={group.cards} /> :
          group.key === 'salesdata' ? <SalesDataIngest /> :
-         group.key === 'email' ? <EmailTemplates /> : (
+         group.key === 'email' ? <EmailTemplates /> :
+         group.key === 'users' ? <UsersPanel /> : (
         <>
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12,
@@ -492,16 +507,57 @@ function CatalogueRouter({ cards }: { cards: string[] }) {
   )
 }
 
-// ── Login ──────────────────────────────────────────────────────
+// ── Login + password recovery screens ──────────────────────────
+//
+// Three modes: 'login' (email + password), 'forgot' (request reset email),
+// 'reset' (consume token from #reset-password?token=…). The reset mode is
+// detected from window.location.hash on mount and short-circuits login.
+
+type AuthMode = 'login' | 'forgot' | 'reset'
+
+const authShellStyle: CSSProperties = {
+  width: '100%', height: '100vh', background: T.bg,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  fontFamily: T.sans,
+}
+const authInputStyle: CSSProperties = {
+  background: T.surfaceRaised, border: `1px solid ${T.border}`,
+  borderRadius: 4, padding: '10px 12px', color: T.text,
+  fontFamily: T.sans, fontSize: 15, outline: 'none',
+}
+const authPrimaryBtn = (busy: boolean): CSSProperties => ({
+  background: T.accent, color: T.bg, border: 'none',
+  borderRadius: 4, padding: '10px 12px', fontFamily: T.sans,
+  fontSize: 15, fontWeight: 600, cursor: 'pointer',
+  opacity: busy ? 0.6 : 1,
+})
+const authLinkBtn: CSSProperties = {
+  background: 'transparent', border: 'none', color: T.accent,
+  fontFamily: T.sans, fontSize: 13, cursor: 'pointer', padding: 0,
+  textAlign: 'left',
+}
+
+/** Read & clear the `#reset-password?token=...` hash, if present. */
+function readResetTokenFromHash(): string | null {
+  const h = window.location.hash.replace(/^#/, '')
+  if (!h.startsWith('reset-password')) return null
+  const q = h.indexOf('?')
+  if (q === -1) return null
+  const params = new URLSearchParams(h.slice(q + 1))
+  const t = params.get('token')
+  return t && t.length > 0 ? t : null
+}
+
 function Login({ onLogin }: { onLogin: (token: string) => void }) {
+  const [mode, setMode] = useState<AuthMode>(() => readResetTokenFromHash() ? 'reset' : 'login')
   const [email, setEmail] = useState('daniel@entuned.co')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [info, setInfo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const submit = async () => {
-    setBusy(true)
-    setError(null)
+  const submitLogin = async () => {
+    setBusy(true); setError(null); setInfo(null)
     try {
       const r = await api.login(email, password)
       onLogin(r.token)
@@ -512,50 +568,202 @@ function Login({ onLogin }: { onLogin: (token: string) => void }) {
     }
   }
 
+  const submitForgot = async () => {
+    setBusy(true); setError(null); setInfo(null)
+    try {
+      await api.forgotPassword(email)
+      setInfo('If that email is on a Dash account, a reset link is on its way. Check your inbox (and spam) — the link expires in 60 minutes.')
+    } catch (e: any) {
+      setError(e.message ?? 'request failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <div style={{
-      width: '100%', height: '100vh', background: T.bg,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: T.sans,
-    }}>
-      <div style={{ width: 320 }}>
+    <div style={authShellStyle}>
+      <div style={{ width: 360 }}>
         <div style={{ marginBottom: 32 }}>
           <img src="/entuned-logo-ice.svg" alt="Entuned" style={{ height: 22, width: 'auto', display: 'block' }} />
         </div>
-        <div style={{ display: 'grid', gap: 12 }}>
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="email"
-            style={{
-              background: T.surfaceRaised, border: `1px solid ${T.border}`,
-              borderRadius: 4, padding: '10px 12px', color: T.text,
-              fontFamily: T.sans, fontSize: 15, outline: 'none',
+
+        {mode === 'reset' && (
+          <ResetPasswordForm
+            onDone={(t) => {
+              window.history.replaceState(null, '', window.location.pathname + window.location.search)
+              onLogin(t)
+            }}
+            onBack={() => {
+              window.history.replaceState(null, '', window.location.pathname + window.location.search)
+              setMode('login'); setError(null); setInfo(null)
             }}
           />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="password"
-            onKeyDown={(e) => e.key === 'Enter' && submit()}
-            style={{
-              background: T.surfaceRaised, border: `1px solid ${T.border}`,
-              borderRadius: 4, padding: '10px 12px', color: T.text,
-              fontFamily: T.sans, fontSize: 15, outline: 'none',
-            }}
-          />
-          <button
-            onClick={submit}
-            disabled={busy}
-            style={{
-              background: T.accent, color: T.bg, border: 'none',
-              borderRadius: 4, padding: '10px 12px', fontFamily: T.sans,
-              fontSize: 15, fontWeight: 600, cursor: 'pointer',
-              opacity: busy ? 0.6 : 1,
-            }}
-          >{busy ? 'signing in…' : 'sign in'}</button>
-          {error && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.sans }}>{error}</div>}
+        )}
+
+        {mode === 'login' && (
+          <div style={{ display: 'grid', gap: 12 }}>
+            <input
+              value={email} onChange={(e) => setEmail(e.target.value)}
+              placeholder="email" style={authInputStyle}
+            />
+            <input
+              type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+              placeholder="password" onKeyDown={(e) => e.key === 'Enter' && submitLogin()}
+              style={authInputStyle}
+            />
+            <button onClick={submitLogin} disabled={busy} style={authPrimaryBtn(busy)}>
+              {busy ? 'signing in…' : 'sign in'}
+            </button>
+            <button
+              onClick={() => { setMode('forgot'); setError(null); setInfo(null) }}
+              style={authLinkBtn}
+            >Forgot password?</button>
+            {error && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.sans }}>{error}</div>}
+          </div>
+        )}
+
+        {mode === 'forgot' && (
+          <div style={{ display: 'grid', gap: 12 }}>
+            <div style={{ fontSize: 14, color: T.textMuted, fontFamily: T.sans, lineHeight: 1.5 }}>
+              Enter your Dash email and we&rsquo;ll send a reset link.
+            </div>
+            <input
+              value={email} onChange={(e) => setEmail(e.target.value)}
+              placeholder="email" onKeyDown={(e) => e.key === 'Enter' && submitForgot()}
+              style={authInputStyle}
+            />
+            <button onClick={submitForgot} disabled={busy} style={authPrimaryBtn(busy)}>
+              {busy ? 'sending…' : 'send reset link'}
+            </button>
+            <button
+              onClick={() => { setMode('login'); setError(null); setInfo(null) }}
+              style={authLinkBtn}
+            >← back to sign in</button>
+            {info && <div style={{ fontSize: 13, color: T.textMuted, fontFamily: T.sans, lineHeight: 1.5 }}>{info}</div>}
+            {error && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.sans }}>{error}</div>}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ResetPasswordForm({ onDone, onBack }: { onDone: (token: string) => void; onBack: () => void }) {
+  const resetToken = readResetTokenFromHash()
+  const [pw1, setPw1] = useState('')
+  const [pw2, setPw2] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  if (!resetToken) {
+    return (
+      <div style={{ display: 'grid', gap: 12 }}>
+        <div style={{ fontSize: 14, color: T.danger, fontFamily: T.sans }}>Reset link is missing its token. Request a new one.</div>
+        <button onClick={onBack} style={authLinkBtn}>← back to sign in</button>
+      </div>
+    )
+  }
+
+  const submit = async () => {
+    setError(null)
+    if (pw1.length < 10) { setError('Password must be at least 10 characters.'); return }
+    if (pw1 !== pw2) { setError('Passwords don’t match.'); return }
+    setBusy(true)
+    try {
+      const r = await api.resetPassword(resetToken, pw1)
+      onDone(r.token)
+    } catch (e: any) {
+      const msg = e.message ?? 'reset failed'
+      // Surface the common server codes as friendly copy.
+      if (msg.includes('token_expired')) setError('This link has expired. Request a new one.')
+      else if (msg.includes('token_already_used')) setError('This link was already used. Request a new one.')
+      else if (msg.includes('invalid_token')) setError('This link is invalid. Request a new one.')
+      else setError(msg)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <div style={{ fontSize: 16, fontWeight: 600, color: T.text, fontFamily: T.sans }}>Set a new password</div>
+      <div style={{ fontSize: 13, color: T.textMuted, fontFamily: T.sans, lineHeight: 1.5 }}>
+        At least 10 characters. You&rsquo;ll be signed in automatically when this saves.
+      </div>
+      <input
+        type="password" value={pw1} onChange={(e) => setPw1(e.target.value)}
+        placeholder="new password" style={authInputStyle}
+      />
+      <input
+        type="password" value={pw2} onChange={(e) => setPw2(e.target.value)}
+        placeholder="confirm new password" onKeyDown={(e) => e.key === 'Enter' && submit()}
+        style={authInputStyle}
+      />
+      <button onClick={submit} disabled={busy} style={authPrimaryBtn(busy)}>
+        {busy ? 'saving…' : 'save & sign in'}
+      </button>
+      <button onClick={onBack} style={authLinkBtn}>← back to sign in</button>
+      {error && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.sans }}>{error}</div>}
+    </div>
+  )
+}
+
+function ChangePasswordModal({ onClose, onChanged }: { onClose: () => void; onChanged: (newToken: string) => void }) {
+  const [current, setCurrent] = useState('')
+  const [pw1, setPw1] = useState('')
+  const [pw2, setPw2] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const submit = async () => {
+    setError(null)
+    if (pw1.length < 10) { setError('New password must be at least 10 characters.'); return }
+    if (pw1 !== pw2) { setError('Passwords don’t match.'); return }
+    const tk = getToken(); if (!tk) { setError('not signed in'); return }
+    setBusy(true)
+    try {
+      const r = await api.changePassword(current, pw1, tk)
+      onChanged(r.token)
+    } catch (e: any) {
+      const msg = e.message ?? 'change failed'
+      if (msg.includes('invalid_credentials')) setError('Current password is incorrect.')
+      else setError(msg)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 380, background: T.surface, border: `1px solid ${T.border}`,
+          borderRadius: 6, padding: 24, fontFamily: T.sans,
+        }}
+      >
+        <div style={{ fontSize: 16, fontWeight: 600, color: T.text, marginBottom: 8 }}>Change password</div>
+        <div style={{ fontSize: 13, color: T.textMuted, marginBottom: 16, lineHeight: 1.5 }}>
+          You&rsquo;ll stay signed in on this device. Other devices get signed out.
+        </div>
+        <div style={{ display: 'grid', gap: 10 }}>
+          <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="current password" style={authInputStyle} />
+          <input type="password" value={pw1} onChange={(e) => setPw1(e.target.value)} placeholder="new password (≥10 chars)" style={authInputStyle} />
+          <input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="confirm new password" onKeyDown={(e) => e.key === 'Enter' && submit()} style={authInputStyle} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            <button onClick={submit} disabled={busy} style={authPrimaryBtn(busy)}>{busy ? 'saving…' : 'save'}</button>
+            <button onClick={onClose} style={{
+              background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
+              borderRadius: 4, padding: '10px 12px', fontFamily: T.sans, fontSize: 14, cursor: 'pointer',
+            }}>cancel</button>
+          </div>
+          {error && <div style={{ fontSize: 13, color: T.danger }}>{error}</div>}
         </div>
       </div>
     </div>
@@ -568,6 +776,7 @@ export function App() {
   const [me, setMe] = useState<MeResponse | null>(null)
   const [active, setActive] = useNavGroup('workflows')
   const [collapsed, setCollapsed] = useState(false)
+  const [showChangePassword, setShowChangePassword] = useState(false)
 
   // Verify token
   useEffect(() => {
@@ -614,9 +823,20 @@ export function App() {
             onToggle={() => setCollapsed(!collapsed)}
             email={me.operator.email}
             onLogout={handleLogout}
+            onChangePassword={() => setShowChangePassword(true)}
           />
           <PanelShell group={activeGroup} />
         </div>
+        {showChangePassword && (
+          <ChangePasswordModal
+            onClose={() => setShowChangePassword(false)}
+            onChanged={(newToken) => {
+              setToken(newToken)
+              setTokenState(newToken)
+              setShowChangePassword(false)
+            }}
+          />
+        )}
       </div>
     </ToastProvider>
   )

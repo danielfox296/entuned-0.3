@@ -60,10 +60,15 @@ async function requireAdmin(req: FastifyRequest, reply: FastifyReply): Promise<A
     reply.code(403).send({ error: 'admin_required' })
     return null
   }
-  // Re-verify the operator is still active.
+  // Re-verify the operator is still active and the token's version matches
+  // the operator's current tokenVersion (bumped on password change / revoke).
   const op = await prisma.operator.findUnique({ where: { id: payload.operatorId } })
   if (!op || op.disabledAt || !op.isAdmin) {
     reply.code(403).send({ error: 'admin_required' })
+    return null
+  }
+  if (op.tokenVersion !== payload.tv) {
+    reply.code(401).send({ error: 'token_revoked' })
     return null
   }
   return { operatorId: op.id, email: op.email, isAdmin: op.isAdmin }
@@ -2584,8 +2589,20 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const data: any = {}
     if (parsed.data.email !== undefined) data.email = parsed.data.email
     if (parsed.data.displayName !== undefined) data.displayName = parsed.data.displayName
-    if (parsed.data.password) data.passwordHash = await bcrypt.hash(parsed.data.password, 10)
-    if (parsed.data.disabled !== undefined) data.disabledAt = parsed.data.disabled ? new Date() : null
+    let bumpTokenVersion = false
+    if (parsed.data.password) {
+      data.passwordHash = await bcrypt.hash(parsed.data.password, 10)
+      data.passwordSetAt = new Date()
+      bumpTokenVersion = true
+    }
+    if (parsed.data.disabled !== undefined) {
+      data.disabledAt = parsed.data.disabled ? new Date() : null
+      if (parsed.data.disabled) bumpTokenVersion = true
+    }
+    // Email change also revokes — sessions issued under the old email shouldn't
+    // continue under the new one.
+    if (parsed.data.email !== undefined) bumpTokenVersion = true
+    if (bumpTokenVersion) data.tokenVersion = { increment: 1 }
     try {
       const updated = await prisma.$transaction(async (tx) => {
         if (parsed.data.storeIds !== undefined) {
@@ -2611,6 +2628,183 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       if (e instanceof Prisma.PrismaClientKnownRequestError) {
         if (e.code === 'P2002') return reply.code(409).send({ error: 'email_taken' })
         if (e.code === 'P2025') return reply.code(404).send({ error: 'not_found' })
+      }
+      throw e
+    }
+  })
+
+  // ── App-user (customer) management ───────────────────────────────────────
+  //
+  // Distinct from /admin/operators (Dash operators). These routes are how Dash
+  // helps app.entuned.co customers when they get stuck — change email, send a
+  // fresh magic link, revoke sessions (post-incident), soft-disable.
+  //
+  // Users have no password; "reset" doesn't apply. The operator-facing
+  // recovery primitive is "send magic link".
+
+  // GET /admin/users[?q=substring]
+  app.get('/users', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const q = ((req.query as any)?.q as string | undefined)?.trim().toLowerCase() ?? ''
+    const where = q
+      ? {
+          OR: [
+            { email: { contains: q, mode: 'insensitive' as const } },
+            { name: { contains: q, mode: 'insensitive' as const } },
+          ],
+        }
+      : {}
+    const rows = await prisma.user.findMany({
+      where,
+      orderBy: [{ lastLoginAt: 'desc' }, { createdAt: 'desc' }],
+      take: 200,
+      include: {
+        memberships: {
+          include: { client: { select: { id: true, companyName: true } } },
+        },
+      },
+    })
+    return rows.map((u) => ({
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      googleSubLinked: !!u.googleSub,
+      disabledAt: u.disabledAt?.toISOString() ?? null,
+      createdAt: u.createdAt.toISOString(),
+      lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
+      lifecycleEmailsOptOut: u.lifecycleEmailsOptOut,
+      tokenVersion: u.tokenVersion,
+      clients: u.memberships.map((m) => ({
+        id: m.client.id, companyName: m.client.companyName, role: m.role,
+      })),
+    }))
+  })
+
+  const UserPatchBody = z.object({
+    email: z.string().email().transform((s) => s.trim().toLowerCase()).optional(),
+    name: z.string().nullable().optional(),
+  })
+
+  // PATCH /admin/users/:id — email and/or name. Email change bumps tokenVersion
+  // (boots the user out of any active sessions) and burns outstanding magic
+  // links keyed on the old email.
+  app.patch('/users/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = UserPatchBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    if (parsed.data.email === undefined && parsed.data.name === undefined) {
+      return reply.code(400).send({ error: 'no_changes' })
+    }
+    const existing = await prisma.user.findUnique({ where: { id } })
+    if (!existing) return reply.code(404).send({ error: 'not_found' })
+
+    try {
+      const data: any = {}
+      if (parsed.data.name !== undefined) data.name = parsed.data.name
+      const emailChanged = parsed.data.email !== undefined && parsed.data.email !== existing.email
+      if (emailChanged) {
+        data.email = parsed.data.email
+        data.tokenVersion = { increment: 1 }
+      }
+      const updated = await prisma.$transaction(async (tx) => {
+        const u = await tx.user.update({ where: { id }, data })
+        if (emailChanged) {
+          // Burn any unconsumed magic-link tokens for the old OR new email.
+          await tx.magicLinkToken.updateMany({
+            where: {
+              email: { in: [existing.email, parsed.data.email!] },
+              consumedAt: null,
+            },
+            data: { consumedAt: new Date() },
+          })
+        }
+        return u
+      })
+      return {
+        ok: true,
+        emailChanged,
+        user: {
+          id: updated.id,
+          email: updated.email,
+          name: updated.name,
+          tokenVersion: updated.tokenVersion,
+        },
+      }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        return reply.code(409).send({ error: 'email_taken' })
+      }
+      throw e
+    }
+  })
+
+  // POST /admin/users/:id/send-magic-link — operator-triggered. Same surface as
+  // the customer-initiated flow, just bypasses the rate-limit and goes to
+  // whatever email is on the user record.
+  app.post('/users/:id/send-magic-link', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const u = await prisma.user.findUnique({ where: { id } })
+    if (!u) return reply.code(404).send({ error: 'not_found' })
+    if (u.disabledAt) return reply.code(400).send({ error: 'account_disabled' })
+
+    const { createHash, randomBytes } = await import('node:crypto')
+    const tokenRaw = randomBytes(32).toString('hex')
+    const tokenHash = createHash('sha256').update(tokenRaw).digest('hex')
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000)
+
+    await prisma.magicLinkToken.create({
+      data: { email: u.email, tokenHash, expiresAt },
+    })
+
+    const baseUrl = process.env.MAGIC_LINK_BASE_URL
+    if (!baseUrl) return reply.code(500).send({ error: 'magic_link_base_url_not_set' })
+    const link = `${baseUrl}?token=${encodeURIComponent(tokenRaw)}`
+    const { sendMagicLink } = await import('../lib/email.js')
+    const send = await sendMagicLink(u.email, link)
+    return { ok: true, sentTo: u.email, dryRun: send.dryRun ?? false, error: send.error }
+  })
+
+  // POST /admin/users/:id/revoke-sessions — bumps tokenVersion. Any cookie
+  // issued before this call stops resolving. Use after a credential leak,
+  // device theft, or just to log a customer out.
+  app.post('/users/:id/revoke-sessions', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    try {
+      const u = await prisma.user.update({
+        where: { id },
+        data: { tokenVersion: { increment: 1 } },
+      })
+      return { ok: true, tokenVersion: u.tokenVersion }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+        return reply.code(404).send({ error: 'not_found' })
+      }
+      throw e
+    }
+  })
+
+  const UserDisableBody = z.object({ disabled: z.boolean() })
+
+  // POST /admin/users/:id/disable { disabled: true|false } — soft-disable.
+  // Disabling also bumps tokenVersion so any active session is killed
+  // immediately. Re-enabling does not bump.
+  app.post('/users/:id/disable', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = UserDisableBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
+    try {
+      const data: any = parsed.data.disabled
+        ? { disabledAt: new Date(), tokenVersion: { increment: 1 } }
+        : { disabledAt: null }
+      const u = await prisma.user.update({ where: { id }, data })
+      return { ok: true, disabledAt: u.disabledAt?.toISOString() ?? null, tokenVersion: u.tokenVersion }
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+        return reply.code(404).send({ error: 'not_found' })
       }
       throw e
     }

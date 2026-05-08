@@ -18,6 +18,9 @@ interface TokenPayload {
   operatorId: string
   email: string
   isAdmin: boolean
+  // Token version. Bumped on password change / admin-triggered revoke.
+  // Routes that consult the operator row should reject `payload.tv !== op.tokenVersion`.
+  tv: number
   exp: number
 }
 
@@ -37,10 +40,30 @@ export function verify(token: string): TokenPayload | null {
   try {
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as TokenPayload
     if (payload.exp < Date.now()) return null
+    // `tv` is required as of 2026-05-08. Older tokens minted before that field
+    // existed will be missing it — treat as version 0 so they keep validating
+    // until the next login (and fail-shut once the operator's tokenVersion is
+    // bumped for any reason).
+    if (typeof payload.tv !== 'number') payload.tv = 0
     return payload
   } catch {
     return null
   }
+}
+
+/**
+ * Mint a new operator token. Reads the operator's current `tokenVersion` so the
+ * minted token survives until the next bump.
+ */
+export function signOperatorToken(op: { id: string; email: string; isAdmin: boolean; tokenVersion: number }): { token: string; payload: TokenPayload } {
+  const payload: TokenPayload = {
+    operatorId: op.id,
+    email: op.email,
+    isAdmin: op.isAdmin,
+    tv: op.tokenVersion,
+    exp: Date.now() + TOKEN_TTL_MS,
+  }
+  return { token: sign(payload), payload }
 }
 
 export async function login(email: string, password: string): Promise<{ token: string; operator: TokenPayload } | null> {
@@ -49,13 +72,8 @@ export async function login(email: string, password: string): Promise<{ token: s
   if (!op || op.disabledAt) return null
   const ok = await bcrypt.compare(password, op.passwordHash)
   if (!ok) return null
-  const payload: TokenPayload = {
-    operatorId: op.id,
-    email: op.email,
-    isAdmin: op.isAdmin,
-    exp: Date.now() + TOKEN_TTL_MS,
-  }
-  return { token: sign(payload), operator: payload }
+  const { token, payload } = signOperatorToken(op)
+  return { token, operator: payload }
 }
 
 export async function isOperatorAuthorizedForStore(operatorId: string, storeId: string): Promise<boolean> {

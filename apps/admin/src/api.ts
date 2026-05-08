@@ -386,6 +386,19 @@ export type ClientUpdate = Partial<{
   brandLyricGuidelines: string | null
 }>
 
+export interface UserRow {
+  id: string
+  email: string
+  name: string | null
+  googleSubLinked: boolean
+  disabledAt: string | null
+  createdAt: string
+  lastLoginAt: string | null
+  lifecycleEmailsOptOut: boolean
+  tokenVersion: number
+  clients: { id: string; companyName: string; role: string }[]
+}
+
 export interface OperatorRow {
   id: string
   email: string
@@ -748,6 +761,46 @@ export const api = {
     req<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   me: (token: string) =>
     req<MeResponse>('/auth/me', {}, token),
+  forgotPassword: (email: string) =>
+    req<{ ok: true }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+  resetPassword: (token: string, newPassword: string) =>
+    req<AuthResponse & { ok: true }>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
+    }),
+  changePassword: (currentPassword: string, newPassword: string, token: string) =>
+    req<AuthResponse & { ok: true }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }, token),
+
+  // --- App-user (customer) management ---
+  users: (token: string, q?: string) =>
+    req<UserRow[]>(`/admin/users${q ? `?q=${encodeURIComponent(q)}` : ''}`, {}, token),
+  patchUser: (id: string, body: { email?: string; name?: string | null }, token: string) =>
+    req<{ ok: true; emailChanged: boolean; user: { id: string; email: string; name: string | null; tokenVersion: number } }>(
+      `/admin/users/${id}`,
+      { method: 'PATCH', body: JSON.stringify(body) },
+      token,
+    ),
+  sendUserMagicLink: (id: string, token: string) =>
+    req<{ ok: true; sentTo: string; dryRun: boolean; error?: string }>(
+      `/admin/users/${id}/send-magic-link`,
+      { method: 'POST' },
+      token,
+    ),
+  revokeUserSessions: (id: string, token: string) =>
+    req<{ ok: true; tokenVersion: number }>(
+      `/admin/users/${id}/revoke-sessions`,
+      { method: 'POST' },
+      token,
+    ),
+  setUserDisabled: (id: string, disabled: boolean, token: string) =>
+    req<{ ok: true; disabledAt: string | null; tokenVersion: number }>(
+      `/admin/users/${id}/disable`,
+      { method: 'POST', body: JSON.stringify({ disabled }) },
+      token,
+    ),
 
   // Health
   health: () =>

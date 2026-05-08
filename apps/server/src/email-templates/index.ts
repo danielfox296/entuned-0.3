@@ -4,6 +4,7 @@
 // Add new templates here. Keep the union narrow so callers get a clean autocomplete.
 
 import * as magicLink from './magicLink.js'
+import * as operatorPasswordReset from './operatorPasswordReset.js'
 import * as welcomeFree from './welcomeFree.js'
 import * as welcomeCore from './welcomeCore.js'
 import * as welcomePro from './welcomePro.js'
@@ -28,6 +29,7 @@ export interface TemplateModule<P = any> {
 
 export const TEMPLATES = {
   magicLink,
+  operatorPasswordReset,
   welcomeFree,
   welcomeCore,
   welcomePro,
@@ -65,6 +67,7 @@ export const LIFECYCLE_TEMPLATES = new Set<TemplateName>([
 // a custom payload. Shape matches each template's Props interface.
 export const TEMPLATE_PROPS_EXAMPLES: Record<TemplateName, Record<string, unknown>> = {
   magicLink: { link: 'https://api.entuned.co/login/verify?token=sample' },
+  operatorPasswordReset: { link: 'https://dash.entuned.co/#reset-password?token=sample' },
   welcomeFree: {
     playerUrl: 'https://music.entuned.co/sample-store-1234',
     dashboardUrl: 'https://app.entuned.co',

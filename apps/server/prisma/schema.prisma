@@ -67,12 +67,16 @@ model Operator {
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   createdById   String?   @map("created_by") @db.Uuid
   passwordSetAt DateTime  @default(now()) @map("password_set_at") @db.Timestamptz(6)
+  // Bumped on password change, admin-triggered revoke, or self-serve disable.
+  // Baked into the JWT payload (`tv`) so previously-issued tokens stop validating.
+  tokenVersion  Int       @default(0) @map("token_version")
 
-  createdBy        Operator?                 @relation("OperatorCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdOthers    Operator[]                @relation("OperatorCreator")
-  storeAssignments OperatorStoreAssignment[] @relation("OperatorAssignments")
-  assignmentsMade  OperatorStoreAssignment[] @relation("OperatorAssigner")
-  playbackEvents   PlaybackEvent[]
+  createdBy           Operator?                 @relation("OperatorCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdOthers       Operator[]                @relation("OperatorCreator")
+  storeAssignments    OperatorStoreAssignment[] @relation("OperatorAssignments")
+  assignmentsMade     OperatorStoreAssignment[] @relation("OperatorAssigner")
+  playbackEvents      PlaybackEvent[]
+  passwordResetTokens OperatorPasswordResetToken[]
 
   @@map("operators")
 }
@@ -924,6 +928,13 @@ model User {
   lifecycleEmailsOptOut  Boolean   @default(false) @map("lifecycle_emails_opt_out")
   createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   lastLoginAt            DateTime? @map("last_login_at") @db.Timestamptz(6)
+  // Soft-disable. Set by admin to block sign-in (magic-link verify, Google
+  // callback, and session resolution all bail). Unset to re-enable. Distinct
+  // from cascading delete — preserves Account/membership/billing history.
+  disabledAt             DateTime? @map("disabled_at") @db.Timestamptz(6)
+  // Bumped on admin-triggered revoke or email change. Baked into the session
+  // JWT (`tv`) so issued cookies stop validating.
+  tokenVersion           Int       @default(0) @map("token_version")
 
   memberships     ClientMembership[]
   lifecycleEmails LifecycleEmailLog[]
@@ -960,6 +971,24 @@ model MagicLinkToken {
   @@index([email])
   @@index([expiresAt])
   @@map("magic_link_tokens")
+}
+
+// Operator password reset. Distinct from MagicLinkToken: scoped to a specific
+// Operator (FK), 60-minute TTL, single-use. Token plaintext is sent in email;
+// only sha256 of the token is stored.
+model OperatorPasswordResetToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  operatorId String    @map("operator_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  operator Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+
+  @@index([operatorId])
+  @@index([expiresAt])
+  @@map("operator_password_reset_tokens")
 }
 
 // ---------- Billing: Subscription ----------
