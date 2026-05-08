@@ -21,10 +21,10 @@ export function html(props: PauseEndingProps): string {
   const when = days <= 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`
 
   const body = `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Your pause ends ${when}.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">Your pause ends ${when}.</p>
     <p style="margin:0 0 14px 0;">Billing and streaming resume automatically. If you need more time off &mdash; or want to cancel &mdash; do it from the dashboard before then.</p>
     ${button(props.dashboardUrl, 'Manage pause')}
-    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">No action means resume as planned.</p>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">No action means resume as planned.</p>
   `
   return layout({ preheader: `Service auto-resumes ${when}.`, body })
 }

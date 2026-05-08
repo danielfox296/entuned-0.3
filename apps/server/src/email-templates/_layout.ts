@@ -1,22 +1,25 @@
 // Shared layout shell for transactional emails.
 // Inline CSS only — most clients (Gmail, Outlook) strip <style> blocks.
 //
-// Brand palette (per VOICE.md / CLAUDE.md design system):
-//   bg          #0a0a0a (per spec — close cousin of site #080808)
-//   gold accent #d7af74
-//   text        #E8E4DE
-// Font stack: system, no webfont fetch (faster + safer in mail clients).
+// Brand palette mirrors apps/dashboard/src/tokens.ts (ice / teal / ink).
+// Hex values are used in place of rgba so Outlook 2016+ and older clients
+// render the borders consistently.
+//
+// Logo: hosted at entuned.co (PNG — Gmail blocks/strips inline SVG).
 
 export const COLORS = {
-  bg: '#0a0a0a',
-  card: '#111111',
-  border: '#222222',
-  gold: '#d7af74',
-  text: '#E8E4DE',
-  muted: '#9a958c',
+  bg:       '#1a1a17',  // ink-deep
+  card:     '#282824',  // surface
+  border:   '#2a3d42',  // teal-tinted dark
+  text:     '#d4e1e5',  // ice
+  muted:    '#8a929a',  // ice dim
+  accent:   '#50929c',  // teal
+  ink:      '#1a1a17',  // ink (used for text on accent button)
 } as const
 
 const FONT_STACK = `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`
+
+const LOGO_URL = 'https://entuned.co/img/entuned-logo-grey-transparent.png'
 
 export interface LayoutProps {
   preheader?: string
@@ -39,10 +42,10 @@ ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;c
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${COLORS.bg};">
   <tr>
     <td align="center" style="padding:32px 16px;">
-      <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background:${COLORS.card};border:1px solid ${COLORS.border};">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background:${COLORS.card};border:1px solid ${COLORS.border};border-radius:14px;overflow:hidden;">
         <tr>
-          <td style="padding:28px 32px 16px 32px;border-bottom:1px solid ${COLORS.border};">
-            <div style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:${COLORS.gold};font-weight:600;">Entuned</div>
+          <td style="padding:28px 32px 20px 32px;border-bottom:1px solid ${COLORS.border};">
+            <img src="${LOGO_URL}" alt="Entuned" height="28" style="height:28px;display:block;border:0;outline:none;text-decoration:none;" />
           </td>
         </tr>
         <tr>
@@ -64,12 +67,12 @@ ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;c
 </html>`
 }
 
-/** Standard primary CTA button. */
+/** Standard primary CTA button — teal pill with ink text. */
 export function button(href: string, label: string): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;">
   <tr>
-    <td style="background:${COLORS.gold};">
-      <a href="${escapeAttr(href)}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#0a0a0a;text-decoration:none;font-family:${FONT_STACK};">${escape(label)}</a>
+    <td style="background:${COLORS.accent};border-radius:10px;">
+      <a href="${escapeAttr(href)}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:${COLORS.ink};text-decoration:none;font-family:${FONT_STACK};border-radius:10px;">${escape(label)}</a>
     </td>
   </tr>
 </table>`

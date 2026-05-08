@@ -29,13 +29,13 @@ export function html(props: CompEndedProps): string {
     : `You&rsquo;re back on ${capitalize(props.paidTier)}, which you&rsquo;ve been paying for the whole time.`
 
   const body = `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Your ${capitalize(props.formerCompTier)} upgrade just ended.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">Your ${capitalize(props.formerCompTier)} upgrade just ended.</p>
     <p style="margin:0 0 14px 0;">${baselineCopy}</p>
     <p style="margin:0 0 14px 0;">If you want to keep ${capitalize(props.formerCompTier)}, the upgrade is one click away. We&rsquo;ll prorate so you only pay from today.</p>
     ${button(props.upgradeUrl, `Upgrade to ${capitalize(props.formerCompTier)}`)}
     <p style="margin:18px 0 0 0;">Or stay where you are &mdash; no further action needed.</p>
     ${button(props.dashboardUrl, 'Open dashboard')}
-    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Questions? Just reply.</p>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">Questions? Just reply.</p>
   `
   return layout({ preheader: `Your ${capitalize(props.formerCompTier)} upgrade ended. One click brings it back.`, body })
 }

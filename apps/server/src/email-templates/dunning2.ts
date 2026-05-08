@@ -13,7 +13,7 @@ export function subject(_props: Dunning2Props): string {
 
 export function html(props: Dunning2Props): string {
   const body = `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Second attempt failed.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">Second attempt failed.</p>
     <p style="margin:0 0 14px 0;">One more retry in 3 days. After that, the player stops streaming until we collect. Update your card to avoid an interruption.</p>
     ${button(props.billingPortalUrl, 'Update billing')}
   `

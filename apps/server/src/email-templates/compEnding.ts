@@ -39,14 +39,14 @@ export function html(props: CompEndingProps): string {
     : `If you do nothing, you stay on ${capitalize(props.paidTier)} at your current price &mdash; nothing changes about your billing.`
 
   const body = `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">A heads-up: your ${capitalize(props.effectiveTier)} upgrade ends in ${props.daysRemaining} day${props.daysRemaining === 1 ? '' : 's'}.</p>
-    <p style="margin:0 0 14px 0;">You&rsquo;ve been on ${capitalize(props.effectiveTier)} as a comp from us. That ends on <strong style="color:#E8E4DE;">${props.endsOn}</strong>.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">A heads-up: your ${capitalize(props.effectiveTier)} upgrade ends in ${props.daysRemaining} day${props.daysRemaining === 1 ? '' : 's'}.</p>
+    <p style="margin:0 0 14px 0;">You&rsquo;ve been on ${capitalize(props.effectiveTier)} as a comp from us. That ends on <strong style="color:#d4e1e5;">${props.endsOn}</strong>.</p>
     <p style="margin:0 0 14px 0;">Two options:</p>
-    <p style="margin:0 0 6px 0;"><strong style="color:#d7af74;">Keep ${capitalize(props.effectiveTier)}.</strong> One click and the upgrade becomes a real subscription change &mdash; we&rsquo;ll handle the proration.</p>
+    <p style="margin:0 0 6px 0;"><strong style="color:#50929c;">Keep ${capitalize(props.effectiveTier)}.</strong> One click and the upgrade becomes a real subscription change &mdash; we&rsquo;ll handle the proration.</p>
     ${button(props.upgradeUrl, `Keep ${capitalize(props.effectiveTier)}`)}
-    <p style="margin:18px 0 6px 0;"><strong style="color:#d7af74;">Stay on ${capitalize(props.paidTier)}.</strong> ${stayCopy}</p>
+    <p style="margin:18px 0 6px 0;"><strong style="color:#50929c;">Stay on ${capitalize(props.paidTier)}.</strong> ${stayCopy}</p>
     ${button(props.dashboardUrl, 'Open dashboard')}
-    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Questions? Reply to this email &mdash; it goes to a real person.</p>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">Questions? Reply to this email &mdash; it goes to a real person.</p>
   `
   return layout({ preheader: `Your ${capitalize(props.effectiveTier)} upgrade ends in ${props.daysRemaining} day${props.daysRemaining === 1 ? '' : 's'}.`, body })
 }

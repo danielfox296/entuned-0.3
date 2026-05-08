@@ -15,10 +15,10 @@ export function subject(_props: CatalogueReadyProps): string {
 
 export function html(props: CatalogueReadyProps): string {
   const body = `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Your first library is live.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">Your first library is live.</p>
     <p style="margin:0 0 14px 0;">Built around your customer and ready to play. Preview tracks in the dashboard before they hit the floor.</p>
     ${button(props.dashboardUrl, 'Preview in dashboard')}
-    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">If anything feels off &mdash; tempo, energy, era &mdash; flag it. We re-tune fast.</p>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">If anything feels off &mdash; tempo, energy, era &mdash; flag it. We re-tune fast.</p>
   `
   return layout({ preheader: 'First catalogue is live. Preview before it hits the floor.', body })
 }

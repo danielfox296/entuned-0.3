@@ -21,11 +21,11 @@ export function subject(_props: IndemnificationCertProps): string {
 
 export function html(props: IndemnificationCertProps): string {
   const body = `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">Your PRO licensing certificate is ready.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">Your PRO licensing certificate is ready.</p>
     <p style="margin:0 0 14px 0;">Proof of music-rights coverage (ASCAP / BMI / SESAC) for the music in your store. Keep a copy with your licensing records &mdash; landlords and franchisors typically ask for it.</p>
     ${button(props.pdfUrl, 'Download PDF')}
-    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">Account ID: <span style="color:#E8E4DE;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">${escape(props.accountId)}</span></p>
-    <p style="margin:8px 0 0 0;font-size:12px;color:#9a958c;">Audit copy is also stored in your dashboard under Documents.</p>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">Account ID: <span style="color:#d4e1e5;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">${escape(props.accountId)}</span></p>
+    <p style="margin:8px 0 0 0;font-size:12px;color:#8a929a;">Audit copy is also stored in your dashboard under Documents.</p>
   `
   return layout({ preheader: 'PRO licensing certificate attached.', body })
 }

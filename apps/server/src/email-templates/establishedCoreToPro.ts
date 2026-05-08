@@ -19,16 +19,16 @@ export function subject(_props: EstablishedCoreToProProps): string {
 
 export function html(props: EstablishedCoreToProProps): string {
   const body = `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">A month of Core, and you finished intake.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">A month of Core, and you finished intake.</p>
     <p style="margin:0 0 14px 0;">The library is built around your customer. The next question is whether the music is moving the number you actually care about.</p>
     <p style="margin:0 0 14px 0;">Pro is where you find out:</p>
     <ul style="margin:0 0 14px 0;padding-left:20px;">
-      <li style="margin-bottom:6px;"><strong style="color:#d7af74;">Lift Reports</strong> &mdash; the music outcome on each shift, mapped to your existing CFO report. Forward it as-is.</li>
-      <li style="margin-bottom:6px;"><strong style="color:#d7af74;">POS integrations</strong> &mdash; hourly sales next to what was playing. The lift stops being a story and starts being a line item.</li>
-      <li><strong style="color:#d7af74;">Day-parting</strong> &mdash; different outcomes by hour. Match the customer that walks in at 11am vs. 5pm.</li>
+      <li style="margin-bottom:6px;"><strong style="color:#50929c;">Lift Reports</strong> &mdash; the music outcome on each shift, mapped to your existing CFO report. Forward it as-is.</li>
+      <li style="margin-bottom:6px;"><strong style="color:#50929c;">POS integrations</strong> &mdash; hourly sales next to what was playing. The lift stops being a story and starts being a line item.</li>
+      <li><strong style="color:#50929c;">Day-parting</strong> &mdash; different outcomes by hour. Match the customer that walks in at 11am vs. 5pm.</li>
     </ul>
     ${button(props.upgradeUrl, 'Unlock Pro')}
-    <p style="margin:18px 0 0 0;font-size:13px;color:#9a958c;">$399 per location, per month. The first time you forward a Lift Report to your CFO, it pays.</p>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">$399 per location, per month. The first time you forward a Lift Report to your CFO, it pays.</p>
   `
   return layout({ preheader: 'A month of Core. Pro is where the data starts paying off.', body })
 }

@@ -475,18 +475,18 @@ function PreviewWindow({ subject, html }: { subject: string; html: string }) {
   return (
     <div style={{
       border: `1px solid ${T.border}`, borderRadius: S.r4,
-      background: '#0a0a0a', overflow: 'hidden',
+      background: '#1a1a17', overflow: 'hidden',
     }}>
       <div style={{
         padding: '12px 16px', borderBottom: `1px solid ${T.borderSubtle}`,
-        background: '#0f0f0f',
+        background: '#20201c',
       }}>
         <div style={{
           fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
           color: T.textFaint, textTransform: 'uppercase', marginBottom: 4,
         }}>Subject</div>
         <div style={{
-          fontSize: 14, color: '#E8E4DE', fontFamily: T.heading, fontWeight: 600,
+          fontSize: 14, color: '#d4e1e5', fontFamily: T.heading, fontWeight: 600,
         }}>{subject}</div>
       </div>
       <PreviewIframe html={html} />
@@ -506,7 +506,7 @@ function PreviewIframe({ html }: { html: string }) {
       ref={ref}
       style={{
         display: 'block', width: '100%', minHeight: 600, border: 'none',
-        background: '#0a0a0a',
+        background: '#1a1a17',
       }}
       title="Email preview"
     />

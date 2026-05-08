@@ -13,7 +13,7 @@ export function subject(_props: Dunning1Props): string {
 
 export function html(props: Dunning1Props): string {
   const body = `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#E8E4DE;">A payment didn&rsquo;t clear.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">A payment didn&rsquo;t clear.</p>
     <p style="margin:0 0 14px 0;">We&rsquo;ll retry in 3 days. If your card has changed, update it now and we&rsquo;ll re-bill immediately.</p>
     ${button(props.billingPortalUrl, 'Update billing')}
   `

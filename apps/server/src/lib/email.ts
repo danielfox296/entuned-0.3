@@ -174,7 +174,7 @@ export function verifyUnsubToken(token: string): string | null {
 function lifecycleFooter(userId: string | undefined): string {
   if (!userId) return ''
   const url = `${API_URL}/email/unsubscribe?token=${encodeURIComponent(mintUnsubToken(userId))}`
-  return `<p style="margin:18px 0 0 0;font-size:11px;color:#6b6760;line-height:1.5;">You receive this kind of email because you have an Entuned account. <a href="${url}" style="color:#9a958c;text-decoration:underline;">Unsubscribe from product nudges</a> — transactional mail (sign-in, billing, account) keeps coming.</p>`
+  return `<p style="margin:18px 0 0 0;font-size:11px;color:#8a929a;line-height:1.5;">You receive this kind of email because you have an Entuned account. <a href="${url}" style="color:#8a929a;text-decoration:underline;">Unsubscribe from product nudges</a> — transactional mail (sign-in, billing, account) keeps coming.</p>`
 }
 
 // ── Render a template by name ────────────────────────────────────────────
