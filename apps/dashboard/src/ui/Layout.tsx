@@ -142,7 +142,7 @@ export function Layout({ children }: { children: ReactNode }) {
             borderBottom: `1px solid ${T.borderSubtle}`, flexShrink: 0,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Logo height={20} />
+              <Logo height={40} />
               <span style={{
                 fontSize: 10, fontWeight: 600, letterSpacing: '0.08em',
                 color: T.accent, textTransform: 'uppercase',
@@ -193,7 +193,7 @@ export function Layout({ children }: { children: ReactNode }) {
           height: 56, padding: '0 20px', display: 'flex', alignItems: 'center', gap: 8,
           borderBottom: `1px solid ${T.borderSubtle}`,
         }}>
-          <Logo height={20} />
+          <Logo height={40} />
           <span style={{
             fontSize: 10, fontWeight: 600, letterSpacing: '0.08em',
             color: T.accent, textTransform: 'uppercase',
