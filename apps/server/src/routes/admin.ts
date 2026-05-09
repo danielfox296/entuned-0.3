@@ -2859,12 +2859,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const rows = await prisma.account.findMany({
       where: {
         OR: [
-          { isAdmin: true },
           { memberships: { some: { clientId } } },
           { storeAssignments: { some: { store: { clientId } } } },
         ],
       },
-      orderBy: [{ isAdmin: 'desc' }, { email: 'asc' }],
+      orderBy: { email: 'asc' },
       include: {
         memberships: { where: { clientId }, select: { role: true } },
         storeAssignments: { include: { store: { select: { id: true, name: true, clientId: true } } } },
@@ -2873,11 +2872,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
     return rows.map((a) => {
       const membershipRole = a.memberships[0]?.role ?? null
-      const role = a.isAdmin
-        ? 'admin'
-        : (membershipRole === 'owner' ? 'owner'
-          : membershipRole === 'manager' ? 'manager'
-          : 'associate')
+      const role = membershipRole === 'owner'
+        ? 'owner'
+        : membershipRole === 'manager'
+          ? 'manager'
+          : 'associate'
       return {
         id: a.id,
         email: a.email,

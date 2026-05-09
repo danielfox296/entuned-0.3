@@ -386,7 +386,7 @@ export type ClientUpdate = Partial<{
   brandLyricGuidelines: string | null
 }>
 
-export type LoginRole = 'admin' | 'owner' | 'manager' | 'associate'
+export type LoginRole = 'owner' | 'manager' | 'associate'
 
 export interface ClientLoginRow {
   id: string

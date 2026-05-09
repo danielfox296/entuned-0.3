@@ -7,12 +7,12 @@ import {
 } from '../../ui/index.js'
 
 // One list of every Account associated with the selected Client — owners,
-// managers, store associates, and cross-client admins. Role tag distinguishes
-// them; one editor handles email/name/password/stores/disable + magic-link
-// recovery for passwordless customer accounts.
+// managers, store associates. Role tag distinguishes them; one editor handles
+// email/name/password/stores/disable + magic-link recovery for passwordless
+// customer accounts. Cross-client admins (Entuned staff) are excluded — they
+// aren't members of any Client and have no business appearing in this surface.
 
 const ROLE_COLOR: Record<LoginRole, string> = {
-  admin: T.accent,
   owner: T.success,
   manager: T.success,
   associate: T.textMuted,
@@ -146,11 +146,9 @@ function LoginTable({ rows, clientId, onSelect, selectedId }: {
       {rows.map((u) => {
         const on = u.id === selectedId
         const clientStores = u.stores.filter((s) => s.clientId === clientId)
-        const locText = u.isAdmin
-          ? 'all clients'
-          : clientStores.length === 0
-            ? '—'
-            : clientStores.map((s) => s.name).join(', ')
+        const locText = clientStores.length === 0
+          ? '—'
+          : clientStores.map((s) => s.name).join(', ')
         return (
           <div
             key={u.id}
@@ -221,9 +219,7 @@ function LoginDetail({ row, clientStores, busy, onClose, onAction, toast }: {
       if (emailChanged) body.email = email
       if (nameChanged) body.name = name || null
       if (password) body.password = password
-      // Only send storeIds when the operator changed them — and only for accounts
-      // that aren't cross-client admins (admin store-scoping is managed elsewhere).
-      if (storesChanged && !row.isAdmin) {
+      if (storesChanged) {
         const otherStoreIds = row.stores.filter((s) => !clientStores.some((c) => c.id === s.id)).map((s) => s.id)
         body.storeIds = [...otherStoreIds, ...storeIds]
       }
@@ -271,8 +267,7 @@ function LoginDetail({ row, clientStores, busy, onClose, onAction, toast }: {
         </div>
       </Field>
 
-      {!row.isAdmin && (
-        <Field label="locations on this client" full>
+      <Field label="locations on this client" full>
           {clientStores.length === 0 ? (
             <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.textDim }}>
               No stores configured for this client yet.
@@ -296,8 +291,7 @@ function LoginDetail({ row, clientStores, busy, onClose, onAction, toast }: {
               ))}
             </div>
           )}
-        </Field>
-      )}
+      </Field>
 
       <Field label="status" full>
         <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.textMuted, lineHeight: 1.6 }}>
@@ -317,15 +311,13 @@ function LoginDetail({ row, clientStores, busy, onClose, onAction, toast }: {
 
         <Button variant="ghost" onClick={sendMagicLink} disabled={busy || !!row.disabledAt}>send magic link</Button>
         <Button variant="ghost" onClick={revoke} disabled={busy}>revoke sessions</Button>
-        {!row.isAdmin && (
-          <Button
-            variant={row.disabledAt ? 'ghost' : 'danger'}
-            onClick={() => setDisabled(!row.disabledAt)}
-            disabled={busy}
-          >
-            {row.disabledAt ? 'enable' : 'disable'}
-          </Button>
-        )}
+        <Button
+          variant={row.disabledAt ? 'ghost' : 'danger'}
+          onClick={() => setDisabled(!row.disabledAt)}
+          disabled={busy}
+        >
+          {row.disabledAt ? 'enable' : 'disable'}
+        </Button>
       </div>
     </Section>
   )
