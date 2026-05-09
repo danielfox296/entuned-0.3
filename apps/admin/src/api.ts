@@ -386,6 +386,25 @@ export type ClientUpdate = Partial<{
   brandLyricGuidelines: string | null
 }>
 
+export type LoginRole = 'admin' | 'owner' | 'manager' | 'associate'
+
+export interface ClientLoginRow {
+  id: string
+  email: string
+  name: string | null
+  role: LoginRole
+  membershipRole: 'owner' | 'manager' | null
+  isAdmin: boolean
+  hasPassword: boolean
+  googleSubLinked: boolean
+  disabledAt: string | null
+  createdAt: string
+  lastLoginAt: string | null
+  tokenVersion: number
+  lifecycleEmailsOptOut: boolean
+  stores: { id: string; name: string; clientId: string }[]
+}
+
 export interface UserRow {
   id: string
   email: string
@@ -773,6 +792,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword }),
     }, token),
+
+  // --- Per-Client unified logins (powers Clients > Logins panel) ---
+  clientLogins: (clientId: string, token: string) =>
+    req<ClientLoginRow[]>(`/admin/clients/${clientId}/logins`, {}, token),
 
   // --- App-user (customer) management ---
   users: (token: string, q?: string, clientId?: string) => {

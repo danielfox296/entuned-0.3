@@ -2845,6 +2845,60 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
+  // ── Per-Client unified logins ────────────────────────────────────────────
+  //
+  // Returns every Account associated with this Client — via membership (owner /
+  // manager), via store assignment (associate), or via cross-client admin. One
+  // list, one role per row. Powers the Clients > Logins panel.
+  app.get('/clients/:clientId/logins', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const clientId = (req.params as any).clientId as string
+    const exists = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } })
+    if (!exists) return reply.code(404).send({ error: 'not_found' })
+
+    const rows = await prisma.account.findMany({
+      where: {
+        OR: [
+          { isAdmin: true },
+          { memberships: { some: { clientId } } },
+          { storeAssignments: { some: { store: { clientId } } } },
+        ],
+      },
+      orderBy: [{ isAdmin: 'desc' }, { email: 'asc' }],
+      include: {
+        memberships: { where: { clientId }, select: { role: true } },
+        storeAssignments: { include: { store: { select: { id: true, name: true, clientId: true } } } },
+      },
+    })
+
+    return rows.map((a) => {
+      const membershipRole = a.memberships[0]?.role ?? null
+      const role = a.isAdmin
+        ? 'admin'
+        : (membershipRole === 'owner' ? 'owner'
+          : membershipRole === 'manager' ? 'manager'
+          : 'associate')
+      return {
+        id: a.id,
+        email: a.email,
+        name: a.name,
+        role,
+        membershipRole,
+        isAdmin: a.isAdmin,
+        hasPassword: !!a.passwordHash,
+        googleSubLinked: !!a.googleSub,
+        disabledAt: a.disabledAt?.toISOString() ?? null,
+        createdAt: a.createdAt.toISOString(),
+        lastLoginAt: a.lastLoginAt?.toISOString() ?? null,
+        tokenVersion: a.tokenVersion,
+        lifecycleEmailsOptOut: a.lifecycleEmailsOptOut,
+        stores: a.storeAssignments.map((sa) => ({
+          id: sa.store.id, name: sa.store.name, clientId: sa.store.clientId,
+        })),
+      }
+    })
+  })
+
   // ── Card 21 POS Ingestion ─────────────────────────────────────
 
   const POSEventRow = z.object({
