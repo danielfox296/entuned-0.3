@@ -365,11 +365,7 @@ function BrandRouter({ cards }: { cards: string[] }) {
             placeholder={clients ? '— pick a client —' : 'loading…'}
             options={(clients ?? []).map((c) => ({
               value: c.id,
-              label: [
-                c.isPlg ? '[PLG]' : null,
-                c.companyName,
-                c.ownerEmail ? `· ${c.ownerEmail}` : null,
-              ].filter(Boolean).join(' '),
+              label: c.ownerEmail ? `${c.companyName} · ${c.ownerEmail}` : c.companyName,
             }))}
           />
           <HeaderSelect
