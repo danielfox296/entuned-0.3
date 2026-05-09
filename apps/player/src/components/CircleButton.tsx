@@ -8,7 +8,7 @@ type Props = {
   disabled?: boolean;
 };
 
-export function CircleButton({ onClick, children, ariaLabel, size = 104, disabled = false }: Props) {
+export function CircleButton({ onClick, children, ariaLabel, size = 94, disabled = false }: Props) {
   const [pressed, setPressed] = useState(false);
   const [hovered, setHovered] = useState(false);
   return (

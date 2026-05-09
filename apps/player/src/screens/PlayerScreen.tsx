@@ -839,7 +839,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
         minHeight: "100vh",
         overflow: "hidden",
         background: twoCol
-          ? "linear-gradient(rgba(28,26,22,0.62), rgba(20,18,14,0.78)), url('/hero-start.jpg')"
+          ? "linear-gradient(rgba(28,26,22,0.72), rgba(20,18,14,0.88)), url('/hero-start.jpg')"
           : "radial-gradient(ellipse at center, #282824 0%, #20201c 55%, #1a1a17 100%)",
         backgroundSize: "cover",
         backgroundPosition: "center",
@@ -964,7 +964,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
               wordBreak: "break-word",
             }}
           >
-            {currentItem ? trackLabel(currentItem) : reason === "no_pool" ? "Silent" : ""}
+            {currentItem ? trackLabel(currentItem) : reason === "no_pool" ? "Silent" : "Press play to stream"}
           </div>
           {currentItem?.icpName ? (
             <div style={{ fontSize: 10, fontWeight: 400, letterSpacing: 2, color: "rgba(212,225,229,0.28)", textTransform: "uppercase", marginTop: 8, textAlign: twoCol ? "left" : "center" }}>
