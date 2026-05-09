@@ -9,6 +9,7 @@ import { ProgressBar } from "../components/ProgressBar.js";
 import { OutcomeModal } from "../components/OutcomeModal.js";
 import { ReportModal, type ReportReason } from "../components/ReportModal.js";
 import { TooltipTour, tourSeen, type TourStep } from "../components/TooltipTour.js";
+import { UpgradeRail } from "../components/UpgradeRail.js";
 import { saveSession, type Session } from "../lib/storage.js";
 import logoUrl from "/entuned_logo.png";
 import lockscreenArtUrl from "/lockscreen-art.png";
@@ -101,6 +102,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const preloadTimerRef = useRef<number | null>(null);
   const wasPlayingRef = useRef(false);
   const intentionalPauseRef = useRef(false);
+  // Sticky: set true when the user explicitly pauses, cleared only when the
+  // user explicitly plays again. Every passive/automatic resume path (visibility
+  // wake, OS-interruption recovery, ad-campaign-ended skip) must respect this —
+  // wasPlayingRef alone is not enough because some auto-advance paths reset it.
+  const userPausedRef = useRef(false);
   const trackStartedAtRef = useRef<string | null>(null);
   const allOutcomesModeRef = useRef(false);
   const lastResumeAttemptRef = useRef(0);
@@ -311,6 +317,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
   // createAndPlay creates a fresh Howl and calls play() synchronously in the
   // user-gesture call stack — the most reliable path on all browsers.
   const skip = useCallback(async () => {
+    // Every remaining caller of skip() wants playback to start (user-initiated
+    // report, mediaSession nexttrack, stall recovery, ad-skip while playing).
+    // Clear the sticky pause flag so passive resume paths don't get blocked
+    // after the next track starts.
+    userPausedRef.current = false;
     const cur = currentRef.current;
     if (cur && cur.type !== "ad") emit("song_skip", cur);
     if (cur && cur.type !== "ad") emit("song_complete", cur);
@@ -365,6 +376,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
     }
     if (isPlaying) {
       intentionalPauseRef.current = true;
+      userPausedRef.current = true;
       wasPlayingRef.current = false;
       if (preloadTimerRef.current) {
         clearTimeout(preloadTimerRef.current);
@@ -373,6 +385,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
       player.pause();
       setIsPlaying(false);
     } else {
+      userPausedRef.current = false;
       wasPlayingRef.current = true;
       player.resume();
       setIsPlaying(true);
@@ -507,6 +520,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
       },
       onPause: () => {
         if (intentionalPauseRef.current) { intentionalPauseRef.current = false; return; }
+        if (userPausedRef.current) return;
         if (!wasPlayingRef.current) return;
         const now = Date.now();
         if (now - lastResumeAttemptRef.current < 2000) return;
@@ -522,6 +536,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
         // Delayed resume handles actual playback restart. If iOS fully suspends the page
         // before this fires, the visibilitychange handler covers the wake-up resume.
         window.setTimeout(() => {
+          if (userPausedRef.current) return;
           if (!wasPlayingRef.current) return;
           try {
             const ctx = (window as unknown as { Howler?: { ctx?: AudioContext } }).Howler?.ctx;
@@ -587,8 +602,16 @@ export function PlayerScreen({ session, onLogout }: Props) {
           nextLoadedRef.current = null;
         }
         if (currentRef.current?.type === "ad") {
-          console.info("[player] skipping currently-playing ad — campaign no longer active");
-          void skip();
+          if (userPausedRef.current) {
+            // User paused on this ad. Don't force playback — just clear it so
+            // the next user-initiated play pulls a fresh, non-ad item.
+            console.info("[player] clearing paused ad — campaign no longer active");
+            setCurrentItem(null);
+            currentRef.current = null;
+          } else {
+            console.info("[player] skipping currently-playing ad — campaign no longer active");
+            void skip();
+          }
         }
       } catch (e) {
         console.warn("[player] background refresh failed", e);
@@ -690,6 +713,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
   // ── Resume after tab refocus / screen wake ────────────────────────────────
   useEffect(() => {
     const resume = () => {
+      if (userPausedRef.current) return;
       if (!wasPlayingRef.current) return;
       // Unlock Howler's Web Audio context first — iOS suspends it on backgrounding.
       try {
@@ -714,12 +738,14 @@ export function PlayerScreen({ session, onLogout }: Props) {
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
     navigator.mediaSession.setActionHandler("play", () => {
+      userPausedRef.current = false;
       playerRef.current?.resume();
       wasPlayingRef.current = true;
       setIsPlaying(true);
     });
     navigator.mediaSession.setActionHandler("pause", () => {
       intentionalPauseRef.current = true;
+      userPausedRef.current = true;
       wasPlayingRef.current = false;
       playerRef.current?.pause();
       setIsPlaying(false);
