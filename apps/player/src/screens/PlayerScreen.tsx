@@ -68,6 +68,17 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const [buffering, setBuffering] = useState(false);
   const [lovedIds, setLovedIds] = useState<Set<string>>(() => loadLoved());
   const [allOutcomesMode, setAllOutcomesModeState] = useState(false);
+  const [playedCount, setPlayedCount] = useState(0);
+  const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.innerWidth >= 1024);
+  // Two-column promotional layout: only for slug (Free tier) at landscape/desktop
+  // widths. Operator mode (paid Core/Pro) keeps the centered layout.
+  const twoCol = session.mode === "slug" && isWide;
+
+  useEffect(() => {
+    const onResize = () => setIsWide(window.innerWidth >= 1024);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   // Onboarding tour — fires once per device on first launch (slug or operator).
   // Targets the outcome selector, love, and report — the three most product-
@@ -270,7 +281,10 @@ export function PlayerScreen({ session, onLogout }: Props) {
 
   const advanceToNext = useCallback(async () => {
     const completed = currentRef.current;
-    if (completed && completed.type !== "ad") emit("song_complete", completed);
+    if (completed && completed.type !== "ad") {
+      emit("song_complete", completed);
+      setPlayedCount((c) => c + 1);
+    }
 
     const queued = nextLoadedRef.current;
     if (queued) {
@@ -324,7 +338,10 @@ export function PlayerScreen({ session, onLogout }: Props) {
     userPausedRef.current = false;
     const cur = currentRef.current;
     if (cur && cur.type !== "ad") emit("song_skip", cur);
-    if (cur && cur.type !== "ad") emit("song_complete", cur);
+    if (cur && cur.type !== "ad") {
+      emit("song_complete", cur);
+      setPlayedCount((c) => c + 1);
+    }
     if (preloadTimerRef.current) { clearTimeout(preloadTimerRef.current); preloadTimerRef.current = null; }
 
     // Take preloaded item metadata first, then queue head.
@@ -901,35 +918,40 @@ export function PlayerScreen({ session, onLogout }: Props) {
         </div>
       ) : null}
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", paddingBottom: 40, gap: 60 }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: twoCol ? "row" : "column", minHeight: 0 }}>
+        {twoCol ? (
+          <UpgradeRail rotationKey={currentItem?.songId ?? null} style={{ width: 420, flexShrink: 0 }} />
+        ) : null}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: twoCol ? "flex-start" : "center", padding: twoCol ? "0 60px 40px 80px" : "0 0 40px", gap: 60 }}>
         <DarkHalo>
           {allOutcomesMode && currentItem ? (() => {
             const outcomeTitle = outcomes.find((o) => o.outcomeId === currentItem.outcomeId)?.title ?? null;
             return outcomeTitle ? (
-              <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2.5, color: "rgba(80,146,156,0.65)", textTransform: "uppercase", textAlign: "center", marginBottom: 6 }}>
+              <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2.5, color: "rgba(80,146,156,0.65)", textTransform: "uppercase", textAlign: twoCol ? "left" : "center", marginBottom: 6 }}>
                 {outcomeTitle}
               </div>
             ) : null;
           })() : null}
           <div
             style={{
-              fontSize: 36,
+              fontSize: twoCol ? 32 : 36,
               fontWeight: 400,
               color: "rgba(212,225,229,0.9)",
-              letterSpacing: 6,
+              letterSpacing: twoCol ? 4 : 6,
               lineHeight: 1.7,
               textTransform: "uppercase",
-              textAlign: "center",
-              padding: "0 40px",
+              textAlign: twoCol ? "left" : "center",
+              padding: twoCol ? 0 : "0 40px",
               minHeight: "1em",
-              maxWidth: 900,
+              maxWidth: twoCol ? 720 : 900,
               wordBreak: "break-word",
             }}
           >
             {currentItem ? trackLabel(currentItem) : reason === "no_pool" ? "Silent" : ""}
           </div>
           {currentItem?.icpName ? (
-            <div style={{ fontSize: 10, fontWeight: 400, letterSpacing: 2, color: "rgba(212,225,229,0.28)", textTransform: "uppercase", marginTop: 8, textAlign: "center" }}>
+            <div style={{ fontSize: 10, fontWeight: 400, letterSpacing: 2, color: "rgba(212,225,229,0.28)", textTransform: "uppercase", marginTop: 8, textAlign: twoCol ? "left" : "center" }}>
               {currentItem.icpName}
             </div>
           ) : null}
@@ -981,7 +1003,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
           const heartStroke = idle ? "rgba(212,225,229,0.15)" : "rgba(212,225,229,0.35)";
           const flagStroke = idle ? "rgba(212,225,229,0.15)" : "rgba(212,225,229,0.35)";
           return (
-            <div style={{ display: "flex", gap: 56, justifyContent: "center", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 56, justifyContent: twoCol ? "flex-start" : "center", alignItems: "center" }}>
               <button
                 ref={loveRef}
                 type="button"
@@ -1015,9 +1037,22 @@ export function PlayerScreen({ session, onLogout }: Props) {
             </div>
           );
         })()}
+
+        {twoCol ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+            <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: 2.5, color: "rgba(212,225,229,0.4)", textTransform: "uppercase" }}>
+              This session
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 300, color: "rgba(212,225,229,0.75)", letterSpacing: 0.3 }}>
+              {playedCount} {playedCount === 1 ? "track" : "tracks"} played
+              <span style={{ color: "rgba(212,225,229,0.3)", margin: "0 10px" }}>·</span>
+              {lovedIds.size} {lovedIds.size === 1 ? "love" : "loves"} saved
+            </div>
+          </div>
+        ) : null}
       </div>
 
-      <div style={{ display: "flex", justifyContent: "center", padding: "16px 24px 44px" }}>
+      <div style={{ display: "flex", justifyContent: twoCol ? "flex-start" : "center", padding: twoCol ? "16px 60px 44px 80px" : "16px 24px 44px" }}>
         <div
           ref={outcomeRef}
           onClick={() => setShowOutcomeModal(true)}
@@ -1051,6 +1086,8 @@ export function PlayerScreen({ session, onLogout }: Props) {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
             <path d="M6 9l6 6 6-6" stroke="rgba(212,225,229,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
+        </div>
+      </div>
         </div>
       </div>
 
