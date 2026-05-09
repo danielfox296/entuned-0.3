@@ -49,12 +49,9 @@ export function Start() {
       padding: '28px 64px 56px',
       color: T.text,
     }}>
-      <a
-        href="https://entuned.co"
-        style={{ display: 'block', marginBottom: 48 }}
-      >
+      <div style={{ marginBottom: 48 }}>
         <Logo height={55} />
-      </a>
+      </div>
 
       <div className="start-grid" style={{
         display: 'grid',
