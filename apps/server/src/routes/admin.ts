@@ -25,6 +25,7 @@ import { decompose } from '../lib/decomposer/decomposer.js'
 import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 import { runEno } from '../lib/eno/eno.js'
+import { FREE_TIER_ICP_ID } from '../lib/freeTier.js'
 import { downloadAndUploadFromUrl, uploadBuffer } from '../lib/r2.js'
 import { draftHooks, getOrSeedHookWriterPrompt, buildHookDrafterContext } from '../lib/hooks/drafter.js'
 import { suggestReferenceTracks } from '../lib/ref-tracks/suggester.js'
@@ -427,12 +428,23 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           where: { archivedAt: null },
           orderBy: { name: 'asc' },
           include: {
-            icps: { where: { archivedAt: null }, select: { id: true, name: true } },
+            icpLinks: {
+              where: { icp: { archivedAt: null } },
+              select: { icp: { select: { id: true, name: true } } },
+            },
             defaultOutcome: { select: { id: true, title: true, displayTitle: true, version: true } },
             subscription: { select: { status: true, currentPeriodEnd: true, cancelAtPeriodEnd: true } },
           },
         },
-        icps: { where: { archivedAt: null }, orderBy: { name: 'asc' }, select: { id: true, name: true, storeId: true, _count: { select: { hooks: true, referenceTracks: true } } } },
+        icps: {
+          where: { archivedAt: null },
+          orderBy: { name: 'asc' },
+          select: {
+            id: true,
+            name: true,
+            _count: { select: { hooks: true, referenceTracks: true, storeLinks: true } },
+          },
+        },
         memberships: {
           where: { role: 'owner' },
           orderBy: { createdAt: 'asc' },
@@ -460,7 +472,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         name: s.name,
         timezone: s.timezone,
         goLiveDate: s.goLiveDate ? s.goLiveDate.toISOString().slice(0, 10) : null,
-        icps: s.icps.map((i) => ({ id: i.id, name: i.name })),
+        icps: s.icpLinks.map((l) => ({ id: l.icp.id, name: l.icp.name })),
         defaultOutcome: s.defaultOutcome,
         // Real per-store billing state — Stripe-authoritative for paidTier,
         // effective for entitlement decisions.
@@ -481,7 +493,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         id: i.id, name: i.name,
         hookCount: i._count.hooks,
         referenceTrackCount: i._count.referenceTracks,
-        storeCount: i.storeId ? 1 : 0,
+        storeCount: i._count.storeLinks,
       })),
     }
   })
@@ -564,12 +576,15 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           // tier defaults to 'mvp_pilot' at the DB layer; admin-created Stores
           // are operator-managed and don't go through the customer billing path.
         },
-        include: { client: { select: { companyName: true } }, icps: { select: { id: true, name: true } } },
+        include: {
+          client: { select: { companyName: true } },
+          icpLinks: { select: { icp: { select: { id: true, name: true } } } },
+        },
       })
       return {
         id: row.id, name: row.name, timezone: row.timezone,
         clientId: row.clientId, clientName: row.client.companyName,
-        icps: row.icps.map((i) => ({ id: i.id, name: i.name })),
+        icps: row.icpLinks.map((l) => ({ id: l.icp.id, name: l.icp.name })),
       }
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
@@ -599,12 +614,15 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     try {
       const row = await prisma.store.update({
         where: { id }, data,
-        include: { client: { select: { companyName: true } }, icps: { select: { id: true, name: true } } },
+        include: {
+          client: { select: { companyName: true } },
+          icpLinks: { select: { icp: { select: { id: true, name: true } } } },
+        },
       })
       return {
         id: row.id, name: row.name, timezone: row.timezone,
         clientId: row.clientId, clientName: row.client.companyName,
-        icps: row.icps.map((i) => ({ id: i.id, name: i.name })),
+        icps: row.icpLinks.map((l) => ({ id: l.icp.id, name: l.icp.name })),
         goLiveDate: row.goLiveDate ? row.goLiveDate.toISOString().slice(0, 10) : null,
         defaultOutcomeId: row.defaultOutcomeId,
         roomLoudnessSamplingEnabled: row.roomLoudnessSamplingEnabled,
@@ -619,7 +637,13 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const rows = await prisma.store.findMany({
       where: { archivedAt: null },
       orderBy: [{ client: { companyName: 'asc' } }, { name: 'asc' }],
-      include: { client: { select: { companyName: true } }, icps: { where: { archivedAt: null }, select: { id: true, name: true } } },
+      include: {
+        client: { select: { companyName: true } },
+        icpLinks: {
+          where: { icp: { archivedAt: null } },
+          select: { icp: { select: { id: true, name: true } } },
+        },
+      },
     })
     return rows.map((s) => ({
       id: s.id,
@@ -627,7 +651,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       timezone: s.timezone,
       clientId: s.clientId,
       clientName: s.client.companyName,
-      icps: s.icps.map((i) => ({ id: i.id, name: i.name })),
+      icps: s.icpLinks.map((l) => ({ id: l.icp.id, name: l.icp.name })),
     }))
   })
 
@@ -640,7 +664,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     })
     if (!store) return reply.code(404).send({ error: 'not_found' })
     const icps = await prisma.iCP.findMany({
-      where: { storeId: id },
+      where: { storeLinks: { some: { storeId: id } } },
       include: {
         referenceTracks: {
           orderBy: [{ bucket: 'asc' }, { status: 'desc' }, { artist: 'asc' }, { title: 'asc' }],
@@ -679,7 +703,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (!store) return reply.code(404).send({ error: 'store_not_found' })
     try {
       const row = await prisma.iCP.create({
-        data: { storeId: parsed.data.storeId, clientId: store.clientId, name: parsed.data.name },
+        data: {
+          clientId: store.clientId,
+          name: parsed.data.name,
+          storeLinks: { create: { storeId: parsed.data.storeId } },
+        },
       })
       return reply.code(201).send(row)
     } catch (e) {
@@ -1237,8 +1265,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       prisma.iCP.findMany({
         select: {
           id: true, name: true,
-          store: { select: { id: true, name: true } },
           client: { select: { id: true, companyName: true } },
+          storeLinks: { select: { store: { select: { id: true, name: true } } } },
         },
         orderBy: { name: 'asc' },
       }),
@@ -1264,7 +1292,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         name: icp.name,
         clientId: icp.client?.id ?? null,
         clientName: icp.client?.companyName ?? null,
-        stores: icp.store ? [icp.store] : [],
+        stores: icp.storeLinks.map((l) => l.store),
         outcomes: activeOutcomes.map((o) => {
           const count = countMap.get(`${icp.id}::${o.id}`) ?? 0
           return {
@@ -1294,13 +1322,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     else if (q.active === 'false') where.active = false
     // active === 'all' or unset → no filter
 
-    // general-pool filter: 'hide' (default — ICP rows only), 'only' (general
-    // rows only), 'all' (both). General-pool rows are the parallel
-    // LineageRows created by the free-tier checkbox; admins usually browse
-    // ICP rows and don't need to see the duplicates.
+    // free-tier filter: 'hide' (default — non-Free-Tier rows only), 'only'
+    // (Free Tier ICP rows only), 'all' (both). Replaces the legacy general-pool
+    // filter — "general pool" is now formally the Free Tier ICP.
     const general = q.general ?? 'hide'
-    if (general === 'hide') where.icpId = where.icpId ?? { not: null }
-    else if (general === 'only') where.icpId = null
+    if (general === 'hide') where.icpId = { not: FREE_TIER_ICP_ID }
+    else if (general === 'only') where.icpId = FREE_TIER_ICP_ID
     // 'all' → no filter
 
     const [rows, total] = await Promise.all([
@@ -1319,24 +1346,23 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       prisma.lineageRow.count({ where }),
     ])
 
-    // Resolve ICP names + client/store context in one shot.
-    // icpId is nullable (general-pool LineageRows have icp_id=NULL) — filter before query.
-    const icpIds = [...new Set(rows.map((r) => r.icpId).filter((i): i is string => i !== null))]
+    // Resolve ICP names + client + first linked store in one shot.
+    const icpIds = [...new Set(rows.map((r) => r.icpId))]
     const icps = icpIds.length === 0 ? [] : await prisma.iCP.findMany({
       where: { id: { in: icpIds } },
       select: {
         id: true, name: true,
         client: { select: { id: true, companyName: true } },
-        store: { select: { id: true, name: true } },
+        storeLinks: { take: 1, select: { store: { select: { id: true, name: true } } } },
       },
     })
     const icpById = new Map(icps.map((i) => [i.id, i]))
 
-    // Compute inGeneralPool per row by looking up sibling general-pool rows
-    // (same songId+outcomeId, icp_id=NULL, active). One query for all rows.
+    // Compute inGeneralPool per row by looking up sibling Free Tier ICP rows
+    // (same songId+outcomeId, icpId=FREE_TIER_ICP_ID, active). One query for all rows.
     const generalSiblings = rows.length === 0 ? [] : await prisma.lineageRow.findMany({
       where: {
-        icpId: null,
+        icpId: FREE_TIER_ICP_ID,
         active: true,
         OR: rows.map((r) => ({ songId: r.songId, outcomeId: r.outcomeId })),
       },
@@ -1347,7 +1373,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return {
       total, limit, offset,
       rows: rows.map((r) => {
-        const i = r.icpId ? icpById.get(r.icpId) : undefined
+        const i = icpById.get(r.icpId)
         return {
           id: r.id,
           active: r.active,
@@ -1355,24 +1381,24 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           icpId: r.icpId,
           icpName: i?.name ?? null,
           clientName: i?.client?.companyName ?? null,
-          storeName: i?.store?.name ?? null,
+          storeName: i?.storeLinks[0]?.store.name ?? null,
           outcome: r.outcome,
           hook: r.hook,
           song: r.song,
           songTitle: r.songSeed?.title ?? null,
-          // True if this song+outcome is in the free-tier general pool (whether
-          // via a sibling row or via this row itself if icp_id IS NULL).
-          inGeneralPool: generalKeys.has(`${r.songId}::${r.outcomeId}`),
+          // True if this song+outcome has a Free Tier ICP row (whether via a
+          // sibling row or via this row itself if icpId IS the Free Tier ICP).
+          inGeneralPool: r.icpId === FREE_TIER_ICP_ID || generalKeys.has(`${r.songId}::${r.outcomeId}`),
         }
       }),
     }
   })
 
   // POST /admin/lineage-rows/:id/toggle-general
-  // Toggles whether the song this row references is in the general pool
-  // (free-tier catalogue). For any source row (ICP-owned or general):
-  //   - If a general-pool row exists for (songId, outcomeId), DELETE it.
-  //   - Else INSERT a new general-pool row (icp_id=NULL, hook_id=NULL).
+  // Toggles whether the song this row references is in the Free Tier ICP
+  // catalogue. For any source row (paid-ICP or Free Tier):
+  //   - If a Free Tier row exists for (songId, outcomeId), DELETE it.
+  //   - Else INSERT a new Free Tier row (icpId=FREE_TIER_ICP_ID, hookId=NULL).
   // The source row itself is never modified.
   app.post('/lineage-rows/:id/toggle-general', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
@@ -1384,7 +1410,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (!source) return reply.code(404).send({ error: 'not_found' })
 
     const existing = await prisma.lineageRow.findFirst({
-      where: { songId: source.songId, outcomeId: source.outcomeId, icpId: null, active: true },
+      where: { songId: source.songId, outcomeId: source.outcomeId, icpId: FREE_TIER_ICP_ID, active: true },
       select: { id: true },
     })
 
@@ -1398,7 +1424,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         songId: source.songId,
         r2Url: source.r2Url,
         outcomeId: source.outcomeId,
-        icpId: null,
+        icpId: FREE_TIER_ICP_ID,
         hookId: null,
         songSeedId: source.songSeedId,
         active: true,
@@ -1781,10 +1807,13 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const id = (req.params as any).id as string
     const store = await prisma.store.findUnique({
       where: { id },
-      include: { client: { select: { companyName: true } }, icps: { select: { id: true } } },
+      include: {
+        client: { select: { companyName: true } },
+        icpLinks: { select: { icpId: true } },
+      },
     })
     if (!store) return reply.code(404).send({ error: 'not_found' })
-    const icpIds = store.icps.map((i) => i.id)
+    const icpIds = store.icpLinks.map((l) => l.icpId)
 
     const [hendrix, outcomes, lineageCounts, events] = await Promise.all([
       nextQueue(id),
@@ -2098,12 +2127,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const store = await prisma.store.findUnique({
       where: { id: storeId },
       include: {
-        icps: { select: { id: true, name: true } },
+        icpLinks: { select: { icp: { select: { id: true, name: true } } } },
         defaultOutcome: { select: { id: true, title: true, displayTitle: true, version: true, supersededAt: true } },
       },
     })
     if (!store) return reply.code(404).send({ error: 'store_not_found' })
-    const dryRunIcpIds = store.icps.map((i) => i.id)
+    const dryRunIcpIds = store.icpLinks.map((l) => l.icp.id)
 
     const rows = await prisma.scheduleSlot.findMany({
       where: { storeId },
@@ -2247,7 +2276,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
     return {
       store: { id: store.id, name: store.name, timezone: store.timezone },
-      icps: store.icps.map((i) => ({ id: i.id, name: i.name })),
+      icps: store.icpLinks.map((l) => ({ id: l.icp.id, name: l.icp.name })),
       defaultOutcome: def ? { id: def.id, title: def.title, version: def.version, superseded: !!def.supersededAt } : null,
       thresholds,
       days,

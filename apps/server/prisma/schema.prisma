@@ -71,10 +71,10 @@ model Operator {
   // Baked into the JWT payload (`tv`) so previously-issued tokens stop validating.
   tokenVersion  Int       @default(0) @map("token_version")
 
-  createdBy           Operator?                 @relation("OperatorCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdOthers       Operator[]                @relation("OperatorCreator")
-  storeAssignments    OperatorStoreAssignment[] @relation("OperatorAssignments")
-  assignmentsMade     OperatorStoreAssignment[] @relation("OperatorAssigner")
+  createdBy           Operator?                    @relation("OperatorCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdOthers       Operator[]                   @relation("OperatorCreator")
+  storeAssignments    OperatorStoreAssignment[]    @relation("OperatorAssignments")
+  assignmentsMade     OperatorStoreAssignment[]    @relation("OperatorAssigner")
   playbackEvents      PlaybackEvent[]
   passwordResetTokens OperatorPasswordResetToken[]
 
@@ -154,7 +154,7 @@ model Store {
   updatedAt                   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   client                    Client                     @relation(fields: [clientId], references: [id])
-  icps                      ICP[]                      @relation("LocationIcp")
+  icpLinks                  StoreICP[]
   defaultOutcome            Outcome?                   @relation("StoreDefaultOutcome", fields: [defaultOutcomeId], references: [id])
   outcomeSelection          Outcome?                   @relation("StoreOutcomeSelection", fields: [outcomeSelectionId], references: [id])
   scheduleSlots             ScheduleSlot[]
@@ -183,15 +183,15 @@ model Store {
 // log reads as a clean entitlement timeline. See 03-duke.md "TierChangeLog".
 
 model TierChangeLog {
-  id         String    @id @default(uuid()) @db.Uuid
-  storeId    String    @map("store_id") @db.Uuid
-  fromTier   String    @map("from_tier")
-  toTier     String    @map("to_tier")
-  source     String    // 'admin_comp' | 'admin_revoke' | 'stripe_webhook' | 'pause' | 'resume' | 'comp_expired' | 'auto_cleared'
-  actorId    String?   @map("actor_id") @db.Uuid
-  reason     String?
-  expiresAt  DateTime? @map("expires_at") @db.Timestamptz(6)
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  id        String    @id @default(uuid()) @db.Uuid
+  storeId   String    @map("store_id") @db.Uuid
+  fromTier  String    @map("from_tier")
+  toTier    String    @map("to_tier")
+  source    String // 'admin_comp' | 'admin_revoke' | 'stripe_webhook' | 'pause' | 'resume' | 'comp_expired' | 'auto_cleared'
+  actorId   String?   @map("actor_id") @db.Uuid
+  reason    String?
+  expiresAt DateTime? @map("expires_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
@@ -204,7 +204,6 @@ model TierChangeLog {
 model ICP {
   id                 String    @id @default(uuid()) @db.Uuid
   clientId           String    @map("client_id") @db.Uuid
-  storeId            String    @map("store_id") @db.Uuid
   name               String
   ageRange           String?   @map("age_range")
   location           String?
@@ -224,14 +223,30 @@ model ICP {
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   client           Client            @relation(fields: [clientId], references: [id])
-  store            Store             @relation("LocationIcp", fields: [storeId], references: [id])
+  storeLinks       StoreICP[]
   hooks            Hook[]
   referenceTracks  ReferenceTrack[]
   hookWriterPrompt HookWriterPrompt?
+  lineageRows      LineageRow[]
 
-  @@index([storeId])
   @@index([clientId])
   @@map("icps")
+}
+
+// Store ↔ ICP many-to-many. Replaces the legacy `ICP.store_id` 1:N FK so the
+// canonical Free Tier ICP can serve every free Store, while paid Stores can
+// continue to have their own (or shared) ICP set. See entune v0.3/schema/04-gains.md.
+model StoreICP {
+  storeId   String   @map("store_id") @db.Uuid
+  icpId     String   @map("icp_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  icp   ICP   @relation(fields: [icpId], references: [id], onDelete: Cascade)
+
+  @@id([storeId, icpId])
+  @@index([icpId])
+  @@map("store_icps")
 }
 
 // ---------- Card 4 ReferenceTrack ----------
@@ -643,10 +658,10 @@ model LineageRow {
   id             String   @id @default(uuid()) @db.Uuid
   songId         String   @map("song_id") @db.Uuid
   r2Url          String   @map("r2_url")
-  // icpId nullable: rows with icp_id=NULL belong to the general pool that
-  // serves free-tier Stores (no ICPs assigned). hookId follows because Hooks
-  // FK to ICPs — general songs have no associated Hook. Added 2026-05-04.
-  icpId          String?  @map("icp_id") @db.Uuid
+  // Every LineageRow has an ICP. Free-tier hand-curated rows point at the
+  // canonical Free Tier ICP (Card 04 Gains). hookId stays nullable because
+  // those hand-curated songs have no generation Hook.
+  icpId          String   @map("icp_id") @db.Uuid
   outcomeId      String   @map("outcome_id") @db.Uuid
   outcomeVersion Int?     @map("outcome_version") // scope stamp — required for Kraftwerk baseline isolation
   hookId         String?  @map("hook_id") @db.Uuid
@@ -655,6 +670,7 @@ model LineageRow {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   song     Song      @relation(fields: [songId], references: [id])
+  icp      ICP       @relation(fields: [icpId], references: [id], onDelete: Cascade)
   outcome  Outcome   @relation(fields: [outcomeId], references: [id])
   hook     Hook?     @relation(fields: [hookId], references: [id], onDelete: SetNull)
   songSeed SongSeed? @relation(fields: [songSeedId], references: [id])
@@ -918,23 +934,23 @@ model RetailNextHourlySnapshot {
 // their FK repointed from location_id → store_id.
 
 model User {
-  id                     String    @id @default(uuid()) @db.Uuid
-  email                  String    @unique @db.Citext
-  name                   String?
-  googleSub              String?   @unique @map("google_sub")
+  id                    String    @id @default(uuid()) @db.Uuid
+  email                 String    @unique @db.Citext
+  name                  String?
+  googleSub             String?   @unique @map("google_sub")
   // Behavioral / lifecycle email opt-out. Unsubscribe link in every drip
   // flips this to true. Transactional mail (magic link, dunning, welcome,
   // pause-ending) ignores this flag — those are operationally required.
-  lifecycleEmailsOptOut  Boolean   @default(false) @map("lifecycle_emails_opt_out")
-  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  lastLoginAt            DateTime? @map("last_login_at") @db.Timestamptz(6)
+  lifecycleEmailsOptOut Boolean   @default(false) @map("lifecycle_emails_opt_out")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastLoginAt           DateTime? @map("last_login_at") @db.Timestamptz(6)
   // Soft-disable. Set by admin to block sign-in (magic-link verify, Google
   // callback, and session resolution all bail). Unset to re-enable. Distinct
   // from cascading delete — preserves Account/membership/billing history.
-  disabledAt             DateTime? @map("disabled_at") @db.Timestamptz(6)
+  disabledAt            DateTime? @map("disabled_at") @db.Timestamptz(6)
   // Bumped on admin-triggered revoke or email change. Baked into the session
   // JWT (`tv`) so issued cookies stop validating.
-  tokenVersion           Int       @default(0) @map("token_version")
+  tokenVersion          Int       @default(0) @map("token_version")
 
   memberships     ClientMembership[]
   lifecycleEmails LifecycleEmailLog[]

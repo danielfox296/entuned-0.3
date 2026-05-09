@@ -9,6 +9,7 @@ import { prisma } from '../db.js'
 import { requireAuth } from '../lib/session.js'
 import { effectiveTier, compIsActive, tierRank } from '../lib/tier.js'
 import { uniqueStoreSlug } from '../lib/account.js'
+import { FREE_TIER_ICP_ID } from '../lib/freeTier.js'
 
 interface AuthedClient {
   clientId: string
@@ -128,7 +129,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     // a Locations-tab dead-end.
     if (stores.length === 0) {
       const slug = await uniqueStoreSlug(req.user?.email ?? 'store')
-      await prisma.store.create({
+      const created = await prisma.store.create({
         data: {
           clientId: ctx.clientId,
           name: 'Main',
@@ -136,6 +137,11 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
           tier: 'free',
           timezone: 'America/Denver',
         },
+      })
+      // Backfilled free Store joins the canonical Free Tier pool, same as
+      // a fresh signup via ensureFreeClientForUser.
+      await prisma.storeICP.create({
+        data: { storeId: created.id, icpId: FREE_TIER_ICP_ID },
       })
       stores = await prisma.store.findMany({
         where: { clientId: ctx.clientId, archivedAt: null },
@@ -190,7 +196,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     if (!store) return reply.send({ icp: null, store: null })
 
     const icp = await prisma.iCP.findFirst({
-      where: { storeId: store.id, archivedAt: null },
+      where: { storeLinks: { some: { storeId: store.id } }, archivedAt: null },
       orderBy: { updatedAt: 'desc' },
     })
 
@@ -218,7 +224,6 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
 
     const fields = {
       clientId: ctx.clientId,
-      storeId: store.id,
       name: parsed.data.name,
       ageRange: parsed.data.ageRange ?? null,
       location: parsed.data.location ?? null,
@@ -232,14 +237,16 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const existing = await prisma.iCP.findFirst({
-      where: { storeId: store.id, archivedAt: null },
+      where: { storeLinks: { some: { storeId: store.id } }, archivedAt: null },
       orderBy: { updatedAt: 'desc' },
       select: { id: true },
     })
 
     const saved = existing
       ? await prisma.iCP.update({ where: { id: existing.id }, data: fields })
-      : await prisma.iCP.create({ data: fields })
+      : await prisma.iCP.create({
+          data: { ...fields, storeLinks: { create: { storeId: store.id } } },
+        })
 
     return reply.send({ icp: pickIcpFields(saved) })
   })
@@ -261,7 +268,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       if (!store) return reply.code(404).send({ error: 'store_not_found' })
 
       const icp = await prisma.iCP.findFirst({
-        where: { storeId: store.id, archivedAt: null },
+        where: { storeLinks: { some: { storeId: store.id } }, archivedAt: null },
         orderBy: { updatedAt: 'desc' },
       })
 
@@ -290,7 +297,6 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
 
       const fields = {
         clientId: ctx.clientId,
-        storeId: store.id,
         name: parsed.data.name,
         ageRange: parsed.data.ageRange ?? null,
         location: parsed.data.location ?? null,
@@ -304,14 +310,16 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const existing = await prisma.iCP.findFirst({
-        where: { storeId: store.id },
+        where: { storeLinks: { some: { storeId: store.id } } },
         orderBy: { updatedAt: 'desc' },
         select: { id: true },
       })
 
       const saved = existing
         ? await prisma.iCP.update({ where: { id: existing.id }, data: fields })
-        : await prisma.iCP.create({ data: fields })
+        : await prisma.iCP.create({
+            data: { ...fields, storeLinks: { create: { storeId: store.id } } },
+          })
 
       return reply.send({ icp: pickIcpFields(saved) })
     },
@@ -335,7 +343,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       if (!store) return reply.code(404).send({ error: 'store_not_found' })
 
       const icps = await prisma.iCP.findMany({
-        where: { storeId: store.id, archivedAt: null },
+        where: { storeLinks: { some: { storeId: store.id } }, archivedAt: null },
         orderBy: { createdAt: 'asc' },
       })
 
@@ -379,7 +387,6 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       const created = await prisma.iCP.create({
         data: {
           clientId: ctx.clientId,
-          storeId: store.id,
           name: parsed.data.name,
           ageRange: parsed.data.ageRange ?? null,
           location: parsed.data.location ?? null,
@@ -390,6 +397,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
           desires: parsed.data.desires ?? null,
           unexpressedDesires: parsed.data.unexpressedDesires ?? null,
           turnOffs: parsed.data.turnOffs ?? null,
+          storeLinks: { create: { storeId: store.id } },
         },
       })
 

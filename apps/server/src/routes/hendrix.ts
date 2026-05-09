@@ -83,11 +83,9 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
   })
 
   // GET /hendrix/outcomes?store_id=... (operator) | ?slug=... (slug-as-auth)
-  // Returns all global outcomes with a poolSize count.
-  // - For paid Stores (has ICPs): count = LineageRows tied to the Store's ICPs.
-  // - For free Stores (no ICPs): count = LineageRows in the general pool
-  //   (icp_id IS NULL) tagged with each outcome — so slug-mode players can
-  //   see exactly what's playable on Increase Dwell vs. Lift Energy.
+  // Returns all global outcomes with a poolSize count = LineageRows tied to
+  // the Store's linked ICPs (Free Tier ICP for free Stores; per-store ICPs
+  // for paid). Stores always have ≥1 ICP via the StoreICP join.
   app.get('/outcomes', async (req, reply) => {
     const parsed = OutcomesQuery.safeParse(req.query)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_query' })
@@ -103,19 +101,15 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
 
     const store = await prisma.store.findUnique({
       where: { id: storeId },
-      include: { icps: { select: { id: true } } },
+      include: { icpLinks: { select: { icpId: true } } },
     })
     if (!store) return reply.code(404).send({ error: 'store_not_found' })
-    const icpIds = store.icps.map((i) => i.id)
+    const icpIds = store.icpLinks.map((l) => l.icpId)
     const outcomes = await prisma.outcome.findMany({ where: { supersededAt: null } })
 
-    // Counts: ICP-pool for paid, general-pool for free.
-    const where = icpIds.length > 0
-      ? { icpId: { in: icpIds }, active: true }
-      : { icpId: null, active: true }
-    const counts = await prisma.lineageRow.groupBy({
+    const counts = icpIds.length === 0 ? [] : await prisma.lineageRow.groupBy({
       by: ['outcomeId'],
-      where,
+      where: { icpId: { in: icpIds }, active: true },
       _count: { _all: true },
     })
     const countMap = new Map(counts.map((c) => [c.outcomeId, c._count._all]))

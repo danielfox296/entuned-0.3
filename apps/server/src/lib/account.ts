@@ -11,6 +11,7 @@
 import { randomBytes } from 'node:crypto'
 import { prisma } from '../db.js'
 import { sendWelcome } from './email.js'
+import { FREE_TIER_ICP_ID } from './freeTier.js'
 
 const PLAYER_URL = process.env.PLAYER_URL ?? 'https://music.entuned.co'
 const APP_URL = process.env.APP_URL ?? 'https://app.entuned.co'
@@ -59,7 +60,7 @@ export async function ensureFreeClientForUser(userId: string, email: string): Pr
       data: { clientId: client.id, userId, role: 'owner' },
     })
     const s = await uniqueStoreSlug(localPart)
-    await tx.store.create({
+    const store = await tx.store.create({
       data: {
         clientId: client.id,
         name: `${localPart} — Main`,
@@ -67,6 +68,12 @@ export async function ensureFreeClientForUser(userId: string, email: string): Pr
         tier: 'free',
         timezone: 'America/Denver',
       },
+    })
+    // Link the new free Store to the canonical Free Tier ICP so Hendrix
+    // can route plays through the standard ICP pool path (no special-case
+    // for icps.length === 0 anywhere downstream).
+    await tx.storeICP.create({
+      data: { storeId: store.id, icpId: FREE_TIER_ICP_ID },
     })
     return s
   })

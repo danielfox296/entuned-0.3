@@ -21,6 +21,7 @@
 import { prisma } from '../db.js'
 import { sendLifecycle, sendPauseEnding } from './email.js'
 import { effectiveTier } from './tier.js'
+import { FREE_TIER_CLIENT_ID } from './freeTier.js'
 
 const APP_URL = process.env.APP_URL ?? 'https://app.entuned.co'
 const PLAYER_URL = process.env.PLAYER_URL ?? 'https://music.entuned.co'
@@ -90,7 +91,10 @@ async function runIcpUnfilled(): Promise<DripStats> {
       createdAt: { lte: cutoff },
       tier: { in: ['core', 'pro'] },
       subscription: { isNot: null },
-      icps: { none: {} },
+      // No customer-curated ICPs (the Free Tier ICP is shared and operator-owned;
+      // exclude it explicitly so paid Stores that haven't run intake still trip
+      // the drip even though they're auto-linked to Free Tier).
+      icpLinks: { none: { icp: { clientId: { not: FREE_TIER_CLIENT_ID } } } },
     },
     select: {
       id: true,

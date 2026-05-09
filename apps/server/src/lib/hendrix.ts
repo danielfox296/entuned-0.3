@@ -65,21 +65,6 @@ async function fetchAllPool(icpIds: string[]): Promise<PoolRow[]> {
   })
 }
 
-// General-pool fetchers (icpId IS NULL) — free-tier Stores with no ICPs.
-async function fetchGeneralPool(outcomeId: string): Promise<PoolRow[]> {
-  return prisma.lineageRow.findMany({
-    where: { icpId: null, outcomeId, active: true },
-    select: { id: true, songId: true, r2Url: true, hookId: true, outcomeId: true, icpId: true },
-  })
-}
-
-async function fetchAllGeneralPool(): Promise<PoolRow[]> {
-  return prisma.lineageRow.findMany({
-    where: { icpId: null, active: true },
-    select: { id: true, songId: true, r2Url: true, hookId: true, outcomeId: true, icpId: true },
-  })
-}
-
 async function applyFilters(
   storeId: string,
   pool: PoolRow[],
@@ -335,10 +320,7 @@ export async function nextQueue(
   opts: { allOutcomes?: boolean } = {},
 ): Promise<HendrixResponse> {
   const decidedAt = now.toISOString()
-  const store = await prisma.store.findUnique({
-    where: { id: storeId },
-    include: { icps: { where: { archivedAt: null }, select: { id: true } } },
-  })
+  const store = await prisma.store.findUnique({ where: { id: storeId } })
   if (!store) {
     return { storeId, decidedAt, activeOutcome: null, queue: [], fallbackTier: 'none', reason: 'no_pool', roomLoudnessSamplingEnabled: false }
   }
@@ -351,41 +333,14 @@ export async function nextQueue(
     dailyCap: 3,
   }
 
-  // Free-tier path: Store has no ICPs → play from the general pool
-  // (LineageRows where icp_id IS NULL). Daniel curates this pool by hand.
-  if (store.icps.length === 0) {
-    if (opts.allOutcomes) {
-      const pool = dedupeBySong(await fetchAllGeneralPool())
-      const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, store.timezone, now)
-      return {
-        storeId,
-        decidedAt,
-        activeOutcome: null,
-        queue: await injectAdIfDue(storeId, queue, now),
-        fallbackTier,
-        reason: queue.length === 0 ? 'no_pool' : null,
-        roomLoudnessSamplingEnabled: roomLoudness,
-      }
-    }
-    const resolvedFree = await resolveActiveOutcome(storeId, now)
-    const pool = resolvedFree
-      ? dedupeBySong(await fetchGeneralPool(resolvedFree.outcomeId))
-      : dedupeBySong(await fetchAllGeneralPool())
-    // If outcome-restricted pool is empty, fall back to the all-outcomes general pool.
-    const finalPool = pool.length === 0 ? dedupeBySong(await fetchAllGeneralPool()) : pool
-    const { queue, fallbackTier } = await buildQueueFromPool(storeId, finalPool, rules, store.timezone, now)
-    return {
-      storeId,
-      decidedAt,
-      activeOutcome: resolvedFree ? await serializeOutcome(resolvedFree) : null,
-      queue: await injectAdIfDue(storeId, queue, now),
-      fallbackTier,
-      reason: queue.length === 0 ? 'no_pool' : null,
-      roomLoudnessSamplingEnabled: roomLoudness,
-    }
-  }
-
-  const icpIds = store.icps.map((i) => i.id)
+  // Resolve the Store's active ICP set via the StoreICP join (Free Tier ICP
+  // for free Stores; per-store ICPs for paid). Stores always have ≥1 ICP
+  // since signup links to Free Tier ICP — the old "no ICPs" branch is gone.
+  const icps = await prisma.iCP.findMany({
+    where: { storeLinks: { some: { storeId } }, archivedAt: null },
+    select: { id: true },
+  })
+  const icpIds = icps.map((i) => i.id)
 
   // All-outcomes mode: pull from every outcome's pool without restricting to the active one.
   if (opts.allOutcomes) {
@@ -419,7 +374,7 @@ export async function nextQueue(
     }
   }
 
-  const poolsByIcp = await Promise.all(store.icps.map((icp) => fetchPool(icp.id, resolved.outcomeId)))
+  const poolsByIcp = await Promise.all(icpIds.map((id) => fetchPool(id, resolved.outcomeId)))
   const unfilteredPool = dedupeBySong(poolsByIcp.flat())
   if (unfilteredPool.length === 0) {
     // Resolved outcome exists but has no songs — fall back to all-outcomes pool
