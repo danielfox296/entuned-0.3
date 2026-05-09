@@ -135,7 +135,8 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
           name: 'Main',
           slug,
           tier: 'free',
-          timezone: 'America/Denver',
+          // UTC default — the dashboard prompts the user to pick a tz.
+          timezone: 'UTC',
         },
       })
       // Backfilled free Store joins the canonical Free Tier pool, same as

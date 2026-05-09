@@ -66,7 +66,10 @@ export async function ensureFreeClientForUser(accountId: string, email: string):
         name: `${localPart} — Main`,
         slug: s,
         tier: 'free',
-        timezone: 'America/Denver',
+        // UTC is honest about not knowing the user's tz at signup time.
+        // The customer dashboard surfaces this and prompts them to set the
+        // real tz; until they do, daily_cap rolls at UTC midnight.
+        timezone: 'UTC',
       },
     })
     // Link the new free Store to the canonical Free Tier ICP so Hendrix

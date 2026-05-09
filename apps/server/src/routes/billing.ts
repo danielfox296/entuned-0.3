@@ -740,7 +740,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
         name: `${baseName} — Main`,
         slug: newSlug,
         tier,
-        timezone: 'America/Denver',
+        // UTC default — the customer sets their real tz from the dashboard.
+        timezone: 'UTC',
       },
       select: { id: true, slug: true },
     })
