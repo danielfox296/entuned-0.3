@@ -2,57 +2,84 @@ import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { UserRow } from '../../api.js'
 import { T } from '../../tokens.js'
-import { Button, Input, Section, Field, S, useToast } from '../../ui/index.js'
+import { Button, Input, Section, Field, S, useToast, useClientSelection } from '../../ui/index.js'
+import { OperatorManager } from './OperatorManager.js'
 
-// Customer (User) management for Dash. Distinct from operators — these are
-// app.entuned.co accounts. Auth is magic-link / Google OAuth, so the
-// recovery primitives are: send fresh magic link, change email, revoke
-// active sessions, disable.
+// Combined "Logins" surface for the selected Client. Two sections:
+//   1. Brand-owner / manager accounts — log into app.entuned.co (magic-link / Google OAuth).
+//      Recovery primitives: send magic link, change email/name, revoke sessions, disable.
+//   2. Location associates — log into music.entuned.co (per-store, password-based).
+//      Delegated to the existing OperatorManager component.
+//
+// Replaces the old top-level "Customers" tab. Both sections are auto-scoped to
+// the Client picked in the page header.
 
-export function UsersPanel() {
+export function LoginsPanel() {
+  const [clientId] = useClientSelection()
+
+  if (!clientId) {
+    return (
+      <div style={{
+        padding: '12px 14px', color: T.textDim,
+        fontFamily: T.sans, fontSize: S.small,
+      }}>
+        Pick a client above to manage logins.
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
+      <Section title="Brand owner login (app.entuned.co)">
+        <OwnerLogins clientId={clientId} />
+      </Section>
+
+      <Section title="Location associates (music.entuned.co)">
+        <OperatorManager />
+      </Section>
+    </div>
+  )
+}
+
+function OwnerLogins({ clientId }: { clientId: string }) {
   const [rows, setRows] = useState<UserRow[] | null>(null)
-  const [q, setQ] = useState('')
   const [selected, setSelected] = useState<UserRow | null>(null)
   const [busy, setBusy] = useState(false)
   const toast = useToast()
 
-  const load = async (query = q) => {
+  const load = async () => {
     const tk = getToken(); if (!tk) return
     try {
-      const data = await api.users(tk, query.trim() || undefined)
+      const data = await api.users(tk, undefined, clientId)
       setRows(data)
-      // Refresh selected from new list (or drop if no longer matches).
       if (selected) {
         const match = data.find((u) => u.id === selected.id)
         setSelected(match ?? null)
       }
     } catch (e: any) {
-      toast.error(e.message ?? 'failed to load users')
+      toast.error(e.message ?? 'failed to load owner accounts')
     }
   }
 
-  useEffect(() => { void load('') /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
+  useEffect(() => {
+    setSelected(null)
+    void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <Input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') void load() }}
-          placeholder="search by email or name…"
-          style={{ minWidth: 320 }}
-        />
-        <Button onClick={() => void load()}>search</Button>
-        {q && <Button variant="ghost" onClick={() => { setQ(''); void load('') }}>clear</Button>}
-      </div>
-
-      {rows && (
-        <UserTable rows={rows} onSelect={(u) => setSelected(u)} selectedId={selected?.id ?? null} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: S.lg }}>
+      {rows && rows.length === 0 && (
+        <div style={{ padding: '12px 14px', color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>
+          No customer-account login for this client yet. (Operator-managed clients
+          like Untuckit don't have one — they were never created via Stripe Checkout.)
+        </div>
       )}
-
+      {rows && rows.length > 0 && (
+        <OwnerTable rows={rows} onSelect={setSelected} selectedId={selected?.id ?? null} />
+      )}
       {selected && (
-        <UserDetail
+        <OwnerDetail
           user={selected}
           busy={busy}
           onClose={() => setSelected(null)}
@@ -75,33 +102,29 @@ export function UsersPanel() {
   )
 }
 
-function UserTable({ rows, onSelect, selectedId }: {
+function OwnerTable({ rows, onSelect, selectedId }: {
   rows: UserRow[]; onSelect: (u: UserRow) => void; selectedId: string | null
 }) {
   return (
     <div style={{ border: `1px solid ${T.border}`, borderRadius: S.r4, overflow: 'hidden' }}>
       <div style={{
-        display: 'grid', gridTemplateColumns: '2fr 1.4fr 1.4fr 110px 110px',
+        display: 'grid', gridTemplateColumns: '2fr 1.2fr 1.4fr 110px 110px',
         gap: 16, background: T.surfaceRaised, padding: '6px 12px',
         fontSize: S.label, fontFamily: T.sans, color: T.textDim,
         textTransform: 'uppercase', letterSpacing: 0.5,
       }}>
-        <span>Email</span><span>Name / Client</span><span>Last login</span>
+        <span>Email</span><span>Role</span><span>Last login</span>
         <span>Auth</span><span>Status</span>
       </div>
-      {rows.length === 0 && (
-        <div style={{ padding: '12px 14px', color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>
-          No users match.
-        </div>
-      )}
       {rows.map((u) => {
         const on = u.id === selectedId
+        const role = u.clients[0]?.role ?? '—'
         return (
           <div
             key={u.id}
             onClick={() => onSelect(u)}
             style={{
-              display: 'grid', gridTemplateColumns: '2fr 1.4fr 1.4fr 110px 110px',
+              display: 'grid', gridTemplateColumns: '2fr 1.2fr 1.4fr 110px 110px',
               gap: 16, padding: '10px 12px', borderTop: `1px solid ${T.border}`,
               alignItems: 'center', cursor: 'pointer',
               background: on ? T.accentGlow : 'transparent',
@@ -109,14 +132,9 @@ function UserTable({ rows, onSelect, selectedId }: {
           >
             <div style={{ minWidth: 0, fontSize: S.small, fontFamily: T.sans, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={u.email}>
               {u.email}
+              {u.name && <span style={{ color: T.textDim }}> · {u.name}</span>}
             </div>
-            <div style={{ minWidth: 0, fontSize: S.label, fontFamily: T.sans, color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-              title={[u.name, ...u.clients.map((c) => c.companyName)].filter(Boolean).join(' · ')}>
-              {u.name ?? '—'}
-              {u.clients.length > 0 && (
-                <span style={{ color: T.textDim }}> · {u.clients.map((c) => c.companyName).join(', ')}</span>
-              )}
-            </div>
+            <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.textMuted }}>{role}</div>
             <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.textMuted }}>
               {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : '—'}
             </div>
@@ -136,7 +154,7 @@ function UserTable({ rows, onSelect, selectedId }: {
   )
 }
 
-function UserDetail({ user, busy, onClose, onAction, toast }: {
+function OwnerDetail({ user, busy, onClose, onAction, toast }: {
   user: UserRow
   busy: boolean
   onClose: () => void
@@ -147,7 +165,6 @@ function UserDetail({ user, busy, onClose, onAction, toast }: {
   const [name, setName] = useState(user.name ?? '')
   const dirty = email !== user.email || (name || null) !== user.name
 
-  // Reset local form when the underlying user changes (selection or refetch).
   useEffect(() => { setEmail(user.email); setName(user.name ?? '') }, [user.id, user.email, user.name])
 
   const sendMagicLink = () =>

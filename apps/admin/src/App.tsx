@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   Sparkles, CalendarDays, Settings, Music2,
-  FlaskConical, Lightbulb, Activity, ListChecks, Target, ShoppingCart, Mail, Users as UsersIcon,
+  FlaskConical, Lightbulb, Activity, ListChecks, Target, ShoppingCart, Mail,
 } from 'lucide-react'
 import { api, getToken, setToken, clearToken } from './api.js'
 import type { MeResponse, ClientListRow, StoreSummary, StoreDetail } from './api.js'
@@ -21,7 +21,7 @@ import { HookDrafterPrompt } from './panels/engine/HookDrafterPrompt.js'
 import { IcpEditor } from './panels/brand/IcpEditor.js'
 import { ClientDetail } from './panels/brand/ClientDetail.js'
 import { StoreEditor } from './panels/brand/StoreEditor.js'
-import { OperatorManager } from './panels/brand/OperatorManager.js'
+import { LoginsPanel } from './panels/brand/LoginsPanel.js'
 import { Campaigns } from './panels/brand/Campaigns.js'
 import { LiveStoreView } from './panels/playback/LiveStoreView.js'
 import { OutcomeSchedule } from './panels/schedule/OutcomeSchedule.js'
@@ -33,7 +33,6 @@ import { FlaggedReview } from './panels/catalogue/FlaggedReview.js'
 import { WorkflowRouter } from './panels/workflow/WorkflowRouter.js'
 import { SalesDataIngest } from './panels/salesdata/SalesDataIngest.js'
 import { EmailTemplates } from './panels/email/EmailTemplates.js'
-import { UsersPanel } from './panels/users/UsersPanel.js'
 import { useNavGroup, useNavSub } from './nav.js'
 
 // ── Surface groups (from admin-ui.md, priority order) ──────────
@@ -47,7 +46,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Launch Checklist', 'Hook Writing', 'Reference Tracks', 'Hook → Prompt'],
     description: '' },
   { key: 'brand', label: 'Clients', short: 'Clients', icon: Sparkles,
-    cards: ['Details', 'Location', 'ICP Editor', 'Account', 'Campaigns', 'Event Stream'],
+    cards: ['Details', 'Location', 'ICP Editor', 'Logins', 'Campaigns', 'Event Stream'],
     description: '' },
   { key: 'schedule', label: 'Scheduling', short: 'Schedule', icon: CalendarDays,
     cards: ['Dayparting'],
@@ -66,9 +65,6 @@ const GROUPS: SurfaceGroup[] = [
     description: '' },
   { key: 'email', label: 'Email', short: 'Email', icon: Mail,
     cards: ['Templates'],
-    description: '' },
-  { key: 'users', label: 'Customers', short: 'Customers', icon: UsersIcon,
-    cards: ['Users'],
     description: '' },
   { key: 'experiments', label: 'Experiments', short: 'Experiments', icon: FlaskConical,
     cards: ['Experiment Editor', 'Experiment Detail', 'Results'],
@@ -235,8 +231,7 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
          group.key === 'outcomes' ? <OutcomesRouter cards={group.cards} /> :
          group.key === 'catalogue' ? <CatalogueRouter cards={group.cards} /> :
          group.key === 'salesdata' ? <SalesDataIngest /> :
-         group.key === 'email' ? <EmailTemplates /> :
-         group.key === 'users' ? <UsersPanel /> : (
+         group.key === 'email' ? <EmailTemplates /> : (
         <>
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12,
@@ -408,7 +403,7 @@ function BrandRouter({ cards }: { cards: string[] }) {
         {active === 'Details' && <ClientDetail onClientsChanged={() => { const tk = getToken(); if (tk) api.clients(tk).then(setClients).catch(() => {}); reload() }} selectedClient={selectedClient} />}
         {active === 'Location' && <StoreEditor onStoresChanged={() => { const tk = getToken(); if (tk) api.stores(tk).then(setStores).catch(() => {}); reload() }} />}
         {active === 'ICP Editor' && <IcpEditor />}
-        {active === 'Account' && <OperatorManager />}
+        {active === 'Logins' && <LoginsPanel />}
         {active === 'Campaigns' && <Campaigns />}
         {active === 'Event Stream' && <LiveStoreView />}
       </div>

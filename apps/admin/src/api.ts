@@ -775,8 +775,13 @@ export const api = {
     }, token),
 
   // --- App-user (customer) management ---
-  users: (token: string, q?: string) =>
-    req<UserRow[]>(`/admin/users${q ? `?q=${encodeURIComponent(q)}` : ''}`, {}, token),
+  users: (token: string, q?: string, clientId?: string) => {
+    const params = new URLSearchParams()
+    if (q) params.set('q', q)
+    if (clientId) params.set('clientId', clientId)
+    const qs = params.toString()
+    return req<UserRow[]>(`/admin/users${qs ? `?${qs}` : ''}`, {}, token)
+  },
   patchUser: (id: string, body: { email?: string; name?: string | null }, token: string) =>
     req<{ ok: true; emailChanged: boolean; user: { id: string; email: string; name: string | null; tokenVersion: number } }>(
       `/admin/users/${id}`,

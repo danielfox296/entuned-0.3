@@ -2671,18 +2671,24 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // Users have no password; "reset" doesn't apply. The operator-facing
   // recovery primitive is "send magic link".
 
-  // GET /admin/users[?q=substring]
+  // GET /admin/users[?q=substring][&clientId=<uuid>]
   app.get('/users', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const q = ((req.query as any)?.q as string | undefined)?.trim().toLowerCase() ?? ''
-    const where = q
-      ? {
-          OR: [
-            { email: { contains: q, mode: 'insensitive' as const } },
-            { name: { contains: q, mode: 'insensitive' as const } },
-          ],
-        }
-      : {}
+    const clientId = ((req.query as any)?.clientId as string | undefined)?.trim() || ''
+    const conds: any[] = []
+    if (q) {
+      conds.push({
+        OR: [
+          { email: { contains: q, mode: 'insensitive' as const } },
+          { name: { contains: q, mode: 'insensitive' as const } },
+        ],
+      })
+    }
+    if (clientId) {
+      conds.push({ memberships: { some: { clientId } } })
+    }
+    const where = conds.length === 0 ? {} : conds.length === 1 ? conds[0] : { AND: conds }
     const rows = await prisma.account.findMany({
       where,
       orderBy: [{ lastLoginAt: 'desc' }, { createdAt: 'desc' }],
