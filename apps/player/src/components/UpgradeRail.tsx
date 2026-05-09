@@ -103,11 +103,8 @@ export function UpgradeRail({ rotationKey, style }: Props) {
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
-        padding: "32px 36px 28px",
+        padding: "32px 48px 28px 56px",
         boxSizing: "border-box",
-        background: "linear-gradient(135deg, rgba(40,40,36,0.55) 0%, rgba(20,20,17,0.85) 100%)",
-        border: "1px solid rgba(212,225,229,0.06)",
-        borderRadius: 24,
         ...style,
       }}
     >
