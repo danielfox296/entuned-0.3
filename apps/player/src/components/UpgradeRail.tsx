@@ -103,7 +103,7 @@ export function UpgradeRail({ rotationKey, style }: Props) {
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
-        padding: "32px 48px 28px 56px",
+        padding: "40px 56px 36px 64px",
         boxSizing: "border-box",
         ...style,
       }}
@@ -111,10 +111,10 @@ export function UpgradeRail({ rotationKey, style }: Props) {
       {/* Top: tier indicator */}
       <div
         style={{
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: 500,
-          letterSpacing: 2.5,
-          color: "rgba(212,225,229,0.4)",
+          letterSpacing: 3,
+          color: "rgba(212,225,229,0.5)",
           textTransform: "uppercase",
         }}
       >
@@ -126,24 +126,24 @@ export function UpgradeRail({ rotationKey, style }: Props) {
         key={index}
         style={{
           opacity: fade ? 1 : 0,
-          transition: "opacity 280ms ease",
+          transition: "opacity 420ms ease",
           display: "flex",
           flexDirection: "column",
-          gap: 18,
+          gap: 24,
           textAlign: "left",
-          maxWidth: 360,
+          maxWidth: 540,
         }}
       >
         <div
           style={{
-            fontSize: 10,
+            fontSize: 11,
             fontWeight: 500,
-            letterSpacing: 2.5,
+            letterSpacing: 3,
             color: slot.tier === "pro"
-              ? "rgba(215,175,116,0.85)"
+              ? "rgba(215,175,116,0.95)"
               : slot.tier === "core"
-                ? "rgba(80,146,156,0.9)"
-                : "rgba(212,225,229,0.55)",
+                ? "rgba(120,180,188,0.95)"
+                : "rgba(232,238,240,0.7)",
             textTransform: "uppercase",
           }}
         >
@@ -151,21 +151,22 @@ export function UpgradeRail({ rotationKey, style }: Props) {
         </div>
         <div
           style={{
-            fontSize: 26,
+            fontSize: 44,
             fontWeight: 300,
-            lineHeight: 1.25,
-            color: "rgba(232,238,240,0.95)",
-            letterSpacing: 0.2,
+            lineHeight: 1.18,
+            color: "rgba(244,247,248,0.97)",
+            letterSpacing: -0.4,
           }}
         >
           {slot.headline}
         </div>
         <div
           style={{
-            fontSize: 14,
-            lineHeight: 1.55,
+            fontSize: 18,
+            lineHeight: 1.5,
             fontWeight: 300,
-            color: "rgba(212,225,229,0.65)",
+            color: "rgba(232,238,240,0.78)",
+            letterSpacing: 0.1,
           }}
         >
           {slot.body}
@@ -178,14 +179,14 @@ export function UpgradeRail({ rotationKey, style }: Props) {
         target="_blank"
         rel="noreferrer"
         style={{
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: 500,
-          letterSpacing: 2,
-          color: "rgba(80,146,156,0.95)",
+          letterSpacing: 2.5,
+          color: "rgba(120,180,188,1)",
           textTransform: "uppercase",
           textDecoration: "none",
-          borderBottom: "1px solid rgba(80,146,156,0.4)",
-          paddingBottom: 4,
+          borderBottom: "1px solid rgba(120,180,188,0.5)",
+          paddingBottom: 6,
           alignSelf: "flex-start",
         }}
       >

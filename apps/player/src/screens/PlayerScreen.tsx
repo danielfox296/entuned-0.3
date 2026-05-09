@@ -838,7 +838,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
         width: "100vw",
         minHeight: "100vh",
         overflow: "hidden",
-        background: "radial-gradient(ellipse at center, #282824 0%, #20201c 55%, #1a1a17 100%)",
+        background: twoCol
+          ? "linear-gradient(rgba(28,26,22,0.62), rgba(20,18,14,0.78)), url('/hero-start.jpg')"
+          : "radial-gradient(ellipse at center, #282824 0%, #20201c 55%, #1a1a17 100%)",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
         display: "flex",
         flexDirection: "column",
       }}
@@ -928,10 +932,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
           flexDirection: "column",
           minWidth: 0,
           ...(twoCol ? {
-            background: "linear-gradient(135deg, rgba(40,40,36,0.45) 0%, rgba(20,20,17,0.8) 100%)",
-            border: "1px solid rgba(212,225,229,0.06)",
+            background: "linear-gradient(135deg, rgba(22,22,19,0.92) 0%, rgba(14,14,12,0.96) 100%)",
+            border: "1px solid rgba(212,225,229,0.08)",
             borderRadius: 24,
             overflow: "hidden",
+            boxShadow: "0 30px 80px -20px rgba(0,0,0,0.6)",
           } : {}),
         }}>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: twoCol ? "flex-start" : "center", padding: twoCol ? "0 60px 40px 80px" : "0 0 40px", gap: 60 }}>
