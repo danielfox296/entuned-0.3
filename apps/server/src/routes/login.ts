@@ -151,9 +151,7 @@ async function findOrCreateUserByEmail(email: string, name?: string | null): Pro
         data: { email: normalized, name: name ?? null, lastLoginAt: new Date() },
       })
   // Free-tier provisioning: every signed-in user gets a Client + Store
-  // (idempotent — backfills users that pre-date this change). Also handles
-  // the operator-link hook: matches existing Client.contact_email and
-  // attaches membership instead of creating a duplicate Client.
+  // (idempotent — backfills users that pre-date this change).
   await ensureFreeClientForUser(user.id, normalized)
   return { id: user.id, email: user.email, name: user.name, disabledAt: user.disabledAt, tokenVersion: user.tokenVersion }
 }

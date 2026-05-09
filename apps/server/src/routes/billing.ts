@@ -90,21 +90,6 @@ async function findOrCreateClientByEmail(
     return { id: c.id, email: normalized, name: c.companyName }
   }
 
-  // No membership yet — but maybe an operator-managed Client matches by contact_email.
-  const operatorClient = await prisma.client.findFirst({
-    where: { contactEmail: normalized },
-  })
-  if (operatorClient) {
-    // Ensure User exists, then attach membership.
-    const u = user ?? await prisma.user.create({
-      data: { email: normalized, name: name ?? null },
-    })
-    await prisma.clientMembership.create({
-      data: { clientId: operatorClient.id, userId: u.id, role: 'owner' },
-    })
-    return { id: operatorClient.id, email: normalized, name: operatorClient.companyName }
-  }
-
   // Fresh User + Client + Membership.
   const companyName = name ?? normalized.split('@')[0] ?? 'Account'
   const client = await prisma.client.create({

@@ -123,9 +123,9 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
 
     // Backstop: every authenticated Client must have ≥1 active Store so the
     // dashboard always has a player URL to surface. ensureFreeClientForUser
-    // covers fresh signups, but pre-2026-05-04 sessions and operator-link
-    // hooks can still land here with zero stores. Provision a free Store
-    // inline so the user never sees a Locations-tab dead-end.
+    // covers fresh signups, but pre-2026-05-04 sessions can still land here
+    // with zero stores. Provision a free Store inline so the user never sees
+    // a Locations-tab dead-end.
     if (stores.length === 0) {
       const slug = await uniqueStoreSlug(req.user?.email ?? 'store')
       await prisma.store.create({

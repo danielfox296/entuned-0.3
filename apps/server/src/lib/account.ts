@@ -7,11 +7,6 @@
 // Stripe checkout creates additional paid Stores on the same Client (it
 // does not touch the free Store); the free Store stays as the always-on
 // baseline.
-//
-// Operator-link hook: if the email matches an existing Client.contact_email
-// (e.g. an operator-managed customer like Untuckit), we link the User to
-// that Client rather than creating a new one. This is the path option C
-// from the migration design.
 
 import { randomBytes } from 'node:crypto'
 import { prisma } from '../db.js'
@@ -39,10 +34,10 @@ export async function uniqueStoreSlug(name: string): Promise<string> {
  * Ensure the User has a Client (with membership) and at least one Store.
  * Idempotent: if a membership already exists, returns without creating duplicates.
  *
- * Resolution order on first sign-in:
- *  1. If the email matches an existing Client.contact_email, link via membership
- *     (operator-managed customer, e.g. Untuckit, gets dashboard access).
- *  2. Otherwise create a fresh Client + ClientMembership + free-tier Store.
+ * Every first sign-in gets a fresh Client + ClientMembership + free-tier
+ * Store. Operator-managed Clients (UNTUCKit, Lululemon, Friends-Demo) are
+ * intentionally inaccessible from self-serve sign-in; if a human at one of
+ * those needs dashboard access, an admin attaches them explicitly.
  *
  * Called from the magic-link verify and Google OAuth callback paths.
  */
@@ -54,23 +49,6 @@ export async function ensureFreeClientForUser(userId: string, email: string): Pr
   if (existing) return
 
   const normalized = email.trim().toLowerCase()
-
-  // Operator-link hook: match by Client.contact_email.
-  const operatorClient = await prisma.client.findFirst({
-    where: { contactEmail: normalized },
-    select: { id: true },
-  })
-
-  if (operatorClient) {
-    // Existing Client owns one or more Stores already. Just attach membership.
-    await prisma.clientMembership.create({
-      data: { clientId: operatorClient.id, userId, role: 'owner' },
-    })
-    // Don't send a welcome email — they already know what they bought.
-    return
-  }
-
-  // Fresh free-tier Client + Store.
   const localPart = normalized.split('@')[0] || 'account'
 
   const slug = await prisma.$transaction(async (tx) => {
