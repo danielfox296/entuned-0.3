@@ -549,6 +549,76 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     })
   })
 
+  // DELETE /admin/clients/:id — cascading hard-delete in a single transaction.
+  //
+  // The schema has Cascade on most child relations but a handful of FKs default
+  // to NoAction (Store→Client, ICP→Client, POSPullRun→Client, plus several
+  // Store-children: PlaybackEvent, POSEvent, POSPullRun, RetailNext*). We
+  // delete those explicitly in dependency order, then let the cascading FKs
+  // unwind the rest. Songs in Cloudflare R2 are NOT removed — they're shared
+  // assets across Clients and orphan-cleanup is out of scope here.
+  app.delete('/clients/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+
+    const client = await prisma.client.findUnique({
+      where: { id },
+      select: { id: true, companyName: true, stores: { select: { id: true } } },
+    })
+    if (!client) return reply.code(404).send({ error: 'not_found' })
+
+    const storeIds = client.stores.map((s) => s.id)
+
+    const counts = await prisma.$transaction(async (tx) => {
+      // Store-scoped non-cascade tables — must go first.
+      const playbackEvents = storeIds.length
+        ? await tx.playbackEvent.deleteMany({ where: { storeId: { in: storeIds } } })
+        : { count: 0 }
+      const posEvents = storeIds.length
+        ? await tx.pOSEvent.deleteMany({ where: { storeId: { in: storeIds } } })
+        : { count: 0 }
+      const posPullRunsByStore = storeIds.length
+        ? await tx.pOSPullRun.deleteMany({ where: { storeId: { in: storeIds } } })
+        : { count: 0 }
+      const retailHourly = storeIds.length
+        ? await tx.retailNextHourlySnapshot.deleteMany({ where: { storeId: { in: storeIds } } })
+        : { count: 0 }
+      const retailDaily = storeIds.length
+        ? await tx.retailNextDailySnapshot.deleteMany({ where: { storeId: { in: storeIds } } })
+        : { count: 0 }
+      const retailRuns = storeIds.length
+        ? await tx.retailNextIngestRun.deleteMany({ where: { storeId: { in: storeIds } } })
+        : { count: 0 }
+
+      // Stores — Campaign, AdAsset, CampaignPlayState, CampaignAssetState,
+      // ScheduleSlot, StoreICP, StoreAssignment, TierChangeLog all cascade.
+      const stores = await tx.store.deleteMany({ where: { clientId: id } })
+
+      // ICPs — LineageRow, Hook, ReferenceTrack, OutcomeLyricFactor, SongSeed,
+      // HookWriterPrompt all cascade. Songs themselves stay (shared assets).
+      const icps = await tx.iCP.deleteMany({ where: { clientId: id } })
+
+      // Defensive: any POSPullRuns left dangling on the client_id (shouldn't
+      // happen since they share storeId, but covers the edge case).
+      const posPullRunsByClient = await tx.pOSPullRun.deleteMany({ where: { clientId: id } })
+
+      // ClientMembership cascades from Client.
+      await tx.client.delete({ where: { id } })
+
+      return {
+        playbackEvents: playbackEvents.count,
+        posEvents: posEvents.count,
+        posPullRuns: posPullRunsByStore.count + posPullRunsByClient.count,
+        retailNextSnapshots: retailHourly.count + retailDaily.count,
+        retailNextRuns: retailRuns.count,
+        stores: stores.count,
+        icps: icps.count,
+      }
+    })
+
+    return reply.send({ ok: true, deleted: { client: client.companyName, ...counts } })
+  })
+
   // ----- Store editor (create + update) -----
 
   const StoreCreateBody = z.object({

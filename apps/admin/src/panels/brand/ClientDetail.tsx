@@ -18,6 +18,9 @@ export function ClientDetail({ onClientsChanged, selectedClient: _summary }: {
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [createBusy, setCreateBusy] = useState(false)
+  const [deleteArmed, setDeleteArmed] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleteBusy, setDeleteBusy] = useState(false)
   const toast = useToast()
 
   useEffect(() => {
@@ -45,6 +48,35 @@ export function ClientDetail({ onClientsChanged, selectedClient: _summary }: {
   }
 
   const dirty = !!(draft && client && Object.entries(draft).some(([k, v]) => (client as any)[k] !== v))
+
+  const cancelDelete = () => { setDeleteArmed(false); setDeleteConfirmText('') }
+
+  // Reset the danger-zone whenever the selected client changes — never carry
+  // an armed delete across a navigation.
+  useEffect(() => { cancelDelete() }, [clientId])
+
+  const deleteClient = async () => {
+    if (!client) return
+    if (deleteConfirmText.trim() !== client.companyName) return
+    const token = getToken(); if (!token) return
+    setDeleteBusy(true); setErr(null)
+    try {
+      const result = await api.deleteClient(client.id, token)
+      const counts = result.deleted
+      const summary = [
+        `${counts.stores} store${counts.stores === 1 ? '' : 's'}`,
+        `${counts.icps} ICP${counts.icps === 1 ? '' : 's'}`,
+        `${counts.playbackEvents} playback event${counts.playbackEvents === 1 ? '' : 's'}`,
+      ].join(', ')
+      toast.success(`deleted "${counts.client}" — ${summary}`)
+      setClientId(null)
+      onClientsChanged?.()
+    } catch (e: any) {
+      setErr(e.message); toast.error(e.message ?? 'failed to delete client')
+    } finally {
+      setDeleteBusy(false); setDeleteArmed(false); setDeleteConfirmText('')
+    }
+  }
 
   const save = async () => {
     if (!client || !draft || !dirty) return
@@ -212,6 +244,55 @@ export function ClientDetail({ onClientsChanged, selectedClient: _summary }: {
             <span style={{ fontFamily: T.sans, fontSize: S.label, color: T.textDim }}>
               updated {new Date(client.updatedAt).toISOString().slice(0, 16).replace('T', ' ')}
             </span>
+          </div>
+
+          <div style={{
+            marginTop: S.xl, padding: S.lg,
+            border: `1px solid ${T.danger}`, borderRadius: S.r4,
+            display: 'flex', flexDirection: 'column', gap: S.sm,
+          }}>
+            <div style={{ fontSize: S.small, fontFamily: T.sans, color: T.danger, fontWeight: 600 }}>
+              Danger zone
+            </div>
+            <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.textMuted, lineHeight: 1.5 }}>
+              Hard-deletes this client and every record that hangs off it: stores, ICPs, hooks, reference tracks, song seeds, lineage rows, playback events, POS ingest history, RetailNext snapshots, campaigns, memberships, schedule slots. Songs in R2 are kept (shared assets). Irreversible.
+            </div>
+
+            {!deleteArmed ? (
+              <div>
+                <Button variant="danger" onClick={() => setDeleteArmed(true)}>Delete client</Button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: S.sm }}>
+                <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.text }}>
+                  Type <strong>{client.companyName}</strong> to confirm:
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <Input
+                    autoFocus
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && deleteConfirmText.trim() === client.companyName) void deleteClient()
+                      if (e.key === 'Escape') cancelDelete()
+                    }}
+                    placeholder={client.companyName}
+                  />
+                  <button
+                    onClick={() => void deleteClient()}
+                    disabled={deleteBusy || deleteConfirmText.trim() !== client.companyName}
+                    style={{
+                      background: T.danger, color: '#fff', border: 'none',
+                      padding: '6px 12px', borderRadius: S.r3,
+                      fontFamily: T.sans, fontSize: S.small, fontWeight: 600,
+                      cursor: (deleteBusy || deleteConfirmText.trim() !== client.companyName) ? 'default' : 'pointer',
+                      opacity: (deleteBusy || deleteConfirmText.trim() !== client.companyName) ? 0.5 : 1,
+                    }}
+                  >{deleteBusy ? 'deleting…' : 'Confirm delete'}</button>
+                  <Button variant="ghost" onClick={cancelDelete} disabled={deleteBusy}>Cancel</Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

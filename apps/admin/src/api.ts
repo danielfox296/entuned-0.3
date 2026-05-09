@@ -913,6 +913,20 @@ export const api = {
     req<ClientFull>(`/admin/clients/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   createClient: (body: { companyName: string }, token: string) =>
     req<ClientListRow>('/admin/clients', { method: 'POST', body: JSON.stringify(body) }, token),
+  deleteClient: (id: string, token: string) =>
+    req<{
+      ok: true
+      deleted: {
+        client: string
+        playbackEvents: number
+        posEvents: number
+        posPullRuns: number
+        retailNextSnapshots: number
+        retailNextRuns: number
+        stores: number
+        icps: number
+      }
+    }>(`/admin/clients/${id}`, { method: 'DELETE' }, token),
   createStore: (body: StoreCreateBody, token: string) =>
     req<StoreSummary>('/admin/stores', { method: 'POST', body: JSON.stringify(body) }, token),
   updateStore: (id: string, body: StoreUpdateBody, token: string) =>
