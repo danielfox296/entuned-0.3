@@ -63,7 +63,7 @@ export async function runCompExpiryCron(): Promise<CompCronStats> {
             where: { role: { in: ['owner', 'manager'] } },
             orderBy: { createdAt: 'asc' },
             take: 1,
-            select: { user: { select: { id: true, email: true } } },
+            select: { account: { select: { id: true, email: true } } },
           },
         },
       },
@@ -72,15 +72,15 @@ export async function runCompExpiryCron(): Promise<CompCronStats> {
 
   for (const s of ending) {
     stats.endingConsidered++
-    const user = s.client.memberships[0]?.user
+    const user = s.client.memberships[0]?.account
     if (!user) { stats.endingSkipped++; continue }
 
     // contextKey = storeId so the same Store doesn't get two warnings if
     // the operator extends the comp and we re-enter the window.
     const contextKey = s.id
     const already = await prisma.lifecycleEmailLog.findUnique({
-      where: { userId_templateName_contextKey: {
-        userId: user.id, templateName: 'compEnding', contextKey,
+      where: { accountId_templateName_contextKey: {
+        accountId: user.id, templateName: 'compEnding', contextKey,
       } },
     })
     if (already) { stats.endingSkipped++; continue }
@@ -90,7 +90,7 @@ export async function runCompExpiryCron(): Promise<CompCronStats> {
     const upgradeUrl = `${API_URL}/billing/upgrade-from-comp?store=${s.id}`
 
     try {
-      const res = await sendLifecycle('compEnding', { userId: user.id, email: user.email }, {
+      const res = await sendLifecycle('compEnding', { accountId: user.id, email: user.email }, {
         effectiveTier: s.compTier!,
         paidTier: s.tier,
         daysRemaining,
@@ -101,7 +101,7 @@ export async function runCompExpiryCron(): Promise<CompCronStats> {
       if (res.skipped) { stats.endingSkipped++; continue }
       if (!res.ok) { stats.endingErrors++; continue }
       await prisma.lifecycleEmailLog.create({
-        data: { userId: user.id, templateName: 'compEnding', contextKey },
+        data: { accountId: user.id, templateName: 'compEnding', contextKey },
       })
       stats.endingSent++
     } catch {
@@ -127,7 +127,7 @@ export async function runCompExpiryCron(): Promise<CompCronStats> {
             where: { role: { in: ['owner', 'manager'] } },
             orderBy: { createdAt: 'asc' },
             take: 1,
-            select: { user: { select: { id: true, email: true } } },
+            select: { account: { select: { id: true, email: true } } },
           },
         },
       },
@@ -136,7 +136,7 @@ export async function runCompExpiryCron(): Promise<CompCronStats> {
 
   for (const s of ended) {
     stats.endedConsidered++
-    const user = s.client.memberships[0]?.user
+    const user = s.client.memberships[0]?.account
     const formerCompTier = s.compTier!
     const fromTier = effectiveTier(s, now) // computes pre-clear effective; comp is expired so this == paid tier already
     // Actually: effectiveTier respects expiry, so fromTier here is paid tier.
@@ -151,7 +151,7 @@ export async function runCompExpiryCron(): Promise<CompCronStats> {
       // store will never re-match this query.
       if (user) {
         const upgradeUrl = `${API_URL}/billing/upgrade-from-comp?store=${s.id}`
-        await sendLifecycle('compEnded', { userId: user.id, email: user.email }, {
+        await sendLifecycle('compEnded', { accountId: user.id, email: user.email }, {
           formerCompTier,
           paidTier: s.tier,
           upgradeUrl,

@@ -41,7 +41,7 @@ import { runCompExpiryCron } from '../lib/compExpiry.js'
 import { effectiveTier, compIsActive, tierRank, applyTierChange, type Tier } from '../lib/tier.js'
 
 interface AuthedOp {
-  operatorId: string
+  accountId: string
   email: string
   isAdmin: boolean
 }
@@ -63,7 +63,7 @@ async function requireAdmin(req: FastifyRequest, reply: FastifyReply): Promise<A
   }
   // Re-verify the operator is still active and the token's version matches
   // the operator's current tokenVersion (bumped on password change / revoke).
-  const op = await prisma.operator.findUnique({ where: { id: payload.operatorId } })
+  const op = await prisma.account.findUnique({ where: { id: payload.accountId } })
   if (!op || op.disabledAt || !op.isAdmin) {
     reply.code(403).send({ error: 'admin_required' })
     return null
@@ -72,7 +72,7 @@ async function requireAdmin(req: FastifyRequest, reply: FastifyReply): Promise<A
     reply.code(401).send({ error: 'token_revoked' })
     return null
   }
-  return { operatorId: op.id, email: op.email, isAdmin: op.isAdmin }
+  return { accountId: op.id, email: op.email, isAdmin: op.isAdmin }
 }
 
 // Time helpers — Prisma @db.Time(6) round-trips as Date with UTC time portion.
@@ -134,7 +134,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const max = await prisma.styleAnalyzerInstructions.aggregate({ _max: { version: true } })
     const next = (max._max.version ?? 0) + 1
     const row = await prisma.styleAnalyzerInstructions.create({
-      data: { version: next, rulesText: parsed.data.rulesText, notes: parsed.data.notes ?? null, createdById: op.operatorId },
+      data: { version: next, rulesText: parsed.data.rulesText, notes: parsed.data.notes ?? null, createdById: op.accountId },
     })
     return row
   })
@@ -213,7 +213,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const max = await prisma.styleTemplate.aggregate({ _max: { version: true } })
     const next = (max._max.version ?? 0) + 1
     const row = await prisma.styleTemplate.create({
-      data: { version: next, templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, createdById: op.operatorId },
+      data: { version: next, templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, createdById: op.accountId },
     })
     return row
   })
@@ -245,7 +245,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const max = await prisma.outcomeFactorPrompt.aggregate({ _max: { version: true } })
     const next = (max._max.version ?? 0) + 1
     const row = await prisma.outcomeFactorPrompt.create({
-      data: { version: next, templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, createdById: op.operatorId },
+      data: { version: next, templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, createdById: op.accountId },
     })
     return row
   })
@@ -265,7 +265,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const max = await prisma.referenceTrackPrompt.aggregate({ _max: { version: true } })
     const next = (max._max.version ?? 0) + 1
     const row = await prisma.referenceTrackPrompt.create({
-      data: { version: next, templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, createdById: op.operatorId },
+      data: { version: next, templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, createdById: op.accountId },
     })
     return row
   })
@@ -309,7 +309,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const max = await prisma.lyricDraftPrompt.aggregate({ _max: { version: true } })
     const next = (max._max.version ?? 0) + 1
     const row = await prisma.lyricDraftPrompt.create({
-      data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.operatorId },
+      data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.accountId },
     })
     return row
   })
@@ -321,7 +321,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const max = await prisma.lyricEditPrompt.aggregate({ _max: { version: true } })
     const next = (max._max.version ?? 0) + 1
     const row = await prisma.lyricEditPrompt.create({
-      data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.operatorId },
+      data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.accountId },
     })
     return row
   })
@@ -394,7 +394,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           where: { role: 'owner' },
           orderBy: { createdAt: 'asc' },
           take: 1,
-          select: { user: { select: { email: true } } },
+          select: { account: { select: { email: true } } },
         },
       },
     })
@@ -414,7 +414,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       // PLG = self-serve customer (has a User membership). Operator-managed
       // clients (Untuckit, Lululemon, Friends-Demo) have no User attached.
       isPlg: c._count.memberships > 0,
-      ownerEmail: c.memberships[0]?.user.email ?? null,
+      ownerEmail: c.memberships[0]?.account.email ?? null,
     }))
   })
 
@@ -449,7 +449,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           where: { role: 'owner' },
           orderBy: { createdAt: 'asc' },
           take: 1,
-          select: { user: { select: { email: true } } },
+          select: { account: { select: { email: true } } },
         },
       },
     })
@@ -466,7 +466,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       createdAt: client.createdAt.toISOString(),
       updatedAt: client.updatedAt.toISOString(),
       isPlg: client.memberships.length > 0,
-      ownerEmail: client.memberships[0]?.user.email ?? null,
+      ownerEmail: client.memberships[0]?.account.email ?? null,
       stores: client.stores.map((s) => ({
         id: s.id,
         name: s.name,
@@ -865,7 +865,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     try {
       const row = await prisma.referenceTrack.update({
         where: { id },
-        data: { status: 'approved', approvedAt: new Date(), approvedById: op.operatorId },
+        data: { status: 'approved', approvedAt: new Date(), approvedById: op.accountId },
       })
       // Fire-and-forget: auto-decompose on approval
       decompose({
@@ -943,7 +943,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const ids = targets.map((t) => t.id)
     await prisma.referenceTrack.updateMany({
       where: { id: { in: ids } },
-      data: { status: 'approved', approvedAt: new Date(), approvedById: op.operatorId },
+      data: { status: 'approved', approvedAt: new Date(), approvedById: op.accountId },
     })
     // Fire-and-forget: auto-decompose all approved tracks
     for (const ref of targets) {
@@ -1145,7 +1145,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         mood: parsed.data.mood,
         familiarity: parsed.data.familiarity ?? null,
         productionEraId: parsed.data.productionEraId ?? null,
-        createdById: op.operatorId,
+        createdById: op.accountId,
       },
       include: { productionEra: { select: { id: true, decade: true, genreSlug: true, genreDisplayName: true } } },
     })
@@ -1176,7 +1176,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
             mood: parsed.data.mood,
             familiarity: parsed.data.familiarity ?? null,
             productionEraId: parsed.data.productionEraId ?? null,
-            createdById: op.operatorId,
+            createdById: op.accountId,
           },
           include: { productionEra: { select: { id: true, decade: true, genreSlug: true, genreDisplayName: true } } },
         })
@@ -1232,8 +1232,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (!exists) return reply.code(404).send({ error: 'unknown_outcome' })
     const row = await prisma.outcomeLyricFactor.upsert({
       where: { outcomeKey },
-      update: { templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, updatedById: op.operatorId },
-      create: { outcomeKey, templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, updatedById: op.operatorId },
+      update: { templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, updatedById: op.accountId },
+      create: { outcomeKey, templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, updatedById: op.accountId },
     })
     return {
       outcomeKey: row.outcomeKey,
@@ -1594,15 +1594,15 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       const nextVersion = (existing?.version ?? 0) + 1
       const updated = await tx.hookWriterPrompt.upsert({
         where: { icpId },
-        create: { icpId, promptText: parsed.data.promptText, version: nextVersion, updatedById: op.operatorId },
-        update: { promptText: parsed.data.promptText, version: nextVersion, updatedById: op.operatorId },
+        create: { icpId, promptText: parsed.data.promptText, version: nextVersion, updatedById: op.accountId },
+        update: { promptText: parsed.data.promptText, version: nextVersion, updatedById: op.accountId },
       })
       await tx.hookWriterPromptVersion.create({
         data: {
           icpId, version: nextVersion,
           promptText: parsed.data.promptText,
           notes: parsed.data.notes ?? null,
-          createdById: op.operatorId,
+          createdById: op.accountId,
         },
       })
       return updated
@@ -1679,7 +1679,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         vocalGender: e.vocalGender,
         status: parsed.data.approve ? 'approved' : 'draft',
         approvedAt: parsed.data.approve ? now : null,
-        approvedById: parsed.data.approve ? op.operatorId : null,
+        approvedById: parsed.data.approve ? op.accountId : null,
       }))
       const result = await prisma.hook.createMany({ data, skipDuplicates: false })
       return { created: result.count }
@@ -1705,7 +1705,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       }
       if (parsed.data.approve) {
         data.approvedAt = new Date()
-        data.approvedById = op.operatorId
+        data.approvedById = op.accountId
       }
       const row = await prisma.hook.create({ data, include: { outcome: { select: { id: true, title: true, displayTitle: true, version: true } } } })
       return row
@@ -1745,7 +1745,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (existing.status === 'retired') return reply.code(409).send({ error: 'retired_hook_cannot_be_approved' })
     const row = await prisma.hook.update({
       where: { id },
-      data: { status: 'approved', approvedAt: new Date(), approvedById: op.operatorId },
+      data: { status: 'approved', approvedAt: new Date(), approvedById: op.accountId },
       include: { outcome: { select: { id: true, title: true, displayTitle: true, version: true } } },
     })
     return row
@@ -1828,7 +1828,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         orderBy: { occurredAt: 'desc' },
         take: 30,
         include: {
-          operator: { select: { id: true, email: true } },
+          account: { select: { id: true, email: true } },
           song: { select: { lineageRows: { select: { songSeed: { select: { title: true } } }, take: 1 } } },
         },
       }),
@@ -1891,8 +1891,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         outcomeId: e.outcomeId,
         outcomeTitle: e.outcomeId ? (outcomeById.get(e.outcomeId)?.title ?? null) : null,
         outcomeDisplayTitle: e.outcomeId ? (outcomeById.get(e.outcomeId)?.displayTitle ?? null) : null,
-        operatorId: e.operatorId,
-        operatorEmail: e.operator?.email ?? null,
+        accountId: e.accountId,
+        operatorEmail: e.account?.email ?? null,
         reportReason: e.reportReason,
         extra: e.extra ?? null,
       })),
@@ -1920,7 +1920,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
       take: limit,
       include: {
-        operator: { select: { id: true, email: true } },
+        account: { select: { id: true, email: true } },
         song: { select: { lineageRows: { select: { songSeed: { select: { title: true } } }, take: 1 } } },
       },
     })
@@ -1942,8 +1942,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         outcomeId: e.outcomeId,
         outcomeTitle: e.outcomeId ? (outcomeById.get(e.outcomeId)?.title ?? null) : null,
         outcomeDisplayTitle: e.outcomeId ? (outcomeById.get(e.outcomeId)?.displayTitle ?? null) : null,
-        operatorId: e.operatorId,
-        operatorEmail: e.operator?.email ?? null,
+        accountId: e.accountId,
+        operatorEmail: e.account?.email ?? null,
         reportReason: e.reportReason,
         extra: e.extra ?? null,
       })),
@@ -1965,7 +1965,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           eventType: 'outcome_selection',
           storeId: id,
           occurredAt: new Date(),
-          operatorId: op.operatorId,
+          accountId: op.accountId,
           outcomeId,
         },
       })
@@ -1985,7 +1985,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           eventType: 'outcome_selection_cleared',
           storeId: id,
           occurredAt: new Date(),
-          operatorId: op.operatorId,
+          accountId: op.accountId,
         },
       })
       return { ok: true }
@@ -2356,7 +2356,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         outcomeId: parsed.data.outcomeId,
         n: parsed.data.n,
         triggeredBy: 'manual',
-        triggeredByUser: op.operatorId,
+        triggeredByUser: op.accountId,
       })
       return result
     } catch (e: any) {
@@ -2548,14 +2548,14 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // GET /admin/operators — list all operators with store assignments
   app.get('/operators', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
-    const rows = await prisma.operator.findMany({
+    const rows = await prisma.account.findMany({
       orderBy: { email: 'asc' },
       include: { storeAssignments: { include: { store: { select: { id: true, name: true, client: { select: { companyName: true } } } } } } },
     })
     return rows.map((r) => ({
       id: r.id,
       email: r.email,
-      displayName: r.displayName,
+      name: r.name,
       isAdmin: r.isAdmin,
       disabledAt: r.disabledAt?.toISOString() ?? null,
       stores: r.storeAssignments.map((a) => ({ id: a.store.id, name: a.store.name, clientName: a.store.client?.companyName ?? null })),
@@ -2565,7 +2565,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   const OperatorCreateBody = z.object({
     email: z.string().email().transform((s) => s.trim().toLowerCase()),
     password: z.string().min(1),
-    displayName: z.string().nullable().optional(),
+    name: z.string().nullable().optional(),
     storeIds: z.array(z.string().uuid()).optional(),
   })
 
@@ -2576,20 +2576,20 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const passwordHash = await bcrypt.hash(parsed.data.password, 10)
     try {
-      const created = await prisma.operator.create({
+      const created = await prisma.account.create({
         data: {
           email: parsed.data.email,
           passwordHash,
-          displayName: parsed.data.displayName ?? null,
+          name: parsed.data.name ?? null,
           isAdmin: false,
           storeAssignments: parsed.data.storeIds?.length
-            ? { create: parsed.data.storeIds.map((storeId) => ({ storeId, assignedById: op.operatorId })) }
+            ? { create: parsed.data.storeIds.map((storeId) => ({ storeId, assignedById: op.accountId })) }
             : undefined,
         },
         include: { storeAssignments: { include: { store: { select: { id: true, name: true, client: { select: { companyName: true } } } } } } },
       })
       return {
-        id: created.id, email: created.email, displayName: created.displayName,
+        id: created.id, email: created.email, name: created.name,
         isAdmin: created.isAdmin, disabledAt: null,
         stores: created.storeAssignments.map((a) => ({ id: a.store.id, name: a.store.name, clientName: a.store.client?.companyName ?? null })),
       }
@@ -2604,7 +2604,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   const OperatorUpdateBody = z.object({
     email: z.string().email().transform((s) => s.trim().toLowerCase()).optional(),
     password: z.string().min(1).optional(),
-    displayName: z.string().nullable().optional(),
+    name: z.string().nullable().optional(),
     storeIds: z.array(z.string().uuid()).optional(),
     disabled: z.boolean().optional(),
   })
@@ -2617,7 +2617,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const data: any = {}
     if (parsed.data.email !== undefined) data.email = parsed.data.email
-    if (parsed.data.displayName !== undefined) data.displayName = parsed.data.displayName
+    if (parsed.data.name !== undefined) data.name = parsed.data.name
     let bumpTokenVersion = false
     if (parsed.data.password) {
       data.passwordHash = await bcrypt.hash(parsed.data.password, 10)
@@ -2635,23 +2635,23 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     try {
       const updated = await prisma.$transaction(async (tx) => {
         if (parsed.data.storeIds !== undefined) {
-          await tx.operatorStoreAssignment.deleteMany({ where: { operatorId: id } })
+          await tx.storeAssignment.deleteMany({ where: { accountId: id } })
           if (parsed.data.storeIds.length > 0) {
-            await tx.operatorStoreAssignment.createMany({
-              data: parsed.data.storeIds.map((storeId) => ({ operatorId: id, storeId, assignedById: op.operatorId })),
+            await tx.storeAssignment.createMany({
+              data: parsed.data.storeIds.map((storeId) => ({ accountId: id, storeId, assignedById: op.accountId })),
             })
           }
         }
-        return tx.operator.update({
+        return tx.account.update({
           where: { id },
           data,
           include: { storeAssignments: { include: { store: { select: { id: true, name: true, client: { select: { companyName: true } } } } } } },
         })
       })
       return {
-        id: updated.id, email: updated.email, displayName: updated.displayName,
+        id: updated.id, email: updated.email, name: updated.name,
         isAdmin: updated.isAdmin, disabledAt: updated.disabledAt?.toISOString() ?? null,
-        stores: updated.storeAssignments.map((a) => ({ id: a.store.id, name: a.store.name, clientName: a.store.client?.companyName ?? null })),
+        stores: updated.storeAssignments.map((a: { store: { id: string; name: string; client: { companyName: string } | null } }) => ({ id: a.store.id, name: a.store.name, clientName: a.store.client?.companyName ?? null })),
       }
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError) {
@@ -2683,7 +2683,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           ],
         }
       : {}
-    const rows = await prisma.user.findMany({
+    const rows = await prisma.account.findMany({
       where,
       orderBy: [{ lastLoginAt: 'desc' }, { createdAt: 'desc' }],
       take: 200,
@@ -2725,7 +2725,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (parsed.data.email === undefined && parsed.data.name === undefined) {
       return reply.code(400).send({ error: 'no_changes' })
     }
-    const existing = await prisma.user.findUnique({ where: { id } })
+    const existing = await prisma.account.findUnique({ where: { id } })
     if (!existing) return reply.code(404).send({ error: 'not_found' })
 
     try {
@@ -2737,7 +2737,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         data.tokenVersion = { increment: 1 }
       }
       const updated = await prisma.$transaction(async (tx) => {
-        const u = await tx.user.update({ where: { id }, data })
+        const u = await tx.account.update({ where: { id }, data })
         if (emailChanged) {
           // Burn any unconsumed magic-link tokens for the old OR new email.
           await tx.magicLinkToken.updateMany({
@@ -2774,7 +2774,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   app.post('/users/:id/send-magic-link', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
-    const u = await prisma.user.findUnique({ where: { id } })
+    const u = await prisma.account.findUnique({ where: { id } })
     if (!u) return reply.code(404).send({ error: 'not_found' })
     if (u.disabledAt) return reply.code(400).send({ error: 'account_disabled' })
 
@@ -2802,7 +2802,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     try {
-      const u = await prisma.user.update({
+      const u = await prisma.account.update({
         where: { id },
         data: { tokenVersion: { increment: 1 } },
       })
@@ -2829,7 +2829,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       const data: any = parsed.data.disabled
         ? { disabledAt: new Date(), tokenVersion: { increment: 1 } }
         : { disabledAt: null }
-      const u = await prisma.user.update({ where: { id }, data })
+      const u = await prisma.account.update({ where: { id }, data })
       return { ok: true, disabledAt: u.disabledAt?.toISOString() ?? null, tokenVersion: u.tokenVersion }
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
@@ -2877,7 +2877,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         pullWindowEnd: new Date(pullWindowEnd),
         status: 'running',
         triggeredBy: 'manual',
-        triggeredById: op.operatorId,
+        triggeredById: op.accountId,
       },
     })
 
@@ -2996,7 +2996,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         reportDate: daily.reportDate,
         filename: file.filename || null,
         status: 'running',
-        triggeredById: op.operatorId,
+        triggeredById: op.accountId,
       },
     })
 
@@ -3592,11 +3592,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         compTier: newComp,
         compExpiresAt: expiresAt,
         compReason: parsed.data.reason,
-        compGrantedById: op.operatorId,
+        compGrantedById: op.accountId,
         compGrantedAt: new Date(),
       },
       source: 'admin_comp',
-      actorId: op.operatorId,
+      actorId: op.accountId,
       reason: parsed.data.reason,
       expiresAt,
     })
@@ -3647,7 +3647,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         compGrantedAt: null,
       },
       source: 'admin_revoke',
-      actorId: op.operatorId,
+      actorId: op.accountId,
       reason: parsed.data.reason,
     })
 
@@ -3684,7 +3684,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     // Resolve actor emails for the audit panel.
     const actorIds = Array.from(new Set(rows.map((r) => r.actorId).filter((x): x is string => !!x)))
     const actors = actorIds.length
-      ? await prisma.operator.findMany({
+      ? await prisma.account.findMany({
           where: { id: { in: actorIds } },
           select: { id: true, email: true },
         })

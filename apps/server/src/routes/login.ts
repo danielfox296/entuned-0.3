@@ -76,9 +76,9 @@ function playerUrl(): string {
 // Resolve the player URL for a user's primary (oldest, non-archived) store.
 // Used when the magic-link email asks the verify route to land in the player.
 // Returns null if the user has no active stores — caller falls back to dashboard.
-async function resolvePlayerUrlForUser(userId: string): Promise<string | null> {
+async function resolvePlayerUrlForUser(accountId: string): Promise<string | null> {
   const membership = await prisma.clientMembership.findFirst({
-    where: { userId },
+    where: { accountId },
     select: { clientId: true },
   })
   if (!membership) return null
@@ -140,20 +140,20 @@ interface GoogleUserinfo {
 
 async function findOrCreateUserByEmail(email: string, name?: string | null): Promise<{ id: string; email: string; name: string | null; disabledAt: Date | null; tokenVersion: number }> {
   const normalized = email.trim().toLowerCase()
-  const existing = await prisma.user.findUnique({ where: { email: normalized } })
+  const existing = await prisma.account.findUnique({ where: { email: normalized } })
   if (existing && existing.disabledAt) {
     // Disabled accounts can't be re-activated by signing in; admin must un-disable.
     return { id: existing.id, email: existing.email, name: existing.name, disabledAt: existing.disabledAt, tokenVersion: existing.tokenVersion }
   }
-  const user = existing
-    ? await prisma.user.update({ where: { id: existing.id }, data: { lastLoginAt: new Date() } })
-    : await prisma.user.create({
+  const acc = existing
+    ? await prisma.account.update({ where: { id: existing.id }, data: { lastLoginAt: new Date() } })
+    : await prisma.account.create({
         data: { email: normalized, name: name ?? null, lastLoginAt: new Date() },
       })
-  // Free-tier provisioning: every signed-in user gets a Client + Store
-  // (idempotent — backfills users that pre-date this change).
-  await ensureFreeClientForUser(user.id, normalized)
-  return { id: user.id, email: user.email, name: user.name, disabledAt: user.disabledAt, tokenVersion: user.tokenVersion }
+  // Free-tier provisioning: every signed-in account gets a Client + Store
+  // (idempotent — backfills accounts that pre-date this change).
+  await ensureFreeClientForUser(acc.id, normalized)
+  return { id: acc.id, email: acc.email, name: acc.name, disabledAt: acc.disabledAt, tokenVersion: acc.tokenVersion }
 }
 
 // Google OAuth handlers — defined but NOT registered in v1.
@@ -238,13 +238,13 @@ async function googleCallbackHandler(req: FastifyRequest, reply: FastifyReply) {
   const normalizedEmail = userinfo.email.trim().toLowerCase()
 
   // 1) Match by googleSub.
-  let user = await prisma.user.findUnique({ where: { googleSub: userinfo.sub } })
+  let acc = await prisma.account.findUnique({ where: { googleSub: userinfo.sub } })
 
   // 2) Else match by email; if found and no googleSub yet, attach it.
-  if (!user) {
-    const byEmail = await prisma.user.findUnique({ where: { email: normalizedEmail } })
+  if (!acc) {
+    const byEmail = await prisma.account.findUnique({ where: { email: normalizedEmail } })
     if (byEmail) {
-      user = await prisma.user.update({
+      acc = await prisma.account.update({
         where: { id: byEmail.id },
         data: {
           googleSub: byEmail.googleSub ?? userinfo.sub,
@@ -255,9 +255,9 @@ async function googleCallbackHandler(req: FastifyRequest, reply: FastifyReply) {
     }
   }
 
-  // 3) Else create a brand-new User.
-  if (!user) {
-    user = await prisma.user.create({
+  // 3) Else create a brand-new Account.
+  if (!acc) {
+    acc = await prisma.account.create({
       data: {
         email: normalizedEmail,
         name: userinfo.name ?? null,
@@ -266,18 +266,18 @@ async function googleCallbackHandler(req: FastifyRequest, reply: FastifyReply) {
       },
     })
   } else {
-    if (user.disabledAt) {
+    if (acc.disabledAt) {
       return reply.code(403).send({ error: 'account_disabled' })
     }
-    // Existing user logging in — bump lastLoginAt.
-    user = await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+    // Existing account logging in — bump lastLoginAt.
+    acc = await prisma.account.update({ where: { id: acc.id }, data: { lastLoginAt: new Date() } })
   }
 
   // Same free-tier provisioning as the magic-link path. Idempotent — backfills
-  // any Google-signup users that pre-date this call.
-  await ensureFreeClientForUser(user.id, normalizedEmail)
+  // any Google-signup accounts that pre-date this call.
+  await ensureFreeClientForUser(acc.id, normalizedEmail)
 
-  setSessionCookie(reply, user.id, user.tokenVersion)
+  setSessionCookie(reply, acc.id, acc.tokenVersion)
   return reply.redirect(nextDest ?? `${appUrl()}/`, 302)
 }
 
@@ -357,18 +357,18 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
     if (row.expiresAt.getTime() < Date.now()) return failRedirect('token_expired')
 
     await prisma.magicLinkToken.update({ where: { id: row.id }, data: { consumedAt: new Date() } })
-    const user = await findOrCreateUserByEmail(row.email)
-    if (user.disabledAt) {
+    const acc = await findOrCreateUserByEmail(row.email)
+    if (acc.disabledAt) {
       return reply.redirect(`${appUrl()}/start?error=account_disabled`, 302)
     }
-    setSessionCookie(reply, user.id, user.tokenVersion)
-    // `next=player` is a sentinel: resolve to the user's primary store's
+    setSessionCookie(reply, acc.id, acc.tokenVersion)
+    // `next=player` is a sentinel: resolve to the account's primary store's
     // player URL. Cross-origin (music.entuned.co), so safeNext can't be used —
-    // the destination is server-derived from authed user state, not user input.
+    // the destination is server-derived from authed account state, not user input.
     if (q.next === 'player') {
-      const playerDest = await resolvePlayerUrlForUser(user.id)
+      const playerDest = await resolvePlayerUrlForUser(acc.id)
       if (playerDest) return reply.redirect(playerDest, 302)
-      // Fall through to dashboard if the user somehow has no store.
+      // Fall through to dashboard if the account somehow has no store.
     }
     // Re-validate `next` on the way out — the link was constructed by us
     // but we don't trust the email transport. safeNext returns null for

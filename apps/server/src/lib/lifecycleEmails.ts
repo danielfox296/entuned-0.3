@@ -105,7 +105,7 @@ async function runIcpUnfilled(): Promise<DripStats> {
             where: { role: { in: ['owner', 'manager'] } },
             orderBy: { createdAt: 'asc' },
             take: 1,
-            select: { user: { select: { id: true, email: true } } },
+            select: { account: { select: { id: true, email: true } } },
           },
         },
       },
@@ -119,23 +119,23 @@ async function runIcpUnfilled(): Promise<DripStats> {
   for (const s of stores) {
     if (seenClient.has(s.clientId)) continue
     seenClient.add(s.clientId)
-    const user = s.client.memberships[0]?.user
+    const user = s.client.memberships[0]?.account
     if (!user) continue
     stats.considered++
     const already = await prisma.lifecycleEmailLog.findUnique({
-      where: { userId_templateName_contextKey: {
-        userId: user.id, templateName: 'icpUnfilled', contextKey: '',
+      where: { accountId_templateName_contextKey: {
+        accountId: user.id, templateName: 'icpUnfilled', contextKey: '',
       } },
     })
     if (already) { stats.skipped++; continue }
     try {
-      const res = await sendLifecycle('icpUnfilled', { userId: user.id, email: user.email }, {
+      const res = await sendLifecycle('icpUnfilled', { accountId: user.id, email: user.email }, {
         intakeUrl: `${APP_URL}/intake`,
       })
       if (res.skipped) { stats.skipped++; continue }
       if (!res.ok) { stats.errors++; continue }
       await prisma.lifecycleEmailLog.create({
-        data: { userId: user.id, templateName: 'icpUnfilled' },
+        data: { accountId: user.id, templateName: 'icpUnfilled' },
       })
       stats.sent++
     } catch {
@@ -173,7 +173,7 @@ async function runPauseEnding(): Promise<DripStats> {
             where: { role: { in: ['owner', 'manager'] } },
             orderBy: { createdAt: 'asc' },
             take: 1,
-            select: { user: { select: { id: true, email: true } } },
+            select: { account: { select: { id: true, email: true } } },
           },
         },
       },
@@ -181,13 +181,13 @@ async function runPauseEnding(): Promise<DripStats> {
   })
 
   for (const s of stores) {
-    const user = s.client.memberships[0]?.user
+    const user = s.client.memberships[0]?.account
     if (!user || !s.pausedUntil) continue
     stats.considered++
     const contextKey = s.pausedUntil.toISOString().slice(0, 10) // YYYY-MM-DD
     const already = await prisma.lifecycleEmailLog.findUnique({
-      where: { userId_templateName_contextKey: {
-        userId: user.id, templateName: 'pauseEnding', contextKey,
+      where: { accountId_templateName_contextKey: {
+        accountId: user.id, templateName: 'pauseEnding', contextKey,
       } },
     })
     if (already) { stats.skipped++; continue }
@@ -196,7 +196,7 @@ async function runPauseEnding(): Promise<DripStats> {
       const res = await sendPauseEnding(user.email, daysRemaining, APP_URL)
       if (!res.ok) { stats.errors++; continue }
       await prisma.lifecycleEmailLog.create({
-        data: { userId: user.id, templateName: 'pauseEnding', contextKey },
+        data: { accountId: user.id, templateName: 'pauseEnding', contextKey },
       })
       stats.sent++
     } catch {
@@ -236,31 +236,31 @@ async function runFreeToCoreNudge(): Promise<DripStats> {
         where: { role: { in: ['owner', 'manager'] } },
         orderBy: { createdAt: 'asc' },
         take: 1,
-        select: { user: { select: { id: true, email: true } } },
+        select: { account: { select: { id: true, email: true } } },
       },
     },
   })
 
   for (const c of clients) {
-    const user = c.memberships[0]?.user
+    const user = c.memberships[0]?.account
     const slug = c.stores[0]?.slug
     if (!user || !slug) continue
     stats.considered++
     const already = await prisma.lifecycleEmailLog.findUnique({
-      where: { userId_templateName_contextKey: {
-        userId: user.id, templateName: 'freeToCoreNudge', contextKey: '',
+      where: { accountId_templateName_contextKey: {
+        accountId: user.id, templateName: 'freeToCoreNudge', contextKey: '',
       } },
     })
     if (already) { stats.skipped++; continue }
     try {
-      const res = await sendLifecycle('freeToCoreNudge', { userId: user.id, email: user.email }, {
+      const res = await sendLifecycle('freeToCoreNudge', { accountId: user.id, email: user.email }, {
         upgradeUrl: `${API_URL}/billing/checkout?tier=core`,
         playerUrl: `${PLAYER_URL}/${slug}`,
       })
       if (res.skipped) { stats.skipped++; continue }
       if (!res.ok) { stats.errors++; continue }
       await prisma.lifecycleEmailLog.create({
-        data: { userId: user.id, templateName: 'freeToCoreNudge' },
+        data: { accountId: user.id, templateName: 'freeToCoreNudge' },
       })
       stats.sent++
     } catch {
@@ -302,13 +302,13 @@ async function runEngagedFreeToCore(): Promise<DripStats> {
         where: { role: { in: ['owner', 'manager'] } },
         orderBy: { createdAt: 'asc' },
         take: 1,
-        select: { user: { select: { id: true, email: true } } },
+        select: { account: { select: { id: true, email: true } } },
       },
     },
   })
 
   for (const c of clients) {
-    const user = c.memberships[0]?.user
+    const user = c.memberships[0]?.account
     if (!user || c.stores.length === 0) continue
 
     const storeIds = c.stores.map((s) => s.id)
@@ -323,20 +323,20 @@ async function runEngagedFreeToCore(): Promise<DripStats> {
 
     stats.considered++
     const already = await prisma.lifecycleEmailLog.findUnique({
-      where: { userId_templateName_contextKey: {
-        userId: user.id, templateName: 'engagedFreeToCore', contextKey: '',
+      where: { accountId_templateName_contextKey: {
+        accountId: user.id, templateName: 'engagedFreeToCore', contextKey: '',
       } },
     })
     if (already) { stats.skipped++; continue }
     try {
-      const res = await sendLifecycle('engagedFreeToCore', { userId: user.id, email: user.email }, {
+      const res = await sendLifecycle('engagedFreeToCore', { accountId: user.id, email: user.email }, {
         upgradeUrl: `${API_URL}/billing/checkout?tier=core`,
         songsPlayed: songStarts,
       })
       if (res.skipped) { stats.skipped++; continue }
       if (!res.ok) { stats.errors++; continue }
       await prisma.lifecycleEmailLog.create({
-        data: { userId: user.id, templateName: 'engagedFreeToCore' },
+        data: { accountId: user.id, templateName: 'engagedFreeToCore' },
       })
       stats.sent++
     } catch {
@@ -373,13 +373,13 @@ async function runScalingCoreToPro(): Promise<DripStats> {
         where: { role: { in: ['owner', 'manager'] } },
         orderBy: { createdAt: 'asc' },
         take: 1,
-        select: { user: { select: { id: true, email: true } } },
+        select: { account: { select: { id: true, email: true } } },
       },
     },
   })
 
   for (const c of clients) {
-    const user = c.memberships[0]?.user
+    const user = c.memberships[0]?.account
     if (!user) continue
     const paid = c.stores.filter((s) => s.subscription !== null)
     if (paid.length < 2) continue
@@ -392,20 +392,20 @@ async function runScalingCoreToPro(): Promise<DripStats> {
 
     stats.considered++
     const already = await prisma.lifecycleEmailLog.findUnique({
-      where: { userId_templateName_contextKey: {
-        userId: user.id, templateName: 'scalingCoreToPro', contextKey: '',
+      where: { accountId_templateName_contextKey: {
+        accountId: user.id, templateName: 'scalingCoreToPro', contextKey: '',
       } },
     })
     if (already) { stats.skipped++; continue }
     try {
-      const res = await sendLifecycle('scalingCoreToPro', { userId: user.id, email: user.email }, {
+      const res = await sendLifecycle('scalingCoreToPro', { accountId: user.id, email: user.email }, {
         upgradeUrl: `${API_URL}/billing/checkout?tier=pro`,
         storeCount: paid.length,
       })
       if (res.skipped) { stats.skipped++; continue }
       if (!res.ok) { stats.errors++; continue }
       await prisma.lifecycleEmailLog.create({
-        data: { userId: user.id, templateName: 'scalingCoreToPro' },
+        data: { accountId: user.id, templateName: 'scalingCoreToPro' },
       })
       stats.sent++
     } catch {
@@ -450,13 +450,13 @@ async function runEstablishedCoreToPro(): Promise<DripStats> {
         where: { role: { in: ['owner', 'manager'] } },
         orderBy: { createdAt: 'asc' },
         take: 1,
-        select: { user: { select: { id: true, email: true } } },
+        select: { account: { select: { id: true, email: true } } },
       },
     },
   })
 
   for (const c of clients) {
-    const user = c.memberships[0]?.user
+    const user = c.memberships[0]?.account
     if (!user) continue
     // Skip if any Store is *effectively* Pro/Enterprise (paid or comped).
     if (c.stores.some((s) => {
@@ -466,19 +466,19 @@ async function runEstablishedCoreToPro(): Promise<DripStats> {
 
     stats.considered++
     const already = await prisma.lifecycleEmailLog.findUnique({
-      where: { userId_templateName_contextKey: {
-        userId: user.id, templateName: 'establishedCoreToPro', contextKey: '',
+      where: { accountId_templateName_contextKey: {
+        accountId: user.id, templateName: 'establishedCoreToPro', contextKey: '',
       } },
     })
     if (already) { stats.skipped++; continue }
     try {
-      const res = await sendLifecycle('establishedCoreToPro', { userId: user.id, email: user.email }, {
+      const res = await sendLifecycle('establishedCoreToPro', { accountId: user.id, email: user.email }, {
         upgradeUrl: `${API_URL}/billing/checkout?tier=pro`,
       })
       if (res.skipped) { stats.skipped++; continue }
       if (!res.ok) { stats.errors++; continue }
       await prisma.lifecycleEmailLog.create({
-        data: { userId: user.id, templateName: 'establishedCoreToPro' },
+        data: { accountId: user.id, templateName: 'establishedCoreToPro' },
       })
       stats.sent++
     } catch {

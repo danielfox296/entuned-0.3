@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { createHash, randomBytes } from 'node:crypto'
 import bcrypt from 'bcryptjs'
-import { login, signOperatorToken, verify } from '../lib/auth.js'
+import { login, signAccountToken, verify } from '../lib/auth.js'
 import { prisma } from '../db.js'
 import { sendOperatorPasswordReset } from '../lib/email.js'
 
@@ -48,47 +48,50 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
     return {
       token: result.token,
+      // External field name kept as `operator` for the admin/Dash SPA's
+      // existing reads. Internally this is an Account row.
       operator: {
-        id: result.operator.operatorId,
-        email: result.operator.email,
-        isAdmin: result.operator.isAdmin,
+        id: result.account.accountId,
+        email: result.account.email,
+        isAdmin: result.account.isAdmin,
       },
     }
   })
 
-  // GET /auth/me — verify a token and return operator + their store assignments.
+  // GET /auth/me — verify a token and return account + their store assignments.
   app.get('/me', async (req, reply) => {
     const auth = req.headers.authorization
     if (!auth?.startsWith('Bearer ')) return reply.code(401).send({ error: 'unauthorized' })
     const payload = verify(auth.slice(7))
     if (!payload) return reply.code(401).send({ error: 'invalid_token' })
 
-    const op = await prisma.operator.findUnique({
-      where: { id: payload.operatorId },
+    const acc = await prisma.account.findUnique({
+      where: { id: payload.accountId },
       include: payload.isAdmin ? undefined : {
         storeAssignments: { include: { store: { include: { client: { select: { companyName: true } } } } } },
       },
     })
-    if (!op || op.disabledAt) return reply.code(401).send({ error: 'operator_disabled' })
-    if (op.tokenVersion !== payload.tv) return reply.code(401).send({ error: 'token_revoked' })
+    if (!acc || acc.disabledAt) return reply.code(401).send({ error: 'operator_disabled' })
+    if (acc.tokenVersion !== payload.tv) return reply.code(401).send({ error: 'token_revoked' })
 
     type StoreOut = { id: string; name: string; clientName: string | null }
     let stores: StoreOut[]
-    if (op.isAdmin) {
+    if (acc.isAdmin) {
       const rows = await prisma.store.findMany({
         select: { id: true, name: true, client: { select: { companyName: true } } },
       })
       stores = rows.map((s) => ({ id: s.id, name: s.name, clientName: s.client?.companyName ?? null }))
     } else {
-      stores = (op as any).storeAssignments.map((a: any) => ({
+      stores = (acc as any).storeAssignments.map((a: any) => ({
         id: a.store.id,
         name: a.store.name,
         clientName: a.store.client?.companyName ?? null,
       }))
     }
-    const store = !op.isAdmin && stores.length > 0 ? stores[0] : null
+    const store = !acc.isAdmin && stores.length > 0 ? stores[0] : null
     return {
-      operator: { id: op.id, email: op.email, displayName: op.displayName, isAdmin: op.isAdmin },
+      // External field name kept as `operator` for SPA back-compat.
+      operator: { id: acc.id, email: acc.email, name: acc.name, isAdmin: acc.isAdmin },
       store,
       stores,
     }
@@ -101,7 +104,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   //   POST /auth/reset-password    — consume token + set new password.
   //   POST /auth/change-password   — authed; verify current; set new password.
   //
-  // All three bump Operator.tokenVersion on success so any existing bearer JWTs
+  // All three bump Account.tokenVersion on success so any existing bearer JWTs
   // (this device or others) stop validating.
 
   app.post('/forgot-password', {
@@ -113,26 +116,28 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     },
   }, async (req, reply) => {
     const parsed = ForgotBody.safeParse(req.body)
-    // Always return 200 — never leak whether an operator exists.
+    // Always return 200 — never leak whether an account exists.
     if (!parsed.success) return reply.code(200).send({ ok: true })
     const email = parsed.data.email.trim().toLowerCase()
 
     try {
-      const op = await prisma.operator.findUnique({ where: { email } })
-      // Only mint + send for active operators. Disabled operators silently no-op.
-      if (op && !op.disabledAt) {
+      const acc = await prisma.account.findUnique({ where: { email } })
+      // Only mint + send for active accounts that have a password (passwordless
+      // magic-link / Google-only accounts use the customer-dashboard flow,
+      // not this admin reset path).
+      if (acc && !acc.disabledAt && acc.passwordHash) {
         const tokenRaw = randomBytes(PASSWORD_RESET_TOKEN_BYTES).toString('hex')
         const tokenHash = sha256Hex(tokenRaw)
         const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MS)
 
-        await prisma.operatorPasswordResetToken.create({
-          data: { operatorId: op.id, tokenHash, expiresAt },
+        await prisma.passwordResetToken.create({
+          data: { accountId: acc.id, tokenHash, expiresAt },
         })
 
         // Reset target lives on the Dash SPA — token is in the hash so it never
         // hits the API server's access logs.
         const link = `${dashUrl()}/#reset-password?token=${encodeURIComponent(tokenRaw)}`
-        await sendOperatorPasswordReset(op.email, link)
+        await sendOperatorPasswordReset(acc.email, link)
       }
     } catch (err) {
       req.log.error({ err }, 'forgot-password send failed')
@@ -155,32 +160,32 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     }
     const tokenHash = sha256Hex(parsed.data.token)
-    const row = await prisma.operatorPasswordResetToken.findUnique({ where: { tokenHash } })
+    const row = await prisma.passwordResetToken.findUnique({ where: { tokenHash } })
     if (!row) return reply.code(400).send({ error: 'invalid_token' })
     if (row.consumedAt) return reply.code(400).send({ error: 'token_already_used' })
     if (row.expiresAt.getTime() < Date.now()) return reply.code(400).send({ error: 'token_expired' })
 
-    const op = await prisma.operator.findUnique({ where: { id: row.operatorId } })
-    if (!op || op.disabledAt) return reply.code(400).send({ error: 'operator_unavailable' })
+    const acc = await prisma.account.findUnique({ where: { id: row.accountId } })
+    if (!acc || acc.disabledAt) return reply.code(400).send({ error: 'operator_unavailable' })
 
     const newHash = await bcrypt.hash(parsed.data.newPassword, 10)
     await prisma.$transaction([
-      prisma.operatorPasswordResetToken.update({
+      prisma.passwordResetToken.update({
         where: { id: row.id },
         data: { consumedAt: new Date() },
       }),
-      prisma.operator.update({
-        where: { id: op.id },
+      prisma.account.update({
+        where: { id: acc.id },
         data: {
           passwordHash: newHash,
           passwordSetAt: new Date(),
           tokenVersion: { increment: 1 },
         },
       }),
-      // Burn any other outstanding reset tokens for this operator.
-      prisma.operatorPasswordResetToken.updateMany({
+      // Burn any other outstanding reset tokens for this account.
+      prisma.passwordResetToken.updateMany({
         where: {
-          operatorId: op.id,
+          accountId: acc.id,
           consumedAt: null,
           NOT: { id: row.id },
         },
@@ -190,9 +195,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
     // Auto-login: mint a fresh token at the new tokenVersion so the SPA can
     // drop the user straight into Dash without re-prompting.
-    const refreshed = await prisma.operator.findUnique({ where: { id: op.id } })
+    const refreshed = await prisma.account.findUnique({ where: { id: acc.id } })
     if (!refreshed) return reply.code(500).send({ error: 'internal' })
-    const { token } = signOperatorToken(refreshed)
+    const { token } = signAccountToken(refreshed)
 
     return {
       ok: true,
@@ -212,16 +217,17 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     }
 
-    const op = await prisma.operator.findUnique({ where: { id: payload.operatorId } })
-    if (!op || op.disabledAt) return reply.code(401).send({ error: 'operator_disabled' })
-    if (op.tokenVersion !== payload.tv) return reply.code(401).send({ error: 'token_revoked' })
+    const acc = await prisma.account.findUnique({ where: { id: payload.accountId } })
+    if (!acc || acc.disabledAt) return reply.code(401).send({ error: 'operator_disabled' })
+    if (acc.tokenVersion !== payload.tv) return reply.code(401).send({ error: 'token_revoked' })
+    if (!acc.passwordHash) return reply.code(409).send({ error: 'no_password_set' })
 
-    const ok = await bcrypt.compare(parsed.data.currentPassword, op.passwordHash)
+    const ok = await bcrypt.compare(parsed.data.currentPassword, acc.passwordHash)
     if (!ok) return reply.code(401).send({ error: 'invalid_credentials' })
 
     const newHash = await bcrypt.hash(parsed.data.newPassword, 10)
-    const updated = await prisma.operator.update({
-      where: { id: op.id },
+    const updated = await prisma.account.update({
+      where: { id: acc.id },
       data: {
         passwordHash: newHash,
         passwordSetAt: new Date(),
@@ -230,7 +236,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     })
 
     // Mint a fresh token at the new version so this caller stays signed in.
-    const { token } = signOperatorToken(updated)
+    const { token } = signAccountToken(updated)
     return {
       ok: true,
       token,

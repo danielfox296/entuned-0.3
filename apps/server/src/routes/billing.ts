@@ -79,7 +79,7 @@ async function findOrCreateClientByEmail(
 ): Promise<{ id: string; email: string; name: string }> {
   const normalized = email.trim().toLowerCase()
 
-  const user = await prisma.user.findUnique({
+  const user = await prisma.account.findUnique({
     where: { email: normalized },
     include: {
       memberships: { include: { client: true }, orderBy: { createdAt: 'asc' }, take: 1 },
@@ -95,11 +95,11 @@ async function findOrCreateClientByEmail(
   const client = await prisma.client.create({
     data: { companyName },
   })
-  const u = user ?? await prisma.user.create({
+  const u = user ?? await prisma.account.create({
     data: { email: normalized, name: name ?? null },
   })
   await prisma.clientMembership.create({
-    data: { clientId: client.id, userId: u.id, role: 'owner' },
+    data: { clientId: client.id, accountId: u.id, role: 'owner' },
   })
   return { id: client.id, email: normalized, name: client.companyName }
 }
@@ -462,7 +462,7 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
         success_url: `${APP_URL}/account?upgrade=success&tier=${targetTier}`,
         cancel_url: `${APP_URL}/account?upgrade=canceled`,
         client_reference_id: clientId,
-        customer_email: req.user.email,
+        customer_email: req.user!.email,
         metadata: { tier: targetTier, clientId, source: 'upgrade_from_comp' },
         subscription_data: {
           metadata: { tier: targetTier, clientId, source: 'upgrade_from_comp' },
@@ -787,7 +787,7 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
 
   const sub = await prisma.subscription.findUnique({
     where: { stripeSubscriptionId: stripeSubId },
-    include: { store: { include: { client: { include: { memberships: { include: { user: true }, take: 1 } } } } } },
+    include: { store: { include: { client: { include: { memberships: { include: { account: true }, take: 1 } } } } } },
   })
   if (!sub) return
 
@@ -802,7 +802,7 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
 
   // Pull the first member's email for the dunning notice. If no membership
   // exists (operator-managed Client), fall back to the Client.contactEmail.
-  const memberEmail = sub.store.client.memberships[0]?.user.email
+  const memberEmail = sub.store.client.memberships[0]?.account.email
   const dest = memberEmail ?? sub.store.client.contactEmail
   if (dest) {
     let portalUrl = `${APP_URL}/settings/billing`

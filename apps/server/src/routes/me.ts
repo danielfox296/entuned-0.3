@@ -55,14 +55,14 @@ const IcpInput = z.object({
 const ONBOARDING_GATE_DAYS_SINCE_SIGNUP = 7
 const ONBOARDING_GATE_DISTINCT_PLAY_DAYS = 4
 
-async function computeOnboardingGate(userId: string, storeIds: string[]): Promise<boolean> {
+async function computeOnboardingGate(accountId: string, storeIds: string[]): Promise<boolean> {
   // Time-based half — cheap, no event lookup needed.
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
+  const acc = await prisma.account.findUnique({
+    where: { id: accountId },
     select: { createdAt: true },
   })
-  if (user) {
-    const ageMs = Date.now() - user.createdAt.getTime()
+  if (acc) {
+    const ageMs = Date.now() - acc.createdAt.getTime()
     if (ageMs >= ONBOARDING_GATE_DAYS_SINCE_SIGNUP * 24 * 60 * 60 * 1000) return true
   }
 

@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../db.js'
-import { verify, isOperatorAuthorizedForStore } from '../lib/auth.js'
+import { verify, isAccountAuthorizedForStore } from '../lib/auth.js'
 
 // Card 20 contract — Oscar emits these directly. Server is append-only and accepts out-of-order.
 const EventSchema = z.object({
@@ -72,7 +72,7 @@ export const eventsRoutes: FastifyPluginAsync = async (app) => {
         eventType: e.event_type as any,
         storeId: e.store_id,
         occurredAt: new Date(e.occurred_at),
-        operatorId: e.operator_id ?? null,
+        accountId: e.operator_id ?? null,
         songId: e.song_id ?? null,
         hookId: e.hook_id ?? (e.song_id ? hookBySong.get(e.song_id) ?? null : null),
         reportReason: (e.report_reason ? REPORT_REASON_TO_PRISMA[e.report_reason] : null) as any,
@@ -130,14 +130,14 @@ export const eventsRoutes: FastifyPluginAsync = async (app) => {
     if (!auth?.startsWith('Bearer ')) return reply.code(401).send({ error: 'unauthorized' })
     const payload = verify(auth.slice(7))
     if (!payload) return reply.code(401).send({ error: 'invalid_token' })
-    const ok = await isOperatorAuthorizedForStore(payload.operatorId, q.data.store_id)
+    const ok = await isAccountAuthorizedForStore(payload.accountId, q.data.store_id)
     if (!ok) return reply.code(403).send({ error: 'forbidden' })
 
     const rows = await prisma.playbackEvent.findMany({
       where: {
         eventType: 'song_love',
         storeId: q.data.store_id,
-        operatorId: payload.operatorId,
+        accountId: payload.accountId,
         songId: { not: null },
       },
       select: { songId: true },

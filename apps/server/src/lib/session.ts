@@ -1,16 +1,19 @@
 // Customer dashboard session — JWT in an httpOnly cookie.
 //
-// Distinct from `lib/auth.ts`, which mints HMAC-signed bearer tokens for in-store Operators.
-// This module is for the customer dashboard (User + Account model).
+// Distinct from `lib/auth.ts`, which mints HMAC-signed bearer tokens for the
+// in-store admin/Dash. Both surfaces resolve to the unified Account table.
 //
 // - Cookie name: `entuned_session`
 // - 30-day rolling expiry: every request that successfully decodes a token re-issues the
 //   cookie with a fresh expiry, so active users stay logged in indefinitely.
 // - In production: secure, sameSite=lax, domain=`.entuned.co` (set via COOKIE_DOMAIN env var).
 //   In dev: domain omitted, secure=false.
+//
+// `request.user` is the public-facing field name kept stable for the
+// dashboard SPA's reads of /login/me; internally it carries the Account row.
 
 import jwt from 'jsonwebtoken'
-import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import fastifyCookie from '@fastify/cookie'
 import fp from 'fastify-plugin'
 import { prisma } from '../db.js'
@@ -19,11 +22,9 @@ const COOKIE_NAME = 'entuned_session'
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60 // 30 days
 
 export interface SessionPayload {
-  userId: string
-  // Token version. Bumped on admin-triggered revoke or email change.
-  // attachSession rejects mismatches. Optional in payload for back-compat with
-  // cookies issued before this field was added — those treat as version 0 and
-  // fail-shut once tokenVersion bumps for any reason.
+  accountId: string
+  // Token version. Bumped on admin-triggered revoke / email change /
+  // password change. attachSession rejects mismatches.
   tv?: number
   // `iat` / `exp` are added by jsonwebtoken automatically.
 }
@@ -34,7 +35,7 @@ export interface SessionUser {
   name: string | null
 }
 
-export interface SessionAccount {
+export interface SessionClient {
   id: string
   name: string
 }
@@ -42,7 +43,7 @@ export interface SessionAccount {
 declare module 'fastify' {
   interface FastifyRequest {
     user?: SessionUser
-    account?: SessionAccount
+    account?: SessionClient
     role?: string
   }
 }
@@ -78,9 +79,9 @@ function cookieOptions(): {
   }
 }
 
-/** Sign a session JWT for a user and write it to the response cookie. */
-export function setSessionCookie(reply: FastifyReply, userId: string, tokenVersion: number): string {
-  const token = jwt.sign({ userId, tv: tokenVersion } satisfies SessionPayload, getJwtSecret(), {
+/** Sign a session JWT for an account and write it to the response cookie. */
+export function setSessionCookie(reply: FastifyReply, accountId: string, tokenVersion: number): string {
+  const token = jwt.sign({ accountId, tv: tokenVersion } satisfies SessionPayload, getJwtSecret(), {
     expiresIn: SESSION_TTL_SECONDS,
   })
   reply.setCookie(COOKIE_NAME, token, cookieOptions())
@@ -96,15 +97,15 @@ export function clearSessionCookie(reply: FastifyReply): void {
 export function verifySessionToken(token: string): SessionPayload | null {
   try {
     const decoded = jwt.verify(token, getJwtSecret()) as SessionPayload & { iat: number; exp: number }
-    if (!decoded.userId) return null
-    return { userId: decoded.userId, tv: decoded.tv ?? 0 }
+    if (!decoded.accountId) return null
+    return { accountId: decoded.accountId, tv: decoded.tv ?? 0 }
   } catch {
     return null
   }
 }
 
 /**
- * Resolve the current user + their first account membership from the session cookie.
+ * Resolve the current account + their first ClientMembership from the session cookie.
  * Attaches `request.user`, `request.account`, `request.role` if valid.
  * Refreshes the cookie (rolling expiry) when a valid session is found.
  */
@@ -114,8 +115,8 @@ async function attachSession(request: FastifyRequest, reply: FastifyReply): Prom
   const payload = verifySessionToken(token)
   if (!payload) return
 
-  const user = await prisma.user.findUnique({
-    where: { id: payload.userId },
+  const acc = await prisma.account.findUnique({
+    where: { id: payload.accountId },
     include: {
       memberships: {
         orderBy: { createdAt: 'asc' },
@@ -124,32 +125,32 @@ async function attachSession(request: FastifyRequest, reply: FastifyReply): Prom
       },
     },
   })
-  if (!user) return
+  if (!acc) return
   // Soft-disabled accounts can't resolve a session; clear the stale cookie so
   // the SPA stops thinking the user is signed in.
-  if (user.disabledAt) {
+  if (acc.disabledAt) {
     clearSessionCookie(reply)
     return
   }
   // Token version mismatch ⇒ session was revoked (admin action, email change,
-  // etc.). Clear the cookie so the SPA bounces to /start.
-  if (user.tokenVersion !== (payload.tv ?? 0)) {
+  // password change). Clear the cookie so the SPA bounces to /start.
+  if (acc.tokenVersion !== (payload.tv ?? 0)) {
     clearSessionCookie(reply)
     return
   }
 
-  request.user = { id: user.id, email: user.email, name: user.name }
+  request.user = { id: acc.id, email: acc.email, name: acc.name }
   // Resolves first ClientMembership for now; a multi-client switcher comes later.
   // The request field is named `account` for backward-compat with /login/me's
-  // public response shape — internally it carries the Client (post-merger).
-  const m = user.memberships[0]
+  // public response shape — internally it carries the Client (post-2026-05-04 merger).
+  const m = acc.memberships[0]
   if (m) {
     request.account = { id: m.client.id, name: m.client.companyName }
     request.role = m.role
   }
 
   // Rolling expiry: re-issue the cookie so the 30-day window slides forward.
-  setSessionCookie(reply, user.id, user.tokenVersion)
+  setSessionCookie(reply, acc.id, acc.tokenVersion)
 }
 
 // Wrapped with fastify-plugin so the onRequest hook escapes encapsulation

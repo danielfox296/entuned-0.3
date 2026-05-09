@@ -15,10 +15,10 @@ export const emailRoutes: FastifyPluginAsync = async (app) => {
     const userId = verifyUnsubToken(token)
     if (!userId) return reply.code(400).type('text/html').send(htmlPage('That link isn’t valid anymore.', false))
 
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true } })
+    const user = await prisma.account.findUnique({ where: { id: userId }, select: { id: true, email: true } })
     if (!user) return reply.code(404).type('text/html').send(htmlPage('Account not found.', false))
 
-    await prisma.user.update({
+    await prisma.account.update({
       where: { id: user.id },
       data: { lifecycleEmailsOptOut: true },
     })

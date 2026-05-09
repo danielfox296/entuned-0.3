@@ -33,15 +33,15 @@ async function main() {
   const adminEmail = process.env.ADMIN_EMAIL ?? 'daniel@entuned.co'
   const adminPassword = process.env.ADMIN_PASSWORD ?? '1'
 
-  // ---- Operator (admin) ----
+  // ---- Admin Account ----
   const passwordHash = await bcrypt.hash(adminPassword, 10)
-  const admin = await prisma.operator.upsert({
+  const admin = await prisma.account.upsert({
     where: { email: adminEmail },
     update: { passwordHash, isAdmin: true, disabledAt: null },
     create: {
       email: adminEmail,
       passwordHash,
-      displayName: 'Daniel',
+      name: 'Daniel',
       isAdmin: true,
     },
   })
@@ -137,10 +137,10 @@ async function main() {
   }
 
   // Assign admin to store (admins bypass the table, but we write it for completeness).
-  await prisma.operatorStoreAssignment.upsert({
-    where: { operatorId_storeId: { operatorId: admin.id, storeId: store.id } },
+  await prisma.storeAssignment.upsert({
+    where: { accountId_storeId: { accountId: admin.id, storeId: store.id } },
     update: {},
-    create: { operatorId: admin.id, storeId: store.id, assignedById: admin.id },
+    create: { accountId: admin.id, storeId: store.id, assignedById: admin.id },
   })
 
   // ---- RotationRules (singleton) ----
@@ -190,7 +190,7 @@ async function main() {
 
   // ---- Summary ----
   const counts = {
-    operators: await prisma.operator.count(),
+    accounts: await prisma.account.count(),
     clients: await prisma.client.count(),
     icps: await prisma.iCP.count(),
     stores: await prisma.store.count(),

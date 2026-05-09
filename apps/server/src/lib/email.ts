@@ -151,10 +151,10 @@ function interpolate(tpl: string, props: Record<string, unknown>): string {
 interface UnsubPayload { sub: string; act: 'unsub' }
 
 /** Mint a stateless unsubscribe token. JWT signed with JWT_SECRET. */
-export function mintUnsubToken(userId: string): string {
+export function mintUnsubToken(accountId: string): string {
   const secret = process.env.JWT_SECRET
   if (!secret) throw new Error('JWT_SECRET unset; cannot mint unsub token')
-  const payload: UnsubPayload = { sub: userId, act: 'unsub' }
+  const payload: UnsubPayload = { sub: accountId, act: 'unsub' }
   // No expiry — opt-out links should keep working even on old emails.
   return jwt.sign(payload, secret, { algorithm: 'HS256' })
 }
@@ -171,18 +171,18 @@ export function verifyUnsubToken(token: string): string | null {
   }
 }
 
-function lifecycleFooter(userId: string | undefined): string {
-  if (!userId) return ''
-  const url = `${API_URL}/email/unsubscribe?token=${encodeURIComponent(mintUnsubToken(userId))}`
+function lifecycleFooter(accountId: string | undefined): string {
+  if (!accountId) return ''
+  const url = `${API_URL}/email/unsubscribe?token=${encodeURIComponent(mintUnsubToken(accountId))}`
   return `<p style="margin:18px 0 0 0;font-size:11px;color:#8a929a;line-height:1.5;">You receive this kind of email because you have an Entuned account. <a href="${url}" style="color:#8a929a;text-decoration:underline;">Unsubscribe from product nudges</a> — transactional mail (sign-in, billing, account) keeps coming.</p>`
 }
 
 // ── Render a template by name ────────────────────────────────────────────
 
 export interface RenderArgs {
-  /** Recipient userId. Required when template is lifecycle-class so the unsub
-   *  footer can link the right user; optional otherwise. */
-  recipientUserId?: string
+  /** Recipient accountId. Required when template is lifecycle-class so the
+   *  unsub footer can link the right account; optional otherwise. */
+  recipientAccountId?: string
 }
 
 /**
@@ -202,7 +202,7 @@ export async function renderTemplate(
     const subject = interpolate(row.subject, props)
     const bodyInterpolated = interpolate(row.body, props)
     const isLifecycle = LIFECYCLE_TEMPLATES.has(name)
-    const footer = isLifecycle ? lifecycleFooter(args.recipientUserId) : ''
+    const footer = isLifecycle ? lifecycleFooter(args.recipientAccountId) : ''
     const html = layout({
       preheader: typeof props._preheader === 'string' ? props._preheader : undefined,
       body: bodyInterpolated + footer,
@@ -235,20 +235,20 @@ export async function sendTemplate(
  */
 export async function sendLifecycle(
   name: TemplateName,
-  recipient: { userId: string; email: string },
+  recipient: { accountId: string; email: string },
   props: Record<string, unknown>,
 ): Promise<SendResult> {
   if (!LIFECYCLE_TEMPLATES.has(name)) {
     return { ok: false, error: `${name} is not a lifecycle template` }
   }
-  const user = await prisma.user.findUnique({
-    where: { id: recipient.userId },
+  const acc = await prisma.account.findUnique({
+    where: { id: recipient.accountId },
     select: { lifecycleEmailsOptOut: true },
   })
-  if (!user || user.lifecycleEmailsOptOut) {
+  if (!acc || acc.lifecycleEmailsOptOut) {
     return { ok: true, skipped: true }
   }
-  return sendTemplate(name, recipient.email, props, { recipientUserId: recipient.userId })
+  return sendTemplate(name, recipient.email, props, { recipientAccountId: recipient.accountId })
 }
 
 // ── One function per template (typed props) ──────────────────────────────

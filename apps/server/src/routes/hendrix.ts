@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
-import { verify, isOperatorAuthorizedForStore } from '../lib/auth.js'
+import { verify, isAccountAuthorizedForStore } from '../lib/auth.js'
 import { prisma } from '../db.js'
 
 const NextQuery = z.object({
@@ -48,7 +48,7 @@ async function requireOperatorForStore(req: any, reply: any, storeId: string) {
     reply.code(401).send({ error: 'invalid_token' })
     return null
   }
-  const ok = await isOperatorAuthorizedForStore(payload.operatorId, storeId)
+  const ok = await isAccountAuthorizedForStore(payload.accountId, storeId)
   if (!ok) {
     reply.code(403).send({ error: 'forbidden' })
     return null
@@ -129,13 +129,13 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
     const parsed = OverrideBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
     let storeId = parsed.data.store_id
-    let operatorId: string | null = null
+    let accountId: string | null = null
     if (parsed.data.slug && !storeId) {
       const s = await resolveStoreBySlug(parsed.data.slug, reply); if (!s) return
       storeId = s.id
     } else if (storeId) {
       const op = await requireOperatorForStore(req, reply, storeId); if (!op) return
-      operatorId = op.operatorId
+      accountId = op.accountId
     } else {
       return reply.code(400).send({ error: 'need_store_id_or_slug' })
     }
@@ -146,7 +146,7 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
         eventType: 'outcome_selection',
         storeId,
         occurredAt: new Date(),
-        operatorId,
+        accountId,
         outcomeId,
       },
     })
@@ -158,13 +158,13 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
     const parsed = ClearBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
     let storeId = parsed.data.store_id
-    let operatorId: string | null = null
+    let accountId: string | null = null
     if (parsed.data.slug && !storeId) {
       const s = await resolveStoreBySlug(parsed.data.slug, reply); if (!s) return
       storeId = s.id
     } else if (storeId) {
       const op = await requireOperatorForStore(req, reply, storeId); if (!op) return
-      operatorId = op.operatorId
+      accountId = op.accountId
     } else {
       return reply.code(400).send({ error: 'need_store_id_or_slug' })
     }
@@ -175,7 +175,7 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
         eventType: 'outcome_selection_cleared',
         storeId,
         occurredAt: new Date(),
-        operatorId,
+        accountId,
       },
     })
     return { ok: true }

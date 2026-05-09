@@ -55,45 +55,60 @@ enum ClientPlan {
   inactive
 }
 
-// ---------- Auth ----------
+// ---------- Auth (unified Account, replaces prior Operator + User) ----------
 
-model Operator {
-  id            String    @id @default(uuid()) @db.Uuid
-  email         String    @unique @db.Citext
-  passwordHash  String    @map("password_hash")
-  displayName   String?   @map("display_name")
-  isAdmin       Boolean   @default(false) @map("is_admin")
-  disabledAt    DateTime? @map("disabled_at") @db.Timestamptz(6)
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdById   String?   @map("created_by") @db.Uuid
-  passwordSetAt DateTime  @default(now()) @map("password_set_at") @db.Timestamptz(6)
-  // Bumped on password change, admin-triggered revoke, or self-serve disable.
-  // Baked into the JWT payload (`tv`) so previously-issued tokens stop validating.
-  tokenVersion  Int       @default(0) @map("token_version")
+// One identity per person. Authenticates either surface — the customer
+// dashboard (cookie session, /login/*) or the in-store admin/Dash (Bearer
+// JWT, /auth/*) — by resolving to the same row. See entune v0.3/schema/auth.md.
+model Account {
+  id                    String    @id @default(uuid()) @db.Uuid
+  email                 String    @unique @db.Citext
+  // Display name. Was `display_name` on Operator and `name` on User —
+  // canonicalized to `name` in the merge.
+  name                  String?
+  // Nullable: magic-link / Google-only accounts have no password.
+  passwordHash          String?   @map("password_hash")
+  googleSub             String?   @unique @map("google_sub")
+  isAdmin               Boolean   @default(false) @map("is_admin")
+  // Behavioral / lifecycle email opt-out. Unsubscribe link in every drip
+  // flips this to true. Transactional mail (magic link, dunning, welcome,
+  // pause-ending) ignores this flag — those are operationally required.
+  lifecycleEmailsOptOut Boolean   @default(false) @map("lifecycle_emails_opt_out")
+  disabledAt            DateTime? @map("disabled_at") @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById           String?   @map("created_by") @db.Uuid
+  passwordSetAt         DateTime  @default(now()) @map("password_set_at") @db.Timestamptz(6)
+  lastLoginAt           DateTime? @map("last_login_at") @db.Timestamptz(6)
+  // Bumped on password change, admin-triggered revoke, email change, or
+  // self-serve disable. Baked into the JWT payload (`tv`) AND the session
+  // cookie so previously-issued tokens stop validating on either surface.
+  tokenVersion          Int       @default(0) @map("token_version")
 
-  createdBy           Operator?                    @relation("OperatorCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdOthers       Operator[]                   @relation("OperatorCreator")
-  storeAssignments    OperatorStoreAssignment[]    @relation("OperatorAssignments")
-  assignmentsMade     OperatorStoreAssignment[]    @relation("OperatorAssigner")
+  createdBy           Account?             @relation("AccountCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdOthers       Account[]            @relation("AccountCreator")
+  storeAssignments    StoreAssignment[]    @relation("AccountAssignments")
+  assignmentsMade     StoreAssignment[]    @relation("AccountAssigner")
   playbackEvents      PlaybackEvent[]
-  passwordResetTokens OperatorPasswordResetToken[]
+  passwordResetTokens PasswordResetToken[]
+  memberships         ClientMembership[]
+  lifecycleEmails     LifecycleEmailLog[]
 
-  @@map("operators")
+  @@map("accounts")
 }
 
-model OperatorStoreAssignment {
-  operatorId   String   @map("operator_id") @db.Uuid
+model StoreAssignment {
+  accountId    String   @map("account_id") @db.Uuid
   storeId      String   @map("store_id") @db.Uuid
   assignedAt   DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
   assignedById String   @map("assigned_by") @db.Uuid
 
-  operator   Operator @relation("OperatorAssignments", fields: [operatorId], references: [id], onDelete: Cascade)
-  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  assignedBy Operator @relation("OperatorAssigner", fields: [assignedById], references: [id])
+  account    Account @relation("AccountAssignments", fields: [accountId], references: [id], onDelete: Cascade)
+  store      Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  assignedBy Account @relation("AccountAssigner", fields: [assignedById], references: [id])
 
-  @@id([operatorId, storeId])
+  @@id([accountId, storeId])
   @@index([storeId])
-  @@map("operator_store_assignments")
+  @@map("store_assignments")
 }
 
 // ---------- Card 3 Duke (Client + Store) ----------
@@ -158,7 +173,7 @@ model Store {
   defaultOutcome            Outcome?                   @relation("StoreDefaultOutcome", fields: [defaultOutcomeId], references: [id])
   outcomeSelection          Outcome?                   @relation("StoreOutcomeSelection", fields: [outcomeSelectionId], references: [id])
   scheduleSlots             ScheduleSlot[]
-  operatorAssignments       OperatorStoreAssignment[]
+  storeAssignments          StoreAssignment[]
   playbackEvents            PlaybackEvent[]
   posEvents                 POSEvent[]
   posPullRuns               POSPullRun[]
@@ -702,16 +717,20 @@ model PlaybackEvent {
   storeId      String            @map("store_id") @db.Uuid
   occurredAt   DateTime          @map("occurred_at") @db.Timestamptz(6)
   receivedAt   DateTime          @default(now()) @map("received_at") @db.Timestamptz(6)
-  operatorId   String?           @map("operator_id") @db.Uuid
+  // Account that caused the event. Was `operator_id` (FK → operators); now
+  // points at the unified Account table. Free-tier owners signed into their
+  // own player log here too — no longer NULL just because the actor isn't an
+  // in-store Operator.
+  accountId    String?           @map("account_id") @db.Uuid
   songId       String?           @map("song_id") @db.Uuid
   hookId       String?           @map("hook_id") @db.Uuid
   reportReason ReportReason?     @map("report_reason")
   outcomeId    String?           @map("outcome_id") @db.Uuid
   extra        Json?
 
-  store    Store     @relation(fields: [storeId], references: [id])
-  operator Operator? @relation(fields: [operatorId], references: [id])
-  song     Song?     @relation(fields: [songId], references: [id])
+  store   Store    @relation(fields: [storeId], references: [id])
+  account Account? @relation(fields: [accountId], references: [id])
+  song    Song?    @relation(fields: [songId], references: [id])
 
   @@index([storeId, songId, occurredAt(sort: Desc)])
   @@index([storeId, hookId, occurredAt(sort: Desc)])
@@ -925,53 +944,32 @@ model RetailNextHourlySnapshot {
 // (rather than Postgres enums) so adding new tiers/statuses does not require
 // an enum migration. Validation happens at the route layer with zod.
 
-// ---------- Customer dashboard auth (post-merger 2026-05-04) ----------
+// ---------- Customer dashboard auth (post-merger 2026-05-04 / 2026-05-09) ----------
 //
 // `Account` was merged into `Client` (its sole field `stripe_customer_id`
 // moved to Client). `Location` was merged into `Store` (slug, tier,
 // paused_until, archived_at moved to Store). `AccountMembership` was renamed
 // to `ClientMembership`. `Subscription` and `PlayerBinding` survived but
 // their FK repointed from location_id → store_id.
-
-model User {
-  id                    String    @id @default(uuid()) @db.Uuid
-  email                 String    @unique @db.Citext
-  name                  String?
-  googleSub             String?   @unique @map("google_sub")
-  // Behavioral / lifecycle email opt-out. Unsubscribe link in every drip
-  // flips this to true. Transactional mail (magic link, dunning, welcome,
-  // pause-ending) ignores this flag — those are operationally required.
-  lifecycleEmailsOptOut Boolean   @default(false) @map("lifecycle_emails_opt_out")
-  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  lastLoginAt           DateTime? @map("last_login_at") @db.Timestamptz(6)
-  // Soft-disable. Set by admin to block sign-in (magic-link verify, Google
-  // callback, and session resolution all bail). Unset to re-enable. Distinct
-  // from cascading delete — preserves Account/membership/billing history.
-  disabledAt            DateTime? @map("disabled_at") @db.Timestamptz(6)
-  // Bumped on admin-triggered revoke or email change. Baked into the session
-  // JWT (`tv`) so issued cookies stop validating.
-  tokenVersion          Int       @default(0) @map("token_version")
-
-  memberships     ClientMembership[]
-  lifecycleEmails LifecycleEmailLog[]
-
-  @@map("users")
-}
+//
+// 2026-05-09: `User` was merged into the unified `Account` table above. This
+// section now contains only `ClientMembership` (FK repointed to Account) and
+// `MagicLinkToken` (unchanged — keyed by email, no FK).
 
 model ClientMembership {
   id        String   @id @default(uuid()) @db.Uuid
   clientId  String   @map("client_id") @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
+  accountId String   @map("account_id") @db.Uuid
   // role is a string for now: 'owner' | 'manager'.
   // Promote to a Postgres enum (e.g., AccountRole) when we add more roles or want DB-level validation.
   role      String
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client  Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  @@unique([clientId, userId])
-  @@index([userId])
+  @@unique([clientId, accountId])
+  @@index([accountId])
   @@index([clientId])
   @@map("client_memberships")
 }
@@ -989,22 +987,22 @@ model MagicLinkToken {
   @@map("magic_link_tokens")
 }
 
-// Operator password reset. Distinct from MagicLinkToken: scoped to a specific
-// Operator (FK), 60-minute TTL, single-use. Token plaintext is sent in email;
+// Account password reset. Distinct from MagicLinkToken: scoped to a specific
+// Account (FK), 60-minute TTL, single-use. Token plaintext is sent in email;
 // only sha256 of the token is stored.
-model OperatorPasswordResetToken {
+model PasswordResetToken {
   id         String    @id @default(uuid()) @db.Uuid
-  operatorId String    @map("operator_id") @db.Uuid
+  accountId  String    @map("account_id") @db.Uuid
   tokenHash  String    @unique @map("token_hash")
   expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
   consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  operator Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  @@index([operatorId])
+  @@index([accountId])
   @@index([expiresAt])
-  @@map("operator_password_reset_tokens")
+  @@map("password_reset_tokens")
 }
 
 // ---------- Billing: Subscription ----------
@@ -1092,14 +1090,14 @@ model EmailTemplate {
 
 model LifecycleEmailLog {
   id           String   @id @default(uuid()) @db.Uuid
-  userId       String   @map("user_id") @db.Uuid
+  accountId    String   @map("account_id") @db.Uuid
   templateName String   @map("template_name")
   contextKey   String   @default("") @map("context_key")
   sentAt       DateTime @default(now()) @map("sent_at") @db.Timestamptz(6)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, templateName, contextKey])
-  @@index([userId])
+  @@unique([accountId, templateName, contextKey])
+  @@index([accountId])
   @@map("lifecycle_email_logs")
 }

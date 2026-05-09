@@ -32,7 +32,7 @@ export async function uniqueStoreSlug(name: string): Promise<string> {
 }
 
 /**
- * Ensure the User has a Client (with membership) and at least one Store.
+ * Ensure the Account has a Client (with membership) and at least one Store.
  * Idempotent: if a membership already exists, returns without creating duplicates.
  *
  * Every first sign-in gets a fresh Client + ClientMembership + free-tier
@@ -42,9 +42,9 @@ export async function uniqueStoreSlug(name: string): Promise<string> {
  *
  * Called from the magic-link verify and Google OAuth callback paths.
  */
-export async function ensureFreeClientForUser(userId: string, email: string): Promise<void> {
+export async function ensureFreeClientForUser(accountId: string, email: string): Promise<void> {
   const existing = await prisma.clientMembership.findFirst({
-    where: { userId },
+    where: { accountId },
     select: { id: true },
   })
   if (existing) return
@@ -57,7 +57,7 @@ export async function ensureFreeClientForUser(userId: string, email: string): Pr
       data: { companyName: localPart },
     })
     await tx.clientMembership.create({
-      data: { clientId: client.id, userId, role: 'owner' },
+      data: { clientId: client.id, accountId, role: 'owner' },
     })
     const s = await uniqueStoreSlug(localPart)
     const store = await tx.store.create({

@@ -1,5 +1,8 @@
-// Lightweight auth: stateless tokens (signed with a server secret) on Operator login.
-// Kept minimal for Phase 0 — replace with proper JWT lib if/when post-MVP work expands this.
+// Lightweight auth for the in-store admin/Dash surface (/auth/*).
+// Stateless Bearer tokens (HMAC signed with AUTH_SECRET). The customer
+// dashboard uses cookie sessions instead — see lib/session.ts.
+//
+// Both surfaces resolve to the unified Account table (post-merge 2026-05-09).
 
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import bcrypt from 'bcryptjs'
@@ -14,12 +17,13 @@ const SECRET = process.env.AUTH_SECRET ?? (() => {
 
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
-interface TokenPayload {
-  operatorId: string
+export interface TokenPayload {
+  accountId: string
   email: string
   isAdmin: boolean
-  // Token version. Bumped on password change / admin-triggered revoke.
-  // Routes that consult the operator row should reject `payload.tv !== op.tokenVersion`.
+  // Token version. Bumped on password change / admin-triggered revoke /
+  // email change. Routes that consult the account row should reject
+  // `payload.tv !== account.tokenVersion`.
   tv: number
   exp: number
 }
@@ -40,10 +44,6 @@ export function verify(token: string): TokenPayload | null {
   try {
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as TokenPayload
     if (payload.exp < Date.now()) return null
-    // `tv` is required as of 2026-05-08. Older tokens minted before that field
-    // existed will be missing it — treat as version 0 so they keep validating
-    // until the next login (and fail-shut once the operator's tokenVersion is
-    // bumped for any reason).
     if (typeof payload.tv !== 'number') payload.tv = 0
     return payload
   } catch {
@@ -52,36 +52,36 @@ export function verify(token: string): TokenPayload | null {
 }
 
 /**
- * Mint a new operator token. Reads the operator's current `tokenVersion` so the
- * minted token survives until the next bump.
+ * Mint a new account token. Reads the account's current `tokenVersion` so
+ * the minted token survives until the next bump.
  */
-export function signOperatorToken(op: { id: string; email: string; isAdmin: boolean; tokenVersion: number }): { token: string; payload: TokenPayload } {
+export function signAccountToken(acc: { id: string; email: string; isAdmin: boolean; tokenVersion: number }): { token: string; payload: TokenPayload } {
   const payload: TokenPayload = {
-    operatorId: op.id,
-    email: op.email,
-    isAdmin: op.isAdmin,
-    tv: op.tokenVersion,
+    accountId: acc.id,
+    email: acc.email,
+    isAdmin: acc.isAdmin,
+    tv: acc.tokenVersion,
     exp: Date.now() + TOKEN_TTL_MS,
   }
   return { token: sign(payload), payload }
 }
 
-export async function login(email: string, password: string): Promise<{ token: string; operator: TokenPayload } | null> {
+export async function login(email: string, password: string): Promise<{ token: string; account: TokenPayload } | null> {
   const normalized = email.trim().toLowerCase()
-  const op = await prisma.operator.findUnique({ where: { email: normalized } })
-  if (!op || op.disabledAt) return null
-  const ok = await bcrypt.compare(password, op.passwordHash)
+  const acc = await prisma.account.findUnique({ where: { email: normalized } })
+  if (!acc || acc.disabledAt || !acc.passwordHash) return null
+  const ok = await bcrypt.compare(password, acc.passwordHash)
   if (!ok) return null
-  const { token, payload } = signOperatorToken(op)
-  return { token, operator: payload }
+  const { token, payload } = signAccountToken(acc)
+  return { token, account: payload }
 }
 
-export async function isOperatorAuthorizedForStore(operatorId: string, storeId: string): Promise<boolean> {
-  const op = await prisma.operator.findUnique({ where: { id: operatorId } })
-  if (!op || op.disabledAt) return false
-  if (op.isAdmin) return true
-  const assignment = await prisma.operatorStoreAssignment.findUnique({
-    where: { operatorId_storeId: { operatorId, storeId } },
+export async function isAccountAuthorizedForStore(accountId: string, storeId: string): Promise<boolean> {
+  const acc = await prisma.account.findUnique({ where: { id: accountId } })
+  if (!acc || acc.disabledAt) return false
+  if (acc.isAdmin) return true
+  const assignment = await prisma.storeAssignment.findUnique({
+    where: { accountId_storeId: { accountId, storeId } },
   })
   return !!assignment
 }
