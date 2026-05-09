@@ -19,7 +19,7 @@ export const COLORS = {
 
 const FONT_STACK = `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`
 
-const LOGO_URL = 'https://entuned.co/img/entuned-logo-grey-transparent.png'
+const LOGO_URL = 'https://entuned.co/img/entuned-logo-ice.png'
 
 export interface LayoutProps {
   preheader?: string
