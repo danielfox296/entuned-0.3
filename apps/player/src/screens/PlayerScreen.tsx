@@ -918,11 +918,22 @@ export function PlayerScreen({ session, onLogout }: Props) {
         </div>
       ) : null}
 
-      <div style={{ flex: 1, display: "flex", flexDirection: twoCol ? "row" : "column", minHeight: 0 }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: twoCol ? "row" : "column", minHeight: 0, gap: twoCol ? 24 : 0, padding: twoCol ? "0 28px 28px" : 0 }}>
         {twoCol ? (
-          <UpgradeRail rotationKey={currentItem?.songId ?? null} style={{ width: 420, flexShrink: 0 }} />
+          <UpgradeRail rotationKey={currentItem?.songId ?? null} style={{ flex: 1 }} />
         ) : null}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <div style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minWidth: 0,
+          ...(twoCol ? {
+            background: "linear-gradient(135deg, rgba(40,40,36,0.45) 0%, rgba(20,20,17,0.8) 100%)",
+            border: "1px solid rgba(212,225,229,0.06)",
+            borderRadius: 24,
+            overflow: "hidden",
+          } : {}),
+        }}>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: twoCol ? "flex-start" : "center", padding: twoCol ? "0 60px 40px 80px" : "0 0 40px", gap: 60 }}>
         <DarkHalo>
           {allOutcomesMode && currentItem ? (() => {
