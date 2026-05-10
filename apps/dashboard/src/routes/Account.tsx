@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ExternalLink, LogOut } from 'lucide-react'
+import { Download, ExternalLink, LogOut } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
@@ -105,9 +105,22 @@ export function Account() {
             <div style={{ color: T.textMuted, fontSize: 14, lineHeight: 1.5 }}>
               {content.cert.body}
             </div>
-            <Button variant="ghost" disabled title={content.cert.cta_tooltip}>
-              {content.cert.cta}
-            </Button>
+            <a
+              href="/pro-indemnification-certificate.pdf"
+              download
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                background: 'transparent',
+                border: `1px solid ${T.border}`,
+                color: T.textMuted,
+                padding: '8px 14px',
+                borderRadius: 8,
+                fontFamily: T.sans, fontSize: 14,
+                textDecoration: 'none', whiteSpace: 'nowrap',
+              }}
+            >
+              <Download size={13} strokeWidth={2} /> {content.cert.cta}
+            </a>
           </div>
         </Card>
 

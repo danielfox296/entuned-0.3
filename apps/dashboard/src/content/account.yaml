@@ -34,7 +34,6 @@ cert:
   title: "PRO licensing certificate"
   body: "Proof of music-rights licensing (ASCAP / BMI / SESAC), ready to forward to your landlord or franchisor. Every Entuned plan is covered from day one."
   cta: "Download PDF"
-  cta_tooltip: "We'll email it to you when ready."
 
 # Session card — sign-out
 session:
