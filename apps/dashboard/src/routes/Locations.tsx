@@ -39,16 +39,20 @@ export function Locations() {
           </Button>
         ) : (
           <a
-            href={api.checkoutUrl('core')}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              background: 'transparent', border: `1px solid ${T.border}`,
-              color: T.textMuted, padding: '8px 14px', borderRadius: 8,
-              fontFamily: T.sans, fontSize: 14, textDecoration: 'none',
-            }}
+            href="/upgrade"
             title={content.add.locked_tooltip}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '10px 16px', borderRadius: 10,
+              background: T.accentGlow,
+              border: `1px solid ${T.borderActive}`,
+              color: T.accent,
+              fontFamily: T.sans, fontSize: 14, fontWeight: 600,
+              letterSpacing: 0.2, textDecoration: 'none',
+              whiteSpace: 'nowrap',
+            }}
           >
-            <Lock size={12} strokeWidth={2} /> {content.add.locked_cta}
+            <Lock size={13} strokeWidth={2} /> {content.add.locked_cta}
           </a>
         )}
       </div>
@@ -379,15 +383,11 @@ function PauseControl({ store, canPause, isPaused, onChanged }: {
 }) {
   const [busy, setBusy] = useState(false)
 
+  // Free tier: don't render anything — there's no pause to upsell here, the
+  // upgrade page already explains tier differences and the locked badge added
+  // visual noise without giving the user something to act on.
   if (!canPause) {
-    return (
-      <span style={{
-        fontSize: 12, color: T.textFaint, fontFamily: T.sans,
-        display: 'inline-flex', alignItems: 'center', gap: 4,
-      }}>
-        <Lock size={11} strokeWidth={2} /> {content.pause.locked}
-      </span>
-    )
+    return null
   }
 
   // Even on Core+, pause requires a real subscription (free stores under a paid Client can't pause)
