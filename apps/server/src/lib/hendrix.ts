@@ -50,17 +50,37 @@ interface PoolRow {
   icpId: string | null
 }
 
-async function fetchPool(icpId: string, outcomeId: string): Promise<PoolRow[]> {
+// Per-store song suppression (StoreRetiredSong). Free-tier stores share one
+// ICP, so global LineageRow.active=false is too blunt — operators retire songs
+// for one location via Flagged Review, which writes here.
+async function fetchRetiredSongIds(storeId: string): Promise<string[]> {
+  const rows = await prisma.storeRetiredSong.findMany({
+    where: { storeId },
+    select: { songId: true },
+  })
+  return rows.map((r) => r.songId)
+}
+
+async function fetchPool(icpId: string, outcomeId: string, retiredSongIds: string[]): Promise<PoolRow[]> {
   return prisma.lineageRow.findMany({
-    where: { icpId, outcomeId, active: true },
+    where: {
+      icpId,
+      outcomeId,
+      active: true,
+      ...(retiredSongIds.length > 0 ? { songId: { notIn: retiredSongIds } } : {}),
+    },
     select: { id: true, songId: true, r2Url: true, hookId: true, outcomeId: true, icpId: true },
   })
 }
 
-async function fetchAllPool(icpIds: string[]): Promise<PoolRow[]> {
+async function fetchAllPool(icpIds: string[], retiredSongIds: string[]): Promise<PoolRow[]> {
   if (icpIds.length === 0) return []
   return prisma.lineageRow.findMany({
-    where: { icpId: { in: icpIds }, active: true },
+    where: {
+      icpId: { in: icpIds },
+      active: true,
+      ...(retiredSongIds.length > 0 ? { songId: { notIn: retiredSongIds } } : {}),
+    },
     select: { id: true, songId: true, r2Url: true, hookId: true, outcomeId: true, icpId: true },
   })
 }
@@ -341,10 +361,11 @@ export async function nextQueue(
     select: { id: true },
   })
   const icpIds = icps.map((i) => i.id)
+  const retiredSongIds = await fetchRetiredSongIds(storeId)
 
   // All-outcomes mode: pull from every outcome's pool without restricting to the active one.
   if (opts.allOutcomes) {
-    const pool = dedupeBySong(await fetchAllPool(icpIds))
+    const pool = dedupeBySong(await fetchAllPool(icpIds, retiredSongIds))
     const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, store.timezone, now)
     return {
       storeId,
@@ -361,7 +382,7 @@ export async function nextQueue(
   if (!resolved) {
     // No outcome configured (no selection, schedule, or default) — fall back to all-outcomes pool
     // so the player always plays something when songs exist.
-    const pool = dedupeBySong(await fetchAllPool(icpIds))
+    const pool = dedupeBySong(await fetchAllPool(icpIds, retiredSongIds))
     const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, store.timezone, now)
     return {
       storeId,
@@ -374,12 +395,12 @@ export async function nextQueue(
     }
   }
 
-  const poolsByIcp = await Promise.all(icpIds.map((id) => fetchPool(id, resolved.outcomeId)))
+  const poolsByIcp = await Promise.all(icpIds.map((id) => fetchPool(id, resolved.outcomeId, retiredSongIds)))
   const unfilteredPool = dedupeBySong(poolsByIcp.flat())
   if (unfilteredPool.length === 0) {
     // Resolved outcome exists but has no songs — fall back to all-outcomes pool
     // so the player always has something to play when songs exist under any outcome.
-    const pool = dedupeBySong(await fetchAllPool(icpIds))
+    const pool = dedupeBySong(await fetchAllPool(icpIds, retiredSongIds))
     const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, store.timezone, now)
     return {
       storeId,

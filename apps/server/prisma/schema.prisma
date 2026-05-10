@@ -185,6 +185,7 @@ model Store {
   subscription              Subscription?
   binding                   PlayerBinding?
   tierChangeLogs            TierChangeLog[]
+  retiredSongs              StoreRetiredSong[]
 
   @@index([clientId])
   @@map("stores")
@@ -661,10 +662,30 @@ model Song {
   contentType String?  @map("content_type")
   uploadedAt  DateTime @default(now()) @map("uploaded_at") @db.Timestamptz(6)
 
-  lineageRows    LineageRow[]
-  playbackEvents PlaybackEvent[]
+  lineageRows         LineageRow[]
+  playbackEvents      PlaybackEvent[]
+  storeRetiredEntries StoreRetiredSong[]
 
   @@map("songs")
+}
+
+// ---------- Per-store song suppression (free-tier flagged-review) ----------
+// LineageRow.active is global per ICP; free-tier stores share one ICP, so a
+// global retire is too blunt. This table lets an operator retire a single song
+// for one location without affecting other locations on the same shared pool.
+
+model StoreRetiredSong {
+  storeId   String   @map("store_id") @db.Uuid
+  songId    String   @map("song_id") @db.Uuid
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  song  Song  @relation(fields: [songId], references: [id])
+
+  @@id([storeId, songId])
+  @@index([songId])
+  @@map("store_retired_songs")
 }
 
 // ---------- Card 16 LineageRow (song pool Hendrix reads) ----------

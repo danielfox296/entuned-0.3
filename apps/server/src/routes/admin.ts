@@ -1561,7 +1561,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const songIds = [...bySong.keys()]
-    const [lineageRows, songs] = await Promise.all([
+    const allReportingStoreIds = new Set<string>()
+    for (const b of bySong.values()) for (const sid of b.storeIds) allReportingStoreIds.add(sid)
+    const [lineageRows, songs, stores, retiredRows] = await Promise.all([
       prisma.lineageRow.findMany({
         where: { songId: { in: songIds } },
         include: {
@@ -1573,14 +1575,49 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         where: { id: { in: songIds } },
         select: { id: true, r2Url: true },
       }),
+      prisma.store.findMany({
+        where: { id: { in: [...allReportingStoreIds] } },
+        select: { id: true, name: true, client: { select: { id: true, companyName: true } } },
+      }),
+      prisma.storeRetiredSong.findMany({
+        where: { songId: { in: songIds }, storeId: { in: [...allReportingStoreIds] } },
+        select: { storeId: true, songId: true },
+      }),
     ])
     const songById = new Map(songs.map((s) => [s.id, s]))
+    const storeById = new Map(stores.map((s) => [s.id, s]))
+    const retiredKey = new Set(retiredRows.map((r) => `${r.storeId}:${r.songId}`))
     const lineageBySong = new Map<string, typeof lineageRows>()
     for (const lr of lineageRows) {
       const list = lineageBySong.get(lr.songId) ?? []
       list.push(lr)
       lineageBySong.set(lr.songId, list)
     }
+
+    // Per-(song, storeId) report counts so the panel can show "which location
+    // reported, how many times" and offer a per-location retire action.
+    const byPair = new Map<string, { storeId: string; songId: string; reportCount: number }>()
+    for (const e of events) {
+      if (!e.songId) continue
+      const k = `${e.storeId}:${e.songId}`
+      let p = byPair.get(k)
+      if (!p) { p = { storeId: e.storeId, songId: e.songId, reportCount: 0 }; byPair.set(k, p) }
+      p.reportCount++
+    }
+    const locationsBySong = new Map<string, { storeId: string; storeName: string; clientName: string; reportCount: number; suppressed: boolean }[]>()
+    for (const p of byPair.values()) {
+      const s = storeById.get(p.storeId)
+      const list = locationsBySong.get(p.songId) ?? []
+      list.push({
+        storeId: p.storeId,
+        storeName: s?.name ?? '(unknown)',
+        clientName: s?.client?.companyName ?? '(unknown)',
+        reportCount: p.reportCount,
+        suppressed: retiredKey.has(`${p.storeId}:${p.songId}`),
+      })
+      locationsBySong.set(p.songId, list)
+    }
+    for (const list of locationsBySong.values()) list.sort((a, b) => b.reportCount - a.reportCount)
 
     const out = [...bySong.values()].map((b) => {
       const lrs = lineageBySong.get(b.songId) ?? []
@@ -1592,6 +1629,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         lastReportedAt: b.lastReportedAt.toISOString(),
         reasons: b.reasons,
         storeCount: b.storeIds.size,
+        locations: locationsBySong.get(b.songId) ?? [],
         lineageRows: lrs.map((lr) => ({
           id: lr.id, active: lr.active, hook: lr.hook, outcome: lr.outcome,
         })),
@@ -1617,6 +1655,35 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       data: { active: false },
     })
     return { retired: result.count }
+  })
+
+  // Per-store song suppression. Free-tier stores share one ICP, so the global
+  // /retire above is too blunt. This route writes a StoreRetiredSong row that
+  // hendrix.fetchPool excludes for that single location.
+  const RetireForStoreBody = z.object({
+    storeId: z.string().uuid(),
+    reason: z.string().nullable().optional(),
+  })
+
+  app.post('/flagged/:songId/retire-for-store', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const songId = (req.params as any).songId as string
+    const parsed = RetireForStoreBody.safeParse(req.body)
+    if (!parsed.success) { reply.code(400); return { error: 'invalid body', issues: parsed.error.issues } }
+    const { storeId, reason } = parsed.data
+    await prisma.storeRetiredSong.upsert({
+      where: { storeId_songId: { storeId, songId } },
+      create: { storeId, songId, reason: reason ?? null },
+      update: { reason: reason ?? null },
+    })
+    return { ok: true }
+  })
+
+  app.delete('/flagged/:songId/retire-for-store/:storeId', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const { songId, storeId } = req.params as any
+    await prisma.storeRetiredSong.deleteMany({ where: { storeId, songId } })
+    return { ok: true }
   })
 
   // ----- Hooks (per-ICP queue) -----

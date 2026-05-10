@@ -141,6 +141,8 @@ function Card({ song, onChanged, muted }: { song: FlaggedSong; onChanged: () => 
         ))}
       </div>
 
+      <LocationList song={song} onChanged={onChanged} />
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4, paddingTop: 8, borderTop: `1px solid ${T.borderSubtle}` }}>
         <div style={{ fontFamily: T.mono, fontSize: 12, color: T.textDim, textTransform: 'uppercase' }}>
           Song Entries ({song.lineageRows.length})
@@ -157,6 +159,62 @@ function Card({ song, onChanged, muted }: { song: FlaggedSong; onChanged: () => 
       </div>
 
       {err && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+    </div>
+  )
+}
+
+function LocationList({ song, onChanged }: { song: FlaggedSong; onChanged: () => void }) {
+  const [busyStoreId, setBusyStoreId] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+
+  const retireForStore = async (storeId: string, reason: string | null) => {
+    const token = getToken(); if (!token) return
+    setBusyStoreId(storeId); setErr(null)
+    try { await api.retireFlaggedForStore(song.songId, storeId, reason, token); onChanged() }
+    catch (e: any) { setErr(e.message) }
+    finally { setBusyStoreId(null) }
+  }
+  const unretireForStore = async (storeId: string) => {
+    const token = getToken(); if (!token) return
+    setBusyStoreId(storeId); setErr(null)
+    try { await api.unretireFlaggedForStore(song.songId, storeId, token); onChanged() }
+    catch (e: any) { setErr(e.message) }
+    finally { setBusyStoreId(null) }
+  }
+
+  if (song.locations.length === 0) return null
+
+  // Snapshot the most-frequent reason as the audit trail when retiring per-location.
+  const topReason = Object.entries(song.reasons).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4, paddingTop: 8, borderTop: `1px solid ${T.borderSubtle}` }}>
+      <div style={{ fontFamily: T.mono, fontSize: 12, color: T.textDim, textTransform: 'uppercase' }}>
+        Reported By ({song.locations.length} location{song.locations.length === 1 ? '' : 's'})
+      </div>
+      {song.locations.map((loc) => {
+        const busy = busyStoreId === loc.storeId
+        return (
+          <div key={loc.storeId} style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: T.mono, fontSize: 13 }}>
+            <span style={{ color: T.text, ...truncStyle, flex: 'unset', minWidth: 0 }}>{loc.storeName}</span>
+            <span style={{ color: T.textDim, ...truncStyle, fontFamily: T.sans }}>· {loc.clientName}</span>
+            <span style={{ color: T.danger, fontWeight: 600, marginLeft: 'auto' }}>{loc.reportCount}</span>
+            <span style={{ color: T.textDim, fontSize: 12, textTransform: 'uppercase' }}>
+              report{loc.reportCount === 1 ? '' : 's'}
+            </span>
+            {loc.suppressed ? (
+              <Button variant="ghost" onClick={() => unretireForStore(loc.storeId)} busy={busy}>
+                {busy ? '…' : 'undo retire'}
+              </Button>
+            ) : (
+              <Button variant="danger" onClick={() => retireForStore(loc.storeId, topReason)} busy={busy}>
+                {busy ? '…' : 'retire for this location'}
+              </Button>
+            )}
+          </div>
+        )
+      })}
+      {err && <div style={{ fontSize: 13, color: T.danger, fontFamily: T.mono }}>{err}</div>}
     </div>
   )
 }

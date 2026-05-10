@@ -593,6 +593,14 @@ export interface LineageRowList {
   rows: LineageRowFull[]
 }
 
+export interface FlaggedLocation {
+  storeId: string
+  storeName: string
+  clientName: string
+  reportCount: number
+  suppressed: boolean
+}
+
 export interface FlaggedSong {
   songId: string
   r2Url: string | null
@@ -600,6 +608,7 @@ export interface FlaggedSong {
   lastReportedAt: string
   reasons: Record<string, number>
   storeCount: number
+  locations: FlaggedLocation[]
   lineageRows: { id: string; active: boolean; hook: { id: string; text: string } | null; outcome: { id: string; title: string; displayTitle: string | null; version: number } }[]
   activeLineageCount: number
   anyActive: boolean
@@ -1082,6 +1091,13 @@ export const api = {
     req<FlaggedResponse>('/admin/flagged', {}, token),
   retireFlagged: (songId: string, token: string) =>
     req<{ retired: number }>(`/admin/flagged/${songId}/retire`, { method: 'POST' }, token),
+  retireFlaggedForStore: (songId: string, storeId: string, reason: string | null, token: string) =>
+    req<{ ok: true }>(`/admin/flagged/${songId}/retire-for-store`, {
+      method: 'POST',
+      body: JSON.stringify({ storeId, reason }),
+    }, token),
+  unretireFlaggedForStore: (songId: string, storeId: string, token: string) =>
+    req<{ ok: true }>(`/admin/flagged/${songId}/retire-for-store/${storeId}`, { method: 'DELETE' }, token),
 
   // --- Song Creation ---
 
