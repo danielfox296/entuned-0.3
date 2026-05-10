@@ -109,6 +109,41 @@ function pickIcpFields(row: {
 }
 
 export const meRoutes: FastifyPluginAsync = async (app) => {
+  // PATCH /me/profile — edit the authed Client's profile fields.
+  // Email is intentionally NOT editable here — it's the auth identity, and
+  // changing it requires re-verification (separate flow). Everything else
+  // the customer can self-serve from the /account page.
+  const ProfilePatch = z.object({
+    companyName:  z.string().trim().min(1).max(120).optional(),
+    contactName:  z.string().trim().max(120).nullable().optional(),
+    contactEmail: z.string().trim().email().max(240).nullable().optional()
+                    .or(z.literal('').transform(() => null)),
+    contactPhone: z.string().trim().max(40).nullable().optional(),
+  })
+  app.patch('/profile', { preHandler: requireAuth }, async (req, reply) => {
+    const ctx = getClient(req, reply); if (!ctx) return
+    const parsed = ProfilePatch.safeParse(req.body)
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    }
+    const data: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(parsed.data)) {
+      if (v !== undefined) data[k] = v === '' ? null : v
+    }
+    if (Object.keys(data).length === 0) {
+      return reply.code(400).send({ error: 'nothing_to_update' })
+    }
+    const updated = await prisma.client.update({
+      where: { id: ctx.clientId },
+      data,
+      select: {
+        id: true, companyName: true,
+        contactName: true, contactEmail: true, contactPhone: true,
+      },
+    })
+    return updated
+  })
+
   // GET /me/stores — list of Stores for the authed Client.
   // Includes a flat subscription summary so the dashboard can render tier,
   // pause state, and renewal date in one round-trip.

@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Download, ExternalLink, LogOut } from 'lucide-react'
+import { Download, ExternalLink, Lock, LogOut, Pencil } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
 import { Card, EmptyState } from '../ui/Card.js'
-import { Button } from '../ui/index.js'
-import { api, TIER_LABEL, TIER_RANK, PLAYER_URL } from '../api.js'
+import { Button, Input } from '../ui/index.js'
+import { api, TIER_LABEL, TIER_RANK, PLAYER_URL, type MeAccount, type Tier } from '../api.js'
 import { useAuth } from '../lib/auth.jsx'
 import { useTier } from '../lib/tier.jsx'
 import content from '../content/account.yaml'
@@ -18,7 +18,7 @@ import content from '../content/account.yaml'
 // Every Entuned plan, including Entuned Free, ships indemnified from
 // day one — the cert card is shown to every signed-in user.
 export function Account() {
-  const { user, account } = useAuth()
+  const { user, account, refresh: refreshAuth } = useAuth()
   const { stores, tier } = useTier()
   const navigate = useNavigate()
 
@@ -46,30 +46,20 @@ export function Account() {
       </div>
 
       <div style={{ display: 'grid', gap: 16, maxWidth: 720 }}>
-        <Card title={content.profile.title}>
-          <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', rowGap: 8, fontSize: 14 }}>
-            <span style={{ color: T.textDim }}>{content.profile.email_label}</span>
-            <span style={{ color: T.text }}>{user?.email ?? content.profile.empty_value}</span>
-            <span style={{ color: T.textDim }}>{content.profile.company_label}</span>
-            <span style={{ color: T.text }}>{account?.companyName ?? content.profile.empty_value}</span>
-            <span style={{ color: T.textDim }}>{content.profile.plan_label}</span>
-            <span style={{ color: T.text }}>
-              {TIER_LABEL[tier]}
-              {hasComp && (
-                <span style={{ color: T.accentMuted, marginLeft: 8, fontSize: 12 }}>
-                  {(() => {
-                    const earliest = compedStores
-                      .map((s) => s.compExpiresAt)
-                      .filter((d): d is string => !!d)
-                      .sort()[0]
-                    if (earliest) return `${content.profile.comped_through_prefix}${fmtDate(earliest)}${content.profile.comped_through_suffix}`
-                    return content.profile.comped_open_ended
-                  })()}
-                </span>
-              )}
-            </span>
-          </div>
-        </Card>
+        <ProfileCard
+          email={user?.email ?? null}
+          account={account}
+          tier={tier}
+          tierExtra={hasComp ? (() => {
+            const earliest = compedStores
+              .map((s) => s.compExpiresAt)
+              .filter((d): d is string => !!d)
+              .sort()[0]
+            if (earliest) return `${content.profile.comped_through_prefix}${fmtDate(earliest)}${content.profile.comped_through_suffix}`
+            return content.profile.comped_open_ended
+          })() : null}
+          onSaved={refreshAuth}
+        />
 
         <Card title={content.billing.title}>
           {isPaid && hasStripeSubscription ? (
@@ -190,6 +180,135 @@ export function Account() {
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+// Editable Profile card. Read-mode: labelled rows + Edit button. Edit-mode:
+// the same rows become Inputs with Save / Cancel. Email is locked — it's
+// the auth identity and changing it requires re-verification (separate flow).
+function ProfileCard({ email, account, tier, tierExtra, onSaved }: {
+  email: string | null
+  account: MeAccount | null
+  tier: Tier
+  tierExtra: string | null
+  onSaved: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState({
+    companyName: account?.companyName ?? '',
+    contactName: account?.contactName ?? '',
+    contactEmail: account?.contactEmail ?? '',
+    contactPhone: account?.contactPhone ?? '',
+  })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const enterEdit = () => {
+    setDraft({
+      companyName: account?.companyName ?? '',
+      contactName: account?.contactName ?? '',
+      contactEmail: account?.contactEmail ?? '',
+      contactPhone: account?.contactPhone ?? '',
+    })
+    setError(null)
+    setEditing(true)
+  }
+
+  const save = async () => {
+    if (busy) return
+    const companyName = draft.companyName.trim()
+    if (!companyName) { setError(content.profile.company_required); return }
+    const contactEmail = draft.contactEmail.trim()
+    if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+      setError(content.profile.contact_email_invalid); return
+    }
+    setBusy(true); setError(null)
+    try {
+      await api.updateProfile({
+        companyName,
+        contactName: draft.contactName.trim() || null,
+        contactEmail: contactEmail || null,
+        contactPhone: draft.contactPhone.trim() || null,
+      })
+      onSaved()
+      setEditing(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : content.profile.save_failed)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card title={content.profile.title}>
+      <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', rowGap: 10, fontSize: 14, alignItems: 'center' }}>
+        {/* Email — always read-only with a lock hint */}
+        <span style={{ color: T.textDim }}>{content.profile.email_label}</span>
+        <span style={{ color: T.text, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {email ?? content.profile.empty_value}
+          <span title={content.profile.email_lock_hint} style={{ color: T.textFaint, display: 'inline-flex' }}>
+            <Lock size={11} strokeWidth={2} />
+          </span>
+        </span>
+
+        <span style={{ color: T.textDim }}>{content.profile.company_label}</span>
+        {editing ? (
+          <Input value={draft.companyName} onChange={(e) => setDraft((d) => ({ ...d, companyName: e.target.value }))} disabled={busy} />
+        ) : (
+          <span style={{ color: T.text }}>{account?.companyName || content.profile.empty_value}</span>
+        )}
+
+        <span style={{ color: T.textDim }}>{content.profile.contact_name_label}</span>
+        {editing ? (
+          <Input value={draft.contactName} onChange={(e) => setDraft((d) => ({ ...d, contactName: e.target.value }))} disabled={busy} />
+        ) : (
+          <span style={{ color: T.text }}>{account?.contactName || content.profile.empty_value}</span>
+        )}
+
+        <span style={{ color: T.textDim }}>{content.profile.contact_email_label}</span>
+        {editing ? (
+          <Input type="email" value={draft.contactEmail} onChange={(e) => setDraft((d) => ({ ...d, contactEmail: e.target.value }))} disabled={busy} />
+        ) : (
+          <span style={{ color: T.text }}>{account?.contactEmail || content.profile.empty_value}</span>
+        )}
+
+        <span style={{ color: T.textDim }}>{content.profile.contact_phone_label}</span>
+        {editing ? (
+          <Input value={draft.contactPhone} onChange={(e) => setDraft((d) => ({ ...d, contactPhone: e.target.value }))} disabled={busy} />
+        ) : (
+          <span style={{ color: T.text }}>{account?.contactPhone || content.profile.empty_value}</span>
+        )}
+
+        <span style={{ color: T.textDim }}>{content.profile.plan_label}</span>
+        <span style={{ color: T.text }}>
+          {TIER_LABEL[tier]}
+          {tierExtra && <span style={{ color: T.accentMuted, marginLeft: 8, fontSize: 12 }}>{tierExtra}</span>}
+        </span>
+      </div>
+
+      {error && (
+        <div style={{ marginTop: 12, fontSize: 13, color: T.danger }}>{error}</div>
+      )}
+
+      <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        {editing ? (
+          <>
+            <Button variant="ghost" onClick={() => setEditing(false)} disabled={busy}>
+              {content.profile.cancel}
+            </Button>
+            <Button onClick={save} busy={busy}>
+              {busy ? content.profile.saving : content.profile.save}
+            </Button>
+          </>
+        ) : (
+          <Button variant="ghost" onClick={enterEdit}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <Pencil size={12} strokeWidth={2} /> {content.profile.edit}
+            </span>
+          </Button>
+        )}
+      </div>
+    </Card>
+  )
 }
 
 function BillingPortalRow() {

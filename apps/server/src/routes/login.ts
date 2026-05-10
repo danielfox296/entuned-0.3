@@ -387,10 +387,30 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
   })
 
   // ----- GET /me -----
+  // Enriches req.account (which only carries {id, name} from the session
+  // attach) with the full Client profile so the dashboard's /account page
+  // can render every editable field in one round-trip.
   app.get('/me', { preHandler: requireAuth }, async (req) => {
+    let account: {
+      id: string
+      companyName: string
+      contactName: string | null
+      contactEmail: string | null
+      contactPhone: string | null
+    } | null = null
+    if (req.account) {
+      const c = await prisma.client.findUnique({
+        where: { id: req.account.id },
+        select: {
+          id: true, companyName: true,
+          contactName: true, contactEmail: true, contactPhone: true,
+        },
+      })
+      if (c) account = c
+    }
     return {
       user: req.user,
-      account: req.account ?? null,
+      account,
       role: req.role ?? null,
     }
   })

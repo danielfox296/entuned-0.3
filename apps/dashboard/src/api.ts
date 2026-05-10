@@ -53,7 +53,16 @@ export interface MeUser {
 export interface MeAccount {
   id: string
   companyName: string
-  plan: string
+  contactName: string | null
+  contactEmail: string | null
+  contactPhone: string | null
+}
+
+export interface ProfilePatch {
+  companyName?: string
+  contactName?: string | null
+  contactEmail?: string | null
+  contactPhone?: string | null
 }
 
 export interface MeResponse {
@@ -283,6 +292,11 @@ export const api = {
   // user's first free Store.
   upgradeUrl: (tier: 'core' | 'pro', storeId?: string) =>
     `${API_URL}/billing/upgrade?tier=${tier}${storeId ? `&store=${encodeURIComponent(storeId)}` : ''}`,
+
+  // Profile editing — Client-level fields. Email is the auth identity and
+  // cannot be changed here; do not include it in the patch.
+  updateProfile: (body: ProfilePatch) =>
+    req<MeAccount>('/me/profile', { method: 'PATCH', body: JSON.stringify(body) }),
 
   // ── Schedule (Pro+, scoped to a specific store) ──
   meSchedule: (storeId: string) =>

@@ -4,13 +4,25 @@
 
 heading: "Account"
 
-# Profile card — read-only field labels (rename ships in v1.5)
+# Profile card — editable Client fields. Email is the auth identity and
+# stays read-only; everything else can be edited inline.
 profile:
   title: "Profile"
   email_label: "Email"
   company_label: "Company"
+  contact_name_label: "Contact name"
+  contact_email_label: "Contact email"
+  contact_phone_label: "Contact phone"
   plan_label: "Plan"
   empty_value: "—"
+  edit: "Edit"
+  save: "Save"
+  saving: "Saving…"
+  cancel: "Cancel"
+  company_required: "Company name is required."
+  contact_email_invalid: "That doesn't look like a valid email."
+  save_failed: "Couldn't save your profile. Try again."
+  email_lock_hint: "Email is your sign-in — contact us to change it."
   # The "(comped through <date>)" / "(comped — open-ended)" suffix is built
   # in TSX from these two strings; the date is interpolated.
   comped_through_prefix: "(comped through "
