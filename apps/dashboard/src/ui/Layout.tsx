@@ -77,7 +77,7 @@ export function Layout({ children }: { children: ReactNode }) {
         to="/account"
         style={({ isActive }) => ({
           display: 'flex', alignItems: 'center', gap: 10,
-          padding: '12px 20px',
+          padding: '12px 14px',
           color: isActive ? T.text : T.textMuted,
           background: isActive ? T.accentGlow : 'transparent',
           borderLeft: isActive ? `2px solid ${T.accent}` : '2px solid transparent',
@@ -192,12 +192,12 @@ export function Layout({ children }: { children: ReactNode }) {
       overflow: 'hidden',
     }}>
       <div style={{
-        width: 240, background: T.surface,
+        width: 196, background: T.surface,
         borderRight: `1px solid ${T.border}`,
         display: 'flex', flexDirection: 'column', flexShrink: 0,
       }}>
         <div style={{
-          height: 56, padding: '0 20px', display: 'flex', alignItems: 'center', gap: 8,
+          height: 56, padding: '0 14px', display: 'flex', alignItems: 'center', gap: 8,
           borderBottom: `1px solid ${T.borderSubtle}`,
         }}>
           <Logo height={40} />
@@ -238,8 +238,8 @@ function NavRow({ item, unlocked, showTooltip }: { item: NavSpec; unlocked: bool
         to={item.to}
         end={item.to === '/'}
         style={({ isActive }) => ({
-          display: 'flex', alignItems: 'center', gap: 12,
-          padding: '10px 20px',
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 14px',
           color: isActive ? T.text : (unlocked ? T.textMuted : T.textDim),
           background: isActive ? T.accentGlow : 'transparent',
           borderLeft: isActive ? `2px solid ${T.accent}` : '2px solid transparent',
