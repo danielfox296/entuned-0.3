@@ -158,20 +158,23 @@ export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props
 
   if (slots.length === 0) return null;
   const slot = slots[index % slots.length];
-  const isUpsell = slot.kind === "core_upsell" || slot.kind === "pro_upsell";
 
-  // Upsell slots get a tier-accented CTA. Reminder slots (active Core / Pro
-  // customers being reassured of what they have) skip the CTA entirely so
-  // the rail reads as a tooltip, not a sales surface.
-  const ctaColor = slot.kind === "pro_upsell"
-    ? "rgba(215,175,116,1)"
-    : "rgba(120,180,188,1)";
-  const ctaUnderline = slot.kind === "pro_upsell"
-    ? "rgba(215,175,116,0.5)"
-    : "rgba(120,180,188,0.5)";
-  const ctaLabel = slot.kind === "pro_upsell"
-    ? "See what Pro unlocks →"
-    : "See what Core unlocks →";
+  // Same rail structure across all kinds (top-anchored content, bottom-
+  // anchored CTA). Upsells point at pricing in tier accent colors;
+  // reminders point at the customer dashboard in a neutral palette so the
+  // rail still reads as a CTA-bearing surface, not a sales pitch.
+  const cta = (() => {
+    switch (slot.kind) {
+      case "core_upsell":
+        return { label: "See what Core unlocks →", href: "https://entuned.co/pricing.html", color: "rgba(120,180,188,1)", underline: "rgba(120,180,188,0.5)" };
+      case "pro_upsell":
+        return { label: "See what Pro unlocks →", href: "https://entuned.co/pricing.html", color: "rgba(215,175,116,1)", underline: "rgba(215,175,116,0.5)" };
+      case "core_reminder":
+      case "pro_reminder":
+      default:
+        return { label: "Open your dashboard →", href: "https://app.entuned.co", color: "rgba(232,238,240,0.85)", underline: "rgba(232,238,240,0.35)" };
+    }
+  })();
 
   // Sizes scale down on narrow viewports so the rail can fit in 50% of phone
   // / tablet height without the headline running off-card.
@@ -187,14 +190,11 @@ export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props
         position: "relative",
         display: "flex",
         flexDirection: "column",
-        // Reminders sit center-aligned (no CTA at the bottom); upsells use
-        // space-between so the CTA pins to the bottom edge.
-        justifyContent: isUpsell ? "space-between" : "center",
+        justifyContent: "space-between",
         padding,
         boxSizing: "border-box",
         minHeight: 0,
         overflow: "hidden",
-        gap: isUpsell ? 0 : innerGap,
         ...style,
       }}
     >
@@ -234,26 +234,24 @@ export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props
         </div>
       </div>
 
-      {isUpsell ? (
-        <a
-          href="https://entuned.co/pricing.html"
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            fontSize: ctaSize,
-            fontWeight: 500,
-            letterSpacing: 2.5,
-            color: ctaColor,
-            textTransform: "uppercase",
-            textDecoration: "none",
-            borderBottom: `1px solid ${ctaUnderline}`,
-            paddingBottom: 6,
-            alignSelf: "flex-start",
-          }}
-        >
-          {ctaLabel}
-        </a>
-      ) : null}
+      <a
+        href={cta.href}
+        target="_blank"
+        rel="noreferrer"
+        style={{
+          fontSize: ctaSize,
+          fontWeight: 500,
+          letterSpacing: 2.5,
+          color: cta.color,
+          textTransform: "uppercase",
+          textDecoration: "none",
+          borderBottom: `1px solid ${cta.underline}`,
+          paddingBottom: 6,
+          alignSelf: "flex-start",
+        }}
+      >
+        {cta.label}
+      </a>
     </div>
   );
 }
