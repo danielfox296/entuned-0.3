@@ -192,15 +192,16 @@ export function Layout({ children }: { children: ReactNode }) {
       overflow: 'hidden',
     }}>
       <div style={{
-        width: 196, background: T.surface,
+        width: 168, background: T.surface,
         borderRight: `1px solid ${T.border}`,
         display: 'flex', flexDirection: 'column', flexShrink: 0,
       }}>
         <div style={{
-          height: 56, padding: '0 14px', display: 'flex', alignItems: 'center', gap: 8,
+          padding: '14px 14px 12px',
+          display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6,
           borderBottom: `1px solid ${T.borderSubtle}`,
         }}>
-          <Logo height={40} />
+          <Logo height={32} />
           <span style={{
             fontSize: 10, fontWeight: 600, letterSpacing: '0.08em',
             color: T.accent, textTransform: 'uppercase',
