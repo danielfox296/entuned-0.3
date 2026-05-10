@@ -13,8 +13,8 @@ empty:
 
 # Player hero card — shown once a location exists
 hero:
-  headline: "Music is ready. Open your player."
-  open_player: "Open Player"
+  headline: "Music Is Ready"
+  open_player: "Launch Music Player"
   copy: "Copy link"
   copied: "Copied"
 
