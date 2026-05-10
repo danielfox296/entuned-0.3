@@ -9,6 +9,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../db.js'
 import { DRAFT_PROMPT_SEED, EDIT_PROMPT_SEED } from '../proto-bernie/lyrics.js'
 import type { ArrangementSections } from '../arranger/arranger.js'
+import type { FormArchetypeChoice } from '../eno/form-archetype.js'
 
 const MODEL = process.env.LYRICIST_MODEL ?? 'claude-sonnet-4-5'
 
@@ -16,6 +17,11 @@ export interface BernieInput {
   hookText: string
   brandLyricGuidelines?: string | null
   arrangementSections?: ArrangementSections | null
+  // Form archetype chosen by Eno (V/C/V/C/Bridge/FC, AABA, VCVC, etc.). Bernie
+  // writes lyrics into whatever shape this declares. Optional for backward
+  // compat with old call sites; when omitted, the draft prompt's legacy
+  // hardcoded shape applies.
+  formArchetype?: FormArchetypeChoice | null
 }
 
 const SECTION_ORDER = ['intro', 'verse', 'pre_chorus', 'chorus', 'bridge', 'outro'] as const
@@ -102,12 +108,18 @@ export async function generateLyrics(input: BernieInput): Promise<BernieOutput> 
   ])
 
   const arrangementBrief = input.arrangementSections ? formatArrangementBrief(input.arrangementSections) : ''
+  const formBrief = input.formArchetype
+    ? `Song form (use this exact section structure — do NOT add or remove sections):
+Sections: ${input.formArchetype.sectionList}
+Form note: ${input.formArchetype.shapeNote}
+`
+    : ''
 
   // Pass 1 — draft
-  const draftUserMessage = `Hook (becomes the chorus, used verbatim):
+  const draftUserMessage = `Hook (used verbatim wherever the form note instructs — usually every chorus, but for AABA-style forms the hook lands as the last line of every verse):
 "${input.hookText}"
 
-${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n\n` : ''}${arrangementBrief ? `${arrangementBrief}\n` : ''}Write the lyrics now. Output the JSON only.`
+${formBrief ? `${formBrief}\n` : ''}${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n\n` : ''}${arrangementBrief ? `${arrangementBrief}\n` : ''}Write the lyrics now. Output the JSON only.`
 
   const draftResponse = await client.messages.create({
     model: MODEL,
@@ -120,10 +132,10 @@ ${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuide
   const draft = parseLyricJson(draftBlock.text)
 
   // Pass 2 — edit
-  const editUserMessage = `Hook (must remain verbatim in every chorus instance):
+  const editUserMessage = `Hook (must remain verbatim in every instance the draft used it — choruses, verse-end refrains, tag, whatever the form dictates):
 "${input.hookText}"
 
-${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n\n` : ''}${arrangementBrief ? `${arrangementBrief}\n` : ''}Draft to polish:
+${formBrief ? `${formBrief}\n` : ''}${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n\n` : ''}${arrangementBrief ? `${arrangementBrief}\n` : ''}Draft to polish:
 
 Title: ${draft.title}
 

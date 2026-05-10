@@ -57,7 +57,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Outcome Library', 'Style Rules', 'Lyric Rules', 'Dry Run'],
     description: '' },
   { key: 'engine', label: 'Prompts & Rules', short: 'Prompts & Rules', icon: Settings,
-    cards: ['Hook Drafter', 'Decomposition', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Reference Track Suggester'],
+    cards: ['Hook Drafter', 'Decomposition', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Form Archetypes', 'Reference Track Suggester'],
     description: '' },
   { key: 'catalogue', label: 'Library', short: 'Library', icon: Music2,
     cards: ['Song Browser', 'Flagged Review', 'Pool Depth', 'Free Tier Outcomes'],
@@ -290,6 +290,7 @@ function EngineRouter({ cards }: { cards: string[] }) {
       {active === 'Style Exclusion Rules' && <FailureRules />}
       {active === 'Lyric Ban List' && <LyricBanList />}
       {active === 'Lyric Prompts' && <LyricPrompts />}
+      {active === 'Form Archetypes' && <FormArchetypes />}
       {active === 'Reference Track Suggester' && <ReferenceTrackPrompt />}
     </div>
   )

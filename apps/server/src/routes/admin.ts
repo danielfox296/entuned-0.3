@@ -1323,6 +1323,126 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return row
   })
 
+  // ----- FormArchetype (operator-editable song-form catalogue for Bernie) -----
+  // Eno picks one per generation; Bernie writes lyrics into whatever shape it
+  // declares. outcomeWeights are keyed on outcome_key (stable cross-version
+  // identity) plus the "*" default. eraWeights gates by reference-track year.
+
+  const FormArchetypeBody = z.object({
+    slug: z.string().min(1).max(40),
+    displayName: z.string().min(1),
+    sectionList: z.string().min(1),
+    shapeNote: z.string().min(1),
+    requiresSections: z.array(z.string()).default([]),
+    outcomeWeights: z.record(z.string(), z.number().nonnegative()),
+    eraWeights: z.object({
+      ranges: z.array(z.object({
+        minYear: z.number().int().nullable().optional(),
+        maxYear: z.number().int().nullable().optional(),
+        weight: z.number().nonnegative(),
+      })),
+    }).nullable().optional(),
+    isActive: z.boolean().default(true),
+    notes: z.string().nullable().optional(),
+  })
+
+  app.get('/form-archetypes', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    // Return archetypes plus the active outcome list so the editor can render
+    // a human-readable per-outcome weight grid (outcomeKey JSON keys → titles).
+    const [archetypes, outcomes] = await Promise.all([
+      prisma.formArchetype.findMany({ orderBy: [{ isActive: 'desc' }, { slug: 'asc' }] }),
+      prisma.outcome.findMany({
+        where: { supersededAt: null },
+        select: { outcomeKey: true, title: true, displayTitle: true },
+        orderBy: [{ title: 'asc' }],
+      }),
+    ])
+    return {
+      archetypes: archetypes.map((a) => ({
+        id: a.id,
+        slug: a.slug,
+        displayName: a.displayName,
+        sectionList: a.sectionList,
+        shapeNote: a.shapeNote,
+        requiresSections: a.requiresSections,
+        outcomeWeights: a.outcomeWeights,
+        eraWeights: a.eraWeights,
+        isActive: a.isActive,
+        notes: a.notes,
+        updatedAt: a.updatedAt.toISOString(),
+      })),
+      outcomes: outcomes.map((o) => ({
+        outcomeKey: o.outcomeKey,
+        title: o.displayTitle ?? o.title,
+      })),
+    }
+  })
+
+  app.post('/form-archetypes', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = FormArchetypeBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.formArchetype.create({
+        data: {
+          slug: parsed.data.slug,
+          displayName: parsed.data.displayName,
+          sectionList: parsed.data.sectionList,
+          shapeNote: parsed.data.shapeNote,
+          requiresSections: parsed.data.requiresSections,
+          outcomeWeights: parsed.data.outcomeWeights,
+          eraWeights: parsed.data.eraWeights ?? Prisma.JsonNull,
+          isActive: parsed.data.isActive,
+          notes: parsed.data.notes ?? null,
+        },
+      })
+      return row
+    } catch (e: any) {
+      if (e?.code === 'P2002') return reply.code(409).send({ error: 'slug_taken' })
+      throw e
+    }
+  })
+
+  app.put('/form-archetypes/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = FormArchetypeBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.formArchetype.update({
+        where: { id },
+        data: {
+          slug: parsed.data.slug,
+          displayName: parsed.data.displayName,
+          sectionList: parsed.data.sectionList,
+          shapeNote: parsed.data.shapeNote,
+          requiresSections: parsed.data.requiresSections,
+          outcomeWeights: parsed.data.outcomeWeights,
+          eraWeights: parsed.data.eraWeights ?? Prisma.JsonNull,
+          isActive: parsed.data.isActive,
+          notes: parsed.data.notes ?? null,
+        },
+      })
+      return row
+    } catch (e: any) {
+      if (e?.code === 'P2025') return reply.code(404).send({ error: 'not_found' })
+      if (e?.code === 'P2002') return reply.code(409).send({ error: 'slug_taken' })
+      throw e
+    }
+  })
+
+  app.delete('/form-archetypes/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    try {
+      await prisma.formArchetype.delete({ where: { id } })
+      return { ok: true }
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
+    }
+  })
+
   // ----- Free Tier Outcome Allowlist -----
   // Operator-curated set of outcomeKeys available to free-tier stores. Player
   // greys out + locks any outcome whose key is NOT in this set when the viewer

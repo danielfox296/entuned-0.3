@@ -606,6 +606,42 @@ model FreeTierOutcome {
   @@map("free_tier_outcomes")
 }
 
+// ---------- FormArchetype ----------
+// Operator-editable catalogue of song-form archetypes (VCVCBC, AABA, VCVC, etc.).
+// Eno picks one per generation and passes its sectionList + shapeNote into Bernie
+// so the lyric writer knows which form to write into. Without this table Bernie's
+// draft prompt hardcoded a single shape (V/C/V/C/Bridge/Final C) and every song
+// collapsed to the same arrangement. SSOT: ../entune v0.3/schema/light-cards.md.
+//
+// outcomeWeights JSON shape: { [outcomeKey]: number, "*": number }. Keys are
+// outcome_key (stable cross-version identity), not version-pinned id. Missing
+// keys fall back to "*" then to 1.
+//
+// eraWeights JSON shape: { ranges: [{ minYear, maxYear, weight }] }. When set,
+// each range that contains the reference track's year multiplies the base
+// weight; when no range matches, weight = 0. Null = era-agnostic.
+//
+// requiresSections: section keys (intro, verse, pre_chorus, chorus, bridge,
+// outro) that must exist in the reference track's arrangementSections for this
+// archetype to be eligible. Empty = no constraint.
+model FormArchetype {
+  id               String   @id @default(uuid()) @db.Uuid
+  slug             String   @unique
+  displayName      String   @map("display_name")
+  sectionList      String   @map("section_list")
+  shapeNote        String   @map("shape_note")
+  requiresSections String[] @default([]) @map("requires_sections")
+  outcomeWeights   Json     @default("{}") @map("outcome_weights")
+  eraWeights       Json?    @map("era_weights")
+  isActive         Boolean  @default(true) @map("is_active")
+  notes            String?
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([isActive])
+  @@map("form_archetypes")
+}
+
 // ---------- OutcomeLyricFactor ----------
 // Per-outcome editable guidance string injected into the Hook Drafter prompt.
 // Keyed by outcomeKey (not version-pinned id) so operators can iterate without

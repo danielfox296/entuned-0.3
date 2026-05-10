@@ -190,6 +190,43 @@ export interface OutcomeLyricFactorRow {
   updatedAt: string | null
 }
 
+export interface FormArchetypeEraRange {
+  minYear?: number | null
+  maxYear?: number | null
+  weight: number
+}
+
+export interface FormArchetypeRow {
+  id: string
+  slug: string
+  displayName: string
+  sectionList: string
+  shapeNote: string
+  requiresSections: string[]
+  outcomeWeights: Record<string, number>
+  eraWeights: { ranges: FormArchetypeEraRange[] } | null
+  isActive: boolean
+  notes: string | null
+  updatedAt: string
+}
+
+export interface FormArchetypeListResponse {
+  archetypes: FormArchetypeRow[]
+  outcomes: Array<{ outcomeKey: string; title: string }>
+}
+
+export interface FormArchetypeWriteBody {
+  slug: string
+  displayName: string
+  sectionList: string
+  shapeNote: string
+  requiresSections: string[]
+  outcomeWeights: Record<string, number>
+  eraWeights: { ranges: FormArchetypeEraRange[] } | null
+  isActive: boolean
+  notes?: string | null
+}
+
 export interface LyricPromptRow {
   id: string
   version: number
@@ -999,6 +1036,14 @@ export const api = {
       { method: 'PUT', body: JSON.stringify(body) },
       token,
     ),
+  formArchetypes: (token: string) =>
+    req<FormArchetypeListResponse>('/admin/form-archetypes', {}, token),
+  createFormArchetype: (body: FormArchetypeWriteBody, token: string) =>
+    req<FormArchetypeRow>('/admin/form-archetypes', { method: 'POST', body: JSON.stringify(body) }, token),
+  updateFormArchetype: (id: string, body: FormArchetypeWriteBody, token: string) =>
+    req<FormArchetypeRow>(`/admin/form-archetypes/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+  deleteFormArchetype: (id: string, token: string) =>
+    req<{ ok: true }>(`/admin/form-archetypes/${id}`, { method: 'DELETE' }, token),
   freeTierOutcomes: (token: string) =>
     req<{ outcomeKey: string; outcomeId: string; title: string; version: number; availableOnFree: boolean }[]>(
       '/admin/free-tier-outcomes', {}, token,

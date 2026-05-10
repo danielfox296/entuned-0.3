@@ -10,6 +10,7 @@ import { generateLyrics } from '../bernie/bernie.js'
 import { injectArrangement, type ArrangementSections } from '../arranger/arranger.js'
 import { resolveOutcomeParams } from '../variance/variance.js'
 import { extractVocalGender, type VocalGender } from '../mars/vocal-gender.js'
+import { pickFormArchetype } from './form-archetype.js'
 
 export const OUTCOME_FACTOR_PROMPT_SEED = '{mood}, {tempo_bpm}bpm, {mode}' // prepended to style string. Mood is required on Outcome and leads the prefix as the affect anchor. Tokens {dynamics} {instrumentation} still resolve for backward compat with old templates but are deprecated — they were stamping genre-mismatched instrument lists onto every track and using rules-v8 banned vocab.
 
@@ -158,10 +159,21 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
       | undefined
     const arrangementVersion = (styleAnalysis as { arrangementVersion?: number | null }).arrangementVersion ?? null
 
+    // Pick a form archetype before Bernie runs. The archetype determines the song's
+    // section list (V/C/V/C/Bridge/FC, AABA, VCVC, etc.) — Bernie writes lyrics into
+    // whatever shape the selector picks. Selector falls back to the legacy default
+    // when the DB has no active archetypes, so behavior is safe pre-seed.
+    const formArchetype = await pickFormArchetype({
+      outcomeKey: outcome.outcomeKey,
+      arrangementSections: arrangementSections ?? null,
+      referenceYear: refTrack.year ?? null,
+    })
+
     const lyricsRaw = await generateLyrics({
       hookText: hook.text,
       brandLyricGuidelines: client?.brandLyricGuidelines ?? null,
       arrangementSections: arrangementSections ?? null,
+      formArchetype,
     })
 
     // Always run injectArrangement: even when arrangementSections is null, the

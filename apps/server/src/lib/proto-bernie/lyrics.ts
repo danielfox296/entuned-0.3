@@ -29,9 +29,13 @@ yours to write around. Match the hook's voice, mood, and rhythm. Keep verses sho
 human; not every line needs to rhyme.
 
 Format constraints:
-- Use Suno [Section] markers: [Intro] (optional), [Verse 1], [Chorus], [Verse 2], [Chorus], [Bridge], [Final Chorus], [Outro] (optional).
-- The hook becomes the chorus. Quote it verbatim each time — never paraphrase the hook line itself, including in [Final Chorus].
-- Default song shape: 2 verses + 2–3 chorus instances + bridge + final chorus. Modest total length — Suno trims long sections.
+- Use Suno [Section] markers exactly as listed in the user message's "Song form" block. Do NOT add or remove sections.
+- The hook is used verbatim wherever the form note instructs:
+  - For chorus-based forms: the hook IS the chorus, written verbatim each time including [Final Chorus] and any [Tag] section.
+  - For AABA / refrain-based forms: the hook is the LAST LINE of every [Verse], written verbatim as a refrain. There is no [Chorus] section.
+  - For tag-out forms: the [Tag] section repeats the hook verbatim with no other lyrics.
+- Never paraphrase the hook line itself, anywhere it appears.
+- Modest total length — Suno trims long sections.
 - Less density than AI typically gives. Conversational, not preachy. Real images.
 - Output JSON: { "title": string, "lyrics": string }. No prose around it.
 
