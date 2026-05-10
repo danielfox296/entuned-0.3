@@ -105,11 +105,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const [allOutcomesMode, setAllOutcomesModeState] = useState(false);
   const [playedCount, setPlayedCount] = useState(0);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.innerWidth >= 1024);
-  // Promo surface gated on effective tier — only Free customers get the
-  // upgrade pitch. Pro/Core/Enterprise (including comped) skip it whether
-  // they access via slug or operator login. Layout is 50/50 row at ≥1024,
-  // 50/50 column below.
-  const showPromo = session.tier === "free";
+  // Promo surface shown for Free, Core, and Pro stores — content rotates
+  // based on tier (upgrade pitch for Free; reminders / upsell mix for Core;
+  // pure feature reminders for Pro). Enterprise has nothing to upsell to and
+  // skips the surface. Layout is 50/50 row at ≥1024, 50/50 column below.
+  const showPromo = session.tier === "free" || session.tier === "core" || session.tier === "pro";
   const twoCol = showPromo && isWide;
   const narrowPromo = showPromo && !isWide;
 
@@ -769,6 +769,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
         {showPromo ? (
           <UpgradeRail
             rotationKey={currentItem?.songId ?? null}
+            tier={session.tier}
             compact={!isWide}
             style={{ flex: 1, minHeight: 0 }}
           />

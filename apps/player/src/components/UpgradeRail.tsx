@@ -1,74 +1,132 @@
 import { useEffect, useState, type CSSProperties } from "react";
 
-// Promotional rail shown on the left side of the player in slug (Free tier) mode
-// at landscape/desktop widths. Rotates value props pulled straight from the
-// pricing-page YAML (`website/_src/pages/pricing/content.yaml`) so the
-// language stays SSOT-aligned. Mix is 4× Core, 2× Pro, 1× usage — Core is the
-// realistic next step; Pro plants a seed without nagging Free users about $399.
-//
-// Operator mode (paid Core/Pro stores) does NOT render this rail.
+// Promo rail shown alongside the player. Content is tier-aware:
+//   free  → Core + Pro upsell (the upgrade pitch)
+//   core  → Pro upsell mixed with Core feature reminders
+//   pro   → Pro feature reminders only (tooltips reinforcing the package)
+//   enterprise → no rail
+// Layout shape stays the same across tiers; only the slot pool and CTA differ.
+
+type SlotKind = "core_upsell" | "pro_upsell" | "core_reminder" | "pro_reminder";
 
 type Slot = {
-  eyebrow: string;
   headline: string;
   body: string;
-  tier: "core" | "pro" | "proof";
+  kind: SlotKind;
 };
 
 const SLOTS: Slot[] = [
+  // ── Core upsell (Free → Core) ────────────────────────────────────────────
   {
-    eyebrow: "Core · Music for your customer",
     headline: "Right now you're hearing the general catalogue.",
     body: "Core tunes the music to your single Ideal Customer Profile — so what plays is shaped by the person actually walking your floor.",
-    tier: "core",
+    kind: "core_upsell",
   },
   {
-    eyebrow: "Core · More outcomes",
     headline: "You've got Linger and Lift Energy.",
     body: "Core unlocks every research-backed outcome we've engineered — not just the two free modes.",
-    tier: "core",
+    kind: "core_upsell",
   },
   {
-    eyebrow: "Core · A bigger, living library",
     headline: "Free is 100+ tracks.",
     body: "Core launches at 300 and grows by ~120 in your first month — top performers refreshed, underperformers culled.",
-    tier: "core",
+    kind: "core_upsell",
   },
   {
-    eyebrow: "Core · Edit your ICP as you evolve",
     headline: "Your customer changes. Your music should too.",
     body: "Core lets you edit the ICP whenever the business shifts — new neighborhood, new product mix, new season.",
-    tier: "core",
+    kind: "core_upsell",
   },
+  // ── Pro upsell (Free / Core → Pro) ──────────────────────────────────────
   {
-    eyebrow: "Pro · Day-parting",
     headline: "Opening calm, peak energy, closing wind-down.",
     body: "Pro shifts the outcome automatically as your floor shifts — no one has to remember to switch modes.",
-    tier: "pro",
+    kind: "pro_upsell",
   },
   {
-    eyebrow: "Pro · Tied to your POS",
     headline: "Music that gets better the longer it plays.",
     body: "Pro integrates with your POS and refines itself against your sales data — the lift shows up in the report.",
-    tier: "pro",
+    kind: "pro_upsell",
   },
   {
-    eyebrow: "Pro · Multiple customer types",
     headline: "One store, many customers.",
     body: "Pro tailors music to each distinct customer type your store serves — instead of a single profile.",
-    tier: "pro",
+    kind: "pro_upsell",
+  },
+  // ── Core feature reminders (for active Core stores) ─────────────────────
+  {
+    headline: "Your music is tuned to one customer.",
+    body: "Core is shaping every track to the Ideal Customer Profile you set up — not a generic catalogue.",
+    kind: "core_reminder",
+  },
+  {
+    headline: "Two outcomes available.",
+    body: "Linger and Lift Energy — switch any time at the bottom of the screen.",
+    kind: "core_reminder",
+  },
+  {
+    headline: "Loved tracks shape the rotation.",
+    body: "Tap love when something lands. We lean into what your floor responds to over time.",
+    kind: "core_reminder",
+  },
+  {
+    headline: "Your ICP can evolve with the business.",
+    body: "New neighborhood, new product mix, new season — edit your ICP and the music follows.",
+    kind: "core_reminder",
+  },
+  // ── Pro feature reminders (for active Pro stores) ───────────────────────
+  {
+    headline: "Your music is shifting with the day.",
+    body: "Day-parting is on — opening, peak, and closing each get their own cadence. No one has to remember to switch modes.",
+    kind: "pro_reminder",
+  },
+  {
+    headline: "Music tied to your POS.",
+    body: "Pro is refining what plays against your sales data — this week's lift shows up in the report.",
+    kind: "pro_reminder",
+  },
+  {
+    headline: "Tailored to every customer type your floor serves.",
+    body: "Pro is balancing across all of your ICPs — not a single profile.",
+    kind: "pro_reminder",
+  },
+  {
+    headline: "Every outcome is available to you.",
+    body: "Linger, Lift Energy, and the rest — switch any time at the bottom of the screen.",
+    kind: "pro_reminder",
+  },
+  {
+    headline: "Loved tracks shape what plays.",
+    body: "Tap love when something lands. Pro leans into what your floor responds to over time.",
+    kind: "pro_reminder",
   },
 ];
+
+function slotsForTier(tier: string | undefined): Slot[] {
+  switch (tier) {
+    case "free":
+      return SLOTS.filter((s) => s.kind === "core_upsell" || s.kind === "pro_upsell");
+    case "core":
+      return SLOTS.filter((s) => s.kind === "pro_upsell" || s.kind === "core_reminder");
+    case "pro":
+      return SLOTS.filter((s) => s.kind === "pro_reminder");
+    default:
+      return [];
+  }
+}
 
 type Props = {
   /** Bumps the slot index every time it changes (e.g. the playing track). */
   rotationKey: string | null;
+  /** Effective tier ('free' | 'core' | 'pro') — drives which slot pool rotates. */
+  tier: string | undefined;
   /** Reduces typography + padding for narrow viewports. Same layout shape. */
   compact?: boolean;
   style?: CSSProperties;
 };
 
-export function UpgradeRail({ rotationKey, compact = false, style }: Props) {
+export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props) {
+  const slots = slotsForTier(tier);
   const [index, setIndex] = useState(0);
   const [fade, setFade] = useState(true);
 
@@ -77,41 +135,41 @@ export function UpgradeRail({ rotationKey, compact = false, style }: Props) {
   // playback for a long stretch.
   useEffect(() => {
     if (rotationKey == null) return;
+    if (slots.length === 0) return;
     setFade(false);
     const t = setTimeout(() => {
-      setIndex((i) => (i + 1) % SLOTS.length);
+      setIndex((i) => (i + 1) % slots.length);
       setFade(true);
     }, 280);
     return () => clearTimeout(t);
-  }, [rotationKey]);
+  }, [rotationKey, slots.length]);
 
   useEffect(() => {
+    if (slots.length === 0) return;
     const iv = window.setInterval(() => {
       setFade(false);
       setTimeout(() => {
-        setIndex((i) => (i + 1) % SLOTS.length);
+        setIndex((i) => (i + 1) % slots.length);
         setFade(true);
       }, 280);
     }, 50_000);
     return () => clearInterval(iv);
-  }, []);
+  }, [slots.length]);
 
-  const slot = SLOTS[index];
+  if (slots.length === 0) return null;
+  const slot = slots[index % slots.length];
+  const isUpsell = slot.kind === "core_upsell" || slot.kind === "pro_upsell";
 
-  // Tier accent now lives only on the CTA — the per-slot eyebrow lines + the
-  // static "Your plan" label have been removed. Headline + body carry the
-  // narrative; the CTA telegraphs which tier this slot is selling.
-  const ctaColor = slot.tier === "pro"
+  // Upsell slots get a tier-accented CTA. Reminder slots (active Core / Pro
+  // customers being reassured of what they have) skip the CTA entirely so
+  // the rail reads as a tooltip, not a sales surface.
+  const ctaColor = slot.kind === "pro_upsell"
     ? "rgba(215,175,116,1)"
-    : slot.tier === "core"
-      ? "rgba(120,180,188,1)"
-      : "rgba(232,238,240,0.9)";
-  const ctaUnderline = slot.tier === "pro"
+    : "rgba(120,180,188,1)";
+  const ctaUnderline = slot.kind === "pro_upsell"
     ? "rgba(215,175,116,0.5)"
-    : slot.tier === "core"
-      ? "rgba(120,180,188,0.5)"
-      : "rgba(232,238,240,0.4)";
-  const ctaLabel = slot.tier === "pro"
+    : "rgba(120,180,188,0.5)";
+  const ctaLabel = slot.kind === "pro_upsell"
     ? "See what Pro unlocks →"
     : "See what Core unlocks →";
 
@@ -129,11 +187,14 @@ export function UpgradeRail({ rotationKey, compact = false, style }: Props) {
         position: "relative",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "space-between",
+        // Reminders sit center-aligned (no CTA at the bottom); upsells use
+        // space-between so the CTA pins to the bottom edge.
+        justifyContent: isUpsell ? "space-between" : "center",
         padding,
         boxSizing: "border-box",
         minHeight: 0,
         overflow: "hidden",
+        gap: isUpsell ? 0 : innerGap,
         ...style,
       }}
     >
@@ -173,24 +234,26 @@ export function UpgradeRail({ rotationKey, compact = false, style }: Props) {
         </div>
       </div>
 
-      <a
-        href="https://entuned.co/pricing.html"
-        target="_blank"
-        rel="noreferrer"
-        style={{
-          fontSize: ctaSize,
-          fontWeight: 500,
-          letterSpacing: 2.5,
-          color: ctaColor,
-          textTransform: "uppercase",
-          textDecoration: "none",
-          borderBottom: `1px solid ${ctaUnderline}`,
-          paddingBottom: 6,
-          alignSelf: "flex-start",
-        }}
-      >
-        {ctaLabel}
-      </a>
+      {isUpsell ? (
+        <a
+          href="https://entuned.co/pricing.html"
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            fontSize: ctaSize,
+            fontWeight: 500,
+            letterSpacing: 2.5,
+            color: ctaColor,
+            textTransform: "uppercase",
+            textDecoration: "none",
+            borderBottom: `1px solid ${ctaUnderline}`,
+            paddingBottom: 6,
+            alignSelf: "flex-start",
+          }}
+        >
+          {ctaLabel}
+        </a>
+      ) : null}
     </div>
   );
 }
