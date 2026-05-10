@@ -974,6 +974,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
           outcomes={outcomes}
           activeId={allOutcomesMode ? null : (activeOutcome?.outcomeId ?? null)}
           allOutcomesMode={allOutcomesMode}
+          viewerTier={session.tier}
           onSelect={handleSelectOutcome}
           onSelectAll={handleSelectAll}
           onClear={!allOutcomesMode && activeOutcome?.source === "selection" ? handleClearOutcome : null}

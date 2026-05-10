@@ -999,6 +999,16 @@ export const api = {
       { method: 'PUT', body: JSON.stringify(body) },
       token,
     ),
+  freeTierOutcomes: (token: string) =>
+    req<{ outcomeKey: string; outcomeId: string; title: string; version: number; availableOnFree: boolean }[]>(
+      '/admin/free-tier-outcomes', {}, token,
+    ),
+  toggleFreeTierOutcome: (outcomeKey: string, token: string) =>
+    req<{ availableOnFree: boolean }>(
+      '/admin/free-tier-outcomes/toggle',
+      { method: 'POST', body: JSON.stringify({ outcomeKey }) },
+      token,
+    ),
   poolDepth: (token: string) =>
     req<PoolDepthResponse>('/admin/pool-depth', {}, token),
   icpHooks: (icpId: string, token: string) =>

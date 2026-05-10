@@ -105,7 +105,11 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
     })
     if (!store) return reply.code(404).send({ error: 'store_not_found' })
     const icpIds = store.icpLinks.map((l) => l.icpId)
-    const outcomes = await prisma.outcome.findMany({ where: { supersededAt: null } })
+    const [outcomes, allowedFree] = await Promise.all([
+      prisma.outcome.findMany({ where: { supersededAt: null } }),
+      prisma.freeTierOutcome.findMany({ select: { outcomeKey: true } }),
+    ])
+    const allowedFreeSet = new Set(allowedFree.map((a) => a.outcomeKey))
 
     const counts = icpIds.length === 0 ? [] : await prisma.lineageRow.groupBy({
       by: ['outcomeId'],
@@ -115,10 +119,12 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
     const countMap = new Map(counts.map((c) => [c.outcomeId, c._count._all]))
     return outcomes.map((o) => ({
       outcomeId: o.id,
+      outcomeKey: o.outcomeKey,
       title: o.displayTitle ?? o.title,
       tempoBpm: o.tempoBpm,
       mode: o.mode,
       poolSize: countMap.get(o.id) ?? 0,
+      availableOnFree: allowedFreeSet.has(o.outcomeKey),
     }))
   })
 

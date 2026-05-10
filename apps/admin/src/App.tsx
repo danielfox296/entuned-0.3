@@ -30,6 +30,7 @@ import { DryRun } from './panels/schedule/DryRun.js'
 import { PoolDepth } from './panels/catalogue/PoolDepth.js'
 import { SongBrowser } from './panels/catalogue/SongBrowser.js'
 import { FlaggedReview } from './panels/catalogue/FlaggedReview.js'
+import { FreeTierOutcomes } from './panels/catalogue/FreeTierOutcomes.js'
 import { WorkflowRouter } from './panels/workflow/WorkflowRouter.js'
 import { SalesDataIngest } from './panels/salesdata/SalesDataIngest.js'
 import { EmailTemplates } from './panels/email/EmailTemplates.js'
@@ -58,7 +59,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Hook Drafter', 'Decomposition', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Reference Track Suggester'],
     description: '' },
   { key: 'catalogue', label: 'Library', short: 'Library', icon: Music2,
-    cards: ['Song Browser', 'Flagged Review', 'Pool Depth'],
+    cards: ['Song Browser', 'Flagged Review', 'Pool Depth', 'Free Tier Outcomes'],
     description: '' },
   { key: 'salesdata', label: 'Sales Data', short: 'Sales Data', icon: ShoppingCart,
     cards: ['Ingest'],
@@ -494,6 +495,7 @@ function CatalogueRouter({ cards }: { cards: string[] }) {
       {active === 'Pool Depth' && <PoolDepth />}
       {active === 'Song Browser' && <SongBrowser />}
       {active === 'Flagged Review' && <FlaggedReview />}
+      {active === 'Free Tier Outcomes' && <FreeTierOutcomes />}
     </div>
   )
 }

@@ -1323,6 +1323,49 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return row
   })
 
+  // ----- Free Tier Outcome Allowlist -----
+  // Operator-curated set of outcomeKeys available to free-tier stores. Player
+  // greys out + locks any outcome whose key is NOT in this set when the viewer
+  // is on free tier. Toggle in Dash to gate, or unlock for a promo week.
+
+  app.get('/free-tier-outcomes', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    // Return one row per outcomeKey (latest active version's metadata) plus
+    // an `availableOnFree` flag from free_tier_outcomes. Superseded versions
+    // are folded into their active sibling.
+    const [outcomes, allowed] = await Promise.all([
+      prisma.outcome.findMany({
+        where: { supersededAt: null },
+        select: { id: true, outcomeKey: true, title: true, displayTitle: true, version: true },
+        orderBy: [{ title: 'asc' }],
+      }),
+      prisma.freeTierOutcome.findMany({ select: { outcomeKey: true } }),
+    ])
+    const allowedSet = new Set(allowed.map((a) => a.outcomeKey))
+    return outcomes.map((o) => ({
+      outcomeKey: o.outcomeKey,
+      outcomeId: o.id,
+      title: o.displayTitle ?? o.title,
+      version: o.version,
+      availableOnFree: allowedSet.has(o.outcomeKey),
+    }))
+  })
+
+  const FreeTierOutcomeToggleBody = z.object({ outcomeKey: z.string().uuid() })
+  app.post('/free-tier-outcomes/toggle', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = FreeTierOutcomeToggleBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
+    const { outcomeKey } = parsed.data
+    const existing = await prisma.freeTierOutcome.findUnique({ where: { outcomeKey } })
+    if (existing) {
+      await prisma.freeTierOutcome.delete({ where: { outcomeKey } })
+      return { availableOnFree: false }
+    }
+    await prisma.freeTierOutcome.create({ data: { outcomeKey } })
+    return { availableOnFree: true }
+  })
+
   // ----- Pool Depth (per-(ICP, Outcome) active LineageRow counts) -----
   // Hendrix's hot path picks LineageRows by (icpId, outcomeId, active=true). When that pool runs
   // thin, playback variety degrades; when it hits zero, Hendrix has nothing to play for that

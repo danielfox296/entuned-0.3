@@ -594,6 +594,18 @@ model Outcome {
   @@map("outcomes")
 }
 
+// ---------- FreeTierOutcome ----------
+// Operator-curated allowlist of outcomes available to free-tier stores.
+// Keyed by outcomeKey (durable across Outcome version bumps). Operators
+// toggle entries via Dash to gate or temporarily unlock outcomes for free
+// users (PLG upgrade friction + promo demos).
+model FreeTierOutcome {
+  outcomeKey String   @id @map("outcome_key") @db.Uuid
+  enabledAt  DateTime @default(now()) @map("enabled_at") @db.Timestamptz(6)
+
+  @@map("free_tier_outcomes")
+}
+
 // ---------- OutcomeLyricFactor ----------
 // Per-outcome editable guidance string injected into the Hook Drafter prompt.
 // Keyed by outcomeKey (not version-pinned id) so operators can iterate without

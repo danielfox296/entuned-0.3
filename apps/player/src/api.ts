@@ -48,10 +48,13 @@ export interface NextResponse {
 
 export interface OutcomeOption {
   outcomeId: string
+  outcomeKey: string
   title: string
   tempoBpm: number
   mode: string
   poolSize: number
+  /** Curated allowlist for free-tier visibility — operator toggles in Dash. */
+  availableOnFree: boolean
 }
 
 export interface AuthResponse {
