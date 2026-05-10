@@ -42,6 +42,23 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
     return { available: a, locked: l };
   }, [outcomes, isFree]);
 
+  // Viewport-aware density. The free tier renders 9 outcomes + 2 section
+  // labels + footer + header — at default sizing that's ~720px, which spills
+  // off iPad-landscape (768h) and any short tablet/phone-landscape screen.
+  // We track height and switch to a denser layout when there isn't room for
+  // the comfortable defaults, so the surface fits without an inner scrollbar.
+  const [winH, setWinH] = useState(() => (typeof window !== "undefined" ? window.innerHeight : 1024));
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onResize = () => setWinH(window.innerHeight);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  // Total row count drives the threshold — free tier with 9 outcomes needs
+  // compact below ~820px; paid pools (3-5 rows) only compact below ~620px.
+  const totalRows = available.length + locked.length + 1; // +1 for All Outcomes
+  const compact = winH < (totalRows >= 8 ? 820 : 620);
+
   // When a user taps a locked tile, briefly pulse the persistent upgrade bar
   // so they see where the unlock action lives. No navigation on the tile itself
   // — explicit click on Upgrade is required (avoids reading too much into a tap).
@@ -76,7 +93,10 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
           borderRadius: 18,
           maxWidth: 480,
           width: "100%",
-          maxHeight: "88vh",
+          // Was 88vh — capped the surface ~80px short of free-tier content on
+          // iPad-landscape. Use the full available viewport minus the overlay
+          // padding; intrinsic content height keeps the modal compact.
+          maxHeight: "calc(100dvh - 32px)",
           display: "flex",
           flexDirection: "column",
           boxShadow: "0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.02)",
@@ -87,13 +107,13 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "22px 24px 16px",
+          padding: compact ? "14px 22px 12px" : "22px 24px 16px",
           borderBottom: `1px solid rgba(255,255,255,0.06)`,
         }}>
           <h2 style={{
             margin: 0,
             fontFamily: "'Manrope', sans-serif",
-            fontSize: 22,
+            fontSize: compact ? 18 : 22,
             fontWeight: 700,
             color: "#e8eef0",
             letterSpacing: "-0.01em",
@@ -118,10 +138,12 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
           </button>
         </div>
 
-        {/* Scrollable body — grouped "Available" then "Available on Core" */}
-        <div style={{ overflowY: "auto", padding: "16px 20px 20px", flex: 1 }}>
-          <SectionLabel>Available now</SectionLabel>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 18 }}>
+        {/* Body — grouped "Available" then "Available on Core". overflowY:auto
+            is a fallback for extreme viewports; default sizing is tuned so all
+            outcomes fit without scroll on iPad-landscape and up. */}
+        <div style={{ overflowY: "auto", padding: compact ? "12px 16px 14px" : "16px 20px 20px", flex: 1 }}>
+          <SectionLabel compact={compact}>Available now</SectionLabel>
+          <div style={{ display: "flex", flexDirection: "column", gap: compact ? 4 : 6, marginBottom: compact ? 12 : 18 }}>
             {/* All Outcomes — same row treatment as a peer outcome */}
             <OutcomeRow
               label="All Outcomes"
@@ -129,6 +151,7 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
               active={allOutcomesMode}
               empty={false}
               locked={false}
+              compact={compact}
               onClick={onSelectAll}
             />
             {available.map((o) => (
@@ -139,6 +162,7 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
                 active={!allOutcomesMode && activeId === o.outcomeId}
                 empty={o.poolSize === 0}
                 locked={false}
+                compact={compact}
                 onClick={() => o.poolSize > 0 && onSelect(o.outcomeId)}
               />
             ))}
@@ -146,8 +170,8 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
 
           {locked.length > 0 && (
             <>
-              <SectionLabel>Available on Core</SectionLabel>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <SectionLabel compact={compact}>Available on Core</SectionLabel>
+              <div style={{ display: "flex", flexDirection: "column", gap: compact ? 4 : 6 }}>
                 {locked.map((o) => (
                   <OutcomeRow
                     key={o.outcomeId}
@@ -155,6 +179,7 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
                     active={false}
                     empty={false}
                     locked
+                    compact={compact}
                     onClick={() => setPulseFooter(true)}
                   />
                 ))}
@@ -167,9 +192,9 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
               type="button"
               onClick={onClear}
               style={{
-                marginTop: 18,
+                marginTop: compact ? 12 : 18,
                 width: "100%",
-                padding: "11px 16px",
+                padding: compact ? "9px 14px" : "11px 16px",
                 borderRadius: 10,
                 border: "1px solid rgba(240,153,123,0.35)",
                 background: "rgba(240,153,123,0.06)",
@@ -194,7 +219,7 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              padding: "16px 24px",
+              padding: compact ? "11px 20px" : "16px 24px",
               borderTop: `1px solid ${TEAL_BORDER_FAINT}`,
               borderBottomLeftRadius: 18,
               borderBottomRightRadius: 18,
@@ -243,7 +268,7 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
 
 // ── Subcomponents ─────────────────────────────────────────────────
 
-function SectionLabel({ children }: { children: string }) {
+function SectionLabel({ children, compact }: { children: string; compact: boolean }) {
   return (
     <div style={{
       fontSize: 10,
@@ -251,7 +276,7 @@ function SectionLabel({ children }: { children: string }) {
       letterSpacing: "0.16em",
       color: "rgba(212,225,229,0.45)",
       textTransform: "uppercase",
-      margin: "4px 4px 10px",
+      margin: compact ? "2px 4px 6px" : "4px 4px 10px",
     }}>
       {children}
     </div>
@@ -259,13 +284,14 @@ function SectionLabel({ children }: { children: string }) {
 }
 
 function OutcomeRow({
-  label, count, active, empty, locked, onClick,
+  label, count, active, empty, locked, compact, onClick,
 }: {
   label: string;
   count?: number;
   active: boolean;
   empty: boolean;
   locked: boolean;
+  compact: boolean;
   onClick: () => void;
 }) {
   const disabled = empty && !locked;
@@ -277,7 +303,7 @@ function OutcomeRow({
       style={{
         width: "100%",
         textAlign: "left",
-        padding: "13px 16px",
+        padding: compact ? "9px 14px" : "13px 16px",
         borderRadius: 11,
         border: `1px solid ${active ? TEAL_BORDER : "rgba(255,255,255,0.07)"}`,
         background: active ? TEAL_TINT : "rgba(255,255,255,0.025)",
@@ -310,7 +336,7 @@ function OutcomeRow({
           </svg>
         ) : null}
         <span style={{
-          fontSize: 15,
+          fontSize: compact ? 14 : 15,
           fontWeight: 600,
           letterSpacing: 0.2,
           color: active ? TEAL : (locked ? "rgba(212,225,229,0.65)" : "#e8eef0"),
