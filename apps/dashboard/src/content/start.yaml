@@ -18,8 +18,8 @@ generic_error: "something went wrong"
 value:
   headline: "Music that works your floor."
   body: "Original, retail-licensed, generated for the customers in front of you. Free forever. No card. Plays through your existing speakers."
-  bullet_1: "Licensed from day one: no ASCAP, BMI, or SESAC exposure"
-  bullet_2: "Choose Linger or Lift: music designed around an outcome, not a mood"
+  bullet_1: "Licensed from day one — no ASCAP, BMI, or SESAC fees, no surprise letters"
+  bullet_2: "Music with a job — stay longer, spend more — not just background"
   bullet_3: "No app: plays from a web browser on any device"
 
 # RIGHT — auth panel

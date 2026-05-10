@@ -258,10 +258,14 @@ function BigInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
         borderBottom: `1px solid ${T.border}`,
         borderRadius: 0,
         fontFamily: T.heading,
-        fontSize: 24,
+        // clamp keeps "you@yourstore.com" from clipping inside the narrow auth panel on mobile
+        fontSize: 'clamp(18px, 4.8vw, 24px)',
         fontWeight: 600,
         letterSpacing: '-0.01em',
         padding: '8px 0',
+        width: '100%',
+        boxSizing: 'border-box',
+        minWidth: 0,
       }}
     />
   )
