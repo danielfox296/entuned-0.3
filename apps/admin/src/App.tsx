@@ -18,6 +18,7 @@ import { OutcomeFactorPrompt } from './panels/engine/OutcomeFactorPrompt.js'
 import { OutcomeLyricFactor } from './panels/engine/OutcomeLyricFactor.js'
 import { ReferenceTrackPrompt } from './panels/engine/ReferenceTrackPrompt.js'
 import { HookDrafterPrompt } from './panels/engine/HookDrafterPrompt.js'
+import { FormArchetypes } from './panels/engine/FormArchetypes.js'
 import { IcpEditor } from './panels/brand/IcpEditor.js'
 import { ClientDetail } from './panels/brand/ClientDetail.js'
 import { StoreEditor } from './panels/brand/StoreEditor.js'
@@ -50,7 +51,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Details', 'Location', 'ICP Editor', 'Logins', 'Campaigns', 'Event Stream'],
     description: '' },
   { key: 'schedule', label: 'Scheduling', short: 'Schedule', icon: CalendarDays,
-    cards: ['Dayparting'],
+    cards: ['Outcome Schedule'],
     description: '' },
   { key: 'outcomes', label: 'Outcomes', short: 'Outcomes', icon: Target,
     cards: ['Outcome Library', 'Style Rules', 'Lyric Rules', 'Dry Run'],
@@ -426,7 +427,7 @@ function ClientLogoThumb({ clientId }: { clientId: string | null }) {
 
 // ── Schedule router ────────────────────────────────────────────
 function ScheduleRouter({ cards }: { cards: string[] }) {
-  const [active, setActive] = useNavSub<string>('Dayparting')
+  const [active, setActive] = useNavSub<string>('Outcome Schedule')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={subTabRowStyle}>
@@ -437,7 +438,7 @@ function ScheduleRouter({ cards }: { cards: string[] }) {
           )
         })}
       </div>
-      {active === 'Dayparting' && <OutcomeSchedule />}
+      {active === 'Outcome Schedule' && <OutcomeSchedule />}
     </div>
   )
 }

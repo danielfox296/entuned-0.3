@@ -3,7 +3,7 @@
 // Fires for Core Clients who have completed Customer Profile AND have been on
 // Core for ≥30 days. The signal: they engaged with the product (filled the
 // ICP) and stuck around (paid for a month). Pro's flagship pitch is that the
-// data starts paying off — Lift Reports, integrations, day-parting.
+// data starts paying off — Lift Reports, integrations, Outcome Scheduling.
 //
 // LIFECYCLE-class email: opt-out gated, unsub footer attached by the renderer.
 
@@ -25,7 +25,7 @@ export function html(props: EstablishedCoreToProProps): string {
     <ul style="margin:0 0 14px 0;padding-left:20px;">
       <li style="margin-bottom:6px;"><strong style="color:#50929c;">Lift Reports</strong> &mdash; the music outcome on each shift, mapped to your existing CFO report. Forward it as-is.</li>
       <li style="margin-bottom:6px;"><strong style="color:#50929c;">POS integrations</strong> &mdash; hourly sales next to what was playing. The lift stops being a story and starts being a line item.</li>
-      <li><strong style="color:#50929c;">Day-parting</strong> &mdash; different outcomes by hour. Match the customer that walks in at 11am vs. 5pm.</li>
+      <li><strong style="color:#50929c;">Outcome Scheduling</strong> &mdash; different outcomes by hour. Match the customer that walks in at 11am vs. 5pm.</li>
     </ul>
     ${button(props.upgradeUrl, 'Unlock Pro')}
     <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">$399 per location, per month. The first time you forward a Lift Report to your CFO, it pays.</p>

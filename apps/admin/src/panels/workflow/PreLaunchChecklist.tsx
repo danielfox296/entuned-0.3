@@ -244,7 +244,7 @@ function computeGates(args: {
       ? `${slotCount} slot${slotCount === 1 ? '' : 's'} configured`
       : 'no schedule slots — location will fall back to the default outcome only',
     remediation: slotCount === 0
-      ? { group: 'schedule', sub: 'Dayparting', label: 'Open Dayparting →' }
+      ? { group: 'schedule', sub: 'Outcome Schedule', label: 'Open Outcome Schedule →' }
       : undefined,
   })
 

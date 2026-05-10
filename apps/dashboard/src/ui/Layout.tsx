@@ -26,7 +26,7 @@ const NAV: NavSpec[] = [
   { to: '/',             label: 'Home',             icon: HomeIcon,      requires: 'free',    features: [] },
   { to: '/locations',    label: 'Locations',        icon: MapPin,        requires: 'free',    features: [] },
   { to: '/intake',       label: 'Customer Profile', icon: Sparkles,      requires: 'core',    features: ['Music tuned to your specific customer', 'A library built around who walks in'] },
-  { to: '/schedule',     label: 'Schedule',         icon: CalendarClock, requires: 'pro',     features: ['Time-of-day outcome rotation', 'Day-parting rules'] },
+  { to: '/schedule',     label: 'Schedule',         icon: CalendarClock, requires: 'pro',     features: ['Time-of-day outcome rotation', 'Outcome scheduling rules'] },
   { to: '/integrations', label: 'Integrations',     icon: Plug,          requires: 'pro',     features: ['Square, Shopify, Lightspeed', 'Tie music to sales'] },
   { to: '/reports',      label: 'Reports',          icon: BarChart3,     requires: 'roadmap', features: ['Lift Reports', 'Rolling out with v2'] },
 ]

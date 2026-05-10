@@ -1,4 +1,4 @@
-// Card 8 Dayparting — outcome resolution + outcome selection helpers.
+// Card 8 Outcome Schedule — outcome resolution + outcome selection helpers.
 // Resolution order: operator selection > schedule slot covering now (store-local) > store default.
 
 import { prisma } from '../db.js'

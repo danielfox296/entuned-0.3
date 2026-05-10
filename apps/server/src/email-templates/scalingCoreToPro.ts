@@ -1,7 +1,7 @@
 // Behavioral upgrade trigger — Core → Pro, "scaling" signal.
 //
 // Fires for Core Clients who run 2+ paid locations. The signal is unambiguous
-// — they're scaling, and Pro's per-location features (day-parting, POS
+// — they're scaling, and Pro's per-location features (Outcome Scheduling, POS
 // integrations) start mattering economically once you can't eyeball every store.
 //
 // LIFECYCLE-class email: opt-out gated, unsub footer attached by the renderer.
@@ -23,7 +23,7 @@ export function html(props: ScalingCoreToProProps): string {
     <p style="margin:0 0 14px 0;">At one location, you can hear the floor. At ${props.storeCount}, you can&rsquo;t be everywhere &mdash; and you can&rsquo;t tell which hours need different music.</p>
     <p style="margin:0 0 14px 0;">Pro adds two things that pay for themselves at scale:</p>
     <ul style="margin:0 0 14px 0;padding-left:20px;">
-      <li style="margin-bottom:6px;"><strong style="color:#50929c;">Day-parting</strong> &mdash; outcome rotation per location. Morning lull on Linger, Saturday afternoon on Lift Energy. One rule, every store.</li>
+      <li style="margin-bottom:6px;"><strong style="color:#50929c;">Outcome Scheduling</strong> &mdash; outcome rotation per location. Morning lull on Linger, Saturday afternoon on Lift Energy. One rule, every store.</li>
       <li><strong style="color:#50929c;">POS integrations</strong> &mdash; Square / Shopify / Lightspeed. Music outcomes next to hourly transactions, per location. The lift stops being a story and starts being a line item.</li>
     </ul>
     ${button(props.upgradeUrl, 'Unlock Pro')}

@@ -349,7 +349,7 @@ async function runEngagedFreeToCore(): Promise<DripStats> {
 // ── Scaling Core → Pro ──────────────────────────────────────────────────
 //
 // Client with ≥2 paid Stores, none on Pro yet. Multi-location operators are
-// the natural Pro audience — day-parting + POS integrations matter once you
+// the natural Pro audience — Outcome Scheduling + POS integrations matter once you
 // can't eyeball every floor.
 
 async function runScalingCoreToPro(): Promise<DripStats> {

@@ -136,7 +136,7 @@ const SLOTS: Slot[] = [
   },
   // ── Pro feature reminders (for active Pro stores) ───────────────────────
   {
-    anchor: "Day-parting is on.",
+    anchor: "Outcome Scheduling is on.",
     points: [
       "Opening calm",
       "Peak energy",
