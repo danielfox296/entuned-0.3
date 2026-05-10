@@ -3,7 +3,7 @@ import { api, type QueueItem, type ActiveOutcome, type OutcomeOption, type Audio
 import { CrossfadePlayer } from "../audio/crossfade-player.js";
 import { LoudnessSampler } from "../audio/loudness-sampler.js";
 import { bufferEvent, flushNow } from "../lib/event-buffer.js";
-import { CircleButton } from "../components/CircleButton.js";
+import { IconButton } from "../components/IconButton.js";
 import { DarkHalo } from "../components/DarkHalo.js";
 import { ProgressBar } from "../components/ProgressBar.js";
 import { OutcomeModal } from "../components/OutcomeModal.js";
@@ -29,6 +29,44 @@ function loadLoved(): Set<string> {
 }
 function saveLoved(s: Set<string>) {
   try { localStorage.setItem(LOVED_KEY, JSON.stringify([...s])); } catch {}
+}
+
+// Tier pill rendered next to the logo. Each tier gets its own accent so
+// operators see at a glance what plan the active store is running on.
+const TIER_LABEL: Record<string, string> = {
+  free: "Entuned Free",
+  core: "Core",
+  pro: "Pro",
+  enterprise: "Enterprise",
+};
+const TIER_ACCENT: Record<string, { fg: string; bg: string; border: string }> = {
+  free:       { fg: "rgba(212,225,229,0.7)",  bg: "rgba(212,225,229,0.05)", border: "rgba(212,225,229,0.18)" },
+  core:       { fg: "rgba(120,180,188,0.95)", bg: "rgba(120,180,188,0.08)", border: "rgba(120,180,188,0.32)" },
+  pro:        { fg: "rgba(215,175,116,0.95)", bg: "rgba(215,175,116,0.08)", border: "rgba(215,175,116,0.32)" },
+  enterprise: { fg: "rgba(232,238,240,0.95)", bg: "rgba(232,238,240,0.06)", border: "rgba(232,238,240,0.30)" },
+};
+function TierPill({ tier }: { tier: string }) {
+  const label = TIER_LABEL[tier] ?? tier;
+  const accent = TIER_ACCENT[tier] ?? TIER_ACCENT.free;
+  return (
+    <span
+      style={{
+        fontSize: 10,
+        fontWeight: 500,
+        letterSpacing: 2,
+        color: accent.fg,
+        background: accent.bg,
+        border: `1px solid ${accent.border}`,
+        borderRadius: 100,
+        padding: "4px 10px",
+        textTransform: "uppercase",
+        whiteSpace: "nowrap",
+        userSelect: "none",
+      }}
+    >
+      {label}
+    </span>
+  );
 }
 
 function trackLabel(item: QueueItem | null): string {
@@ -68,9 +106,12 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const [allOutcomesMode, setAllOutcomesModeState] = useState(false);
   const [playedCount, setPlayedCount] = useState(0);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.innerWidth >= 1024);
-  // Two-column promotional layout: only for slug (Free tier) at landscape/desktop
-  // widths. Operator mode (paid Core/Pro) keeps the centered layout.
-  const twoCol = session.mode === "slug" && isWide;
+  // Promo surface: shown for slug-mode (Free tier) at every viewport. At ≥1024
+  // it's a tall left rail; below that it's a compact card stacked under the
+  // player. Operator mode (paid Core/Pro) doesn't render either.
+  const showPromo = session.mode === "slug";
+  const twoCol = showPromo && isWide;
+  const narrowPromo = showPromo && !isWide;
 
   useEffect(() => {
     const onResize = () => setIsWide(window.innerWidth >= 1024);
@@ -648,8 +689,8 @@ export function PlayerScreen({ session, onLogout }: Props) {
         minHeight: "100vh",
         overflow: "hidden",
         background: twoCol
-          ? "linear-gradient(rgba(28,26,22,0.72), rgba(20,18,14,0.88)), url('/hero-start.jpg')"
-          : "radial-gradient(ellipse at center, #282824 0%, #20201c 55%, #1a1a17 100%)",
+          ? "linear-gradient(rgba(22,21,18,0.82), rgba(13,11,9,0.94)), url('/hero-start.jpg')"
+          : "radial-gradient(ellipse at center, #1f1f1c 0%, #151511 55%, #0d0d0a 100%)",
         backgroundSize: "cover",
         backgroundPosition: "center",
         display: "flex",
@@ -657,7 +698,10 @@ export function PlayerScreen({ session, onLogout }: Props) {
       }}
     >
       <div style={{ position: "relative", zIndex: 1, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "24px 32px" }}>
-        <img src={logoUrl} alt="Entuned" style={{ width: 118, opacity: 0.7 }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <img src={logoUrl} alt="Entuned" style={{ width: 118, opacity: 0.7 }} />
+          {session.tier ? <TierPill tier={session.tier} /> : null}
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div
             onClick={() => setShowLogoutConfirm((v) => !v)}
@@ -687,6 +731,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
                   storeId: s.id,
                   storeName: s.name,
                   clientName: s.clientName ?? null,
+                  tier: s.tier,
                 };
                 saveSession(next);
                 window.location.reload();
@@ -764,7 +809,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
                 fontWeight: 400,
                 color: "rgba(212,225,229,0.9)",
                 letterSpacing: twoCol ? 3.5 : 5,
-                lineHeight: 1.55,
+                lineHeight: 1.25,
                 textTransform: "uppercase",
                 textAlign: twoCol ? "left" : "center",
                 padding: twoCol ? 0 : "0 40px",
@@ -805,33 +850,36 @@ export function PlayerScreen({ session, onLogout }: Props) {
 
         {/* Controls block: primary play/skip, then secondary love/report tightly grouped */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: twoCol ? "flex-start" : "center", gap: 24 }}>
-          <DarkHalo style={{ display: "flex", gap: 28, alignItems: "center" }}>
-            <CircleButton onClick={togglePlayPause} ariaLabel={isPlaying ? "Pause" : "Play"}>
+          <DarkHalo style={{ display: "flex", gap: 56, alignItems: "center" }}>
+            <IconButton onClick={togglePlayPause} ariaLabel={isPlaying ? "Pause" : "Play"}>
               {isPlaying ? (
-                <svg width="36" height="36" viewBox="0 0 28 28">
-                  <rect x="7" y="5" width="5" height="18" rx="1.5" fill="rgba(212,225,229,0.9)" />
-                  <rect x="16" y="5" width="5" height="18" rx="1.5" fill="rgba(212,225,229,0.9)" />
+                <svg width="64" height="64" viewBox="0 0 28 28">
+                  <rect x="7" y="5" width="5" height="18" rx="1.5" fill="rgba(232,238,240,0.95)" />
+                  <rect x="16" y="5" width="5" height="18" rx="1.5" fill="rgba(232,238,240,0.95)" />
                 </svg>
               ) : (
-                <svg width="36" height="36" viewBox="0 0 28 28">
-                  <path d="M9 4l12 8-12 8z" fill="rgba(212,225,229,0.9)" />
+                <svg width="64" height="64" viewBox="0 0 28 28">
+                  <path d="M9 4l12 8-12 8z" fill="rgba(232,238,240,0.95)" />
                 </svg>
               )}
-            </CircleButton>
-            <CircleButton onClick={skip} ariaLabel="Skip">
-              <svg width="34" height="34" viewBox="0 0 24 24">
-                <path d="M4.5 5l10 7-10 7zm12.5 0v14h2.5V5z" fill="rgba(212,225,229,0.9)" />
+            </IconButton>
+            <IconButton onClick={skip} ariaLabel="Skip">
+              <svg width="58" height="58" viewBox="0 0 24 24">
+                <path d="M4.5 5l10 7-10 7zm12.5 0v14h2.5V5z" fill="rgba(232,238,240,0.95)" />
               </svg>
-            </CircleButton>
+            </IconButton>
           </DarkHalo>
 
           {(() => {
             const idle = !currentItem;
             const loved = currentItem ? lovedIds.has(currentItem.songId) : false;
-            const heartStroke = idle ? "rgba(212,225,229,0.18)" : "rgba(212,225,229,0.45)";
-            const flagStroke = idle ? "rgba(212,225,229,0.18)" : "rgba(212,225,229,0.45)";
+            // High-contrast strokes — these have to read clearly across all
+            // viewports and brightness levels. Idle gets a softer treatment
+            // so it doesn't compete with the active title block.
+            const heartStroke = idle ? "rgba(212,225,229,0.4)" : "rgba(232,238,240,0.92)";
+            const flagStroke = idle ? "rgba(212,225,229,0.4)" : "rgba(232,238,240,0.92)";
             return (
-              <div style={{ display: "flex", gap: 36, justifyContent: twoCol ? "flex-start" : "center", alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 44, justifyContent: twoCol ? "flex-start" : "center", alignItems: "center" }}>
                 <button
                   ref={loveRef}
                   type="button"
@@ -839,13 +887,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
                   onClick={idle ? undefined : handleLove}
                   aria-label="Love this track"
                   title={loved ? "Loved — tap to unfavorite" : "Love this track — we play it more"}
-                  style={{ background: "none", border: "none", cursor: idle ? "not-allowed" : "pointer", padding: 10, lineHeight: 0, opacity: idle ? 0.5 : 1 }}
+                  style={{ background: "none", border: "none", cursor: idle ? "not-allowed" : "pointer", padding: 10, lineHeight: 0 }}
                 >
-                  <svg width="26" height="26" viewBox="0 0 24 24">
+                  <svg width="32" height="32" viewBox="0 0 24 24">
                     {loved ? (
                       <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#e05a3a" />
                     ) : (
-                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="none" stroke={heartStroke} strokeWidth="1.5" />
+                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="none" stroke={heartStroke} strokeWidth="1.8" />
                     )}
                   </svg>
                 </button>
@@ -856,10 +904,10 @@ export function PlayerScreen({ session, onLogout }: Props) {
                   onClick={idle ? undefined : () => setShowReportModal(true)}
                   aria-label="Report this track"
                   title="Something off about this track? Flag it."
-                  style={{ background: "none", border: "none", cursor: idle ? "not-allowed" : "pointer", padding: 10, lineHeight: 0, opacity: idle ? 0.5 : 1 }}
+                  style={{ background: "none", border: "none", cursor: idle ? "not-allowed" : "pointer", padding: 10, lineHeight: 0 }}
                 >
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path d="M4 21V4h11l1 2h4v11h-5l-1-2H6v6z" stroke={flagStroke} strokeWidth="1.5" strokeLinejoin="round" />
+                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+                    <path d="M4 21V4h11l1 2h4v11h-5l-1-2H6v6z" stroke={flagStroke} strokeWidth="1.8" strokeLinejoin="round" />
                   </svg>
                 </button>
               </div>
@@ -919,6 +967,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
         </div>
       </div>
         </div>
+        {narrowPromo ? (
+          <UpgradeRail
+            rotationKey={currentItem?.songId ?? null}
+            variant="card"
+            style={{ margin: "0 20px 20px" }}
+          />
+        ) : null}
       </div>
 
       {showOutcomeModal ? (

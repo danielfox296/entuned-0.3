@@ -35,6 +35,7 @@ export function LoginScreen({ onAuthed }: Props) {
         storeId: store.id,
         storeName: store.name,
         clientName: store.clientName ?? null,
+        tier: store.tier,
         operatorId: me.operator.id,
         email: me.operator.email,
         displayName: me.operator.displayName,

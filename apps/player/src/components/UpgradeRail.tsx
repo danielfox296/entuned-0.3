@@ -63,10 +63,13 @@ const SLOTS: Slot[] = [
 type Props = {
   /** Bumps the slot index every time it changes (e.g. the playing track). */
   rotationKey: string | null;
+  /** 'rail' = tall side panel for wide viewports. 'card' = compact stacked
+   *  surface for phone/tablet portrait. Both rotate the same SLOTS. */
+  variant?: 'rail' | 'card';
   style?: CSSProperties;
 };
 
-export function UpgradeRail({ rotationKey, style }: Props) {
+export function UpgradeRail({ rotationKey, variant = 'rail', style }: Props) {
   const [index, setIndex] = useState(0);
   const [fade, setFade] = useState(true);
 
@@ -96,6 +99,95 @@ export function UpgradeRail({ rotationKey, style }: Props) {
 
   const slot = SLOTS[index];
 
+  const eyebrowColor = slot.tier === "pro"
+    ? "rgba(215,175,116,0.95)"
+    : slot.tier === "core"
+      ? "rgba(120,180,188,0.95)"
+      : "rgba(232,238,240,0.7)";
+
+  if (variant === 'card') {
+    return (
+      <div
+        style={{
+          position: "relative",
+          display: "flex",
+          flexDirection: "column",
+          gap: 14,
+          padding: "20px 24px 22px",
+          background: "linear-gradient(135deg, rgba(22,22,19,0.78) 0%, rgba(14,14,12,0.86) 100%)",
+          border: "1px solid rgba(212,225,229,0.08)",
+          borderRadius: 18,
+          boxSizing: "border-box",
+          ...style,
+        }}
+      >
+        <div
+          key={index}
+          style={{
+            opacity: fade ? 1 : 0,
+            transition: "opacity 420ms ease",
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 500,
+              letterSpacing: 2.5,
+              color: eyebrowColor,
+              textTransform: "uppercase",
+            }}
+          >
+            {slot.eyebrow}
+          </div>
+          <div
+            style={{
+              fontSize: 19,
+              fontWeight: 300,
+              lineHeight: 1.25,
+              color: "rgba(244,247,248,0.97)",
+              letterSpacing: -0.2,
+            }}
+          >
+            {slot.headline}
+          </div>
+          <div
+            style={{
+              fontSize: 13,
+              lineHeight: 1.45,
+              fontWeight: 300,
+              color: "rgba(232,238,240,0.72)",
+              letterSpacing: 0.1,
+            }}
+          >
+            {slot.body}
+          </div>
+        </div>
+        <a
+          href="https://entuned.co/pricing.html"
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            fontSize: 11,
+            fontWeight: 500,
+            letterSpacing: 2,
+            color: "rgba(120,180,188,1)",
+            textTransform: "uppercase",
+            textDecoration: "none",
+            borderBottom: "1px solid rgba(120,180,188,0.5)",
+            paddingBottom: 4,
+            alignSelf: "flex-start",
+          }}
+        >
+          See what Core unlocks →
+        </a>
+      </div>
+    );
+  }
+
+  // 'rail' variant — tall side panel for wide viewports
   return (
     <div
       style={{
@@ -108,7 +200,6 @@ export function UpgradeRail({ rotationKey, style }: Props) {
         ...style,
       }}
     >
-      {/* Top: tier indicator */}
       <div
         style={{
           fontSize: 11,
@@ -121,7 +212,6 @@ export function UpgradeRail({ rotationKey, style }: Props) {
         Your plan — Entuned Free
       </div>
 
-      {/* Middle: rotating slot */}
       <div
         key={index}
         style={{
@@ -139,11 +229,7 @@ export function UpgradeRail({ rotationKey, style }: Props) {
             fontSize: 11,
             fontWeight: 500,
             letterSpacing: 3,
-            color: slot.tier === "pro"
-              ? "rgba(215,175,116,0.95)"
-              : slot.tier === "core"
-                ? "rgba(120,180,188,0.95)"
-                : "rgba(232,238,240,0.7)",
+            color: eyebrowColor,
             textTransform: "uppercase",
           }}
         >
@@ -173,7 +259,6 @@ export function UpgradeRail({ rotationKey, style }: Props) {
         </div>
       </div>
 
-      {/* Bottom: persistent CTA */}
       <a
         href="https://entuned.co/pricing.html"
         target="_blank"

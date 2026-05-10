@@ -4,11 +4,14 @@ type Props = {
   onClick: () => void;
   children: ReactNode;
   ariaLabel?: string;
-  size?: number;
   disabled?: boolean;
 };
 
-export function CircleButton({ onClick, children, ariaLabel, size = 94, disabled = false }: Props) {
+// Borderless icon button. Replaces CircleButton for the primary play/skip
+// controls — the icons themselves carry the visual weight, no surrounding
+// circle. Press feedback comes from a transform + brightness shift on the
+// child SVG.
+export function IconButton({ onClick, children, ariaLabel, disabled = false }: Props) {
   const [pressed, setPressed] = useState(false);
   const [hovered, setHovered] = useState(false);
   return (
@@ -22,25 +25,16 @@ export function CircleButton({ onClick, children, ariaLabel, size = 94, disabled
       onPointerLeave={() => { setPressed(false); setHovered(false); }}
       onPointerEnter={() => setHovered(true)}
       style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        border: `2px solid ${hovered || pressed ? "rgba(212,225,229,0.4)" : "rgba(212,225,229,0.2)"}`,
-        background: pressed
-          ? "rgba(212,225,229,0.14)"
-          : hovered
-            ? "rgba(212,225,229,0.1)"
-            : "rgba(212,225,229,0.05)",
+        background: "transparent",
+        border: "none",
         cursor: disabled ? "default" : "pointer",
-        opacity: disabled ? 0.5 : 1,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        transition: "transform 0.12s, border-color 0.3s, background 0.3s",
-        transform: pressed ? "scale(0.86)" : "scale(1)",
+        opacity: disabled ? 0.45 : (pressed ? 0.7 : (hovered ? 1 : 0.9)),
+        padding: 10,
+        lineHeight: 0,
+        transition: "transform 0.12s, opacity 0.18s",
+        transform: pressed ? "scale(0.9)" : "scale(1)",
         userSelect: "none",
         outline: "none",
-        padding: 0,
       }}
     >
       {children}

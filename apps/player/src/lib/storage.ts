@@ -11,12 +11,14 @@ export interface Session {
   slug?: string;       // present in slug mode
   storeName: string;
   clientName: string | null;
+  /** Effective tier ('free' | 'core' | 'pro' | 'enterprise'). Surfaced as a pill. */
+  tier?: string;
   operatorId: string;  // empty string in slug mode
   email: string;       // empty string in slug mode
   displayName?: string | null;
   isAdmin: boolean;
   /** All stores this operator can switch to. Length > 1 enables the in-app switcher. */
-  availableStores?: { id: string; name: string; clientName: string | null }[];
+  availableStores?: { id: string; name: string; clientName: string | null; tier: string }[];
 }
 
 export function loadSession(): Session | null {

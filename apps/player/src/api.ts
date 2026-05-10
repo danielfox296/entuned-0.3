@@ -62,9 +62,9 @@ export interface AuthResponse {
 export interface MeResponse {
   operator: { id: string; email: string; displayName: string | null; isAdmin: boolean }
   /** Single store for non-admin operators (login determines store). Null for admins. */
-  store: { id: string; name: string; clientName: string | null } | null
+  store: { id: string; name: string; clientName: string | null; tier: string } | null
   /** Cross-store list for admins; also a legacy fallback. */
-  stores: { id: string; name: string; clientName: string | null }[]
+  stores: { id: string; name: string; clientName: string | null; tier: string }[]
 }
 
 export type AudioEventType =

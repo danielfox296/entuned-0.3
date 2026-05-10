@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs'
 import { login, signAccountToken, verify } from '../lib/auth.js'
 import { prisma } from '../db.js'
 import { sendOperatorPasswordReset } from '../lib/email.js'
+import { effectiveTier } from '../lib/tier.js'
 
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000 // 60 minutes
 const PASSWORD_RESET_TOKEN_BYTES = 32
@@ -74,18 +75,19 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     if (!acc || acc.disabledAt) return reply.code(401).send({ error: 'operator_disabled' })
     if (acc.tokenVersion !== payload.tv) return reply.code(401).send({ error: 'token_revoked' })
 
-    type StoreOut = { id: string; name: string; clientName: string | null }
+    type StoreOut = { id: string; name: string; clientName: string | null; tier: string }
     let stores: StoreOut[]
     if (acc.isAdmin) {
       const rows = await prisma.store.findMany({
-        select: { id: true, name: true, client: { select: { companyName: true } } },
+        select: { id: true, name: true, tier: true, compTier: true, compExpiresAt: true, client: { select: { companyName: true } } },
       })
-      stores = rows.map((s) => ({ id: s.id, name: s.name, clientName: s.client?.companyName ?? null }))
+      stores = rows.map((s) => ({ id: s.id, name: s.name, clientName: s.client?.companyName ?? null, tier: effectiveTier(s) }))
     } else {
       stores = (acc as any).storeAssignments.map((a: any) => ({
         id: a.store.id,
         name: a.store.name,
         clientName: a.store.client?.companyName ?? null,
+        tier: effectiveTier(a.store),
       }))
     }
     const store = !acc.isAdmin && stores.length > 0 ? stores[0] : null

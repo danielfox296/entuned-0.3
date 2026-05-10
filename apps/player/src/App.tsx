@@ -34,6 +34,7 @@ export function App() {
           slug: store.slug,
           storeName: store.name,
           clientName: null,
+          tier: store.tier,
           operatorId: '',
           email: '',
           isAdmin: false,
