@@ -31,34 +31,31 @@ function saveLoved(s: Set<string>) {
   try { localStorage.setItem(LOVED_KEY, JSON.stringify([...s])); } catch {}
 }
 
-// Tier pill rendered next to the logo. Each tier gets its own accent so
-// operators see at a glance what plan the active store is running on.
+// Tier indicator — eyebrow style per design system (no pill bg). Inter 500,
+// uppercase, 0.18em tracking. Color carries the tier signal.
 const TIER_LABEL: Record<string, string> = {
   free: "Free",
   core: "Core",
   pro: "Pro",
   enterprise: "Enterprise",
 };
-const TIER_ACCENT: Record<string, { fg: string; bg: string; border: string }> = {
-  free:       { fg: "rgba(212,225,229,0.7)",  bg: "rgba(212,225,229,0.05)", border: "rgba(212,225,229,0.18)" },
-  core:       { fg: "rgba(120,180,188,0.95)", bg: "rgba(120,180,188,0.08)", border: "rgba(120,180,188,0.32)" },
-  pro:        { fg: "rgba(215,175,116,0.95)", bg: "rgba(215,175,116,0.08)", border: "rgba(215,175,116,0.32)" },
-  enterprise: { fg: "rgba(232,238,240,0.95)", bg: "rgba(232,238,240,0.06)", border: "rgba(232,238,240,0.30)" },
+const TIER_COLOR: Record<string, string> = {
+  free:       "rgba(212,225,229,0.55)", // ice faint
+  core:       "#6AB0BB",                // teal
+  pro:        "#E8B458",                // gold
+  enterprise: "#D4E1E5",                // ice full
 };
-function TierPill({ tier }: { tier: string }) {
+function TierEyebrow({ tier }: { tier: string }) {
   const label = TIER_LABEL[tier] ?? tier;
-  const accent = TIER_ACCENT[tier] ?? TIER_ACCENT.free;
+  const color = TIER_COLOR[tier] ?? TIER_COLOR.free;
   return (
     <span
       style={{
-        fontSize: 10,
+        fontFamily: "'Inter', sans-serif",
+        fontSize: 11,
         fontWeight: 500,
-        letterSpacing: 2,
-        color: accent.fg,
-        background: accent.bg,
-        border: `1px solid ${accent.border}`,
-        borderRadius: 100,
-        padding: "4px 10px",
+        letterSpacing: "0.18em",
+        color,
         textTransform: "uppercase",
         whiteSpace: "nowrap",
         userSelect: "none",
@@ -680,7 +677,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
       <div style={{ position: "relative", zIndex: 1, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "24px 32px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <img src={logoUrl} alt="Entuned" style={{ width: 118, opacity: 0.7 }} />
-          {session.tier ? <TierPill tier={session.tier} /> : null}
+          {session.tier ? <TierEyebrow tier={session.tier} /> : null}
         </div>
         <div
           onClick={() => {
@@ -693,14 +690,14 @@ export function PlayerScreen({ session, onLogout }: Props) {
           style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}
           title={session.mode === "slug" ? "Manage your account" : "Switch store / log out"}
         >
-          <span style={{ fontSize: 12, fontWeight: 400, letterSpacing: 2, color: "rgba(212,225,229,0.6)", textTransform: "uppercase" }}>
+          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "0.10em", color: "rgba(212,225,229,0.75)", textTransform: "uppercase" }}>
             {headerLine}
           </span>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle cx="12" cy="12" r="3" stroke="rgba(212,225,229,0.55)" strokeWidth="1.6" />
+            <circle cx="12" cy="12" r="3" stroke="rgba(212,225,229,0.65)" strokeWidth="1.6" />
             <path
               d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.05a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.05a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-              stroke="rgba(212,225,229,0.55)"
+              stroke="rgba(212,225,229,0.65)"
               strokeWidth="1.6"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -781,11 +778,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
           minWidth: 0,
           minHeight: 0,
           ...(showPromo ? {
-            background: "linear-gradient(135deg, rgba(22,22,19,0.92) 0%, rgba(14,14,12,0.96) 100%)",
-            border: "1px solid rgba(212,225,229,0.08)",
-            borderRadius: 24,
+            background: "rgba(255, 255, 255, 0.025)",
+            border: "1px solid rgba(80, 146, 156, 0.18)",
+            borderRadius: 8,
             overflow: "hidden",
-            boxShadow: "0 30px 80px -20px rgba(0,0,0,0.6)",
+            boxShadow: "0 12px 40px rgba(0, 0, 0, 0.4)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
           } : {}),
         }}>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: twoCol ? "0 60px 24px 60px" : (narrowPromo ? "16px 0" : "0 0 24px"), gap: narrowPromo ? 28 : 44, minHeight: 0 }}>
@@ -795,30 +794,30 @@ export function PlayerScreen({ session, onLogout }: Props) {
             {allOutcomesMode && currentItem ? (() => {
               const outcomeTitle = outcomes.find((o) => o.outcomeId === currentItem.outcomeId)?.title ?? null;
               return outcomeTitle ? (
-                <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2.5, color: "rgba(80,146,156,0.65)", textTransform: "uppercase", textAlign: "center", marginBottom: 8 }}>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "0.18em", color: "#6AB0BB", textTransform: "uppercase", textAlign: "center", marginBottom: 12 }}>
                   {outcomeTitle}
                 </div>
               ) : null;
             })() : null}
             <div
               style={{
-                fontSize: twoCol ? 30 : 34,
-                fontWeight: 400,
-                color: "rgba(212,225,229,0.9)",
-                letterSpacing: twoCol ? 3.5 : 5,
-                lineHeight: 1.25,
-                textTransform: "uppercase",
+                fontFamily: "'Manrope', sans-serif",
+                fontSize: twoCol ? "clamp(1.75rem, 3.4vw, 2.4rem)" : "clamp(2rem, 5vw, 3rem)",
+                fontWeight: 700,
+                color: "#D4E1E5",
+                letterSpacing: "-0.02em",
+                lineHeight: 1.15,
                 textAlign: "center",
                 padding: twoCol ? 0 : "0 40px",
                 minHeight: "1em",
-                maxWidth: twoCol ? 720 : 900,
+                maxWidth: twoCol ? 640 : 820,
                 wordBreak: "break-word",
               }}
             >
               {currentItem ? trackLabel(currentItem) : reason === "no_pool" ? "Silent" : "Press play to stream"}
             </div>
             {currentItem?.icpName ? (
-              <div style={{ fontSize: 10, fontWeight: 400, letterSpacing: 2, color: "rgba(212,225,229,0.28)", textTransform: "uppercase", marginTop: 10, textAlign: "center" }}>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "0.18em", color: "rgba(212,225,229,0.55)", textTransform: "uppercase", marginTop: 14, textAlign: "center" }}>
                 {currentItem.icpName}
               </div>
             ) : null}
@@ -828,19 +827,19 @@ export function PlayerScreen({ session, onLogout }: Props) {
         </div>
 
         {networkError ? (
-          <div style={{ padding: "10px 24px", background: "rgba(80,146,156,0.08)", border: "1px solid rgba(80,146,156,0.25)", borderRadius: 12, maxWidth: 440, textAlign: "center", fontSize: 12, color: "rgba(80,146,156,0.85)" }}>
+          <div style={{ fontFamily: "'Inter', sans-serif", padding: "10px 22px", background: "rgba(80,146,156,0.08)", border: "1px solid rgba(80,146,156,0.30)", borderRadius: 0, maxWidth: 440, textAlign: "center", fontSize: 12, color: "#6AB0BB", letterSpacing: "0.05em" }}>
             {networkError}
           </div>
         ) : null}
 
         {buffering && !networkError ? (
-          <div style={{ padding: "10px 24px", background: "rgba(215,175,116,0.07)", border: "1px solid rgba(215,175,116,0.22)", borderRadius: 12, maxWidth: 440, textAlign: "center", fontSize: 12, color: "rgba(215,175,116,0.8)" }}>
+          <div style={{ fontFamily: "'Inter', sans-serif", padding: "10px 22px", background: "rgba(232,180,88,0.08)", border: "1px solid rgba(232,180,88,0.30)", borderRadius: 0, maxWidth: 440, textAlign: "center", fontSize: 12, color: "#E8B458", letterSpacing: "0.05em" }}>
             Buffering — poor connection. Will skip if needed.
           </div>
         ) : null}
 
         {error ? (
-          <div style={{ padding: "10px 24px", background: "rgba(231,76,60,0.12)", border: "1px solid rgba(231,76,60,0.3)", borderRadius: 12, maxWidth: 440, textAlign: "center", fontSize: 12, color: "rgba(231,76,60,0.95)" }}>
+          <div style={{ fontFamily: "'Inter', sans-serif", padding: "10px 22px", background: "rgba(226,75,74,0.12)", border: "1px solid rgba(226,75,74,0.35)", borderRadius: 0, maxWidth: 440, textAlign: "center", fontSize: 12, color: "#E24B4A", letterSpacing: "0.05em" }}>
             {error}
           </div>
         ) : null}
@@ -913,13 +912,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
         </div>
 
         {twoCol ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: 2.5, color: "rgba(212,225,229,0.4)", textTransform: "uppercase" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "0.18em", color: "#6AB0BB", textTransform: "uppercase" }}>
               This session
             </div>
-            <div style={{ fontSize: 14, fontWeight: 300, color: "rgba(212,225,229,0.75)", letterSpacing: 0.3 }}>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 400, color: "rgba(212,225,229,0.85)" }}>
               {playedCount} {playedCount === 1 ? "track" : "tracks"} played
-              <span style={{ color: "rgba(212,225,229,0.3)", margin: "0 10px" }}>·</span>
+              <span style={{ color: "rgba(212,225,229,0.30)", margin: "0 10px" }}>·</span>
               {lovedIds.size} {lovedIds.size === 1 ? "love" : "loves"} saved
             </div>
           </div>
@@ -933,33 +932,32 @@ export function PlayerScreen({ session, onLogout }: Props) {
           style={{
             display: "inline-flex",
             alignItems: "center",
-            gap: 14,
-            padding: "14px 24px",
-            borderRadius: 100,
-            background: "rgba(80,146,156,0.09)",
-            border: "1px solid rgba(80,146,156,0.22)",
-            backdropFilter: "blur(12px)",
-            WebkitBackdropFilter: "blur(12px)",
+            gap: 16,
+            padding: "14px 22px",
+            borderRadius: 0,
+            background: "rgba(255, 255, 255, 0.03)",
+            border: "1px solid rgba(80, 146, 156, 0.30)",
             cursor: "pointer",
             userSelect: "none",
+            transition: "all 300ms cubic-bezier(.4,0,.2,1)",
           }}
         >
-          <span style={{ fontSize: 10, fontWeight: 500, letterSpacing: 2.5, color: "rgba(212,225,229,0.45)", textTransform: "uppercase" }}>
+          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "0.18em", color: "#6AB0BB", textTransform: "uppercase" }}>
             Outcome
           </span>
-          <span style={{ width: 1, height: 18, background: "rgba(212,225,229,0.15)" }} />
+          <span style={{ width: 1, height: 18, background: "rgba(80, 146, 156, 0.30)" }} />
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
-            <span style={{ fontSize: 15, fontWeight: 500, letterSpacing: 2, color: "rgba(212,225,229,0.95)", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+            <span style={{ fontFamily: "'Manrope', sans-serif", fontSize: 15, fontWeight: 600, letterSpacing: "0.01em", color: "#D4E1E5", whiteSpace: "nowrap" }}>
               {activeTitle}
             </span>
             {expiresLabel ? (
-              <span style={{ fontSize: 9, fontWeight: 500, letterSpacing: 1.6, color: "rgba(240,153,123,0.75)", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 10, fontWeight: 500, letterSpacing: "0.10em", color: "#E8B458", textTransform: "uppercase", whiteSpace: "nowrap" }}>
                 {expiresLabel}
               </span>
             ) : null}
           </div>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 4 }}>
-            <path d="M6 9l6 6 6-6" stroke="rgba(212,225,229,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <svg width="12" height="8" viewBox="0 0 12 8" fill="none" style={{ marginLeft: 4 }}>
+            <path d="M1 1l5 5 5-5" stroke="#6AB0BB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
       </div>

@@ -246,12 +246,14 @@ export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props
 
   // Sizes scale down on narrow viewports so the rail can fit in 50% of phone
   // / tablet height without the anchor running off-card.
-  const padding = compact ? "26px 28px" : "40px 56px 36px 64px";
-  const anchorSize = compact ? 22 : 36;
-  const bulletSize = compact ? 13 : 16;
-  const ctaSize = compact ? 11 : 12;
-  // Spacing between anchor → divider → bullets and between individual bullets.
-  const headerGap = compact ? 14 : 18;
+  const padding = compact ? "28px 28px 26px" : "44px 56px 40px 64px";
+  // Anchor is a display heading (Manrope, weight 700, sentence case, tight
+  // tracking). Bullets are body Inter weight 300 / 400. CTA is button-style
+  // Inter 600 + 0.05em uppercase.
+  const anchorSize = compact ? "1.5rem" : "2.4rem";
+  const bulletSize = compact ? "0.875rem" : "1rem";
+  const ctaSize = compact ? "0.7rem" : "0.75rem";
+  const headerGap = compact ? 16 : 22;
   const bulletGap = compact ? 8 : 10;
 
   return (
@@ -282,21 +284,23 @@ export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props
       >
         <div
           style={{
+            fontFamily: "'Manrope', sans-serif",
             fontSize: anchorSize,
-            fontWeight: 300,
-            lineHeight: 1.2,
-            color: "rgba(244,247,248,0.97)",
-            letterSpacing: compact ? -0.2 : -0.4,
+            fontWeight: 700,
+            lineHeight: 1.15,
+            color: "#D4E1E5",
+            letterSpacing: "-0.02em",
           }}
         >
           {slot.anchor}
         </div>
-        {/* Anchor line: short divider that visually chunks the slot. */}
+        {/* Anchor line — short teal hairline that visually chunks the slot. */}
         <div
           style={{
             width: compact ? 32 : 44,
             height: 1,
-            background: "rgba(120,180,188,0.6)",
+            background: "#6AB0BB",
+            opacity: 0.7,
           }}
         />
         <ul
@@ -314,20 +318,21 @@ export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props
               key={i}
               style={{
                 display: "flex",
-                gap: 12,
+                gap: 14,
                 alignItems: "baseline",
+                fontFamily: "'Inter', sans-serif",
                 fontSize: bulletSize,
-                lineHeight: 1.45,
-                fontWeight: 300,
-                color: "rgba(232,238,240,0.85)",
-                letterSpacing: 0.1,
+                lineHeight: 1.6,
+                fontWeight: 400,
+                color: "rgba(212, 225, 229, 0.85)",
+                letterSpacing: "0",
               }}
             >
               <span
                 style={{
                   flexShrink: 0,
-                  color: "rgba(120,180,188,0.7)",
-                  fontWeight: 400,
+                  color: "#6AB0BB",
+                  opacity: 0.7,
                 }}
                 aria-hidden="true"
               >
@@ -344,9 +349,10 @@ export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props
         target="_blank"
         rel="noreferrer"
         style={{
+          fontFamily: "'Inter', sans-serif",
           fontSize: ctaSize,
-          fontWeight: 500,
-          letterSpacing: 2.5,
+          fontWeight: 600,
+          letterSpacing: "0.18em",
           color: ctaColor,
           textTransform: "uppercase",
           textDecoration: "none",
