@@ -788,14 +788,14 @@ export function PlayerScreen({ session, onLogout }: Props) {
             boxShadow: "0 30px 80px -20px rgba(0,0,0,0.6)",
           } : {}),
         }}>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: twoCol ? "flex-start" : "center", padding: twoCol ? "0 60px 24px 60px" : (narrowPromo ? "16px 0" : "0 0 24px"), gap: narrowPromo ? 28 : 44, minHeight: 0 }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: twoCol ? "0 60px 24px 60px" : (narrowPromo ? "16px 0" : "0 0 24px"), gap: narrowPromo ? 28 : 44, minHeight: 0 }}>
         {/* Title block: outcome chip + track title + (when playing) progress bar */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: twoCol ? "flex-start" : "center", gap: 24, width: "100%" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 24, width: "100%" }}>
           <DarkHalo>
             {allOutcomesMode && currentItem ? (() => {
               const outcomeTitle = outcomes.find((o) => o.outcomeId === currentItem.outcomeId)?.title ?? null;
               return outcomeTitle ? (
-                <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2.5, color: "rgba(80,146,156,0.65)", textTransform: "uppercase", textAlign: twoCol ? "left" : "center", marginBottom: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2.5, color: "rgba(80,146,156,0.65)", textTransform: "uppercase", textAlign: "center", marginBottom: 8 }}>
                   {outcomeTitle}
                 </div>
               ) : null;
@@ -808,7 +808,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
                 letterSpacing: twoCol ? 3.5 : 5,
                 lineHeight: 1.25,
                 textTransform: "uppercase",
-                textAlign: twoCol ? "left" : "center",
+                textAlign: "center",
                 padding: twoCol ? 0 : "0 40px",
                 minHeight: "1em",
                 maxWidth: twoCol ? 720 : 900,
@@ -818,7 +818,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
               {currentItem ? trackLabel(currentItem) : reason === "no_pool" ? "Silent" : "Press play to stream"}
             </div>
             {currentItem?.icpName ? (
-              <div style={{ fontSize: 10, fontWeight: 400, letterSpacing: 2, color: "rgba(212,225,229,0.28)", textTransform: "uppercase", marginTop: 10, textAlign: twoCol ? "left" : "center" }}>
+              <div style={{ fontSize: 10, fontWeight: 400, letterSpacing: 2, color: "rgba(212,225,229,0.28)", textTransform: "uppercase", marginTop: 10, textAlign: "center" }}>
                 {currentItem.icpName}
               </div>
             ) : null}
@@ -846,7 +846,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
         ) : null}
 
         {/* Controls block: primary play/skip, then secondary love/report tightly grouped */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: twoCol ? "flex-start" : "center", gap: 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 24 }}>
           <DarkHalo style={{ display: "flex", gap: 56, alignItems: "center" }}>
             <IconButton onClick={togglePlayPause} ariaLabel={isPlaying ? "Pause" : "Play"}>
               {isPlaying ? (
@@ -876,7 +876,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
             const heartStroke = idle ? "rgba(212,225,229,0.4)" : "rgba(232,238,240,0.92)";
             const flagStroke = idle ? "rgba(212,225,229,0.4)" : "rgba(232,238,240,0.92)";
             return (
-              <div style={{ display: "flex", gap: 44, justifyContent: twoCol ? "flex-start" : "center", alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 44, justifyContent: "center", alignItems: "center" }}>
                 <button
                   ref={loveRef}
                   type="button"
@@ -926,7 +926,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
         ) : null}
       </div>
 
-      <div style={{ display: "flex", justifyContent: twoCol ? "flex-start" : "center", padding: twoCol ? "0 60px 36px 80px" : "0 24px 36px" }}>
+      <div style={{ display: "flex", justifyContent: "center", padding: twoCol ? "0 60px 36px 60px" : "0 24px 36px" }}>
         <div
           ref={outcomeRef}
           onClick={() => setShowOutcomeModal(true)}
