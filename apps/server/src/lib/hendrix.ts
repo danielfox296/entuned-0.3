@@ -3,6 +3,8 @@
 
 import { prisma } from '../db.js'
 import { resolveActiveOutcome } from './outcomeSchedule.js'
+import { effectiveTier, type StoreTierFields } from './tier.js'
+import { FREE_TIER_AD_STORE_ID } from './freeTier.js'
 
 export type FallbackTier = 'none' | 'daily_cap' | 'sibling_spacing' | 'no_repeat_window'
 export type EmptyReason = 'no_pool' | null
@@ -316,18 +318,30 @@ async function buildQueueFromPool(
   return { queue: [], fallbackTier: 'no_repeat_window' }
 }
 
-async function injectAdIfDue(storeId: string, queue: QueueItem[], now: Date): Promise<QueueItem[]> {
+async function injectAdIfDue(
+  store: { id: string } & StoreTierFields,
+  queue: QueueItem[],
+  now: Date,
+): Promise<QueueItem[]> {
   if (queue.length === 0) return queue
 
+  // Tier routing: free-tier stores play Entuned house ads (campaigns attached
+  // to the sentinel FREE_TIER_AD_STORE_ID). Paid stores play their own
+  // campaigns. See schema/22-campaigns.md "Tier routing".
+  const adSourceStoreId =
+    effectiveTier(store, now) === 'free' ? FREE_TIER_AD_STORE_ID : store.id
+
   const campaigns = await prisma.campaign.findMany({
-    where: { storeId, startsAt: { lte: now }, endsAt: { gte: now } },
+    where: { storeId: adSourceStoreId, startsAt: { lte: now }, endsAt: { gte: now } },
     include: { adAssets: { orderBy: { position: 'asc' } }, assetState: true },
     orderBy: { startsAt: 'asc' },
   })
   const campaign = campaigns.find((c) => c.adAssets.length > 0)
   if (!campaign) return queue
 
-  const playState = await prisma.campaignPlayState.findUnique({ where: { storeId } })
+  // Cadence stays per-calling-store: each free user gets independent
+  // "songs since last ad" counters even when sharing a house campaign.
+  const playState = await prisma.campaignPlayState.findUnique({ where: { storeId: store.id } })
   const songsPlayed = playState?.songsPlayedSinceAd ?? 0
 
   if (songsPlayed < campaign.songsPerAd) {
@@ -400,7 +414,7 @@ export async function nextQueue(
       storeId,
       decidedAt,
       activeOutcome: null,
-      queue: await injectAdIfDue(storeId, queue, now),
+      queue: await injectAdIfDue(store, queue, now),
       fallbackTier,
       reason: queue.length === 0 ? 'no_pool' : null,
       roomLoudnessSamplingEnabled: roomLoudness,
@@ -417,7 +431,7 @@ export async function nextQueue(
       storeId,
       decidedAt,
       activeOutcome: null,
-      queue: await injectAdIfDue(storeId, queue, now),
+      queue: await injectAdIfDue(store, queue, now),
       fallbackTier,
       reason: queue.length === 0 ? 'no_pool' : null,
       roomLoudnessSamplingEnabled: roomLoudness,
@@ -435,7 +449,7 @@ export async function nextQueue(
       storeId,
       decidedAt,
       activeOutcome: await serializeOutcome(resolved),
-      queue: await injectAdIfDue(storeId, queue, now),
+      queue: await injectAdIfDue(store, queue, now),
       fallbackTier,
       reason: queue.length === 0 ? 'no_pool' : null,
       roomLoudnessSamplingEnabled: roomLoudness,
@@ -447,7 +461,7 @@ export async function nextQueue(
     storeId,
     decidedAt,
     activeOutcome: await serializeOutcome(resolved),
-    queue: await injectAdIfDue(storeId, queue, now),
+    queue: await injectAdIfDue(store, queue, now),
     fallbackTier,
     reason: queue.length === 0 ? 'no_pool' : null,
     roomLoudnessSamplingEnabled: roomLoudness,
