@@ -241,15 +241,14 @@ export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props
         return { label: "Open your dashboard →", href: "https://app.entuned.co" };
     }
   })();
-  const ctaColor = "rgba(120,180,188,1)";
-  const ctaUnderline = "rgba(120,180,188,0.5)";
+  const ctaColor = "#6AB0BB";
+  const ctaUnderline = "rgba(106, 176, 187, 0.5)";
 
   // Sizes scale down on narrow viewports so the rail can fit in 50% of phone
   // / tablet height without the anchor running off-card.
-  const padding = compact ? "28px 28px 26px" : "44px 56px 40px 64px";
+  const padding = compact ? "26px 26px 24px" : "40px 48px 36px 52px";
   // Anchor is a display heading (Manrope, weight 700, sentence case, tight
-  // tracking). Bullets are body Inter weight 300 / 400. CTA is button-style
-  // Inter 600 + 0.05em uppercase.
+  // tracking). Bullets are body Inter weight 400.
   const anchorSize = compact ? "1.5rem" : "2.4rem";
   const bulletSize = compact ? "0.875rem" : "1rem";
   const ctaSize = compact ? "0.7rem" : "0.75rem";
@@ -259,11 +258,18 @@ export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props
   return (
     <div
       style={{
+        // Brand callout pattern (mirrors `.article-cta` / `.stat-box` on the
+        // marketing site): light teal-tinted bg + 3px solid teal left border
+        // + 4px radius. The left rule is the structural brand signature for
+        // a called-out content block.
         position: "relative",
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
         padding,
+        background: "rgba(80, 146, 156, 0.06)",
+        borderLeft: "3px solid #6AB0BB",
+        borderRadius: 4,
         boxSizing: "border-box",
         minHeight: 0,
         overflow: "hidden",
@@ -294,15 +300,6 @@ export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props
         >
           {slot.anchor}
         </div>
-        {/* Anchor line — short teal hairline that visually chunks the slot. */}
-        <div
-          style={{
-            width: compact ? 32 : 44,
-            height: 1,
-            background: "#6AB0BB",
-            opacity: 0.7,
-          }}
-        />
         <ul
           style={{
             listStyle: "none",
