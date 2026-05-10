@@ -196,7 +196,6 @@ function ProfileCard({ email, account, tier, tierExtra, onSaved }: {
   const [draft, setDraft] = useState({
     companyName: account?.companyName ?? '',
     contactName: account?.contactName ?? '',
-    contactEmail: account?.contactEmail ?? '',
     contactPhone: account?.contactPhone ?? '',
   })
   const [busy, setBusy] = useState(false)
@@ -206,7 +205,6 @@ function ProfileCard({ email, account, tier, tierExtra, onSaved }: {
     setDraft({
       companyName: account?.companyName ?? '',
       contactName: account?.contactName ?? '',
-      contactEmail: account?.contactEmail ?? '',
       contactPhone: account?.contactPhone ?? '',
     })
     setError(null)
@@ -217,16 +215,11 @@ function ProfileCard({ email, account, tier, tierExtra, onSaved }: {
     if (busy) return
     const companyName = draft.companyName.trim()
     if (!companyName) { setError(content.profile.company_required); return }
-    const contactEmail = draft.contactEmail.trim()
-    if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
-      setError(content.profile.contact_email_invalid); return
-    }
     setBusy(true); setError(null)
     try {
       await api.updateProfile({
         companyName,
         contactName: draft.contactName.trim() || null,
-        contactEmail: contactEmail || null,
         contactPhone: draft.contactPhone.trim() || null,
       })
       onSaved()
@@ -262,13 +255,6 @@ function ProfileCard({ email, account, tier, tierExtra, onSaved }: {
           <Input value={draft.contactName} onChange={(e) => setDraft((d) => ({ ...d, contactName: e.target.value }))} disabled={busy} />
         ) : (
           <span style={{ color: T.text }}>{account?.contactName || content.profile.empty_value}</span>
-        )}
-
-        <span style={{ color: T.textDim }}>{content.profile.contact_email_label}</span>
-        {editing ? (
-          <Input type="email" value={draft.contactEmail} onChange={(e) => setDraft((d) => ({ ...d, contactEmail: e.target.value }))} disabled={busy} />
-        ) : (
-          <span style={{ color: T.text }}>{account?.contactEmail || content.profile.empty_value}</span>
         )}
 
         <span style={{ color: T.textDim }}>{content.profile.contact_phone_label}</span>
