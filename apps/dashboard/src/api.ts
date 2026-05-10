@@ -276,6 +276,14 @@ export const api = {
   // and 303s the browser onward.
   checkoutUrl: (tier: 'core' | 'pro') => `${API_URL}/billing/checkout?tier=${tier}`,
 
+  // In-app upgrade for an authenticated free customer. The server resolves
+  // the user's free Store from the cookie session and creates the Stripe
+  // Checkout. Pass storeId when the page knows which Store to upgrade
+  // (e.g. deep-linked from the player); omit to let the server pick the
+  // user's first free Store.
+  upgradeUrl: (tier: 'core' | 'pro', storeId?: string) =>
+    `${API_URL}/billing/upgrade?tier=${tier}${storeId ? `&store=${encodeURIComponent(storeId)}` : ''}`,
+
   // ── Schedule (Pro+, scoped to a specific store) ──
   meSchedule: (storeId: string) =>
     req<ScheduleSlot[]>(`/me/stores/${encodeURIComponent(storeId)}/schedule`),

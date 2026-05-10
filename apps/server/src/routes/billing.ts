@@ -475,6 +475,79 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
+  // ----- GET /billing/upgrade — convert a free-tier Store into a paid sub -----
+  //
+  // Linked from the in-app /upgrade page and from the player's locked-tile
+  // upgrade CTA. Modeled on /billing/upgrade-from-comp Case B but does not
+  // require a comp grant — just a free Store the user owns.
+  //
+  // Flow: requireAuth → look up the user's free Store → create a Stripe
+  // Checkout session for the target tier → 303 to Stripe. The webhook on
+  // checkout.session.completed absorbs the orphan free Store (same path
+  // as /upgrade-from-comp Case B) and promotes Store.tier.
+  //
+  // Auth: cookie session. If unauthenticated, 302 to /start?next=… so the
+  // user can magic-link in and bounce back (same pattern as upgrade-from-comp).
+  app.get('/billing/upgrade', async (req, reply) => {
+    const q = req.query as { tier?: string; store?: string } | undefined
+    const tier = q?.tier
+    if (tier !== 'core' && tier !== 'pro') {
+      return reply.code(400).send({ error: 'bad_tier' })
+    }
+    if (!req.user || !req.account) {
+      const apiBase = process.env.API_URL ?? 'https://api.entuned.co'
+      const next = encodeURIComponent(`${apiBase}/billing/upgrade?tier=${tier}${q?.store ? `&store=${q.store}` : ''}`)
+      return reply.redirect(`${APP_URL}/start?next=${next}`, 302)
+    }
+    const clientId = req.account.id
+
+    // Pick the target Store: an explicit ?store=… (verified to belong to the
+    // client) or the user's first free Store. If they already have a paid
+    // subscription, send them to /account rather than spawning a duplicate.
+    const store = q?.store
+      ? await prisma.store.findFirst({
+          where: { id: q.store, clientId, archivedAt: null },
+          include: { subscription: true },
+        })
+      : await prisma.store.findFirst({
+          where: { clientId, archivedAt: null, tier: 'free' },
+          include: { subscription: true },
+          orderBy: { createdAt: 'asc' },
+        })
+    if (!store) {
+      return reply.redirect(`${APP_URL}/account?upgrade=not_found`, 302)
+    }
+    if (store.subscription) {
+      // Already paid (or has a sub in flight) — direct them to /account where
+      // the Stripe Customer Portal handles plan changes.
+      return reply.redirect(`${APP_URL}/account?upgrade=already_subscribed`, 302)
+    }
+
+    const targetPriceId = TIER_TO_PRICE[tier]
+    if (!targetPriceId) {
+      return reply.redirect(`${APP_URL}/account?upgrade=price_misconfigured`, 302)
+    }
+
+    try {
+      const session = await stripe.checkout.sessions.create({
+        mode: 'subscription',
+        line_items: [{ price: targetPriceId, quantity: 1 }],
+        success_url: `${APP_URL}/welcome?session={CHECKOUT_SESSION_ID}&upgrade=success&tier=${tier}`,
+        cancel_url: `${APP_URL}/upgrade?canceled=1`,
+        client_reference_id: clientId,
+        customer_email: req.user.email,
+        metadata: { tier, clientId, source: 'in_app_upgrade', storeId: store.id },
+        subscription_data: {
+          metadata: { tier, clientId, source: 'in_app_upgrade', storeId: store.id },
+        },
+      })
+      return reply.redirect(session.url ?? `${APP_URL}/upgrade?error=checkout_error`, 303)
+    } catch (err: any) {
+      req.log.error({ err, storeId: store.id }, 'in_app_upgrade_failed')
+      return reply.redirect(`${APP_URL}/upgrade?error=stripe_error`, 302)
+    }
+  })
+
   // ----- POST /billing/stores — add a new Store at the same tier -----
   // ASSUMPTION: per-unit pricing. We add 1 to the existing subscription line's
   // quantity rather than creating a new subscription. Flag this in summary
