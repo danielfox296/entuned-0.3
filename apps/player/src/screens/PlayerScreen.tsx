@@ -14,8 +14,6 @@ import { saveSession, type Session } from "../lib/storage.js";
 import logoUrl from "/entuned_logo.png";
 import lockscreenArtUrl from "/lockscreen-art.png";
 
-const PRELOAD_SECONDS_BEFORE_END = 8;
-const CROSSFADE_MS = 800;
 // Ads are mastered ~15-20% quieter than the music. HTML5 audio caps at 1.0 so we
 // can't boost ads; instead we bring songs down by the same margin so ads sit at full.
 const SONG_VOLUME = 0.47;
@@ -109,18 +107,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
   queueRef.current = queue;
   const currentRef = useRef<QueueItem | null>(null);
   currentRef.current = currentItem;
-  const nextLoadedRef = useRef<QueueItem | null>(null);
-  const preloadTimerRef = useRef<number | null>(null);
   const wasPlayingRef = useRef(false);
-  const intentionalPauseRef = useRef(false);
   // Sticky: set true when the user explicitly pauses, cleared only when the
-  // user explicitly plays again. Every passive/automatic resume path (visibility
-  // wake, OS-interruption recovery, ad-campaign-ended skip) must respect this —
-  // wasPlayingRef alone is not enough because some auto-advance paths reset it.
+  // user explicitly plays again. Visibility-wake resume must respect this so
+  // we don't restart audio for someone who deliberately paused.
   const userPausedRef = useRef(false);
   const trackStartedAtRef = useRef<string | null>(null);
   const allOutcomesModeRef = useRef(false);
-  const lastResumeAttemptRef = useRef(0);
   const stallRef = useRef<{ elapsed: number; since: number }>({ elapsed: -1, since: 0 });
   const bufferingRef = useRef(false);
 
@@ -178,7 +171,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
       setQueue((prev) => {
         const have = new Set(prev.filter((q) => q.type !== "ad").map((q) => q.songId));
         if (currentRef.current?.type !== "ad") have.add(currentRef.current?.songId ?? "");
-        if (nextLoadedRef.current?.type !== "ad") have.add(nextLoadedRef.current?.songId ?? "");
         have.delete("");
         // Always allow ad items through; dedup songs only.
         const additions = r.queue.filter((q) => q.type === "ad" || !have.has(q.songId));
@@ -202,47 +194,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
     } catch (e) { console.warn("[player] outcomes failed", e); }
   }, [session.mode, session.slug, session.storeId, session.token]);
 
-  const schedulePreload = useCallback((durationSec: number) => {
-    if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
-    if (!Number.isFinite(durationSec) || durationSec <= 0) return;
-    const rawMs = (durationSec - PRELOAD_SECONDS_BEFORE_END - CROSSFADE_MS / 1000) * 1000;
-    // If the track is shorter than the crossfade window (or duration was reported
-    // near-zero by iOS before buffering), rawMs ≤ 0. Don't schedule — Math.max(1000)
-    // would floor to 1s and trigger advanceToNext on every track in a 1-second loop.
-    // onTrackEnded (native 'ended' event) reliably handles these short tracks instead.
-    if (rawMs <= 0) return;
-    const ms = Math.max(1000, rawMs);
-    preloadTimerRef.current = window.setTimeout(() => {
-      preloadTimerRef.current = null; // mark as fired so onTrackEnded's clearTimeout is a no-op
-      void advanceToNext();
-    }, ms);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const preloadFollowing = useCallback(async () => {
-    if (nextLoadedRef.current) return;
-    let candidate = queueRef.current[0];
-    if (!candidate) {
-      const fresh = await refill();
-      candidate = queueRef.current[0] ?? fresh[0];
-    }
-    if (!candidate) return;
-    // Never preload ad items — ads must start at full volume via createAndPlay, not the
-    // loadNext/startNext path which initialises the Howl at volume 0.
-    if (candidate.type === "ad") return;
-    // Guard against stale queueRef: if the candidate is the item currently playing
-    // (ref hasn't been updated by React yet), skip it to avoid preloading the same track.
-    if (candidate.songId === currentRef.current?.songId) return;
-    nextLoadedRef.current = candidate;
-    setQueue((prev) => prev.filter((q) => q.songId !== candidate!.songId));
-    try {
-      await playerRef.current?.loadNext(candidate.audioUrl);
-    } catch (e) {
-      console.warn("[player] loadNext failed", e);
-      nextLoadedRef.current = null;
-    }
-  }, [refill]);
-
   const playFromQueue = useCallback(async () => {
     let head = queueRef.current[0];
     if (!head) {
@@ -250,7 +201,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
       // queueRef.current may still be stale (React batch); use the server's raw
       // response as a direct fallback so we never stall after an empty-queue refill.
       head = queueRef.current[0] ?? fresh.find(
-        (q) => q.songId !== currentRef.current?.songId && q.songId !== nextLoadedRef.current?.songId
+        (q) => q.songId !== currentRef.current?.songId
       ) ?? null;
     }
     if (!head) {
@@ -260,24 +211,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
     }
     setQueue((prev) => prev.filter((q) => q.songId !== head!.songId));
     setCurrentItem(head);
-    // Sync currentRef so preloadFollowing (called below in the same tick) sees the
-    // correct playing item and doesn't re-grab it from the stale queueRef.
     currentRef.current = head;
     trackStartedAtRef.current = new Date().toISOString();
     wasPlayingRef.current = true;
-    if (head.type === "ad") {
-      // Ads: full volume immediately, no preload timer — play to natural completion.
-      playerRef.current?.createAndPlay(head.audioUrl, { volume: AD_VOLUME });
-    } else {
-      playerRef.current?.createAndPlay(head.audioUrl, { onDurationKnown: (durationSec) => {
-        schedulePreload(durationSec);
-      } });
-    }
+    playerRef.current?.createAndPlay(head.audioUrl, head.type === "ad" ? { volume: AD_VOLUME } : undefined);
     setIsPlaying(true);
     emit(head.type === "ad" ? "ad_play" : "song_start", head);
-    void preloadFollowing();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refill, schedulePreload, emit]);
+  }, [refill, emit]);
 
   const advanceToNext = useCallback(async () => {
     const completed = currentRef.current;
@@ -285,90 +225,19 @@ export function PlayerScreen({ session, onLogout }: Props) {
       emit("song_complete", completed);
       setPlayedCount((c) => c + 1);
     }
-
-    const queued = nextLoadedRef.current;
-    if (queued) {
-      nextLoadedRef.current = null;
-      setCurrentItem(queued);
-      // Sync currentRef before preloadFollowing so it sees the new playing item.
-      currentRef.current = queued;
-      trackStartedAtRef.current = new Date().toISOString();
-      setIsPlaying(true);
-      wasPlayingRef.current = true;
-
-      if (queued.type === "ad") {
-        // Ads must always play via createAndPlay: full volume immediately, no preload
-        // timer. createAndPlay also unloads any stale preloaded Howl (this.next).
-        playerRef.current?.createAndPlay(queued.audioUrl, { volume: AD_VOLUME });
-        emit("ad_play", queued);
-        void preloadFollowing();
-        return;
-      }
-
-      const didStart = playerRef.current?.startNext() ?? false;
-      if (didStart) {
-        emit("song_start", queued);
-        const p = playerRef.current?.getProgress();
-        if (p?.duration) schedulePreload(p.duration);
-        void preloadFollowing();
-        return;
-      }
-      // startNext returned false (this.next was null — race or load error).
-      // Fall through to createAndPlay using the queued item's URL directly.
-      playerRef.current?.createAndPlay(queued.audioUrl, { onDurationKnown: (durationSec) => {
-        schedulePreload(durationSec);
-      } });
-      emit("song_start", queued);
-      void preloadFollowing();
-      return;
-    }
     await playFromQueue();
-  }, [emit, playFromQueue, preloadFollowing, schedulePreload]);
+  }, [emit, playFromQueue]);
 
-  // User-initiated skip: always use createAndPlay with the next URL rather than
-  // startNext. startNext relies on the preloaded Howl being in a playable state,
-  // which is not guaranteed at skip time (buffering, volume 0, race with timer).
-  // createAndPlay creates a fresh Howl and calls play() synchronously in the
-  // user-gesture call stack — the most reliable path on all browsers.
   const skip = useCallback(async () => {
-    // Every remaining caller of skip() wants playback to start (user-initiated
-    // report, mediaSession nexttrack, stall recovery, ad-skip while playing).
-    // Clear the sticky pause flag so passive resume paths don't get blocked
-    // after the next track starts.
     userPausedRef.current = false;
     const cur = currentRef.current;
-    if (cur && cur.type !== "ad") emit("song_skip", cur);
     if (cur && cur.type !== "ad") {
+      emit("song_skip", cur);
       emit("song_complete", cur);
       setPlayedCount((c) => c + 1);
     }
-    if (preloadTimerRef.current) { clearTimeout(preloadTimerRef.current); preloadTimerRef.current = null; }
-
-    // Take preloaded item metadata first, then queue head.
-    const next = nextLoadedRef.current ?? queueRef.current[0] ?? null;
-    if (next) {
-      nextLoadedRef.current = null;
-      setQueue((prev) => prev.filter((q) => q.songId !== next.songId));
-      setCurrentItem(next);
-      currentRef.current = next;
-      trackStartedAtRef.current = new Date().toISOString();
-      wasPlayingRef.current = true;
-      // createAndPlay also unloads any this.next preloaded Howl and fades out current.
-      if (next.type === "ad") {
-        playerRef.current?.createAndPlay(next.audioUrl, { volume: AD_VOLUME });
-        emit("ad_play", next);
-      } else {
-        playerRef.current?.createAndPlay(next.audioUrl, { onDurationKnown: (durationSec) => {
-          schedulePreload(durationSec);
-        } });
-        emit("song_start", next);
-      }
-      setIsPlaying(true);
-      void preloadFollowing();
-    } else {
-      await playFromQueue();
-    }
-  }, [emit, playFromQueue, preloadFollowing, schedulePreload]);
+    await playFromQueue();
+  }, [emit, playFromQueue]);
 
   const togglePlayPause = useCallback(() => {
     const player = playerRef.current;
@@ -392,13 +261,8 @@ export function PlayerScreen({ session, onLogout }: Props) {
       return;
     }
     if (isPlaying) {
-      intentionalPauseRef.current = true;
       userPausedRef.current = true;
       wasPlayingRef.current = false;
-      if (preloadTimerRef.current) {
-        clearTimeout(preloadTimerRef.current);
-        preloadTimerRef.current = null;
-      }
       player.pause();
       setIsPlaying(false);
     } else {
@@ -406,13 +270,8 @@ export function PlayerScreen({ session, onLogout }: Props) {
       wasPlayingRef.current = true;
       player.resume();
       setIsPlaying(true);
-      const p = player.getProgress();
-      if (p?.duration) {
-        const remaining = Math.max(0, p.duration - p.elapsed);
-        if (remaining > 0) schedulePreload(remaining);
-      }
     }
-  }, [isPlaying, playFromQueue, schedulePreload]);
+  }, [isPlaying, playFromQueue]);
 
   const handleSelectOutcome = useCallback(async (outcomeId: string) => {
     try {
@@ -424,7 +283,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
       setAllOutcomesMode(false);
       setShowOutcomeModal(false);
       setQueue([]);
-      nextLoadedRef.current = null;
       await refill();
       await refreshOutcomes();
       if (!currentRef.current && wasPlayingRef.current) void playFromQueue();
@@ -444,7 +302,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
       setAllOutcomesMode(false);
       setShowOutcomeModal(false);
       setQueue([]);
-      nextLoadedRef.current = null;
       await refill();
       await refreshOutcomes();
     } catch (e) {
@@ -464,7 +321,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
       setAllOutcomesMode(true);
       setShowOutcomeModal(false);
       setQueue([]);
-      nextLoadedRef.current = null;
       await refill();
       await refreshOutcomes();
       if (!currentRef.current && wasPlayingRef.current) void playFromQueue();
@@ -502,23 +358,10 @@ export function PlayerScreen({ session, onLogout }: Props) {
         try { el.pause(); el.removeAttribute("src"); el.load(); } catch {}
       });
     } catch {}
-    playerRef.current = new CrossfadePlayer({ volume: SONG_VOLUME,
-      crossfadeMs: CROSSFADE_MS,
-      // Always advance when a track ends naturally. The preload timer (schedulePreload)
-      // normally fires advanceToNext 8s before end for a smooth crossfade, but iOS
-      // throttles JS timers when the screen sleeps — the timer may never fire. onend
-      // comes from the native audio element and is reliable even under throttling,
-      // so this is the fallback that keeps playback going. CrossfadePlayer strips
-      // onend from the old Howl during crossfade, so double-advance is not possible.
-      //
-      // Cancel any pending preload timer first. If the timer was throttled and fires
-      // after this callback, it would pick up the *next* preloaded track (loaded by
-      // preloadFollowing inside advanceToNext) and immediately fade out the track that
-      // just started — causing the "shows playing but no audio" symptom.
-      onTrackEnded: () => {
-        if (preloadTimerRef.current) { clearTimeout(preloadTimerRef.current); preloadTimerRef.current = null; }
-        void advanceToNext();
-      },
+    playerRef.current = new CrossfadePlayer({
+      volume: SONG_VOLUME,
+      // Native 'ended' event drives advance. Reliable even when iOS throttles JS timers.
+      onTrackEnded: () => { void advanceToNext(); },
       onError: (err) => {
         console.error("[player] audio error", err);
         setError(`Audio error: ${String(err)}`);
@@ -532,35 +375,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
           const ctx = (window as unknown as { Howler?: { ctx?: AudioContext } }).Howler?.ctx;
           if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
         } catch {}
-        if (preloadTimerRef.current) { clearTimeout(preloadTimerRef.current); preloadTimerRef.current = null; }
         void advanceToNext();
-      },
-      onPause: () => {
-        if (intentionalPauseRef.current) { intentionalPauseRef.current = false; return; }
-        if (userPausedRef.current) return;
-        if (!wasPlayingRef.current) return;
-        const now = Date.now();
-        if (now - lastResumeAttemptRef.current < 2000) return;
-        lastResumeAttemptRef.current = now;
-        // Unlock AudioContext immediately — but do NOT call playerRef.current?.resume() here.
-        // With html5:true, resume() calls Howl.play() when playing() is false. On an
-        // OS-interrupted audio element that is briefly paused, play() creates a second
-        // <audio> clone from position 0, overlapping the original — the sustain-loop symptom.
-        try {
-          const ctx = (window as unknown as { Howler?: { ctx?: AudioContext } }).Howler?.ctx;
-          if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
-        } catch {}
-        // Delayed resume handles actual playback restart. If iOS fully suspends the page
-        // before this fires, the visibilitychange handler covers the wake-up resume.
-        window.setTimeout(() => {
-          if (userPausedRef.current) return;
-          if (!wasPlayingRef.current) return;
-          try {
-            const ctx = (window as unknown as { Howler?: { ctx?: AudioContext } }).Howler?.ctx;
-            if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
-          } catch {}
-          playerRef.current?.resume();
-        }, 250);
       },
     });
     samplerRef.current = new LoudnessSampler({
@@ -590,7 +405,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
       emit("operator_login");
     }
     return () => {
-      if (preloadTimerRef.current) clearTimeout(preloadTimerRef.current);
       playerRef.current?.stop();
       playerRef.current = null;
       samplerRef.current?.stop();
@@ -614,10 +428,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
         const serverHasAd = r.queue.some((q) => q.type === "ad");
         if (serverHasAd) return;
         setQueue((prev) => prev.filter((q) => q.type !== "ad"));
-        if (nextLoadedRef.current?.type === "ad") {
-          console.info("[player] dropping preloaded ad — campaign no longer active");
-          nextLoadedRef.current = null;
-        }
         if (currentRef.current?.type === "ad") {
           if (userPausedRef.current) {
             // User paused on this ad. Don't force playback — just clear it so
@@ -761,7 +571,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
       setIsPlaying(true);
     });
     navigator.mediaSession.setActionHandler("pause", () => {
-      intentionalPauseRef.current = true;
       userPausedRef.current = true;
       wasPlayingRef.current = false;
       playerRef.current?.pause();
