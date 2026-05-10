@@ -86,7 +86,7 @@ export function Account() {
               <div style={{ color: T.textMuted, fontSize: 14 }}>
                 {content.billing.free_body}
               </div>
-              <a href={api.checkoutUrl('core')} style={{
+              <a href="/upgrade" style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 background: T.accent, color: T.bg,
                 padding: '8px 14px', borderRadius: 8,
