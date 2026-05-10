@@ -63,13 +63,12 @@ const SLOTS: Slot[] = [
 type Props = {
   /** Bumps the slot index every time it changes (e.g. the playing track). */
   rotationKey: string | null;
-  /** 'rail' = tall side panel for wide viewports. 'card' = compact stacked
-   *  surface for phone/tablet portrait. Both rotate the same SLOTS. */
-  variant?: 'rail' | 'card';
+  /** Reduces typography + padding for narrow viewports. Same layout shape. */
+  compact?: boolean;
   style?: CSSProperties;
 };
 
-export function UpgradeRail({ rotationKey, variant = 'rail', style }: Props) {
+export function UpgradeRail({ rotationKey, compact = false, style }: Props) {
   const [index, setIndex] = useState(0);
   const [fade, setFade] = useState(true);
 
@@ -105,89 +104,15 @@ export function UpgradeRail({ rotationKey, variant = 'rail', style }: Props) {
       ? "rgba(120,180,188,0.95)"
       : "rgba(232,238,240,0.7)";
 
-  if (variant === 'card') {
-    return (
-      <div
-        style={{
-          position: "relative",
-          display: "flex",
-          flexDirection: "column",
-          gap: 14,
-          padding: "20px 24px 22px",
-          background: "linear-gradient(135deg, rgba(22,22,19,0.78) 0%, rgba(14,14,12,0.86) 100%)",
-          border: "1px solid rgba(212,225,229,0.08)",
-          borderRadius: 18,
-          boxSizing: "border-box",
-          ...style,
-        }}
-      >
-        <div
-          key={index}
-          style={{
-            opacity: fade ? 1 : 0,
-            transition: "opacity 420ms ease",
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 500,
-              letterSpacing: 2.5,
-              color: eyebrowColor,
-              textTransform: "uppercase",
-            }}
-          >
-            {slot.eyebrow}
-          </div>
-          <div
-            style={{
-              fontSize: 19,
-              fontWeight: 300,
-              lineHeight: 1.25,
-              color: "rgba(244,247,248,0.97)",
-              letterSpacing: -0.2,
-            }}
-          >
-            {slot.headline}
-          </div>
-          <div
-            style={{
-              fontSize: 13,
-              lineHeight: 1.45,
-              fontWeight: 300,
-              color: "rgba(232,238,240,0.72)",
-              letterSpacing: 0.1,
-            }}
-          >
-            {slot.body}
-          </div>
-        </div>
-        <a
-          href="https://entuned.co/pricing.html"
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            fontSize: 11,
-            fontWeight: 500,
-            letterSpacing: 2,
-            color: "rgba(120,180,188,1)",
-            textTransform: "uppercase",
-            textDecoration: "none",
-            borderBottom: "1px solid rgba(120,180,188,0.5)",
-            paddingBottom: 4,
-            alignSelf: "flex-start",
-          }}
-        >
-          See what Core unlocks →
-        </a>
-      </div>
-    );
-  }
+  // Sizes scale down on narrow viewports so the rail can fit in 50% of phone
+  // / tablet height without the headline running off-card.
+  const padding = compact ? "26px 28px" : "40px 56px 36px 64px";
+  const eyebrowSize = 11;
+  const headlineSize = compact ? 22 : 44;
+  const bodySize = compact ? 14 : 18;
+  const ctaSize = compact ? 11 : 12;
+  const innerGap = compact ? 14 : 24;
 
-  // 'rail' variant — tall side panel for wide viewports
   return (
     <div
       style={{
@@ -195,14 +120,16 @@ export function UpgradeRail({ rotationKey, variant = 'rail', style }: Props) {
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
-        padding: "40px 56px 36px 64px",
+        padding,
         boxSizing: "border-box",
+        minHeight: 0,
+        overflow: "hidden",
         ...style,
       }}
     >
       <div
         style={{
-          fontSize: 11,
+          fontSize: eyebrowSize,
           fontWeight: 500,
           letterSpacing: 3,
           color: "rgba(212,225,229,0.5)",
@@ -219,14 +146,14 @@ export function UpgradeRail({ rotationKey, variant = 'rail', style }: Props) {
           transition: "opacity 420ms ease",
           display: "flex",
           flexDirection: "column",
-          gap: 24,
+          gap: innerGap,
           textAlign: "left",
           maxWidth: 540,
         }}
       >
         <div
           style={{
-            fontSize: 11,
+            fontSize: eyebrowSize,
             fontWeight: 500,
             letterSpacing: 3,
             color: eyebrowColor,
@@ -237,18 +164,18 @@ export function UpgradeRail({ rotationKey, variant = 'rail', style }: Props) {
         </div>
         <div
           style={{
-            fontSize: 44,
+            fontSize: headlineSize,
             fontWeight: 300,
-            lineHeight: 1.18,
+            lineHeight: 1.2,
             color: "rgba(244,247,248,0.97)",
-            letterSpacing: -0.4,
+            letterSpacing: compact ? -0.2 : -0.4,
           }}
         >
           {slot.headline}
         </div>
         <div
           style={{
-            fontSize: 18,
+            fontSize: bodySize,
             lineHeight: 1.5,
             fontWeight: 300,
             color: "rgba(232,238,240,0.78)",
@@ -264,7 +191,7 @@ export function UpgradeRail({ rotationKey, variant = 'rail', style }: Props) {
         target="_blank"
         rel="noreferrer"
         style={{
-          fontSize: 12,
+          fontSize: ctaSize,
           fontWeight: 500,
           letterSpacing: 2.5,
           color: "rgba(120,180,188,1)",

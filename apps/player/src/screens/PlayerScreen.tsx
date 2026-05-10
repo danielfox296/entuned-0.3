@@ -34,7 +34,7 @@ function saveLoved(s: Set<string>) {
 // Tier pill rendered next to the logo. Each tier gets its own accent so
 // operators see at a glance what plan the active store is running on.
 const TIER_LABEL: Record<string, string> = {
-  free: "Entuned Free",
+  free: "Free",
   core: "Core",
   pro: "Pro",
   enterprise: "Enterprise",
@@ -100,16 +100,16 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [networkError, setNetworkError] = useState<string | null>(null);
-  const [online, setOnline] = useState(true);
   const [buffering, setBuffering] = useState(false);
   const [lovedIds, setLovedIds] = useState<Set<string>>(() => loadLoved());
   const [allOutcomesMode, setAllOutcomesModeState] = useState(false);
   const [playedCount, setPlayedCount] = useState(0);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.innerWidth >= 1024);
-  // Promo surface: shown for slug-mode (Free tier) at every viewport. At ≥1024
-  // it's a tall left rail; below that it's a compact card stacked under the
-  // player. Operator mode (paid Core/Pro) doesn't render either.
-  const showPromo = session.mode === "slug";
+  // Promo surface gated on effective tier — only Free customers get the
+  // upgrade pitch. Pro/Core/Enterprise (including comped) skip it whether
+  // they access via slug or operator login. Layout is 50/50 row at ≥1024,
+  // 50/50 column below.
+  const showPromo = session.tier === "free";
   const twoCol = showPromo && isWide;
   const narrowPromo = showPromo && !isWide;
 
@@ -490,29 +490,9 @@ export function PlayerScreen({ session, onLogout }: Props) {
     return () => clearInterval(iv);
   }, [fetchNext, skip]);
 
-  // ── Online indicator: 30s polling against /auth/me ────────────────────────
-  // Operator-only — slug mode has no operator token. Slug mode just stays
-  // optimistically online (any next-fetch failure flips the network banner
-  // anyway via refill's catch path).
   useEffect(() => {
-    if (session.mode === 'slug') { setOnline(true); return; }
-    let cancelled = false;
-    const check = async () => {
-      try {
-        await api.me(session.token);
-        if (!cancelled) setOnline(true);
-      } catch {
-        if (!cancelled) setOnline(false);
-      }
-    };
-    void check();
-    const iv = window.setInterval(() => void check(), 30_000);
-    return () => { cancelled = true; clearInterval(iv); };
-  }, [session.mode, session.token]);
-
-  useEffect(() => {
-    const handleOnline = () => { setOnline(true); setNetworkError(null); void refill(); };
-    const handleOffline = () => { setOnline(false); setNetworkError("No internet connection. Music will resume when you're back online."); };
+    const handleOnline = () => { setNetworkError(null); void refill(); };
+    const handleOffline = () => { setNetworkError("No internet connection. Music will resume when you're back online."); };
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
     return () => {
@@ -702,19 +682,30 @@ export function PlayerScreen({ session, onLogout }: Props) {
           <img src={logoUrl} alt="Entuned" style={{ width: 118, opacity: 0.7 }} />
           {session.tier ? <TierPill tier={session.tier} /> : null}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div
-            onClick={() => setShowLogoutConfirm((v) => !v)}
-            style={{ display: "flex", alignItems: "center", cursor: "pointer", userSelect: "none" }}
-          >
-            <span style={{ fontSize: 12, fontWeight: 400, letterSpacing: 2, color: "rgba(212,225,229,0.6)", textTransform: "uppercase" }}>
-              {headerLine}
-            </span>
-          </div>
-          <div
-            style={{ width: 6, height: 6, borderRadius: "50%", background: online ? "#27ae60" : "#e74c3c", flexShrink: 0 }}
-            title={online ? "Online" : "Offline"}
-          />
+        <div
+          onClick={() => {
+            if (session.mode === "slug") {
+              window.open("https://app.entuned.co", "_blank", "noopener,noreferrer");
+            } else {
+              setShowLogoutConfirm((v) => !v);
+            }
+          }}
+          style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}
+          title={session.mode === "slug" ? "Manage your account" : "Switch store / log out"}
+        >
+          <span style={{ fontSize: 12, fontWeight: 400, letterSpacing: 2, color: "rgba(212,225,229,0.6)", textTransform: "uppercase" }}>
+            {headerLine}
+          </span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" stroke="rgba(212,225,229,0.55)" strokeWidth="1.6" />
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.05a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.05a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+              stroke="rgba(212,225,229,0.55)"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </div>
       </div>
 
@@ -774,24 +765,28 @@ export function PlayerScreen({ session, onLogout }: Props) {
         </div>
       ) : null}
 
-      <div style={{ flex: 1, display: "flex", flexDirection: twoCol ? "row" : "column", minHeight: 0, gap: twoCol ? 24 : 0, padding: twoCol ? "0 28px 28px" : 0 }}>
-        {twoCol ? (
-          <UpgradeRail rotationKey={currentItem?.songId ?? null} style={{ flex: 1 }} />
+      <div style={{ flex: 1, display: "flex", flexDirection: twoCol ? "row" : "column", minHeight: 0, gap: 0, padding: 0 }}>
+        {showPromo ? (
+          <UpgradeRail
+            rotationKey={currentItem?.songId ?? null}
+            compact={!isWide}
+            style={{ flex: 1, minHeight: 0 }}
+          />
         ) : null}
         <div style={{
           flex: 1,
           display: "flex",
           flexDirection: "column",
           minWidth: 0,
+          minHeight: 0,
           ...(twoCol ? {
-            background: "linear-gradient(135deg, rgba(22,22,19,0.92) 0%, rgba(14,14,12,0.96) 100%)",
-            border: "1px solid rgba(212,225,229,0.08)",
-            borderRadius: 24,
-            overflow: "hidden",
-            boxShadow: "0 30px 80px -20px rgba(0,0,0,0.6)",
+            borderLeft: "1px solid rgba(212,225,229,0.06)",
+          } : {}),
+          ...(narrowPromo ? {
+            borderTop: "1px solid rgba(212,225,229,0.06)",
           } : {}),
         }}>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: twoCol ? "flex-start" : "center", padding: twoCol ? "0 60px 24px 80px" : "0 0 24px", gap: 44 }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: twoCol ? "flex-start" : "center", padding: twoCol ? "0 60px 24px 60px" : (narrowPromo ? "16px 0" : "0 0 24px"), gap: narrowPromo ? 28 : 44, minHeight: 0 }}>
         {/* Title block: outcome chip + track title + (when playing) progress bar */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: twoCol ? "flex-start" : "center", gap: 24, width: "100%" }}>
           <DarkHalo>
@@ -967,13 +962,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
         </div>
       </div>
         </div>
-        {narrowPromo ? (
-          <UpgradeRail
-            rotationKey={currentItem?.songId ?? null}
-            variant="card"
-            style={{ margin: "0 20px 20px" }}
-          />
-        ) : null}
       </div>
 
       {showOutcomeModal ? (
@@ -1012,25 +1000,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
         >
           Music is ready
         </div>
-      ) : null}
-
-      {/* Persistent "Manage your account" link — slug-mode only. Operators
-          already have logout/store-switch in the header. */}
-      {session.mode === 'slug' ? (
-        <a
-          href="https://app.entuned.co"
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            position: "fixed", bottom: 14, right: 18, zIndex: 5,
-            fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase",
-            color: "rgba(212,225,229,0.35)",
-            textDecoration: "none",
-            fontFamily: "'Inter', sans-serif",
-          }}
-        >
-          Manage your account
-        </a>
       ) : null}
 
       {tourActive ? (
