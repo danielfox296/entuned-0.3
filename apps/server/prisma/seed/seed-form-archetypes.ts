@@ -94,12 +94,19 @@ const ARCHETYPES: ArchetypeSeed[] = [
 async function main() {
   const p = new PrismaClient()
   try {
-    // Resolve outcome_keys by title (active versions only).
+    // Resolve outcome_keys by display title or title (active versions only).
+    // displayTitle is the operator-facing name (Calm, Linger, ...); title is
+    // the LLM-load-bearing internal name (Arousal Down, Dwell Extension, ...).
+    // The seed lists use display titles since they're the human-readable form.
     const outcomes = await p.outcome.findMany({
       where: { supersededAt: null },
-      select: { outcomeKey: true, title: true },
+      select: { outcomeKey: true, title: true, displayTitle: true },
     })
-    const keyByTitle = new Map(outcomes.map((o) => [o.title, o.outcomeKey]))
+    const keyByTitle = new Map<string, string>()
+    for (const o of outcomes) {
+      if (o.displayTitle) keyByTitle.set(o.displayTitle, o.outcomeKey)
+      keyByTitle.set(o.title, o.outcomeKey)
+    }
 
     let created = 0
     let updated = 0
