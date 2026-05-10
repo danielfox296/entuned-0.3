@@ -98,20 +98,30 @@ export function UpgradeRail({ rotationKey, compact = false, style }: Props) {
 
   const slot = SLOTS[index];
 
-  const eyebrowColor = slot.tier === "pro"
-    ? "rgba(215,175,116,0.95)"
+  // Tier accent now lives only on the CTA — the per-slot eyebrow lines + the
+  // static "Your plan" label have been removed. Headline + body carry the
+  // narrative; the CTA telegraphs which tier this slot is selling.
+  const ctaColor = slot.tier === "pro"
+    ? "rgba(215,175,116,1)"
     : slot.tier === "core"
-      ? "rgba(120,180,188,0.95)"
-      : "rgba(232,238,240,0.7)";
+      ? "rgba(120,180,188,1)"
+      : "rgba(232,238,240,0.9)";
+  const ctaUnderline = slot.tier === "pro"
+    ? "rgba(215,175,116,0.5)"
+    : slot.tier === "core"
+      ? "rgba(120,180,188,0.5)"
+      : "rgba(232,238,240,0.4)";
+  const ctaLabel = slot.tier === "pro"
+    ? "See what Pro unlocks →"
+    : "See what Core unlocks →";
 
   // Sizes scale down on narrow viewports so the rail can fit in 50% of phone
   // / tablet height without the headline running off-card.
   const padding = compact ? "26px 28px" : "40px 56px 36px 64px";
-  const eyebrowSize = 11;
   const headlineSize = compact ? 22 : 44;
   const bodySize = compact ? 14 : 18;
   const ctaSize = compact ? 11 : 12;
-  const innerGap = compact ? 14 : 24;
+  const innerGap = compact ? 14 : 22;
 
   return (
     <div
@@ -128,18 +138,6 @@ export function UpgradeRail({ rotationKey, compact = false, style }: Props) {
       }}
     >
       <div
-        style={{
-          fontSize: eyebrowSize,
-          fontWeight: 500,
-          letterSpacing: 3,
-          color: "rgba(212,225,229,0.5)",
-          textTransform: "uppercase",
-        }}
-      >
-        Your plan — Entuned Free
-      </div>
-
-      <div
         key={index}
         style={{
           opacity: fade ? 1 : 0,
@@ -151,17 +149,6 @@ export function UpgradeRail({ rotationKey, compact = false, style }: Props) {
           maxWidth: 540,
         }}
       >
-        <div
-          style={{
-            fontSize: eyebrowSize,
-            fontWeight: 500,
-            letterSpacing: 3,
-            color: eyebrowColor,
-            textTransform: "uppercase",
-          }}
-        >
-          {slot.eyebrow}
-        </div>
         <div
           style={{
             fontSize: headlineSize,
@@ -194,15 +181,15 @@ export function UpgradeRail({ rotationKey, compact = false, style }: Props) {
           fontSize: ctaSize,
           fontWeight: 500,
           letterSpacing: 2.5,
-          color: "rgba(120,180,188,1)",
+          color: ctaColor,
           textTransform: "uppercase",
           textDecoration: "none",
-          borderBottom: "1px solid rgba(120,180,188,0.5)",
+          borderBottom: `1px solid ${ctaUnderline}`,
           paddingBottom: 6,
           alignSelf: "flex-start",
         }}
       >
-        See what Core unlocks →
+        {ctaLabel}
       </a>
     </div>
   );

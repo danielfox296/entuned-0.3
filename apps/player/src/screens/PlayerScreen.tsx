@@ -765,7 +765,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
         </div>
       ) : null}
 
-      <div style={{ flex: 1, display: "flex", flexDirection: twoCol ? "row" : "column", minHeight: 0, gap: 0, padding: 0 }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: twoCol ? "row" : "column", minHeight: 0, gap: twoCol ? 24 : 16, padding: twoCol ? "0 28px 28px" : (narrowPromo ? "0 16px 16px" : 0) }}>
         {showPromo ? (
           <UpgradeRail
             rotationKey={currentItem?.songId ?? null}
@@ -779,11 +779,12 @@ export function PlayerScreen({ session, onLogout }: Props) {
           flexDirection: "column",
           minWidth: 0,
           minHeight: 0,
-          ...(twoCol ? {
-            borderLeft: "1px solid rgba(212,225,229,0.06)",
-          } : {}),
-          ...(narrowPromo ? {
-            borderTop: "1px solid rgba(212,225,229,0.06)",
+          ...(showPromo ? {
+            background: "linear-gradient(135deg, rgba(22,22,19,0.92) 0%, rgba(14,14,12,0.96) 100%)",
+            border: "1px solid rgba(212,225,229,0.08)",
+            borderRadius: 24,
+            overflow: "hidden",
+            boxShadow: "0 30px 80px -20px rgba(0,0,0,0.6)",
           } : {}),
         }}>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: twoCol ? "flex-start" : "center", padding: twoCol ? "0 60px 24px 60px" : (narrowPromo ? "16px 0" : "0 0 24px"), gap: narrowPromo ? 28 : 44, minHeight: 0 }}>
