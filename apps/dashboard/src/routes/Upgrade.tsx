@@ -41,25 +41,38 @@ export function Upgrade() {
       <div style={{ maxWidth: 880, margin: '0 auto' }}>
         {banner && <Banner kind={banner.kind}>{banner.body}</Banner>}
 
-        {/* Hero */}
-        <section style={{ paddingTop: 12, paddingBottom: 32 }}>
+        {/* Hero — full-width photographic header with dark gradient overlay
+            so headline + CTA stay legible against the imagery. Same image
+            convention as the dashboard's /start screen for brand continuity. */}
+        <section style={{
+          position: 'relative',
+          marginTop: 8, marginBottom: 36,
+          padding: '64px 36px 56px',
+          borderRadius: 18,
+          overflow: 'hidden',
+          background: `linear-gradient(160deg, rgba(20,20,18,0.72) 0%, rgba(20,20,18,0.92) 70%), url('/hero-start.jpg')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          border: `1px solid ${T.border}`,
+        }}>
           <Eyebrow>{content.eyebrow}</Eyebrow>
           <h1 style={{
-            fontFamily: T.heading, fontSize: 40, fontWeight: 700,
+            fontFamily: T.heading, fontSize: 'clamp(2rem, 4vw, 2.6rem)', fontWeight: 700,
             color: T.text, letterSpacing: '-0.02em',
-            margin: '8px 0 16px', lineHeight: 1.15,
+            margin: '10px 0 16px', lineHeight: 1.12,
+            maxWidth: 18 + 'ch',
           }}>
             {content.heading}
           </h1>
           <p style={{
             fontSize: 17, color: T.textMuted, lineHeight: 1.55,
-            margin: '0 0 22px', maxWidth: 640,
+            margin: '0 0 22px', maxWidth: 580,
           }}>
             {content.subhead}
           </p>
           <p style={{
-            fontSize: 13, color: T.gold, fontFamily: T.mono,
-            letterSpacing: 0.4, margin: '0 0 28px',
+            fontSize: 13, color: T.accent, fontFamily: T.mono,
+            letterSpacing: 0.4, margin: '0 0 28px', fontWeight: 500,
           }}>
             {content.price_line}
           </p>
@@ -183,7 +196,7 @@ function Eyebrow({ children }: { children: string }) {
   return (
     <div style={{
       fontSize: 11, fontWeight: 600, letterSpacing: '0.18em',
-      color: T.gold, textTransform: 'uppercase',
+      color: T.accent, textTransform: 'uppercase',
     }}>
       {children}
     </div>
@@ -209,11 +222,11 @@ function PrimaryCTA({ href, children, disabled }: { href: string; children: stri
     <a href={href} style={{
       display: 'inline-flex', alignItems: 'center', gap: 10,
       padding: '14px 26px', borderRadius: 999,
-      background: T.gold, color: T.inkDeep,
-      border: `1px solid ${T.gold}`,
+      background: T.accent, color: T.bg,
+      border: `1px solid ${T.accent}`,
       fontSize: 14, fontWeight: 700, letterSpacing: 1.2,
       textTransform: 'uppercase', textDecoration: 'none',
-      boxShadow: '0 6px 18px rgba(215,175,116,0.18)',
+      boxShadow: '0 6px 18px rgba(80,146,156,0.22)',
     }}>
       {children}
       <ArrowRight size={16} strokeWidth={2.5} />
@@ -237,7 +250,7 @@ function StickyUpgradeBar({ href }: { href: string }) {
       </span>
       <a href={href} style={{
         padding: '10px 20px', borderRadius: 999,
-        background: T.gold, color: T.inkDeep,
+        background: T.accent, color: T.bg,
         fontSize: 12, fontWeight: 700, letterSpacing: 1.2,
         textTransform: 'uppercase', textDecoration: 'none',
         whiteSpace: 'nowrap',
@@ -302,11 +315,11 @@ function BenefitSection({
           </p>
         </div>
       </div>
-      {/* Proof line — gold-accented, monospaced for that "spec sheet" feel */}
+      {/* Proof line — teal-accented, monospaced for that "spec sheet" feel */}
       <div style={{
         marginTop: 12, paddingTop: 14,
         borderTop: `1px solid ${T.borderSubtle}`,
-        fontSize: 13, color: T.gold, fontFamily: T.mono,
+        fontSize: 13, color: T.accent, fontFamily: T.mono,
         letterSpacing: 0.3, lineHeight: 1.5,
       }}>
         {proof}
@@ -341,10 +354,10 @@ function OutcomesGrid() {
         <div key={o.name} style={{
           display: 'flex', alignItems: 'center', gap: 8,
           padding: '10px 12px', borderRadius: 10,
-          background: o.free ? T.accentGlow : 'rgba(215,175,116,0.06)',
-          border: `1px solid ${o.free ? T.borderActive : 'rgba(215,175,116,0.25)'}`,
+          background: o.free ? T.accentGlow : 'rgba(212,225,229,0.04)',
+          border: `1px solid ${o.free ? T.borderActive : T.borderSubtle}`,
           fontSize: 12, fontWeight: 600, letterSpacing: 0.6,
-          color: o.free ? T.accent : T.gold,
+          color: o.free ? T.accent : T.textDim,
           textTransform: 'uppercase',
         }}>
           {o.free ? <Check size={12} strokeWidth={2.5} /> : <Lock size={11} strokeWidth={2.5} />}
@@ -374,7 +387,7 @@ function BarRow({ label, value, max, highlight }: {
       <div style={{
         display: 'flex', justifyContent: 'space-between',
         fontSize: 12, fontFamily: T.mono, marginBottom: 4,
-        color: highlight ? T.gold : T.textDim,
+        color: highlight ? T.accent : T.textDim,
         letterSpacing: 0.3,
       }}>
         <span>{label}</span>
@@ -387,7 +400,7 @@ function BarRow({ label, value, max, highlight }: {
       }}>
         <div style={{
           width: `${pct}%`, height: '100%',
-          background: highlight ? T.gold : T.accent,
+          background: highlight ? T.accent : T.accentMuted,
           borderRadius: 999,
           transition: 'width 0.4s ease',
         }} />
