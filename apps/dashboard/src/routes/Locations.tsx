@@ -4,7 +4,7 @@ import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
 import { Card, EmptyState } from '../ui/Card.js'
 import { Button, Input } from '../ui/index.js'
-import { api, PLAYER_URL, TIER_LABEL, TIER_RANK, type StoreRow, type Tier } from '../api.js'
+import { api, PLAYER_URL, TIER_RANK, type StoreRow } from '../api.js'
 import { useTier } from '../lib/tier.jsx'
 import content from '../content/locations.yaml'
 
@@ -110,20 +110,13 @@ function StoreCard({ store, canPause, onChanged }: {
       }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <StoreNameRow store={store} onChanged={onChanged} />
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 10, marginTop: 4,
-          }}>
-            <span style={{
-              fontSize: 10, fontWeight: 600, letterSpacing: '0.08em',
-              color: T.accentMuted, textTransform: 'uppercase',
-              border: `1px solid ${T.border}`, borderRadius: 8, padding: '1px 6px',
-            }}>{TIER_LABEL[store.tier as Tier] ?? store.tier}</span>
-            {isPaused && (
+          {isPaused && (
+            <div style={{ marginTop: 4 }}>
               <span style={{ fontSize: 12, color: T.warn }}>
                 {content.store.paused_until_prefix}{new Date(store.pausedUntil!).toLocaleDateString()}
               </span>
-            )}
-          </div>
+            </div>
+          )}
         </div>
         <PauseControl
           store={store}
