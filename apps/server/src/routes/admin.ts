@@ -1440,6 +1440,22 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     })
     const generalKeys = new Set(generalSiblings.map((g) => `${g.songId}::${g.outcomeId}`))
 
+    // Aggregate love + report counts per song across all stores (one groupBy).
+    const pageSongIds = [...new Set(rows.map((r) => r.songId))]
+    const reactionCounts = pageSongIds.length === 0 ? [] : await prisma.playbackEvent.groupBy({
+      by: ['songId', 'eventType'],
+      where: { songId: { in: pageSongIds }, eventType: { in: ['song_love', 'song_report'] } },
+      _count: { _all: true },
+    })
+    const loveBySong = new Map<string, number>()
+    const reportBySong = new Map<string, number>()
+    for (const c of reactionCounts) {
+      if (!c.songId) continue
+      const n = c._count._all
+      if (c.eventType === 'song_love') loveBySong.set(c.songId, n)
+      else if (c.eventType === 'song_report') reportBySong.set(c.songId, n)
+    }
+
     return {
       total, limit, offset,
       rows: rows.map((r) => {
@@ -1459,6 +1475,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           // True if this song+outcome has a Free Tier ICP row (whether via a
           // sibling row or via this row itself if icpId IS the Free Tier ICP).
           inGeneralPool: r.icpId === FREE_TIER_ICP_ID || generalKeys.has(`${r.songId}::${r.outcomeId}`),
+          loveCount: loveBySong.get(r.songId) ?? 0,
+          reportCount: reportBySong.get(r.songId) ?? 0,
         }
       }),
     }

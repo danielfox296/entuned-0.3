@@ -176,7 +176,7 @@ function FilterSelect({ label, value, onChange, options }: {
   )
 }
 
-const COLS = '1.6fr 1.8fr 1.1fr 1.3fr 110px 60px 60px 110px'
+const COLS = '1.6fr 1.8fr 1.1fr 1.3fr 110px 60px 50px 50px 60px 110px'
 
 // Module-level: only one row can play at a time across the browser.
 let currentAudio: HTMLAudioElement | null = null
@@ -195,6 +195,8 @@ function Header() {
       <span>icp</span>
       <span>create date</span>
       <span style={{ textAlign: 'right' }}>time</span>
+      <span style={{ textAlign: 'right' }} title="Total ♥ across all stores">love</span>
+      <span style={{ textAlign: 'right' }} title="Total reports across all stores">flag</span>
       <span style={{ textAlign: 'center' }} title="In the free-tier general pool">free</span>
       <span style={{ textAlign: 'right' }}>status</span>
     </div>
@@ -299,6 +301,12 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
       <span style={{ color: T.textDim, fontSize: 13 }}>{created}</span>
       <span style={{ textAlign: 'right', color: T.textMuted, fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>
         {fmtDuration(duration)}
+      </span>
+      <span style={{ textAlign: 'right', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: row.loveCount > 0 ? T.accent : T.textDim }}>
+        {row.loveCount}
+      </span>
+      <span style={{ textAlign: 'right', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: row.reportCount > 0 ? T.danger : T.textDim }}>
+        {row.reportCount}
       </span>
       <span style={{ textAlign: 'center' }}>
         <input

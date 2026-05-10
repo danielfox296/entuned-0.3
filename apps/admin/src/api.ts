@@ -584,6 +584,8 @@ export interface LineageRowFull {
   // True if this song+outcome pair is in the free-tier general pool. Toggled
   // via POST /admin/lineage-rows/:id/toggle-general.
   inGeneralPool: boolean
+  loveCount: number
+  reportCount: number
 }
 
 export interface LineageRowList {
