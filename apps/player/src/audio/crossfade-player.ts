@@ -119,6 +119,14 @@ export class CrossfadePlayer {
 
   isPlaying(): boolean { return this.current?.playing() ?? false; }
 
+  // Returns the underlying HTMLAudioElement of the currently-playing Howl, if any.
+  // Used by the visualizer to feed real-time PCM into the AudioContext analyser.
+  // Howler 2.x with html5:true stores the element at `_sounds[0]._node`.
+  getCurrentNode(): HTMLAudioElement | null {
+    const c = this.current as unknown as { _sounds?: Array<{ _node?: HTMLAudioElement }> } | null;
+    return c?._sounds?.[0]?._node ?? null;
+  }
+
   getProgress(): { elapsed: number; duration: number; progress: number } | null {
     const c = this.current;
     if (!c) return null;

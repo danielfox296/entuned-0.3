@@ -77,6 +77,9 @@ importers:
 
   apps/player:
     dependencies:
+      audiomotion-analyzer:
+        specifier: ^4.5.4
+        version: 4.5.4
       howler:
         specifier: ^2.2.4
         version: 2.2.4
@@ -1295,6 +1298,9 @@ packages:
   atomic-sleep@1.0.0:
     resolution: {integrity: sha512-kNOjDqAh7px0XWNI+4QbzoiR/nTkHAWNud2uvnJquD1/x5a7EQZMJT0AczqK0Qn67oY/TTQ1LbUKajZpp3I9tQ==}
     engines: {node: '>=8.0.0'}
+
+  audiomotion-analyzer@4.5.4:
+    resolution: {integrity: sha512-bBTIFr0VgM764MJN3ATIyKrv2BzGTfQgJugulIHNEIFT0+zbz7lb+2CvFTPvk6n3J06wwWiJBPZFEIt9OSxzfQ==}
 
   avvio@9.2.0:
     resolution: {integrity: sha512-2t/sy01ArdHHE0vRH5Hsay+RtCZt3dLPji7W7/MMOCEgze5b7SNDC4j5H6FnVgPkI1MTNFGzHdHrVXDDl7QSSQ==}
@@ -3418,6 +3424,8 @@ snapshots:
   argparse@2.0.1: {}
 
   atomic-sleep@1.0.0: {}
+
+  audiomotion-analyzer@4.5.4: {}
 
   avvio@9.2.0:
     dependencies:

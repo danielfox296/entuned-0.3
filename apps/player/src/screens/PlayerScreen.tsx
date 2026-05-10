@@ -10,6 +10,7 @@ import { OutcomeModal } from "../components/OutcomeModal.js";
 import { ReportModal, type ReportReason } from "../components/ReportModal.js";
 import { TooltipTour, tourSeen, type TourStep } from "../components/TooltipTour.js";
 import { UpgradeRail } from "../components/UpgradeRail.js";
+import { Visualizer } from "../components/Visualizer.js";
 import { saveSession, type Session } from "../lib/storage.js";
 import logoUrl from "/entuned_logo.png";
 import lockscreenArtUrl from "/lockscreen-art.png";
@@ -69,6 +70,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const [lovedIds, setLovedIds] = useState<Set<string>>(() => loadLoved());
   const [allOutcomesMode, setAllOutcomesModeState] = useState(false);
   const [playedCount, setPlayedCount] = useState(0);
+  const [audioEl, setAudioEl] = useState<HTMLAudioElement | null>(null);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.innerWidth >= 1024);
   // Two-column promotional layout: only for slug (Free tier) at landscape/desktop
   // widths. Operator mode (paid Core/Pro) keeps the centered layout.
@@ -79,6 +81,19 @@ export function PlayerScreen({ session, onLogout }: Props) {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  // Hand the visualizer the underlying HTMLAudioElement of the current Howl.
+  // Howler creates the element synchronously on play() in html5 mode, but a
+  // brief poll covers any race.
+  useEffect(() => {
+    if (!currentItem) { setAudioEl(null); return; }
+    let tries = 0;
+    const iv = window.setInterval(() => {
+      const el = playerRef.current?.getCurrentNode() ?? null;
+      if (el || tries++ > 12) { setAudioEl(el); clearInterval(iv); }
+    }, 60);
+    return () => clearInterval(iv);
+  }, [currentItem]);
 
   // Onboarding tour — fires once per device on first launch (slug or operator).
   // Targets the outcome selector, love, and report — the three most product-
@@ -972,6 +987,12 @@ export function PlayerScreen({ session, onLogout }: Props) {
             </div>
           ) : null}
         </DarkHalo>
+
+        {twoCol ? (
+          <div style={{ width: "100%", maxWidth: 540, opacity: currentItem ? 1 : 0.25, transition: "opacity 400ms ease" }}>
+            <Visualizer audioEl={audioEl} trackId={currentItem?.songId ?? null} height={110} />
+          </div>
+        ) : null}
 
         {currentItem ? <ProgressBar getProgress={getProgress} /> : null}
 
