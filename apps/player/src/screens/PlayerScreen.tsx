@@ -786,6 +786,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
             rotationKey={currentItem?.songId ?? null}
             tier={session.tier}
             compact={!isWide}
+            withPhoto={narrowPromo}
             style={{ flex: 1, minHeight: 0 }}
           />
         ) : null}

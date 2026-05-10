@@ -11,10 +11,13 @@ type SlotKind = "core_upsell" | "pro_upsell" | "core_reminder" | "pro_reminder";
 
 // Each slot is an anchor (one tight line) + 2-3 bullets. Designed for
 // scan-reading on the floor — operator should grok the value in under a second.
+// `photo` is shown only in narrow-promo mode (portrait tablet / phone, where
+// landscape iPad's natural 2-column layout already fills horizontally).
 type Slot = {
   anchor: string;
   points: string[];
   kind: SlotKind;
+  photo: string;
 };
 
 const SLOTS: Slot[] = [
@@ -27,6 +30,7 @@ const SLOTS: Slot[] = [
       "Not the general catalogue",
     ],
     kind: "core_upsell",
+    photo: "/promo/retail-store.jpg",
   },
   {
     anchor: "More outcomes than Linger and Lift.",
@@ -36,6 +40,7 @@ const SLOTS: Slot[] = [
       "Not just two free modes",
     ],
     kind: "core_upsell",
+    photo: "/promo/shopping.jpg",
   },
   {
     anchor: "A library that grows.",
@@ -45,6 +50,7 @@ const SLOTS: Slot[] = [
       "Top performers kept, weak ones culled",
     ],
     kind: "core_upsell",
+    photo: "/promo/parallax-luxury-store.jpg",
   },
   {
     anchor: "Music that evolves with you.",
@@ -54,6 +60,7 @@ const SLOTS: Slot[] = [
       "Music adapts the same day",
     ],
     kind: "core_upsell",
+    photo: "/promo/alcott-store.jpg",
   },
   // ── Pro upsell (Free / Core → Pro) ──────────────────────────────────────
   {
@@ -64,6 +71,7 @@ const SLOTS: Slot[] = [
       "No one has to remember the mode",
     ],
     kind: "pro_upsell",
+    photo: "/promo/parallax-green-lamp.jpg",
   },
   {
     anchor: "Music tied to your sales.",
@@ -73,6 +81,7 @@ const SLOTS: Slot[] = [
       "Lift shows up in the report",
     ],
     kind: "pro_upsell",
+    photo: "/promo/parallax-cosmetics-store.jpg",
   },
   {
     anchor: "Music for every customer type.",
@@ -82,6 +91,7 @@ const SLOTS: Slot[] = [
       "Every visitor's moment shaped",
     ],
     kind: "pro_upsell",
+    photo: "/promo/mara-icp.jpg",
   },
   // ── Core feature reminders (for active Core stores) ─────────────────────
   {
@@ -92,6 +102,7 @@ const SLOTS: Slot[] = [
       "Not a generic catalogue",
     ],
     kind: "core_reminder",
+    photo: "/promo/mara-icp.jpg",
   },
   {
     anchor: "Two outcomes ready.",
@@ -101,6 +112,7 @@ const SLOTS: Slot[] = [
       "Switch any time below",
     ],
     kind: "core_reminder",
+    photo: "/promo/alcott-store.jpg",
   },
   {
     anchor: "Your taste shapes the rotation.",
@@ -110,6 +122,7 @@ const SLOTS: Slot[] = [
       "Effect compounds over time",
     ],
     kind: "core_reminder",
+    photo: "/promo/shopping.jpg",
   },
   {
     anchor: "Edit your ICP any time.",
@@ -119,6 +132,7 @@ const SLOTS: Slot[] = [
       "No re-onboarding",
     ],
     kind: "core_reminder",
+    photo: "/promo/retail-store.jpg",
   },
   // ── Pro feature reminders (for active Pro stores) ───────────────────────
   {
@@ -129,6 +143,7 @@ const SLOTS: Slot[] = [
       "Closing wind-down",
     ],
     kind: "pro_reminder",
+    photo: "/promo/parallax-green-lamp.jpg",
   },
   {
     anchor: "Tied to your POS.",
@@ -138,6 +153,7 @@ const SLOTS: Slot[] = [
       "Better the longer it plays",
     ],
     kind: "pro_reminder",
+    photo: "/promo/parallax-cosmetics-store.jpg",
   },
   {
     anchor: "Tailored to every customer.",
@@ -147,6 +163,7 @@ const SLOTS: Slot[] = [
       "Not a single profile",
     ],
     kind: "pro_reminder",
+    photo: "/promo/mara-icp.jpg",
   },
   {
     anchor: "Every outcome unlocked.",
@@ -156,6 +173,7 @@ const SLOTS: Slot[] = [
       "Match the moment, not just the day",
     ],
     kind: "pro_reminder",
+    photo: "/promo/parallax-luxury-store.jpg",
   },
   {
     anchor: "Your taste shapes what plays.",
@@ -165,6 +183,7 @@ const SLOTS: Slot[] = [
       "Effect compounds over time",
     ],
     kind: "pro_reminder",
+    photo: "/promo/shopping.jpg",
   },
 ];
 
@@ -188,10 +207,16 @@ type Props = {
   tier: string | undefined;
   /** Reduces typography + padding for narrow viewports. Same layout shape. */
   compact?: boolean;
+  /** Renders a rotating photo alongside the copy. Used in narrow-promo mode
+   *  (portrait tablet / phone) where the comfortable layout leaves blank
+   *  space to the right of the left-anchored maxWidth-540 text. Landscape
+   *  iPad's natural 2-column split already fills the surface horizontally,
+   *  so it stays photo-less. */
+  withPhoto?: boolean;
   style?: CSSProperties;
 };
 
-export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props) {
+export function UpgradeRail({ rotationKey, tier, compact = false, withPhoto = false, style }: Props) {
   const slots = slotsForTier(tier);
   const [index, setIndex] = useState(0);
   const [fade, setFade] = useState(true);
@@ -246,14 +271,60 @@ export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props
 
   // Sizes scale down on narrow viewports so the rail can fit in 50% of phone
   // / tablet height without the anchor running off-card.
-  const padding = compact ? "26px 26px 24px" : "40px 48px 36px 52px";
+  // With photo: the text gets less horizontal room, so anchor + bullets ease
+  // back to give the photo breathing room without crowding the copy.
+  const padding = withPhoto
+    ? (compact ? "0" : "0")             // no outer padding — photo flush to card edge
+    : (compact ? "26px 26px 24px" : "40px 48px 36px 52px");
+  const textPadding = withPhoto ? (compact ? "22px 22px 20px" : "30px 32px 26px") : undefined;
   // Anchor is a display heading (Manrope, weight 700, sentence case, tight
   // tracking). Bullets are body Inter weight 400.
-  const anchorSize = compact ? "1.5rem" : "2.4rem";
+  const anchorSize = withPhoto ? (compact ? "1.35rem" : "1.7rem") : (compact ? "1.5rem" : "2.4rem");
   const bulletSize = compact ? "0.875rem" : "1rem";
   const ctaSize = compact ? "0.7rem" : "0.75rem";
-  const headerGap = compact ? 16 : 22;
+  const headerGap = compact ? 14 : 22;
   const bulletGap = compact ? 8 : 10;
+
+  // Photo lane width — ~38% of the card on portrait tablet, narrower on phone
+  // so the text still has room for the anchor to read on one or two lines.
+  // The photo is a separate cross-faded layer so changing slots doesn't make
+  // the photo "snap" — both old and new fade together with the text.
+  const renderPhoto = withPhoto ? (
+    <div
+      style={{
+        position: "relative",
+        flexShrink: 0,
+        width: compact ? "38%" : "40%",
+        minWidth: 120,
+        alignSelf: "stretch",
+        overflow: "hidden",
+        // Subtle teal tint at the right edge bleeds the photo into the text
+        // surface — keeps the card feeling like one object, not two halves.
+        background: "#0d0e0f",
+      }}
+    >
+      <img
+        key={slot.photo}
+        src={slot.photo}
+        alt=""
+        aria-hidden="true"
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          opacity: fade ? 1 : 0,
+          transition: "opacity 420ms ease",
+          display: "block",
+        }}
+      />
+      {/* Gradient seam — fades the photo's right edge into the card background
+          so the join doesn't feel like a hard cut. */}
+      <div style={{
+        position: "absolute", inset: 0, pointerEvents: "none",
+        background: "linear-gradient(90deg, rgba(13,14,15,0) 60%, rgba(22,22,20,0.55) 100%)",
+      }} />
+    </div>
+  ) : null;
 
   return (
     <div
@@ -264,8 +335,8 @@ export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props
         // a called-out content block.
         position: "relative",
         display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
+        flexDirection: withPhoto ? "row" : "column",
+        justifyContent: withPhoto ? "flex-start" : "space-between",
         padding,
         background: "rgba(80, 146, 156, 0.06)",
         borderLeft: "3px solid #6AB0BB",
@@ -276,90 +347,103 @@ export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props
         ...style,
       }}
     >
+      {renderPhoto}
       <div
-        key={index}
-        style={{
-          opacity: fade ? 1 : 0,
-          transition: "opacity 420ms ease",
+        style={withPhoto ? {
           display: "flex",
           flexDirection: "column",
-          gap: headerGap,
-          textAlign: "left",
-          maxWidth: 540,
-        }}
+          justifyContent: "space-between",
+          padding: textPadding,
+          flex: 1,
+          minWidth: 0,
+        } : { display: "contents" }}
       >
         <div
+          key={index}
           style={{
-            fontFamily: "'Manrope', sans-serif",
-            fontSize: anchorSize,
-            fontWeight: 700,
-            lineHeight: 1.15,
-            color: "#D4E1E5",
-            letterSpacing: "-0.02em",
-          }}
-        >
-          {slot.anchor}
-        </div>
-        <ul
-          style={{
-            listStyle: "none",
-            padding: 0,
-            margin: 0,
+            opacity: fade ? 1 : 0,
+            transition: "opacity 420ms ease",
             display: "flex",
             flexDirection: "column",
-            gap: bulletGap,
+            gap: headerGap,
+            textAlign: "left",
+            maxWidth: withPhoto ? undefined : 540,
           }}
         >
-          {slot.points.map((p, i) => (
-            <li
-              key={i}
-              style={{
-                display: "flex",
-                gap: 14,
-                alignItems: "baseline",
-                fontFamily: "'Inter', sans-serif",
-                fontSize: bulletSize,
-                lineHeight: 1.6,
-                fontWeight: 400,
-                color: "rgba(212, 225, 229, 0.85)",
-                letterSpacing: "0",
-              }}
-            >
-              <span
+          <div
+            style={{
+              fontFamily: "'Manrope', sans-serif",
+              fontSize: anchorSize,
+              fontWeight: 700,
+              lineHeight: 1.15,
+              color: "#D4E1E5",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            {slot.anchor}
+          </div>
+          <ul
+            style={{
+              listStyle: "none",
+              padding: 0,
+              margin: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: bulletGap,
+            }}
+          >
+            {slot.points.map((p, i) => (
+              <li
+                key={i}
                 style={{
-                  flexShrink: 0,
-                  color: "#6AB0BB",
-                  opacity: 0.7,
+                  display: "flex",
+                  gap: 14,
+                  alignItems: "baseline",
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: bulletSize,
+                  lineHeight: 1.6,
+                  fontWeight: 400,
+                  color: "rgba(212, 225, 229, 0.85)",
+                  letterSpacing: "0",
                 }}
-                aria-hidden="true"
               >
-                —
-              </span>
-              <span>{p}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+                <span
+                  style={{
+                    flexShrink: 0,
+                    color: "#6AB0BB",
+                    opacity: 0.7,
+                  }}
+                  aria-hidden="true"
+                >
+                  —
+                </span>
+                <span>{p}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
 
-      <a
-        href={cta.href}
-        target="_blank"
-        rel="noreferrer"
-        style={{
-          fontFamily: "'Inter', sans-serif",
-          fontSize: ctaSize,
-          fontWeight: 600,
-          letterSpacing: "0.18em",
-          color: ctaColor,
-          textTransform: "uppercase",
-          textDecoration: "none",
-          borderBottom: `1px solid ${ctaUnderline}`,
-          paddingBottom: 6,
-          alignSelf: "flex-start",
-        }}
-      >
-        {cta.label}
-      </a>
+        <a
+          href={cta.href}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            fontFamily: "'Inter', sans-serif",
+            fontSize: ctaSize,
+            fontWeight: 600,
+            letterSpacing: "0.18em",
+            color: ctaColor,
+            textTransform: "uppercase",
+            textDecoration: "none",
+            borderBottom: `1px solid ${ctaUnderline}`,
+            paddingBottom: 6,
+            alignSelf: "flex-start",
+            marginTop: withPhoto ? 18 : 0,
+          }}
+        >
+          {cta.label}
+        </a>
+      </div>
     </div>
   );
 }
