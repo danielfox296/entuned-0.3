@@ -18,17 +18,22 @@ import lockscreenArtUrl from "/lockscreen-art.png";
 // can't boost ads; instead we bring songs down by the same margin so ads sit at full.
 const SONG_VOLUME = 0.47;
 const AD_VOLUME = 1.0;
-const LOVED_KEY = "entuned.loved.v1";
+// Namespaced per store so loves don't bleed across accounts that share a
+// browser (slug-mode demos, admin store switching, multi-operator devices).
+// The pre-v2 key was global; clear it on first read to drop stale cross-store data.
+const LEGACY_LOVED_KEY = "entuned.loved.v1";
+const lovedKey = (storeId: string) => `entuned.loved.v2.${storeId}`;
 
-function loadLoved(): Set<string> {
+function loadLoved(storeId: string): Set<string> {
+  try { localStorage.removeItem(LEGACY_LOVED_KEY); } catch {}
   try {
-    const raw = localStorage.getItem(LOVED_KEY);
+    const raw = localStorage.getItem(lovedKey(storeId));
     if (raw) return new Set(JSON.parse(raw) as string[]);
   } catch {}
   return new Set();
 }
-function saveLoved(s: Set<string>) {
-  try { localStorage.setItem(LOVED_KEY, JSON.stringify([...s])); } catch {}
+function saveLoved(storeId: string, s: Set<string>) {
+  try { localStorage.setItem(lovedKey(storeId), JSON.stringify([...s])); } catch {}
 }
 
 // Tier indicator — eyebrow style per design system (no pill bg). Inter 500,
@@ -98,7 +103,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [networkError, setNetworkError] = useState<string | null>(null);
   const [buffering, setBuffering] = useState(false);
-  const [lovedIds, setLovedIds] = useState<Set<string>>(() => loadLoved());
+  const [lovedIds, setLovedIds] = useState<Set<string>>(() => loadLoved(session.storeId));
   const [allOutcomesMode, setAllOutcomesModeState] = useState(false);
   const [playedCount, setPlayedCount] = useState(0);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.innerWidth >= 1024);
@@ -375,7 +380,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
     const next = new Set(lovedIds);
     next.add(cur.songId);
     setLovedIds(next);
-    saveLoved(next);
+    saveLoved(session.storeId, next);
     emit("song_love", cur);
   }, [lovedIds, emit]);
 
@@ -432,13 +437,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
     void refill();
     void refreshOutcomes();
     if (session.mode !== 'slug') {
+      // Server is authoritative for this (account, store) pair — replace local
+      // state rather than merge so cached loves from a prior account on the
+      // same device are dropped.
       api.loved(session.storeId, session.token).then((r) => {
-        setLovedIds((prev) => {
-          const merged = new Set(prev);
-          for (const id of r.songIds) merged.add(id);
-          saveLoved(merged);
-          return merged;
-        });
+        const next = new Set(r.songIds);
+        setLovedIds(next);
+        saveLoved(session.storeId, next);
       }).catch((e) => console.warn("[player] loved hydrate failed", e));
       emit("operator_login");
     }
