@@ -159,22 +159,24 @@ export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props
   if (slots.length === 0) return null;
   const slot = slots[index % slots.length];
 
-  // Same rail structure across all kinds (top-anchored content, bottom-
-  // anchored CTA). Upsells point at pricing in tier accent colors;
-  // reminders point at the customer dashboard in a neutral palette so the
-  // rail still reads as a CTA-bearing surface, not a sales pitch.
+  // The rail is one surface — type, color, and structure are constant across
+  // every tier. Only the slot CONTENT and the CTA's label + href change per
+  // kind. Don't reintroduce per-tier color accents here; that breaks the
+  // shared visual aesthetic.
   const cta = (() => {
     switch (slot.kind) {
       case "core_upsell":
-        return { label: "See what Core unlocks →", href: "https://entuned.co/pricing.html", color: "rgba(120,180,188,1)", underline: "rgba(120,180,188,0.5)" };
+        return { label: "See what Core unlocks →", href: "https://entuned.co/pricing.html" };
       case "pro_upsell":
-        return { label: "See what Pro unlocks →", href: "https://entuned.co/pricing.html", color: "rgba(215,175,116,1)", underline: "rgba(215,175,116,0.5)" };
+        return { label: "See what Pro unlocks →", href: "https://entuned.co/pricing.html" };
       case "core_reminder":
       case "pro_reminder":
       default:
-        return { label: "Open your dashboard →", href: "https://app.entuned.co", color: "rgba(232,238,240,0.85)", underline: "rgba(232,238,240,0.35)" };
+        return { label: "Open your dashboard →", href: "https://app.entuned.co" };
     }
   })();
+  const ctaColor = "rgba(120,180,188,1)";
+  const ctaUnderline = "rgba(120,180,188,0.5)";
 
   // Sizes scale down on narrow viewports so the rail can fit in 50% of phone
   // / tablet height without the headline running off-card.
@@ -242,10 +244,10 @@ export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props
           fontSize: ctaSize,
           fontWeight: 500,
           letterSpacing: 2.5,
-          color: cta.color,
+          color: ctaColor,
           textTransform: "uppercase",
           textDecoration: "none",
-          borderBottom: `1px solid ${cta.underline}`,
+          borderBottom: `1px solid ${ctaUnderline}`,
           paddingBottom: 6,
           alignSelf: "flex-start",
         }}
