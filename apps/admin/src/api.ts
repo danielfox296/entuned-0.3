@@ -600,7 +600,7 @@ export interface FlaggedSong {
   lastReportedAt: string
   reasons: Record<string, number>
   storeCount: number
-  lineageRows: { id: string; active: boolean; hook: { id: string; text: string }; outcome: { id: string; title: string; displayTitle: string | null; version: number } }[]
+  lineageRows: { id: string; active: boolean; hook: { id: string; text: string } | null; outcome: { id: string; title: string; displayTitle: string | null; version: number } }[]
   activeLineageCount: number
   anyActive: boolean
 }
