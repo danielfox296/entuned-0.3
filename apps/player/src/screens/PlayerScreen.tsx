@@ -53,22 +53,38 @@ const TIER_COLOR: Record<string, string> = {
 function TierEyebrow({ tier }: { tier: string }) {
   const label = TIER_LABEL[tier] ?? tier;
   const color = TIER_COLOR[tier] ?? TIER_COLOR.free;
-  return (
-    <span
-      style={{
-        fontFamily: "'Inter', sans-serif",
-        fontSize: 11,
-        fontWeight: 500,
-        letterSpacing: "0.18em",
-        color,
-        textTransform: "uppercase",
-        whiteSpace: "nowrap",
-        userSelect: "none",
-      }}
-    >
-      {label}
-    </span>
-  );
+  // Free-tier pill doubles as the upgrade entry point — tapping it deep-links
+  // into the in-app upgrade page. Paid tiers render a non-interactive label.
+  const isFree = tier === "free";
+  const sharedStyle = {
+    fontFamily: "'Inter', sans-serif" as const,
+    fontSize: 11,
+    fontWeight: 500,
+    letterSpacing: "0.18em",
+    color,
+    textTransform: "uppercase" as const,
+    whiteSpace: "nowrap" as const,
+    userSelect: "none" as const,
+  };
+  if (isFree) {
+    return (
+      <a
+        href="https://app.entuned.co/upgrade"
+        title="Upgrade to Core"
+        style={{
+          ...sharedStyle,
+          textDecoration: "none",
+          padding: "3px 8px",
+          borderRadius: 999,
+          border: "1px solid rgba(212,225,229,0.22)",
+          cursor: "pointer",
+        }}
+      >
+        {label}
+      </a>
+    );
+  }
+  return <span style={sharedStyle}>{label}</span>;
 }
 
 function trackLabel(item: QueueItem | null): string {
@@ -695,9 +711,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
           style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}
           title={session.mode === "slug" ? "Manage your account" : "Switch store / log out"}
         >
-          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 500, letterSpacing: "0.10em", color: "rgba(212,225,229,0.75)", textTransform: "uppercase" }}>
-            {headerLine}
-          </span>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="12" cy="12" r="3" stroke="rgba(212,225,229,0.65)" strokeWidth="1.6" />
             <path

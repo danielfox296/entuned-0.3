@@ -232,9 +232,9 @@ export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props
   const cta = (() => {
     switch (slot.kind) {
       case "core_upsell":
-        return { label: "See what Core unlocks →", href: "https://entuned.co/pricing.html" };
+        return { label: "See what Core unlocks →", href: "https://app.entuned.co/upgrade" };
       case "pro_upsell":
-        return { label: "See what Pro unlocks →", href: "https://entuned.co/pricing.html" };
+        return { label: "See what Pro unlocks →", href: "https://app.entuned.co/upgrade" };
       case "core_reminder":
       case "pro_reminder":
       default:
