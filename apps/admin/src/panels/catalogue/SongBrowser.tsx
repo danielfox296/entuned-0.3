@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { LineageRowList, LineageRowFull, OutcomeRowFull } from '../../api.js'
 import { T } from '../../tokens.js'
@@ -176,7 +176,10 @@ function FilterSelect({ label, value, onChange, options }: {
   )
 }
 
-const COLS = '1.6fr 1.6fr 1.2fr 1.4fr 130px 70px 90px 110px'
+const COLS = '1.6fr 1.8fr 1.1fr 1.3fr 110px 60px 60px 110px'
+
+// Module-level: only one row can play at a time across the browser.
+let currentAudio: HTMLAudioElement | null = null
 
 function Header() {
   return (
@@ -191,24 +194,49 @@ function Header() {
       <span>outcome</span>
       <span>icp</span>
       <span>create date</span>
+      <span style={{ textAlign: 'right' }}>time</span>
       <span style={{ textAlign: 'center' }} title="In the free-tier general pool">free</span>
       <span style={{ textAlign: 'right' }}>status</span>
-      <span />
     </div>
   )
+}
+
+function fmtDuration(seconds: number | null): string {
+  if (seconds == null || !isFinite(seconds)) return '–:––'
+  const m = Math.floor(seconds / 60)
+  const s = Math.round(seconds - m * 60)
+  return `${m}:${String(s).padStart(2, '0')}`
 }
 
 function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
   const [playing, setPlaying] = useState(false)
+  const [duration, setDuration] = useState<number | null>(null)
   const [generalBusy, setGeneralBusy] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
-  const toggle = async () => {
+  useEffect(() => {
+    const a = new Audio()
+    a.preload = 'metadata'
+    a.src = row.song.r2Url
+    a.onloadedmetadata = () => setDuration(a.duration)
+    a.onended = () => { setPlaying(false); if (currentAudio === a) currentAudio = null }
+    a.onpause = () => { setPlaying(false); if (currentAudio === a) currentAudio = null }
+    a.onplay = () => setPlaying(true)
+    audioRef.current = a
+    return () => {
+      a.pause()
+      if (currentAudio === a) currentAudio = null
+    }
+  }, [row.song.r2Url])
+
+  const setStatus = async (val: 'active' | 'retired') => {
+    const newActive = val === 'active'
+    if (newActive === row.active) return
     const token = getToken(); if (!token) return
     setBusy(true); setErr(null)
-    try { await api.setLineageRowActive(row.id, !row.active, token); onChanged() }
+    try { await api.setLineageRowActive(row.id, newActive, token); onChanged() }
     catch (e: any) { setErr(e.message) }
     finally { setBusy(false) }
   }
@@ -222,14 +250,12 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
   }
 
   const play = () => {
-    if (audio && !audio.paused) { audio.pause(); setPlaying(false); return }
-    if (audio) { audio.play(); setPlaying(true); return }
-    const a = new Audio(row.song.r2Url)
-    a.onended = () => setPlaying(false)
-    a.onpause = () => setPlaying(false)
-    a.onplay = () => setPlaying(true)
+    const a = audioRef.current
+    if (!a) return
+    if (!a.paused) { a.pause(); return }
+    if (currentAudio && currentAudio !== a) currentAudio.pause()
+    currentAudio = a
     a.play().catch((e) => setErr(e.message))
-    setAudio(a)
   }
 
   const created = new Date(row.createdAt).toLocaleDateString('en-US', {
@@ -239,10 +265,10 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
     <div style={{
       display: 'grid', gridTemplateColumns: COLS, gap: 10,
       padding: '10px 12px', borderBottom: `1px solid ${T.borderSubtle}`,
-      fontFamily: T.mono, fontSize: 14, alignItems: 'center',
+      fontFamily: T.mono, fontSize: 14, alignItems: 'flex-start',
       opacity: row.active ? 1 : 0.55,
     }}>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8, ...trunc }}>
+      <span style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
         <button
           onClick={play}
           style={playBtn(playing)}
@@ -252,11 +278,11 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
         </button>
         <span
           onClick={play}
-          style={{ color: T.accent, cursor: 'pointer', fontFamily: T.sans, ...trunc }}
+          style={{ color: T.text, fontWeight: 700, cursor: 'pointer', fontFamily: T.sans, wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3 }}
           title={row.songTitle ?? undefined}
         >{row.songTitle ?? '(untitled)'}</span>
       </span>
-      <span style={{ color: T.text, fontFamily: T.sans, ...trunc }} title={row.hook?.text ?? '— general pool —'}>
+      <span style={{ color: T.text, fontFamily: T.sans, lineHeight: 1.3, wordBreak: 'break-word', overflowWrap: 'anywhere' }} title={row.hook?.text ?? '— general pool —'}>
         {row.hook?.text ?? <span style={{ color: T.textDim, fontStyle: 'italic' }}>— general pool —</span>}
       </span>
       <span style={{ color: T.textMuted, ...trunc }}>{row.outcome.displayTitle ?? row.outcome.title}</span>
@@ -271,6 +297,9 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
         )}
       </span>
       <span style={{ color: T.textDim, fontSize: 13 }}>{created}</span>
+      <span style={{ textAlign: 'right', color: T.textMuted, fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>
+        {fmtDuration(duration)}
+      </span>
       <span style={{ textAlign: 'center' }}>
         <input
           type="checkbox"
@@ -283,13 +312,22 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
           style={{ accentColor: T.accent, cursor: generalBusy ? 'wait' : 'pointer', width: 16, height: 16 }}
         />
       </span>
-      <span style={{ textAlign: 'right', color: row.active ? T.success : T.textDim, fontSize: 13, textTransform: 'uppercase' }}>
-        {row.active ? 'active' : 'retired'}
-      </span>
       <span style={{ textAlign: 'right' }}>
-        <button onClick={toggle} disabled={busy} style={row.active ? dangerBtn : restoreBtn}>
-          {busy ? '…' : (row.active ? 'retire' : 'restore')}
-        </button>
+        <select
+          value={row.active ? 'active' : 'retired'}
+          disabled={busy}
+          onChange={(e) => setStatus(e.target.value as 'active' | 'retired')}
+          style={{
+            background: T.surface,
+            border: `1px solid ${row.active ? T.accent : T.border}`,
+            color: row.active ? T.accent : T.textMuted,
+            fontFamily: T.mono, fontSize: 13, padding: '4px 8px', borderRadius: 3,
+            cursor: busy ? 'wait' : 'pointer', outline: 'none', textTransform: 'uppercase',
+          }}
+        >
+          <option value="active">active</option>
+          <option value="retired">retired</option>
+        </select>
         {err && <div style={{ fontSize: 12, color: T.danger }}>{err}</div>}
       </span>
     </div>
@@ -297,16 +335,6 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
 }
 
 const trunc: any = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
-
-const dangerBtn: any = {
-  background: 'transparent', border: `1px solid ${T.danger}`, color: T.danger,
-  padding: '4px 10px', borderRadius: 3, fontFamily: T.mono, fontSize: 13, cursor: 'pointer',
-}
-
-const restoreBtn: any = {
-  background: 'transparent', border: `1px solid ${T.accent}`, color: T.accent,
-  padding: '4px 10px', borderRadius: 3, fontFamily: T.mono, fontSize: 13, cursor: 'pointer',
-}
 
 function playBtn(playing: boolean): any {
   return {
