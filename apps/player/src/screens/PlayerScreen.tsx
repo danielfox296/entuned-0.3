@@ -656,16 +656,14 @@ export function PlayerScreen({ session, onLogout }: Props) {
         flexDirection: "column",
       }}
     >
-      <div style={{ position: "relative", zIndex: 1, display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "20px 28px" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <img src={logoUrl} alt="Entuned" style={{ width: 146, opacity: 0.75 }} />
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      <div style={{ position: "relative", zIndex: 1, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "24px 32px" }}>
+        <img src={logoUrl} alt="Entuned" style={{ width: 118, opacity: 0.7 }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div
             onClick={() => setShowLogoutConfirm((v) => !v)}
             style={{ display: "flex", alignItems: "center", cursor: "pointer", userSelect: "none" }}
           >
-            <span style={{ fontSize: 13, fontWeight: 300, letterSpacing: 1.5, color: "rgba(212,225,229,0.65)", textTransform: "uppercase" }}>
+            <span style={{ fontSize: 12, fontWeight: 400, letterSpacing: 2, color: "rgba(212,225,229,0.6)", textTransform: "uppercase" }}>
               {headerLine}
             </span>
           </div>
@@ -748,41 +746,44 @@ export function PlayerScreen({ session, onLogout }: Props) {
             boxShadow: "0 30px 80px -20px rgba(0,0,0,0.6)",
           } : {}),
         }}>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: twoCol ? "flex-start" : "center", padding: twoCol ? "0 60px 40px 80px" : "0 0 40px", gap: 60 }}>
-        <DarkHalo>
-          {allOutcomesMode && currentItem ? (() => {
-            const outcomeTitle = outcomes.find((o) => o.outcomeId === currentItem.outcomeId)?.title ?? null;
-            return outcomeTitle ? (
-              <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2.5, color: "rgba(80,146,156,0.65)", textTransform: "uppercase", textAlign: twoCol ? "left" : "center", marginBottom: 6 }}>
-                {outcomeTitle}
-              </div>
-            ) : null;
-          })() : null}
-          <div
-            style={{
-              fontSize: twoCol ? 32 : 36,
-              fontWeight: 400,
-              color: "rgba(212,225,229,0.9)",
-              letterSpacing: twoCol ? 4 : 6,
-              lineHeight: 1.7,
-              textTransform: "uppercase",
-              textAlign: twoCol ? "left" : "center",
-              padding: twoCol ? 0 : "0 40px",
-              minHeight: "1em",
-              maxWidth: twoCol ? 720 : 900,
-              wordBreak: "break-word",
-            }}
-          >
-            {currentItem ? trackLabel(currentItem) : reason === "no_pool" ? "Silent" : "Press play to stream"}
-          </div>
-          {currentItem?.icpName ? (
-            <div style={{ fontSize: 10, fontWeight: 400, letterSpacing: 2, color: "rgba(212,225,229,0.28)", textTransform: "uppercase", marginTop: 8, textAlign: twoCol ? "left" : "center" }}>
-              {currentItem.icpName}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: twoCol ? "flex-start" : "center", padding: twoCol ? "0 60px 24px 80px" : "0 0 24px", gap: 44 }}>
+        {/* Title block: outcome chip + track title + (when playing) progress bar */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: twoCol ? "flex-start" : "center", gap: 24, width: "100%" }}>
+          <DarkHalo>
+            {allOutcomesMode && currentItem ? (() => {
+              const outcomeTitle = outcomes.find((o) => o.outcomeId === currentItem.outcomeId)?.title ?? null;
+              return outcomeTitle ? (
+                <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 2.5, color: "rgba(80,146,156,0.65)", textTransform: "uppercase", textAlign: twoCol ? "left" : "center", marginBottom: 8 }}>
+                  {outcomeTitle}
+                </div>
+              ) : null;
+            })() : null}
+            <div
+              style={{
+                fontSize: twoCol ? 30 : 34,
+                fontWeight: 400,
+                color: "rgba(212,225,229,0.9)",
+                letterSpacing: twoCol ? 3.5 : 5,
+                lineHeight: 1.55,
+                textTransform: "uppercase",
+                textAlign: twoCol ? "left" : "center",
+                padding: twoCol ? 0 : "0 40px",
+                minHeight: "1em",
+                maxWidth: twoCol ? 720 : 900,
+                wordBreak: "break-word",
+              }}
+            >
+              {currentItem ? trackLabel(currentItem) : reason === "no_pool" ? "Silent" : "Press play to stream"}
             </div>
-          ) : null}
-        </DarkHalo>
+            {currentItem?.icpName ? (
+              <div style={{ fontSize: 10, fontWeight: 400, letterSpacing: 2, color: "rgba(212,225,229,0.28)", textTransform: "uppercase", marginTop: 10, textAlign: twoCol ? "left" : "center" }}>
+                {currentItem.icpName}
+              </div>
+            ) : null}
+          </DarkHalo>
 
-        {currentItem ? <ProgressBar getProgress={getProgress} /> : null}
+          {currentItem ? <ProgressBar getProgress={getProgress} /> : null}
+        </div>
 
         {networkError ? (
           <div style={{ padding: "10px 24px", background: "rgba(80,146,156,0.08)", border: "1px solid rgba(80,146,156,0.25)", borderRadius: 12, maxWidth: 440, textAlign: "center", fontSize: 12, color: "rgba(80,146,156,0.85)" }}>
@@ -802,69 +803,72 @@ export function PlayerScreen({ session, onLogout }: Props) {
           </div>
         ) : null}
 
-        <DarkHalo style={{ display: "flex", gap: 36, alignItems: "center" }}>
-          <CircleButton onClick={togglePlayPause} ariaLabel={isPlaying ? "Pause" : "Play"}>
-            {isPlaying ? (
-              <svg width="36" height="36" viewBox="0 0 28 28">
-                <rect x="7" y="5" width="5" height="18" rx="1.5" fill="rgba(212,225,229,0.9)" />
-                <rect x="16" y="5" width="5" height="18" rx="1.5" fill="rgba(212,225,229,0.9)" />
+        {/* Controls block: primary play/skip, then secondary love/report tightly grouped */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: twoCol ? "flex-start" : "center", gap: 24 }}>
+          <DarkHalo style={{ display: "flex", gap: 28, alignItems: "center" }}>
+            <CircleButton onClick={togglePlayPause} ariaLabel={isPlaying ? "Pause" : "Play"}>
+              {isPlaying ? (
+                <svg width="36" height="36" viewBox="0 0 28 28">
+                  <rect x="7" y="5" width="5" height="18" rx="1.5" fill="rgba(212,225,229,0.9)" />
+                  <rect x="16" y="5" width="5" height="18" rx="1.5" fill="rgba(212,225,229,0.9)" />
+                </svg>
+              ) : (
+                <svg width="36" height="36" viewBox="0 0 28 28">
+                  <path d="M9 4l12 8-12 8z" fill="rgba(212,225,229,0.9)" />
+                </svg>
+              )}
+            </CircleButton>
+            <CircleButton onClick={skip} ariaLabel="Skip">
+              <svg width="34" height="34" viewBox="0 0 24 24">
+                <path d="M4.5 5l10 7-10 7zm12.5 0v14h2.5V5z" fill="rgba(212,225,229,0.9)" />
               </svg>
-            ) : (
-              <svg width="36" height="36" viewBox="0 0 28 28">
-                <path d="M9 4l12 8-12 8z" fill="rgba(212,225,229,0.9)" />
-              </svg>
-            )}
-          </CircleButton>
-          <CircleButton onClick={skip} ariaLabel="Skip">
-            <svg width="34" height="34" viewBox="0 0 24 24">
-              <path d="M4.5 5l10 7-10 7zm12.5 0v14h2.5V5z" fill="rgba(212,225,229,0.9)" />
-            </svg>
-          </CircleButton>
-        </DarkHalo>
+            </CircleButton>
+          </DarkHalo>
 
-        {(() => {
-          const idle = !currentItem;
-          const loved = currentItem ? lovedIds.has(currentItem.songId) : false;
-          const heartStroke = idle ? "rgba(212,225,229,0.15)" : "rgba(212,225,229,0.35)";
-          const flagStroke = idle ? "rgba(212,225,229,0.15)" : "rgba(212,225,229,0.35)";
-          return (
-            <div style={{ display: "flex", gap: 56, justifyContent: twoCol ? "flex-start" : "center", alignItems: "center" }}>
-              <button
-                ref={loveRef}
-                type="button"
-                disabled={idle}
-                onClick={idle ? undefined : handleLove}
-                aria-label="Love this track"
-                title={loved ? "Loved — tap to unfavorite" : "Love this track — we play it more"}
-                style={{ background: "none", border: "none", cursor: idle ? "not-allowed" : "pointer", padding: 8, lineHeight: 0, opacity: idle ? 0.55 : 1 }}
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24">
-                  {loved ? (
-                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#e05a3a" />
-                  ) : (
-                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="none" stroke={heartStroke} strokeWidth="1.5" />
-                  )}
-                </svg>
-              </button>
-              <button
-                ref={reportRef}
-                type="button"
-                disabled={idle}
-                onClick={idle ? undefined : () => setShowReportModal(true)}
-                aria-label="Report this track"
-                title="Something off about this track? Flag it."
-                style={{ background: "none", border: "none", cursor: idle ? "not-allowed" : "pointer", padding: 8, lineHeight: 0, opacity: idle ? 0.55 : 1 }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path d="M4 21V4h11l1 2h4v11h-5l-1-2H6v6z" stroke={flagStroke} strokeWidth="1.5" strokeLinejoin="round" />
-                </svg>
-              </button>
-            </div>
-          );
-        })()}
+          {(() => {
+            const idle = !currentItem;
+            const loved = currentItem ? lovedIds.has(currentItem.songId) : false;
+            const heartStroke = idle ? "rgba(212,225,229,0.18)" : "rgba(212,225,229,0.45)";
+            const flagStroke = idle ? "rgba(212,225,229,0.18)" : "rgba(212,225,229,0.45)";
+            return (
+              <div style={{ display: "flex", gap: 36, justifyContent: twoCol ? "flex-start" : "center", alignItems: "center" }}>
+                <button
+                  ref={loveRef}
+                  type="button"
+                  disabled={idle}
+                  onClick={idle ? undefined : handleLove}
+                  aria-label="Love this track"
+                  title={loved ? "Loved — tap to unfavorite" : "Love this track — we play it more"}
+                  style={{ background: "none", border: "none", cursor: idle ? "not-allowed" : "pointer", padding: 10, lineHeight: 0, opacity: idle ? 0.5 : 1 }}
+                >
+                  <svg width="26" height="26" viewBox="0 0 24 24">
+                    {loved ? (
+                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#e05a3a" />
+                    ) : (
+                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="none" stroke={heartStroke} strokeWidth="1.5" />
+                    )}
+                  </svg>
+                </button>
+                <button
+                  ref={reportRef}
+                  type="button"
+                  disabled={idle}
+                  onClick={idle ? undefined : () => setShowReportModal(true)}
+                  aria-label="Report this track"
+                  title="Something off about this track? Flag it."
+                  style={{ background: "none", border: "none", cursor: idle ? "not-allowed" : "pointer", padding: 10, lineHeight: 0, opacity: idle ? 0.5 : 1 }}
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M4 21V4h11l1 2h4v11h-5l-1-2H6v6z" stroke={flagStroke} strokeWidth="1.5" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              </div>
+            );
+          })()}
+        </div>
 
         {twoCol ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: 2.5, color: "rgba(212,225,229,0.4)", textTransform: "uppercase" }}>
               This session
             </div>
@@ -877,15 +881,15 @@ export function PlayerScreen({ session, onLogout }: Props) {
         ) : null}
       </div>
 
-      <div style={{ display: "flex", justifyContent: twoCol ? "flex-start" : "center", padding: twoCol ? "16px 60px 44px 80px" : "16px 24px 44px" }}>
+      <div style={{ display: "flex", justifyContent: twoCol ? "flex-start" : "center", padding: twoCol ? "0 60px 36px 80px" : "0 24px 36px" }}>
         <div
           ref={outcomeRef}
           onClick={() => setShowOutcomeModal(true)}
           style={{
             display: "inline-flex",
             alignItems: "center",
-            gap: 12,
-            padding: "16px 28px",
+            gap: 14,
+            padding: "14px 24px",
             borderRadius: 100,
             background: "rgba(80,146,156,0.09)",
             border: "1px solid rgba(80,146,156,0.22)",
@@ -895,20 +899,21 @@ export function PlayerScreen({ session, onLogout }: Props) {
             userSelect: "none",
           }}
         >
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-            <span style={{ fontSize: 10, fontWeight: 500, letterSpacing: 2.5, color: "rgba(212,225,229,0.45)", textTransform: "uppercase" }}>
-              Outcome
-            </span>
-            <span style={{ fontSize: 16, fontWeight: 500, letterSpacing: 2, color: "rgba(212,225,229,0.95)", textTransform: "uppercase" }}>
+          <span style={{ fontSize: 10, fontWeight: 500, letterSpacing: 2.5, color: "rgba(212,225,229,0.45)", textTransform: "uppercase" }}>
+            Outcome
+          </span>
+          <span style={{ width: 1, height: 18, background: "rgba(212,225,229,0.15)" }} />
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+            <span style={{ fontSize: 15, fontWeight: 500, letterSpacing: 2, color: "rgba(212,225,229,0.95)", textTransform: "uppercase", whiteSpace: "nowrap" }}>
               {activeTitle}
             </span>
             {expiresLabel ? (
-              <span style={{ fontSize: 9, fontWeight: 500, letterSpacing: 2, color: "rgba(240,153,123,0.75)", textTransform: "uppercase", marginTop: 2 }}>
+              <span style={{ fontSize: 9, fontWeight: 500, letterSpacing: 1.6, color: "rgba(240,153,123,0.75)", textTransform: "uppercase", whiteSpace: "nowrap" }}>
                 {expiresLabel}
               </span>
             ) : null}
           </div>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 4 }}>
             <path d="M6 9l6 6 6-6" stroke="rgba(212,225,229,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
