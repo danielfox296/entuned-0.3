@@ -9,95 +9,161 @@ import { useEffect, useState, type CSSProperties } from "react";
 
 type SlotKind = "core_upsell" | "pro_upsell" | "core_reminder" | "pro_reminder";
 
+// Each slot is an anchor (one tight line) + 2-3 bullets. Designed for
+// scan-reading on the floor — operator should grok the value in under a second.
 type Slot = {
-  headline: string;
-  body: string;
+  anchor: string;
+  points: string[];
   kind: SlotKind;
 };
 
 const SLOTS: Slot[] = [
   // ── Core upsell (Free → Core) ────────────────────────────────────────────
   {
-    headline: "Right now you're hearing the general catalogue.",
-    body: "Core tunes the music to your single Ideal Customer Profile — so what plays is shaped by the person actually walking your floor.",
+    anchor: "Music shaped by your customer.",
+    points: [
+      "Tuned to your single ICP",
+      "Songs picked for who's on your floor",
+      "Not the general catalogue",
+    ],
     kind: "core_upsell",
   },
   {
-    headline: "You've got Linger and Lift Energy.",
-    body: "Core unlocks every research-backed outcome we've engineered — not just the two free modes.",
+    anchor: "More outcomes than Linger and Lift.",
+    points: [
+      "Every research-backed outcome unlocked",
+      "Switch the floor's mood any moment",
+      "Not just two free modes",
+    ],
     kind: "core_upsell",
   },
   {
-    headline: "Free is 100+ tracks.",
-    body: "Core launches at 300 and grows by ~120 in your first month — top performers refreshed, underperformers culled.",
+    anchor: "A library that grows.",
+    points: [
+      "Launches at 300 tracks",
+      "~120 new every month",
+      "Top performers kept, weak ones culled",
+    ],
     kind: "core_upsell",
   },
   {
-    headline: "Your customer changes. Your music should too.",
-    body: "Core lets you edit the ICP whenever the business shifts — new neighborhood, new product mix, new season.",
+    anchor: "Music that evolves with you.",
+    points: [
+      "Edit your ICP any time",
+      "New season, neighborhood, or product mix",
+      "Music adapts the same day",
+    ],
     kind: "core_upsell",
   },
   // ── Pro upsell (Free / Core → Pro) ──────────────────────────────────────
   {
-    headline: "Opening calm, peak energy, closing wind-down.",
-    body: "Pro shifts the outcome automatically as your floor shifts — no one has to remember to switch modes.",
+    anchor: "Music that shifts with the day.",
+    points: [
+      "Opening calm, peak energy, closing wind-down",
+      "Switches automatically",
+      "No one has to remember the mode",
+    ],
     kind: "pro_upsell",
   },
   {
-    headline: "Music that gets better the longer it plays.",
-    body: "Pro integrates with your POS and refines itself against your sales data — the lift shows up in the report.",
+    anchor: "Music tied to your sales.",
+    points: [
+      "Integrates with your POS",
+      "Refines against real sales data",
+      "Lift shows up in the report",
+    ],
     kind: "pro_upsell",
   },
   {
-    headline: "One store, many customers.",
-    body: "Pro tailors music to each distinct customer type your store serves — instead of a single profile.",
+    anchor: "Music for every customer type.",
+    points: [
+      "Tailors to each ICP your floor serves",
+      "Not a single profile",
+      "Every visitor's moment shaped",
+    ],
     kind: "pro_upsell",
   },
   // ── Core feature reminders (for active Core stores) ─────────────────────
   {
-    headline: "Your music is tuned to one customer.",
-    body: "Core is shaping every track to the Ideal Customer Profile you set up — not a generic catalogue.",
+    anchor: "Tuned to your customer.",
+    points: [
+      "Shaped to your one ICP",
+      "Every track picked for your floor",
+      "Not a generic catalogue",
+    ],
     kind: "core_reminder",
   },
   {
-    headline: "Two outcomes available.",
-    body: "Linger and Lift Energy — switch any time at the bottom of the screen.",
+    anchor: "Two outcomes ready.",
+    points: [
+      "Linger",
+      "Lift Energy",
+      "Switch any time below",
+    ],
     kind: "core_reminder",
   },
   {
-    headline: "Loved tracks shape the rotation.",
-    body: "Tap love when something lands. We lean into what your floor responds to over time.",
+    anchor: "Your taste shapes the rotation.",
+    points: [
+      "Tap love when a track lands",
+      "We lean into what works",
+      "Effect compounds over time",
+    ],
     kind: "core_reminder",
   },
   {
-    headline: "Your ICP can evolve with the business.",
-    body: "New neighborhood, new product mix, new season — edit your ICP and the music follows.",
+    anchor: "Edit your ICP any time.",
+    points: [
+      "New season, neighborhood, or product mix",
+      "Music follows the same day",
+      "No re-onboarding",
+    ],
     kind: "core_reminder",
   },
   // ── Pro feature reminders (for active Pro stores) ───────────────────────
   {
-    headline: "Your music is shifting with the day.",
-    body: "Day-parting is on — opening, peak, and closing each get their own cadence. No one has to remember to switch modes.",
+    anchor: "Day-parting is on.",
+    points: [
+      "Opening calm",
+      "Peak energy",
+      "Closing wind-down",
+    ],
     kind: "pro_reminder",
   },
   {
-    headline: "Music tied to your POS.",
-    body: "Pro is refining what plays against your sales data — this week's lift shows up in the report.",
+    anchor: "Tied to your POS.",
+    points: [
+      "Refining against your sales data",
+      "Lift shows up in the report",
+      "Better the longer it plays",
+    ],
     kind: "pro_reminder",
   },
   {
-    headline: "Tailored to every customer type your floor serves.",
-    body: "Pro is balancing across all of your ICPs — not a single profile.",
+    anchor: "Tailored to every customer.",
+    points: [
+      "Balancing across all your ICPs",
+      "Each visitor's moment shaped",
+      "Not a single profile",
+    ],
     kind: "pro_reminder",
   },
   {
-    headline: "Every outcome is available to you.",
-    body: "Linger, Lift Energy, and the rest — switch any time at the bottom of the screen.",
+    anchor: "Every outcome unlocked.",
+    points: [
+      "Linger, Lift Energy, and the rest",
+      "Switch any time below",
+      "Match the moment, not just the day",
+    ],
     kind: "pro_reminder",
   },
   {
-    headline: "Loved tracks shape what plays.",
-    body: "Tap love when something lands. Pro leans into what your floor responds to over time.",
+    anchor: "Your taste shapes what plays.",
+    points: [
+      "Tap love when a track lands",
+      "Pro leans into what works",
+      "Effect compounds over time",
+    ],
     kind: "pro_reminder",
   },
 ];
@@ -179,12 +245,14 @@ export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props
   const ctaUnderline = "rgba(120,180,188,0.5)";
 
   // Sizes scale down on narrow viewports so the rail can fit in 50% of phone
-  // / tablet height without the headline running off-card.
+  // / tablet height without the anchor running off-card.
   const padding = compact ? "26px 28px" : "40px 56px 36px 64px";
-  const headlineSize = compact ? 22 : 44;
-  const bodySize = compact ? 14 : 18;
+  const anchorSize = compact ? 22 : 36;
+  const bulletSize = compact ? 13 : 16;
   const ctaSize = compact ? 11 : 12;
-  const innerGap = compact ? 14 : 22;
+  // Spacing between anchor → divider → bullets and between individual bullets.
+  const headerGap = compact ? 14 : 18;
+  const bulletGap = compact ? 8 : 10;
 
   return (
     <div
@@ -207,33 +275,68 @@ export function UpgradeRail({ rotationKey, tier, compact = false, style }: Props
           transition: "opacity 420ms ease",
           display: "flex",
           flexDirection: "column",
-          gap: innerGap,
+          gap: headerGap,
           textAlign: "left",
           maxWidth: 540,
         }}
       >
         <div
           style={{
-            fontSize: headlineSize,
+            fontSize: anchorSize,
             fontWeight: 300,
             lineHeight: 1.2,
             color: "rgba(244,247,248,0.97)",
             letterSpacing: compact ? -0.2 : -0.4,
           }}
         >
-          {slot.headline}
+          {slot.anchor}
         </div>
+        {/* Anchor line: short divider that visually chunks the slot. */}
         <div
           style={{
-            fontSize: bodySize,
-            lineHeight: 1.5,
-            fontWeight: 300,
-            color: "rgba(232,238,240,0.78)",
-            letterSpacing: 0.1,
+            width: compact ? 32 : 44,
+            height: 1,
+            background: "rgba(120,180,188,0.6)",
+          }}
+        />
+        <ul
+          style={{
+            listStyle: "none",
+            padding: 0,
+            margin: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: bulletGap,
           }}
         >
-          {slot.body}
-        </div>
+          {slot.points.map((p, i) => (
+            <li
+              key={i}
+              style={{
+                display: "flex",
+                gap: 12,
+                alignItems: "baseline",
+                fontSize: bulletSize,
+                lineHeight: 1.45,
+                fontWeight: 300,
+                color: "rgba(232,238,240,0.85)",
+                letterSpacing: 0.1,
+              }}
+            >
+              <span
+                style={{
+                  flexShrink: 0,
+                  color: "rgba(120,180,188,0.7)",
+                  fontWeight: 400,
+                }}
+                aria-hidden="true"
+              >
+                —
+              </span>
+              <span>{p}</span>
+            </li>
+          ))}
+        </ul>
       </div>
 
       <a
