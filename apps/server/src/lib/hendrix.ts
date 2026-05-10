@@ -46,8 +46,17 @@ interface PoolRow {
   songId: string
   r2Url: string
   hookId: string | null
+  songSeedId: string | null
   outcomeId: string
   icpId: string | null
+}
+
+// Sibling key: two LineageRows are siblings if they share a hook (paid pool,
+// hookId set) or a SongSeed (Suno returns 2 versions per prompt — both rows
+// share songSeedId, e.g., the two cuts of "Let the quiet do the work" on the
+// free pool). Falls back to songId so unrelated rows never collide.
+function siblingKey(r: { hookId: string | null; songSeedId: string | null; songId: string }): string {
+  return r.hookId ?? r.songSeedId ?? r.songId
 }
 
 // Per-store song suppression (StoreRetiredSong). Free-tier stores share one
@@ -69,7 +78,7 @@ async function fetchPool(icpId: string, outcomeId: string, retiredSongIds: strin
       active: true,
       ...(retiredSongIds.length > 0 ? { songId: { notIn: retiredSongIds } } : {}),
     },
-    select: { id: true, songId: true, r2Url: true, hookId: true, outcomeId: true, icpId: true },
+    select: { id: true, songId: true, r2Url: true, hookId: true, songSeedId: true, outcomeId: true, icpId: true },
   })
 }
 
@@ -81,7 +90,7 @@ async function fetchAllPool(icpIds: string[], retiredSongIds: string[]): Promise
       active: true,
       ...(retiredSongIds.length > 0 ? { songId: { notIn: retiredSongIds } } : {}),
     },
-    select: { id: true, songId: true, r2Url: true, hookId: true, outcomeId: true, icpId: true },
+    select: { id: true, songId: true, r2Url: true, hookId: true, songSeedId: true, outcomeId: true, icpId: true },
   })
 }
 
@@ -100,12 +109,15 @@ async function applyFilters(
   const songIds = [...new Set(pool.map((r) => r.songId))]
   // hookId can be null for general-pool rows; filter before sending to Prisma.
   const hookIds = [...new Set(pool.map((r) => r.hookId).filter((h): h is string => h !== null))]
+  // SongSeed-based sibling spacing covers free-tier rows (null hookId) and
+  // any other case where two cuts of the same Suno generation share a seed.
+  const seedIds = [...new Set(pool.map((r) => r.songSeedId).filter((s): s is string => s !== null))]
 
   const noRepeatCutoff = new Date(now.getTime() - rules.noRepeatWindowMinutes * 60 * 1000)
   const siblingCutoff = new Date(now.getTime() - rules.siblingSpacingMinutes * 60 * 1000)
   const todayStart = storeLocalMidnight(now, timezone)
 
-  const [recentSongPlays, recentHookPlays, todaySongPlays] = await Promise.all([
+  const [recentSongPlays, recentHookPlays, recentSeedSongPlays, todaySongPlays] = await Promise.all([
     applyNoRepeat
       ? prisma.playbackEvent.findMany({
           where: {
@@ -117,7 +129,7 @@ async function applyFilters(
           select: { songId: true, occurredAt: true },
         })
       : Promise.resolve([]),
-    applySiblingSpacing
+    applySiblingSpacing && hookIds.length > 0
       ? prisma.playbackEvent.findMany({
           where: {
             storeId,
@@ -126,6 +138,25 @@ async function applyFilters(
             occurredAt: { gte: siblingCutoff },
           },
           select: { hookId: true, occurredAt: true },
+        })
+      : Promise.resolve([]),
+    // PlaybackEvent has no songSeedId column — resolve recent plays' seeds
+    // by joining through LineageRow on the songId.
+    applySiblingSpacing && seedIds.length > 0
+      ? prisma.lineageRow.findMany({
+          where: {
+            songSeedId: { in: seedIds },
+            song: {
+              playbackEvents: {
+                some: {
+                  storeId,
+                  eventType: 'song_start',
+                  occurredAt: { gte: siblingCutoff },
+                },
+              },
+            },
+          },
+          select: { songSeedId: true },
         })
       : Promise.resolve([]),
     applyDailyCap
@@ -142,7 +173,8 @@ async function applyFilters(
   ])
 
   const noRepeatBlock = new Set(recentSongPlays.map((p) => p.songId!))
-  const siblingBlock = new Set(recentHookPlays.map((p) => p.hookId!))
+  const siblingHookBlock = new Set(recentHookPlays.map((p) => p.hookId!))
+  const siblingSeedBlock = new Set(recentSeedSongPlays.map((r) => r.songSeedId!).filter(Boolean))
   const dailyCount = new Map<string, number>()
   for (const p of todaySongPlays) {
     if (!p.songId) continue
@@ -151,9 +183,10 @@ async function applyFilters(
 
   return pool.filter((r) => {
     if (applyNoRepeat && noRepeatBlock.has(r.songId)) return false
-    // Sibling-spacing only applies to rows with a hook (paid pools); general
-    // pool rows have null hookId and skip this filter.
-    if (applySiblingSpacing && r.hookId && siblingBlock.has(r.hookId)) return false
+    if (applySiblingSpacing) {
+      if (r.hookId && siblingHookBlock.has(r.hookId)) return false
+      if (r.songSeedId && siblingSeedBlock.has(r.songSeedId)) return false
+    }
     if (applyDailyCap && (dailyCount.get(r.songId) ?? 0) >= rules.dailyCap) return false
     return true
   })
@@ -203,22 +236,18 @@ function dedupeBySong(pool: PoolRow[]): PoolRow[] {
   return out
 }
 
-// Keep only the best-ranked row per hook so siblings never appear in the
-// same queue batch. applyFilters handles the inter-batch spacing (blocks
-// hookIds played recently), but without this step two songs sharing a hook
-// can both rank into the top-3 slice and play back-to-back on the client.
-function dedupeByHook(pool: PoolRow[]): PoolRow[] {
+// Keep only the best-ranked row per sibling group so siblings never appear
+// in the same queue batch. applyFilters handles inter-batch spacing; without
+// this step two cuts sharing a hook (paid pool) or a SongSeed (free pool —
+// Suno returns 2 versions per generation, e.g., the two takes of "Let the
+// quiet do the work") can both rank into the top-3 slice and play back-to-back.
+function dedupeBySibling(pool: PoolRow[]): PoolRow[] {
   const seen = new Set<string>()
   const out: PoolRow[] = []
   for (const r of pool) {
-    // Rows with no hook (general pool) skip the dedupe — every general row
-    // is independently selectable since there's no sibling group to collapse.
-    if (r.hookId === null) {
-      out.push(r)
-      continue
-    }
-    if (seen.has(r.hookId)) continue
-    seen.add(r.hookId)
+    const key = siblingKey(r)
+    if (seen.has(key)) continue
+    seen.add(key)
     out.push(r)
   }
   return out
@@ -278,7 +307,7 @@ async function buildQueueFromPool(
     const eligible = await applyFilters(storeId, unfilteredPool, t.cap, t.sib, t.rep, rules, now, timezone)
     if (eligible.length > 0) {
       const ranked = await rankByPlayCount(storeId, eligible)
-      const top = dedupeByHook(ranked).slice(0, 3)
+      const top = dedupeBySibling(ranked).slice(0, 3)
       const queue = await hydrateQueue(top)
       return { queue, fallbackTier: t.tier }
     }
