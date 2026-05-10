@@ -988,7 +988,10 @@ export function PlayerScreen({ session, onLogout }: Props) {
           ) : null}
         </DarkHalo>
 
-        {twoCol ? (
+        {/* Visualizer disabled until R2 serves CORS headers on the audio host.
+            Once Access-Control-Allow-Origin is set on the audio bucket and the
+            Audio crossOrigin patch is restored in main.tsx, re-enable this. */}
+        {false && twoCol ? (
           <div style={{ width: "100%", maxWidth: 540, opacity: currentItem ? 1 : 0.25, transition: "opacity 400ms ease" }}>
             <Visualizer audioEl={audioEl} trackId={currentItem?.songId ?? null} height={110} />
           </div>
