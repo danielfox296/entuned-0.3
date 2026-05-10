@@ -1007,7 +1007,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
             position: "fixed", top: 72, left: "50%", transform: "translateX(-50%)",
             zIndex: 40,
             background: "rgba(28,28,24,0.85)",
-            border: "1px solid rgba(215,175,116,0.4)",
+            border: "1px solid rgba(106,176,187,0.45)",
             borderRadius: 999,
             padding: "10px 22px",
             color: "rgba(212,225,229,0.9)",
