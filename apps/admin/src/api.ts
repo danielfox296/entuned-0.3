@@ -548,6 +548,28 @@ export interface SeedBuilderResult {
   errors: string[]
 }
 
+export interface SongCreationQueueOutcomeRow {
+  id: string
+  outcomeKey: string
+  title: string
+  displayTitle: string | null
+  mood: string
+  hooksAvailable: number
+  hooksApproved: number
+  hooksDraft: number
+  seedsAssembling: number
+  seedsQueued: number
+  seedsAccepted: number
+  seedsFailed: number
+  lastBatchAt: string | null
+}
+
+export interface SongCreationQueueInventory {
+  icpId: string
+  refTracksReady: number
+  outcomes: SongCreationQueueOutcomeRow[]
+}
+
 export interface ScheduleSlot {
   id: string
   storeId: string
@@ -1182,6 +1204,8 @@ export const api = {
     req<SongSeedDetail>(`/admin/song-seeds/${id}`, {}, token),
   runSeedBuilder: (body: { icpId: string; outcomeId: string; n: number; styleBuilder?: 'router' | 'legacy' | 'anchor' }, token: string) =>
     req<SeedBuilderResult>('/admin/eno/run', { method: 'POST', body: JSON.stringify(body) }, token),
+  songCreationQueueInventory: (icpId: string, token: string) =>
+    req<SongCreationQueueInventory>(`/admin/song-creation-queue/inventory?icpId=${encodeURIComponent(icpId)}`, {}, token),
   deleteSongSeed: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/song-seeds/${id}`, { method: 'DELETE' }, token),
   acceptSongSeed: (id: string, body: { takes: { sourceUrl: string }[] }, token: string) =>

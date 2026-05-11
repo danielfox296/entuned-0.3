@@ -2700,6 +2700,96 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return row
   })
 
+  // Song Creation Queue dashboard: per-outcome inventory for an ICP.
+  // Returns counts the operator needs to decide what to act on without trial-and-error.
+  app.get('/song-creation-queue/inventory', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const icpId = (req.query as any).icpId as string | undefined
+    if (!icpId) return reply.code(400).send({ error: 'missing_icpId' })
+
+    const [outcomes, hooks, songSeeds, batchAggs, refTracksReady] = await Promise.all([
+      prisma.outcome.findMany({
+        where: { supersededAt: null },
+        orderBy: { title: 'asc' },
+        select: { id: true, outcomeKey: true, title: true, displayTitle: true, mood: true, version: true },
+      }),
+      prisma.hook.findMany({
+        where: { icpId },
+        select: {
+          id: true, outcomeId: true, status: true,
+          songSeeds: { select: { status: true } },
+        },
+      }),
+      prisma.songSeed.groupBy({
+        by: ['outcomeId', 'status'],
+        where: { icpId },
+        _count: { _all: true },
+      }),
+      prisma.songSeedBatch.groupBy({
+        by: ['outcomeId'],
+        where: { icpId },
+        _max: { startedAt: true },
+      }),
+      prisma.referenceTrack.count({
+        where: { icpId, status: 'approved', styleAnalysis: { isNot: null } },
+      }),
+    ])
+
+    // Group hooks by outcomeId
+    const hooksByOutcome = new Map<string, { available: number; total: number; draft: number }>()
+    for (const h of hooks) {
+      let entry = hooksByOutcome.get(h.outcomeId)
+      if (!entry) { entry = { available: 0, total: 0, draft: 0 }; hooksByOutcome.set(h.outcomeId, entry) }
+      if (h.status === 'approved') {
+        entry.total++
+        const blocked = h.songSeeds.some((s) => s.status === 'assembling' || s.status === 'queued' || s.status === 'accepted')
+        if (!blocked) entry.available++
+      } else if (h.status === 'draft') {
+        entry.draft++
+      }
+    }
+
+    // Group seeds by outcomeId + status
+    const seedsByOutcome = new Map<string, { assembling: number; queued: number; accepted: number; failed: number }>()
+    for (const row of songSeeds) {
+      let entry = seedsByOutcome.get(row.outcomeId)
+      if (!entry) { entry = { assembling: 0, queued: 0, accepted: 0, failed: 0 }; seedsByOutcome.set(row.outcomeId, entry) }
+      const n = row._count._all
+      if (row.status === 'assembling') entry.assembling += n
+      else if (row.status === 'queued') entry.queued += n
+      else if (row.status === 'accepted') entry.accepted += n
+      else if (row.status === 'failed') entry.failed += n
+    }
+
+    const lastBatchByOutcome = new Map<string, Date | null>()
+    for (const row of batchAggs) {
+      lastBatchByOutcome.set(row.outcomeId, row._max.startedAt ?? null)
+    }
+
+    const rows = outcomes.map((o) => {
+      const h = hooksByOutcome.get(o.id) ?? { available: 0, total: 0, draft: 0 }
+      const s = seedsByOutcome.get(o.id) ?? { assembling: 0, queued: 0, accepted: 0, failed: 0 }
+      const last = lastBatchByOutcome.get(o.id) ?? null
+      return {
+        id: o.id,
+        outcomeKey: o.outcomeKey,
+        title: o.title,
+        displayTitle: o.displayTitle,
+        mood: o.mood,
+        hooksAvailable: h.available,
+        hooksApproved: h.total,
+        hooksDraft: h.draft,
+        seedsAssembling: s.assembling,
+        seedsQueued: s.queued,
+        seedsAccepted: s.accepted,
+        seedsFailed: s.failed,
+        lastBatchAt: last ? last.toISOString() : null,
+      }
+    })
+
+    return { icpId, refTracksReady, outcomes: rows }
+  })
+
   const SeedBuilderRunBody = z.object({
     icpId: z.string().uuid(),
     outcomeId: z.string().uuid(),
