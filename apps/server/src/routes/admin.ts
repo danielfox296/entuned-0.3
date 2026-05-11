@@ -638,6 +638,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       const slug = await uniqueStoreSlug(parsed.data.name)
       // Fall back to the system default if no defaultOutcomeId was supplied,
       // so admin-created Stores are launchable without an extra setup step.
+      // Admin-created Stores default to 'mvp_pilot' tier; not free-tier.
       const fallbackOutcomeId = parsed.data.defaultOutcomeId ?? await pickSystemDefaultOutcomeId()
       const row = await prisma.store.create({
         data: {
@@ -684,6 +685,27 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const data: any = { ...parsed.data }
     if (parsed.data.goLiveDate !== undefined) {
       data.goLiveDate = parsed.data.goLiveDate ? new Date(parsed.data.goLiveDate) : null
+    }
+    // Free-tier guard: a free-tier Store's default outcome must be in the
+    // FreeTierOutcome allowlist. Block other picks defensively in case the
+    // client surface is bypassed.
+    if (parsed.data.defaultOutcomeId !== undefined && parsed.data.defaultOutcomeId !== null) {
+      const target = await prisma.store.findUnique({ where: { id }, select: { tier: true } })
+      if (target?.tier === 'free') {
+        const outcome = await prisma.outcome.findUnique({
+          where: { id: parsed.data.defaultOutcomeId },
+          select: { outcomeKey: true },
+        })
+        const allowed = outcome
+          ? await prisma.freeTierOutcome.findUnique({ where: { outcomeKey: outcome.outcomeKey } })
+          : null
+        if (!allowed) {
+          return reply.code(409).send({
+            error: 'outcome_not_in_free_tier_allowlist',
+            message: 'This outcome is not available on the free tier.',
+          })
+        }
+      }
     }
     try {
       const row = await prisma.store.update({
@@ -796,6 +818,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         goLiveDate: store.goLiveDate ? store.goLiveDate.toISOString().slice(0, 10) : null,
         defaultOutcomeId: store.defaultOutcomeId,
         roomLoudnessSamplingEnabled: store.roomLoudnessSamplingEnabled,
+        tier: store.tier,
       },
       icps,
       sharedWith: [],

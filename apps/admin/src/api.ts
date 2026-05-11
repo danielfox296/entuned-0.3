@@ -351,7 +351,7 @@ export interface TierHistoryResponse {
 }
 
 export interface StoreDetail {
-  store: { id: string; name: string; timezone: string; clientId: string; clientName: string; goLiveDate: string | null; defaultOutcomeId: string | null; roomLoudnessSamplingEnabled: boolean }
+  store: { id: string; name: string; timezone: string; clientId: string; clientName: string; goLiveDate: string | null; defaultOutcomeId: string | null; roomLoudnessSamplingEnabled: boolean; tier: 'free' | 'core' | 'pro' | 'enterprise' | 'mvp_pilot' }
   icps: (IcpRow & { referenceTracks: ReferenceTrackRow[] })[]
   sharedWith: { id: string; name: string; clientName: string }[]
 }

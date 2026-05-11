@@ -590,7 +590,7 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
       // If you need per-Store subscription lookups, extend the schema with a
       // join model rather than splitting the Stripe sub.
       const slug = await uniqueStoreSlug(parsed.data.name)
-      const defaultOutcomeId = existing.defaultOutcomeId ?? await pickSystemDefaultOutcomeId()
+      const defaultOutcomeId = existing.defaultOutcomeId ?? await pickSystemDefaultOutcomeId(existing.tier)
       const store = await prisma.store.create({
         data: {
           clientId: ctx.clientId,
@@ -810,7 +810,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
   } else {
     const baseName = client.name ?? (email ? email.split('@')[0] : 'Store')
     const newSlug = await uniqueStoreSlug(baseName)
-    const defaultOutcomeId = await pickSystemDefaultOutcomeId()
+    const defaultOutcomeId = await pickSystemDefaultOutcomeId(tier)
     store = await prisma.store.create({
       data: {
         clientId: client.id,

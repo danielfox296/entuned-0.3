@@ -165,7 +165,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     // a Locations-tab dead-end.
     if (stores.length === 0) {
       const slug = await uniqueStoreSlug(req.user?.email ?? 'store')
-      const defaultOutcomeId = await pickSystemDefaultOutcomeId()
+      const defaultOutcomeId = await pickSystemDefaultOutcomeId('free')
       const created = await prisma.store.create({
         data: {
           clientId: ctx.clientId,

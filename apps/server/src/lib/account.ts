@@ -12,6 +12,7 @@ import { randomBytes } from 'node:crypto'
 import { prisma } from '../db.js'
 import { sendWelcome } from './email.js'
 import { FREE_TIER_ICP_ID } from './freeTier.js'
+import { pickSystemDefaultOutcomeId } from './outcomes.js'
 
 const PLAYER_URL = process.env.PLAYER_URL ?? 'https://music.entuned.co'
 const APP_URL = process.env.APP_URL ?? 'https://app.entuned.co'
@@ -60,20 +61,17 @@ export async function ensureFreeClientForUser(accountId: string, email: string):
       data: { clientId: client.id, accountId, role: 'owner' },
     })
     const s = await uniqueStoreSlug(localPart)
-    // Pick a system default outcome at creation time so the Store is launchable
-    // out-of-the-box (no "set a default outcome" hard-blocker on first login).
-    const defaultOutcome = await tx.outcome.findFirst({
-      where: { supersededAt: null },
-      orderBy: [{ title: 'asc' }, { version: 'desc' }],
-      select: { id: true },
-    })
+    // Pick a free-tier-appropriate default outcome at creation time so the
+    // Store is launchable out-of-the-box (no "set a default outcome" hard-
+    // blocker on first login), and never gets a non-allowlisted outcome.
+    const defaultOutcomeId = await pickSystemDefaultOutcomeId('free')
     const store = await tx.store.create({
       data: {
         clientId: client.id,
         name: `${localPart} — Main`,
         slug: s,
         tier: 'free',
-        defaultOutcomeId: defaultOutcome?.id ?? null,
+        defaultOutcomeId,
         // UTC is honest about not knowing the user's tz at signup time.
         // The customer dashboard surfaces this and prompts them to set the
         // real tz; until they do, daily_cap rolls at UTC midnight.

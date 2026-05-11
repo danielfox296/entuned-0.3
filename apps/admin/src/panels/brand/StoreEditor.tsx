@@ -17,8 +17,9 @@ const COMMON_TZ = [
 export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void } = {}) {
   const [clients, setClients] = useState<ClientListRow[] | null>(null)
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
+  const [freeTierAllowedKeys, setFreeTierAllowedKeys] = useState<Set<string> | null>(null)
   const [storeId, setStoreId] = useStoreSelection()
-  const [detail, setDetail] = useState<{ id: string; name: string; timezone: string; clientId: string; clientName: string; icps: { id: string; name: string }[]; goLiveDate: string | null; defaultOutcomeId: string | null; roomLoudnessSamplingEnabled: boolean } | null>(null)
+  const [detail, setDetail] = useState<{ id: string; name: string; timezone: string; clientId: string; clientName: string; icps: { id: string; name: string }[]; goLiveDate: string | null; defaultOutcomeId: string | null; roomLoudnessSamplingEnabled: boolean; tier: 'free' | 'core' | 'pro' | 'enterprise' | 'mvp_pilot' } | null>(null)
   const [draft, setDraft] = useState<StoreUpdateBody | null>(null)
   const [creating, setCreating] = useState<StoreCreateBody | null>(null)
   const [busy, setBusy] = useState(false)
@@ -34,12 +35,14 @@ export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void 
   const reloadAll = async () => {
     const token = getToken(); if (!token) return
     try {
-      const [, c, o] = await Promise.all([
+      const [, c, o, fto] = await Promise.all([
         api.stores(token),
         api.clients(token),
         api.outcomes(token),
+        api.freeTierOutcomes(token).catch(() => null),
       ])
       setClients(c); setOutcomes(o)
+      if (fto) setFreeTierAllowedKeys(new Set(fto.filter((x) => x.availableOnFree).map((x) => x.outcomeKey)))
       onStoresChanged?.()
     } catch (e: any) { setErr(e.message) }
   }
@@ -57,6 +60,7 @@ export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void 
         goLiveDate: d.store.goLiveDate,
         defaultOutcomeId: d.store.defaultOutcomeId,
         roomLoudnessSamplingEnabled: d.store.roomLoudnessSamplingEnabled,
+        tier: d.store.tier,
       })
       setDraft({})
     }).catch((e) => setErr(e.message))
@@ -166,8 +170,21 @@ export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void 
                 onChange={(e) => setDraft({ ...draft, defaultOutcomeId: e.target.value || null })}
               >
                 <option value="">— none —</option>
-                {(outcomes ?? []).map((o) => <option key={o.id} value={o.id}>{o.displayTitle ?? o.title}</option>)}
+                {(outcomes ?? [])
+                  .filter((o) => {
+                    // Free-tier stores can only pick from the FreeTierOutcome allowlist.
+                    // Other tiers see every active outcome.
+                    if (detail.tier !== 'free') return true
+                    if (!freeTierAllowedKeys) return true
+                    return freeTierAllowedKeys.has(o.outcomeKey)
+                  })
+                  .map((o) => <option key={o.id} value={o.id}>{o.displayTitle ?? o.title}</option>)}
               </Select>
+              {detail.tier === 'free' && (
+                <div style={{ fontSize: 11, fontFamily: T.mono, color: T.textDim, marginTop: 4 }}>
+                  Free-tier locations can only use outcomes from the free-tier allowlist.
+                </div>
+              )}
             </Field>
 
             <Field label="go-live date">
