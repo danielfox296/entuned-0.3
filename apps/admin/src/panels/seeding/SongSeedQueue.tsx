@@ -18,6 +18,15 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
   const [runResult, setRunResult] = useState<SeedBuilderResult | null>(null)
   const [runOutcome, setRunOutcome] = useState<string>('')
   const [runN, setRunN] = useState(1)
+  const [runStyleBuilder, setRunStyleBuilder] = useState<'router' | 'anchor' | 'legacy'>(() => {
+    const saved = typeof window !== 'undefined' ? window.localStorage.getItem('songSeedQueue.styleBuilder') : null
+    if (saved === 'router' || saved === 'anchor' || saved === 'legacy') return saved
+    return 'router'
+  })
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') window.localStorage.setItem('songSeedQueue.styleBuilder', runStyleBuilder)
+  }, [runStyleBuilder])
 
   useEffect(() => {
     const token = getToken(); if (!token) return
@@ -43,7 +52,7 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
     const token = getToken(); if (!token || !icpId || !runOutcome) return
     setRunning(true); setRunResult(null); setErr(null)
     try {
-      const result = await api.runSeedBuilder({ icpId, outcomeId: runOutcome, n: runN }, token)
+      const result = await api.runSeedBuilder({ icpId, outcomeId: runOutcome, n: runN, styleBuilder: runStyleBuilder }, token)
       setRunResult(result)
       reload()
     } catch (e: any) { setErr(e.message) }
@@ -87,6 +96,16 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
               {(outcomes ?? []).map((o) => <option key={o.id} value={o.id}>{o.displayTitle ?? o.title}</option>)}
             </select>
             <input type="number" min={1} max={20} value={runN} onChange={(e) => setRunN(parseInt(e.target.value, 10) || 1)} style={{ ...inputStyle, width: 80 }} />
+            <select
+              value={runStyleBuilder}
+              onChange={(e) => setRunStyleBuilder(e.target.value as 'router' | 'anchor' | 'legacy')}
+              style={inputStyle}
+              title="Mars style builder strategy. Router = current default. Anchor = genre-tag + curated negatives. Legacy = concat."
+            >
+              <option value="router">style: router (default)</option>
+              <option value="anchor">style: anchor-and-carve</option>
+              <option value="legacy">style: legacy concat</option>
+            </select>
             <button onClick={launch} disabled={running || !runOutcome} style={primaryBtn(!!runOutcome, running)}>
               {running ? 'running…' : `run (${runN})`}
             </button>

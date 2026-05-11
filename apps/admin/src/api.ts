@@ -1180,7 +1180,7 @@ export const api = {
   },
   songSeedDetail: (id: string, token: string) =>
     req<SongSeedDetail>(`/admin/song-seeds/${id}`, {}, token),
-  runSeedBuilder: (body: { icpId: string; outcomeId: string; n: number }, token: string) =>
+  runSeedBuilder: (body: { icpId: string; outcomeId: string; n: number; styleBuilder?: 'router' | 'legacy' | 'anchor' }, token: string) =>
     req<SeedBuilderResult>('/admin/eno/run', { method: 'POST', body: JSON.stringify(body) }, token),
   deleteSongSeed: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/song-seeds/${id}`, { method: 'DELETE' }, token),

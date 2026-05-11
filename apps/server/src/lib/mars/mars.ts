@@ -43,6 +43,9 @@ export interface MarsOutput {
 export interface MarsOptions {
   /** Track release year — passed to the router/anchor to anchor era extractively. */
   year?: number | null
+  /** Override the global STYLE_BUILDER env var for this assembly. Lets callers (e.g.,
+   *  the operator dropdown in Dash → Song Creation Queue) pick a strategy per batch. */
+  styleBuilder?: StyleBuilderName
 }
 
 /**
@@ -70,7 +73,7 @@ export async function marsAssemble(
   _outcome?: Outcome,
   opts: MarsOptions = {},
 ): Promise<MarsOutput> {
-  const builder = (process.env.STYLE_BUILDER ?? 'router') as StyleBuilderName
+  const builder = opts.styleBuilder ?? ((process.env.STYLE_BUILDER ?? 'router') as StyleBuilderName)
   const styleLegacy = assembleStylePortion({ decomposition: styleAnalysis as any })
 
   let style: string
