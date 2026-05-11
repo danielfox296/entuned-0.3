@@ -181,6 +181,19 @@ export async function buildHookDrafterContext(opts: {
     take: 50,
   })
 
+  // Split by status so the prompt can use approved hooks as positive anchors
+  // ("write more in this voice") and treat rejected/draft hooks only as
+  // do-not-repeat references. Every approval becomes a teaching signal for
+  // the next batch — the model learns the operator's editorial taste.
+  const approvedExemplars = existingHooks
+    .filter((h) => h.status === 'approved')
+    .slice(0, 12)
+    .map((h) => h.text)
+  const rejectedSamples = existingHooks
+    .filter((h) => h.status === 'rejected')
+    .slice(0, 8)
+    .map((h) => h.text)
+
   const icpDescriptor = [
     icp.name && `Name: ${icp.name}`,
     icp.ageRange && `Age range: ${icp.ageRange}`,
@@ -227,7 +240,19 @@ diction, density, and image vocabulary of the hook.
 
 ${outcomeDescriptor}
 
-${lyricGuidance ? `# Lyric guidance for this outcome\n\nThis is operator-authored guidance specific to the **${emotionalTarget}** outcome. Treat it as authoritative on diction, imagery, and what to avoid for this emotional target.\n\n${lyricGuidance}\n\n` : ''}${icp.client?.brandLyricGuidelines ? `# Brand lyric guidelines\n\n${icp.client.brandLyricGuidelines}\n\n` : ''}# Existing hooks (do not repeat)
+${lyricGuidance ? `# Lyric guidance for this outcome\n\nThis is authored guidance specific to the **${emotionalTarget}** outcome. Treat it as authoritative on diction, imagery, and what to avoid for this emotional target.\n\n${lyricGuidance}\n\n` : ''}${icp.client?.brandLyricGuidelines ? `# Brand lyric guidelines\n\n${icp.client.brandLyricGuidelines}\n\n` : ''}${approvedExemplars.length > 0 ? `# Approved hooks for this ICP + Outcome — anchor on these
+
+These hooks were chosen as good fits for this exact ICP and outcome. They reflect the editorial taste — concreteness, register, image vocabulary, mouth-feel. **Write more in this voice.** Match their level of specificity, their relationship to the brand, and the kind of scene they paint. Vary the *structure* (sentence type, tense, POV) but stay inside the same emotional and aesthetic space.
+
+${approvedExemplars.map((t) => `- "${t}"`).join('\n')}
+
+` : ''}${rejectedSamples.length > 0 ? `# Rejected hooks — avoid this shape
+
+These hooks were rejected for this ICP + outcome. Do not write anything that occupies a similar shape (similar register, similar abstraction level, similar image cluster). Read them as the boundary of what doesn't fit.
+
+${rejectedSamples.map((t) => `- "${t}"`).join('\n')}
+
+` : ''}# Existing hooks (do not repeat verbatim)
 
 ${existingHooks.length === 0 ? '(none)' : existingHooks.map((h) => `- "${h.text}" (${h.status})`).join('\n')}
 
@@ -236,11 +261,11 @@ ${existingHooks.length === 0 ? '(none)' : existingHooks.map((h) => `- "${h.text}
 Write ${opts.n} new hook candidates for this ICP + Outcome.
 
 Requirements:
-- Spread across at least 3 different sentence types (declaration, question, imperative, observation, fragment).
+- ${approvedExemplars.length > 0 ? 'Anchor on the approved hooks above — match their voice and concreteness. ' : ''}Spread across at least 3 different sentence types (declaration, question, imperative, observation, fragment).
 - Mix tenses and POVs — no more than half the batch in the same tense or the same POV.
 - Every hook must pass the "scene test": can you picture a specific person in a specific moment? If not, it's too abstract.
 - Let the tempo and mode shape your syllable density and vowel choices.
-
+${rejectedSamples.length > 0 ? '- Stay outside the shape of the rejected hooks listed above.\n' : ''}
 Output JSON only.`
 
   const existingHookTexts = existingHooks.map((h) => h.text)
