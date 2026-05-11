@@ -32,10 +32,6 @@ function classify(row: SongCreationQueueOutcomeRow, refTracksReady: number): Row
   return 'ready'
 }
 
-function sortOrder(state: RowState): number {
-  return { ready: 0, building: 1, needs_hooks: 2, needs_refs: 3, idle: 4 }[state]
-}
-
 function relTime(iso: string | null): string {
   if (!iso) return 'never'
   const then = new Date(iso).getTime()
@@ -131,24 +127,28 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
     return { hooksAvailable, hooksDraft, seedsQueued, seedsAccepted, seedsAssembling }
   }, [inv])
 
-  const { active, idle } = useMemo(() => {
-    if (!inv) return { active: [], idle: [] }
-    const sorted = [...inv.outcomes].sort((a, b) => {
-      const sa = classify(a, inv.refTracksReady)
-      const sb = classify(b, inv.refTracksReady)
-      const d = sortOrder(sa) - sortOrder(sb)
-      if (d !== 0) return d
-      const da = b.hooksAvailable - a.hooksAvailable
-      if (da !== 0) return da
+  // Pipeline only renders outcomes you can build from right now. Outcomes in
+  // any other state (no hooks, no refs, untouched) belong to the upstream tabs
+  // that own those problems — mixing them here clutters this surface.
+  const { buildable, needsHooksCount, needsRefsCount } = useMemo(() => {
+    if (!inv) return { buildable: [], needsHooksCount: 0, needsRefsCount: 0 }
+    const buildable: SongCreationQueueOutcomeRow[] = []
+    let needsHooksCount = 0
+    let needsRefsCount = 0
+    for (const o of inv.outcomes) {
+      const state = classify(o, inv.refTracksReady)
+      if (state === 'ready' || state === 'building') buildable.push(o)
+      else if (state === 'needs_hooks') needsHooksCount++
+      else if (state === 'needs_refs') needsRefsCount++
+    }
+    buildable.sort((a, b) => {
+      const inflightA = a.seedsAssembling + a.seedsQueued
+      const inflightB = b.seedsAssembling + b.seedsQueued
+      if (inflightB !== inflightA) return inflightB - inflightA
+      if (b.hooksAvailable !== a.hooksAvailable) return b.hooksAvailable - a.hooksAvailable
       return (a.displayTitle ?? a.title).localeCompare(b.displayTitle ?? b.title)
     })
-    const active: SongCreationQueueOutcomeRow[] = []
-    const idle: SongCreationQueueOutcomeRow[] = []
-    for (const o of sorted) {
-      if (classify(o, inv.refTracksReady) === 'idle') idle.push(o)
-      else active.push(o)
-    }
-    return { active, idle }
+    return { buildable, needsHooksCount, needsRefsCount }
   }, [inv])
 
   if (!storeId) return <div style={infoBox}>pick a client and location above to begin</div>
@@ -157,14 +157,12 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      {/* Header: totals + strategy toggle */}
+      {/* Header: minimal totals + strategy toggle */}
       <div style={headerBar}>
         {totals && (
           <div style={{ fontSize: 13, color: T.textMuted, fontFamily: T.mono }}>
             <span style={{ color: T.text }}>{totals.seedsAccepted}</span> accepted ·{' '}
-            <span style={{ color: T.text }}>{totals.seedsQueued}</span> queued for review ·{' '}
-            <span style={{ color: T.text }}>{totals.hooksAvailable}</span> hooks ready ·{' '}
-            <span style={{ color: T.text }}>{inv?.refTracksReady ?? 0}</span> ref tracks ready
+            <span style={{ color: T.text }}>{totals.seedsQueued}</span> queued for review
           </div>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -185,42 +183,49 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
 
       {!inv && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 14 }}>loading…</div>}
 
-      {inv && active.length === 0 && idle.length === 0 && (
-        <div style={infoBox}>no active outcomes for this ICP yet</div>
+      {/* Empty state: nothing to build. Tell the user where to go, don't list things here. */}
+      {inv && buildable.length === 0 && (
+        <div style={infoBox}>
+          Nothing ready to build for this ICP.{' '}
+          {(inv.refTracksReady === 0)
+            ? <>This ICP has no decomposed reference tracks — add some in the <a onClick={() => navTo('Reference Tracks')} style={linkStyle}>Reference Tracks</a> tab.</>
+            : <>Approve some hooks in the <a onClick={() => navTo('Hook Writing')} style={linkStyle}>Hook Writing</a> tab to unlock outcomes.</>}
+        </div>
       )}
 
-      {/* Active outcomes */}
-      {inv && active.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {active.map((o) => (
+      {/* Buildable outcomes — wrapping grid, compact cards. */}
+      {inv && buildable.length > 0 && (
+        <div style={cardGridStyle}>
+          {buildable.map((o) => (
             <OutcomeCard
               key={o.id}
               row={o}
-              refTracksReady={inv.refTracksReady}
               busy={!!busyOutcome[o.id]}
               optimisticInflight={optimistic[o.id] ?? 0}
               lastResult={lastResult?.outcomeId === o.id ? lastResult.res : null}
               batchSize={batchSize[o.id] ?? 1}
               onBatchSizeChange={(n) => setBatchSize((b) => ({ ...b, [o.id]: n }))}
               onGenerate={generate}
-              onNeedHooks={() => navTo('Hook Writing', o.id)}
-              onNeedRefs={() => navTo('Reference Tracks', o.id)}
             />
           ))}
         </div>
       )}
 
-      {/* Idle outcomes — chip flow. Clicking pre-selects the outcome in Hook Writing. */}
-      {inv && idle.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-            or start an outcome with no hooks yet
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {idle.map((o) => (
-              <IdleChip key={o.id} row={o} onStart={() => navTo('Hook Writing', o.id)} />
-            ))}
-          </div>
+      {/* Quiet footer noting what's blocked elsewhere — signal, not action menu. */}
+      {inv && buildable.length > 0 && (needsHooksCount > 0 || needsRefsCount > 0) && (
+        <div style={{ fontSize: 12, color: T.textDim, fontFamily: T.mono, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          {needsHooksCount > 0 && (
+            <span>
+              {needsHooksCount} outcome{needsHooksCount === 1 ? '' : 's'} need hooks →{' '}
+              <a onClick={() => navTo('Hook Writing')} style={linkStyle}>Hook Writing</a>
+            </span>
+          )}
+          {needsRefsCount > 0 && (
+            <span>
+              {needsRefsCount} outcome{needsRefsCount === 1 ? '' : 's'} need ref tracks →{' '}
+              <a onClick={() => navTo('Reference Tracks')} style={linkStyle}>Reference Tracks</a>
+            </span>
+          )}
         </div>
       )}
 
@@ -255,120 +260,76 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
 }
 
 function OutcomeCard({
-  row, refTracksReady, busy, optimisticInflight, lastResult,
-  batchSize, onBatchSizeChange, onGenerate, onNeedHooks, onNeedRefs,
+  row, busy, optimisticInflight, lastResult,
+  batchSize, onBatchSizeChange, onGenerate,
 }: {
   row: SongCreationQueueOutcomeRow
-  refTracksReady: number
   busy: boolean
   optimisticInflight: number
   lastResult: SeedBuilderResult | null
   batchSize: number
   onBatchSizeChange: (n: number) => void
   onGenerate: (outcomeId: string, n: number) => void
-  onNeedHooks: () => void
-  onNeedRefs: () => void
 }) {
-  const state = classify(row, refTracksReady)
   const building = row.seedsAssembling + row.seedsQueued + optimisticInflight
   const name = row.displayTitle ?? row.title
-  const canBuild = state === 'ready' || state === 'building'
   const max = Math.min(20, Math.max(1, row.hooksAvailable || 1))
   const n = Math.min(Math.max(1, batchSize), max)
 
   return (
-    <div style={cardStyle(state)}>
-      {/* Left: name + readout */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 14, color: T.text, fontFamily: T.sans, fontWeight: 500 }}>{name}</span>
-          <StateBadge state={state} />
-        </div>
-        <div style={{ fontSize: 11, fontFamily: T.mono, color: T.textDim, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <span>{row.hooksAvailable} ready</span>
-          {row.hooksDraft > 0 && <span>{row.hooksDraft} draft</span>}
-          {building > 0 && <span style={{ color: T.accent }}>{building} building</span>}
-          {row.seedsAccepted > 0 && <span>{row.seedsAccepted} accepted</span>}
-          <span>{relTime(row.lastBatchAt)}</span>
-        </div>
-        {lastResult && (
-          <div style={{ fontSize: 11, fontFamily: T.mono, color: lastResult.errors.length > 0 ? T.danger : T.textMuted, marginTop: 2 }}>
-            built {lastResult.producedN}/{lastResult.requestedN} · {lastResult.reason}
-            {lastResult.errors.length > 0 && ` — ${lastResult.errors.join('; ')}`}
-          </div>
-        )}
+    <div style={cardStyle}>
+      <div style={{ fontSize: 14, color: T.text, fontFamily: T.sans, fontWeight: 500, marginBottom: 8 }}>
+        {name}
       </div>
 
-      {/* Right: state-appropriate action */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        {canBuild ? (
-          <>
-            <input
-              type="number"
-              min={1}
-              max={max}
-              value={n}
-              onChange={(e) => {
-                const v = parseInt(e.target.value, 10)
-                if (Number.isFinite(v)) onBatchSizeChange(Math.min(Math.max(1, v), max))
-              }}
-              style={numberInputStyle}
-              title={`up to ${max}`}
-              disabled={busy}
-            />
-            <button
-              disabled={busy || row.hooksAvailable < 1}
-              onClick={() => onGenerate(row.id, n)}
-              style={primaryBtn(row.hooksAvailable >= 1, busy)}
-            >{busy ? 'building…' : 'build'}</button>
-          </>
-        ) : state === 'needs_hooks' ? (
-          <button onClick={onNeedHooks} style={fixBtn}>write hooks →</button>
-        ) : state === 'needs_refs' ? (
-          <button onClick={onNeedRefs} style={fixBtn}>add reference tracks →</button>
-        ) : null}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 12 }}>
+        <Stat label="hooks ready" value={row.hooksAvailable} />
+        {building > 0 && <Stat label="building" value={building} accent />}
+        {row.seedsAccepted > 0 && <Stat label="accepted" value={row.seedsAccepted} />}
+        <Stat label="last build" value={relTime(row.lastBatchAt)} />
+      </div>
+
+      {lastResult && (
+        <div style={{
+          fontSize: 11, fontFamily: T.mono,
+          color: lastResult.errors.length > 0 ? T.danger : T.textMuted,
+          marginBottom: 10,
+        }}>
+          built {lastResult.producedN}/{lastResult.requestedN}
+          {lastResult.errors.length > 0 && ` — ${lastResult.errors.join('; ')}`}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 'auto' }}>
+        <input
+          type="number"
+          min={1}
+          max={max}
+          value={n}
+          onChange={(e) => {
+            const v = parseInt(e.target.value, 10)
+            if (Number.isFinite(v)) onBatchSizeChange(Math.min(Math.max(1, v), max))
+          }}
+          style={numberInputStyle}
+          title={`up to ${max}`}
+          disabled={busy}
+        />
+        <button
+          disabled={busy || row.hooksAvailable < 1}
+          onClick={() => onGenerate(row.id, n)}
+          style={primaryBtn(row.hooksAvailable >= 1, busy)}
+        >{busy ? 'building…' : 'build'}</button>
       </div>
     </div>
   )
 }
 
-function IdleChip({ row, onStart }: { row: SongCreationQueueOutcomeRow; onStart: () => void }) {
-  const name = row.displayTitle ?? row.title
-  const [hover, setHover] = useState(false)
+function Stat({ label, value, accent }: { label: string; value: number | string; accent?: boolean }) {
   return (
-    <button
-      onClick={onStart}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      title={`Start writing hooks for "${name}"`}
-      style={{
-        background: hover ? T.accentGlow : T.surfaceRaised,
-        border: `1px solid ${hover ? T.accentMuted : T.borderSubtle}`,
-        color: hover ? T.accent : T.textMuted,
-        borderRadius: 3, padding: '4px 10px',
-        fontFamily: T.sans, fontSize: 12, cursor: 'pointer',
-        whiteSpace: 'nowrap',
-      }}
-    >{name}</button>
-  )
-}
-
-function StateBadge({ state }: { state: RowState }) {
-  const map: Record<RowState, { label: string; bg: string; fg: string }> = {
-    ready:        { label: 'ready',       bg: T.accentGlow,            fg: T.accent },
-    building:     { label: 'building',    bg: T.accentGlow,            fg: T.accent },
-    needs_hooks:  { label: 'needs hooks', bg: 'rgba(245,158,11,0.10)', fg: '#f59e0b' },
-    needs_refs:   { label: 'needs refs',  bg: 'rgba(245,158,11,0.10)', fg: '#f59e0b' },
-    idle:         { label: 'idle',        bg: T.surfaceRaised,         fg: T.textDim },
-  }
-  const m = map[state]
-  return (
-    <span style={{
-      fontSize: 9, fontFamily: T.mono, fontWeight: 600,
-      color: m.fg, background: m.bg, border: `1px solid ${m.fg}33`,
-      borderRadius: 2, padding: '1px 6px', whiteSpace: 'nowrap',
-      letterSpacing: '0.05em', textTransform: 'uppercase',
-    }}>{m.label}</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: T.mono }}>
+      <span style={{ color: T.textDim }}>{label}</span>
+      <span style={{ color: accent ? T.accent : T.textMuted }}>{value}</span>
+    </div>
   )
 }
 
@@ -484,18 +445,21 @@ const headerBar: CSSProperties = {
   gap: 16, flexWrap: 'wrap',
 }
 
-function cardStyle(state: RowState): CSSProperties {
-  return {
-    background: T.surface,
-    border: `1px solid ${T.border}`,
-    borderLeft: state === 'ready' || state === 'building'
-      ? `3px solid ${T.accent}`
-      : state === 'needs_hooks' || state === 'needs_refs'
-        ? `3px solid #f59e0b`
-        : `3px solid transparent`,
-    borderRadius: 4, padding: '10px 14px',
-    display: 'flex', gap: 16, alignItems: 'center',
-  }
+const cardGridStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+  gap: 12,
+}
+
+const cardStyle: CSSProperties = {
+  background: T.surface,
+  border: `1px solid ${T.border}`,
+  borderLeft: `3px solid ${T.accent}`,
+  borderRadius: 4,
+  padding: '12px 14px',
+  display: 'flex',
+  flexDirection: 'column',
+  minHeight: 140,
 }
 
 function primaryBtn(active: boolean, busy: boolean): CSSProperties {
@@ -516,14 +480,12 @@ const numberInputStyle: CSSProperties = {
   width: 56, outline: 'none', textAlign: 'center', boxSizing: 'border-box',
 }
 
-const fixBtn: CSSProperties = {
-  background: 'transparent', border: `1px solid #f59e0b`, color: '#f59e0b',
-  padding: '6px 12px', borderRadius: 4,
-  fontFamily: T.mono, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-}
-
 const ghostBtn: CSSProperties = {
   background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
   padding: '5px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 13, cursor: 'pointer',
+}
+
+const linkStyle: CSSProperties = {
+  color: T.accent, textDecoration: 'underline', cursor: 'pointer',
 }
 
