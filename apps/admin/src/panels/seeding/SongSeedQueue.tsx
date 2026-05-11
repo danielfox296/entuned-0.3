@@ -184,9 +184,9 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
             value={styleBuilder}
             onChange={setStyleBuilder}
             options={[
-              { value: 'router', label: 'router' },
-              { value: 'anchor', label: 'anchor' },
-              { value: 'legacy', label: 'legacy' },
+              { value: 'router', label: 'Descriptive', help: 'Long technical description of the track. Current default.' },
+              { value: 'anchor', label: 'Anchor', help: 'Genre tag + surgical corrections + curated negative-style. Short, genre-led ("Anchor-and-Carve").' },
+              { value: 'legacy', label: 'Raw', help: 'Concatenates the decomp prose fields with no shaping. Oldest approach.' },
             ]}
           />
           <button onClick={reload} style={ghostBtn}>refresh</button>
@@ -354,19 +354,20 @@ function StateBadge({ state }: { state: RowState }) {
 function Segmented({ value, onChange, options }: {
   value: StyleBuilder
   onChange: (v: StyleBuilder) => void
-  options: { value: StyleBuilder; label: string }[]
+  options: { value: StyleBuilder; label: string; help?: string }[]
 }) {
   return (
     <div style={{
       display: 'inline-flex', border: `1px solid ${T.border}`, borderRadius: 4,
       background: T.surface, overflow: 'hidden',
-    }} title="Mars style builder strategy. Applies to anything you generate below.">
+    }}>
       {options.map((o, i) => {
         const on = o.value === value
         return (
           <button
             key={o.value}
             onClick={() => onChange(o.value)}
+            title={o.help}
             style={{
               background: on ? T.accent : 'transparent',
               color: on ? T.bg : T.textMuted,
