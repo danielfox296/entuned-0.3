@@ -42,7 +42,7 @@ Hook Writing                Hook → Prompt              Song Creation Queue
 ### Layout (post-redesign)
 
 Two-column workspace:
-- **Left (1/3):** outcome cards stacked vertically. Each card shows the outcome name + `N accepted` count. Selected card highlights and reveals a number input (default 5) + `Draft` button.
+- **Left (1/3):** outcome cards stacked vertically — single-row when collapsed. Each card shows the outcome name on the left and a right-justified count of accepted hooks. Selected card highlights and expands to reveal a number input (default 5) + `Draft` button.
 - **Right (2/3):** drafted hooks appear here as N rows of `[textarea][Accept]`. Clicking `Accept` greys the row and the button becomes `Edit`. There is no separate "approved" column anymore — only the count badge on the card.
 
 Drafts are **ephemeral until Accept** — switching outcomes or refreshing the page discards unaccepted drafts.
@@ -59,12 +59,15 @@ A reasonable target is **8–10 accepted hooks per outcome** so you have headroo
 
 For each outcome you want to seed:
 
-1. **Click the outcome card** in the left column. Cards are `<div>` elements (not buttons) containing the outcome name and an `N accepted` line.
+1. **Click the outcome card** in the left column. Cards are `<div>` elements (not buttons) — the title row is the first child, the right-justified accepted count is the second child.
    ```js
+   // Cards are <div> elements. First child is the title row;
+   // first child of THAT is the name div (the count is the second sibling).
    Array.from(document.querySelectorAll('div'))
      .find(d => {
-       const t = d.textContent || ''
-       return t.startsWith('OutcomeName') && /\d+ accepted/.test(t) && d.children.length <= 3
+       const titleRow = d.children[0]
+       if (!titleRow || !titleRow.children[0]) return false
+       return (titleRow.children[0].textContent || '').trim() === 'OutcomeName'
      })
      ?.click()
    ```
@@ -138,11 +141,13 @@ Click `Song Creation Queue` in the nav. Confirm the new prompts appear with titl
 ## Proven JS patterns
 
 ```js
-// Hook Writing — select an outcome card (cards are divs, not buttons)
+// Hook Writing — select an outcome card (cards are divs, not buttons).
+// First child of the card is the title row; first child of THAT is the name.
 Array.from(document.querySelectorAll('div'))
   .find(d => {
-    const t = d.textContent || '';
-    return t.startsWith('OutcomeName') && /\d+ accepted/.test(t) && d.children.length <= 3;
+    const titleRow = d.children[0];
+    if (!titleRow || !titleRow.children[0]) return false;
+    return (titleRow.children[0].textContent || '').trim() === 'OutcomeName';
   })
   ?.click();
 

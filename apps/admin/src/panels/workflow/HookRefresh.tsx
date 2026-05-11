@@ -169,38 +169,37 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
                 style={{
                   background: active ? T.accentGlow : T.surfaceRaised,
                   border: `1px solid ${active ? T.accent : T.border}`,
-                  borderRadius: 4, padding: '14px 16px',
+                  borderRadius: 4, padding: '8px 12px',
                   cursor: active ? 'default' : 'pointer',
-                  fontFamily: T.sans, minHeight: 130,
-                  display: 'flex', flexDirection: 'column', gap: 10,
+                  fontFamily: T.sans,
+                  display: 'flex', flexDirection: 'column', gap: 8,
                 }}
               >
-                <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{
-                    fontSize: 15, color: T.text, fontWeight: active ? 600 : 500,
+                    fontSize: 14, color: T.text, fontWeight: active ? 600 : 500,
+                    flex: 1,
                   }}>
                     {o.displayTitle ?? o.title}
                   </div>
                   <div style={{
-                    fontSize: 12, color: T.textDim, marginTop: 4, fontFamily: T.mono,
+                    fontSize: 13, color: T.textDim, fontFamily: T.mono,
                   }}>
-                    {count} accepted
+                    {count}
                   </div>
                 </div>
                 {active && (
                   <div
                     onClick={(e) => e.stopPropagation()}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8, marginTop: 'auto',
-                    }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8 }}
                   >
                     <input
                       type="number" min={1} max={20} value={n}
                       onChange={(e) => setN(Math.max(1, Math.min(20, Number(e.target.value) || DEFAULT_N)))}
                       style={{
                         width: 60, background: T.bg, color: T.text,
-                        border: `1px solid ${T.border}`, padding: '6px 8px',
-                        fontFamily: T.mono, fontSize: 14,
+                        border: `1px solid ${T.border}`, padding: '4px 6px',
+                        fontFamily: T.mono, fontSize: 13,
                       }}
                     />
                     <Button onClick={draft} disabled={drafting}>
