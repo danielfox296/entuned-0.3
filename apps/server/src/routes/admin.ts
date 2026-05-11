@@ -22,6 +22,7 @@ import { prisma } from '../db.js'
 import { verify } from '../lib/auth.js'
 import bcrypt from 'bcryptjs'
 import { decompose } from '../lib/decomposer/decomposer.js'
+import { pickSystemDefaultOutcomeId } from '../lib/outcomes.js'
 import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 import { runEno } from '../lib/eno/eno.js'
@@ -635,13 +636,16 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     try {
       const slug = await uniqueStoreSlug(parsed.data.name)
+      // Fall back to the system default if no defaultOutcomeId was supplied,
+      // so admin-created Stores are launchable without an extra setup step.
+      const fallbackOutcomeId = parsed.data.defaultOutcomeId ?? await pickSystemDefaultOutcomeId()
       const row = await prisma.store.create({
         data: {
           clientId: parsed.data.clientId,
           name: parsed.data.name,
           timezone: parsed.data.timezone,
           goLiveDate: parsed.data.goLiveDate ? new Date(parsed.data.goLiveDate) : null,
-          defaultOutcomeId: parsed.data.defaultOutcomeId ?? null,
+          defaultOutcomeId: fallbackOutcomeId,
           slug,
           // tier defaults to 'mvp_pilot' at the DB layer; admin-created Stores
           // are operator-managed and don't go through the customer billing path.

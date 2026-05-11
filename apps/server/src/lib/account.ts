@@ -60,12 +60,20 @@ export async function ensureFreeClientForUser(accountId: string, email: string):
       data: { clientId: client.id, accountId, role: 'owner' },
     })
     const s = await uniqueStoreSlug(localPart)
+    // Pick a system default outcome at creation time so the Store is launchable
+    // out-of-the-box (no "set a default outcome" hard-blocker on first login).
+    const defaultOutcome = await tx.outcome.findFirst({
+      where: { supersededAt: null },
+      orderBy: [{ title: 'asc' }, { version: 'desc' }],
+      select: { id: true },
+    })
     const store = await tx.store.create({
       data: {
         clientId: client.id,
         name: `${localPart} — Main`,
         slug: s,
         tier: 'free',
+        defaultOutcomeId: defaultOutcome?.id ?? null,
         // UTC is honest about not knowing the user's tz at signup time.
         // The customer dashboard surfaces this and prompts them to set the
         // real tz; until they do, daily_cap rolls at UTC midnight.

@@ -18,6 +18,7 @@ import { prisma } from '../db.js'
 import { requireAuth } from '../lib/session.js'
 import { sendWelcome, sendDunning } from '../lib/email.js'
 import { uniqueStoreSlug } from '../lib/account.js'
+import { pickSystemDefaultOutcomeId } from '../lib/outcomes.js'
 import { effectiveTier, tierRank, applyTierChange } from '../lib/tier.js'
 
 // ---------- env ----------
@@ -589,6 +590,7 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
       // If you need per-Store subscription lookups, extend the schema with a
       // join model rather than splitting the Stripe sub.
       const slug = await uniqueStoreSlug(parsed.data.name)
+      const defaultOutcomeId = existing.defaultOutcomeId ?? await pickSystemDefaultOutcomeId()
       const store = await prisma.store.create({
         data: {
           clientId: ctx.clientId,
@@ -596,6 +598,7 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
           slug,
           tier: existing.tier,
           timezone: existing.timezone,
+          defaultOutcomeId,
           // Propagate comp so the new location has the same entitlement.
           ...(isComped && {
             compTier: existing.compTier,
@@ -807,12 +810,14 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
   } else {
     const baseName = client.name ?? (email ? email.split('@')[0] : 'Store')
     const newSlug = await uniqueStoreSlug(baseName)
+    const defaultOutcomeId = await pickSystemDefaultOutcomeId()
     store = await prisma.store.create({
       data: {
         clientId: client.id,
         name: `${baseName} — Main`,
         slug: newSlug,
         tier,
+        defaultOutcomeId,
         // UTC default — the customer sets their real tz from the dashboard.
         timezone: 'UTC',
       },

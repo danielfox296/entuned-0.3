@@ -10,6 +10,7 @@ import { requireAuth } from '../lib/session.js'
 import { effectiveTier, compIsActive, tierRank } from '../lib/tier.js'
 import { uniqueStoreSlug } from '../lib/account.js'
 import { FREE_TIER_ICP_ID } from '../lib/freeTier.js'
+import { pickSystemDefaultOutcomeId } from '../lib/outcomes.js'
 
 interface AuthedClient {
   clientId: string
@@ -164,12 +165,14 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     // a Locations-tab dead-end.
     if (stores.length === 0) {
       const slug = await uniqueStoreSlug(req.user?.email ?? 'store')
+      const defaultOutcomeId = await pickSystemDefaultOutcomeId()
       const created = await prisma.store.create({
         data: {
           clientId: ctx.clientId,
           name: 'Main',
           slug,
           tier: 'free',
+          defaultOutcomeId,
           // UTC default — the dashboard prompts the user to pick a tz.
           timezone: 'UTC',
         },
