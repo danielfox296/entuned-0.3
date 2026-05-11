@@ -341,8 +341,15 @@ async function injectAdIfDue(
 
   // Cadence stays per-calling-store: each free user gets independent
   // "songs since last ad" counters even when sharing a house campaign.
-  const playState = await prisma.campaignPlayState.findUnique({ where: { storeId: store.id } })
-  const songsPlayed = playState?.songsPlayedSinceAd ?? 0
+  // Upsert bootstraps the row the first time a campaign becomes active for
+  // this store. Without this, song_complete updateMany events are no-ops
+  // (row doesn't exist) so the counter never advances and ads never fire.
+  const playState = await prisma.campaignPlayState.upsert({
+    where: { storeId: store.id },
+    create: { storeId: store.id, songsPlayedSinceAd: 0 },
+    update: {},
+  })
+  const songsPlayed = playState.songsPlayedSinceAd
 
   if (songsPlayed < campaign.songsPerAd) {
     // Not yet due — but truncate the batch so the player refetches as soon as the
