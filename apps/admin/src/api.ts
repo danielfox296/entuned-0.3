@@ -535,6 +535,7 @@ export interface SongSeedDetail extends SongSeedRow {
   lyricEditPromptVersion: number | null
   firedExclusionRuleIds: string[]
   outcome: any
+  icp: { id: string; name: string } | null
   referenceTrack: any
   songSeedBatch: any
   lineageRows: any[]
@@ -1204,6 +1205,8 @@ export const api = {
   },
   songSeedDetail: (id: string, token: string) =>
     req<SongSeedDetail>(`/admin/song-seeds/${id}`, {}, token),
+  updateSongSeed: (id: string, body: { lyrics?: string; style?: string; negativeStyle?: string; title?: string; vocalGender?: 'male' | 'female' | 'duet' | 'instrumental' | null }, token: string) =>
+    req<SongSeedDetail>(`/admin/song-seeds/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, token),
   runSeedBuilder: (body: { icpId: string; outcomeId: string; n: number; styleBuilder?: 'router' | 'legacy' | 'anchor' }, token: string) =>
     req<SeedBuilderResult>('/admin/eno/run', { method: 'POST', body: JSON.stringify(body) }, token),
   songCreationQueueInventory: (icpId: string, token: string) =>

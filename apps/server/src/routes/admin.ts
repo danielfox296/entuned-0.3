@@ -2732,7 +2732,55 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       },
     })
     if (!row) return reply.code(404).send({ error: 'not_found' })
-    return row
+    // ICP isn't declared as a Prisma relation on SongSeed; fetch it separately
+    // so the detail surface can show name without a schema change.
+    const icp = await prisma.iCP.findUnique({ where: { id: row.icpId }, select: { id: true, name: true } })
+    return { ...row, icp }
+  })
+
+  const SongSeedPatchBody = z.object({
+    lyrics: z.string().optional(),
+    style: z.string().optional(),
+    negativeStyle: z.string().optional(),
+    title: z.string().optional(),
+    vocalGender: z.enum(['male', 'female', 'duet', 'instrumental']).nullable().optional(),
+  })
+
+  // Edit the prompt fields on a queued song seed. Only queued seeds are editable
+  // (accepted seeds are terminal). Used by the SongSeed modal's Save button and
+  // the auto-save-before-accept flow.
+  app.patch('/song-seeds/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = SongSeedPatchBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+
+    const existing = await prisma.songSeed.findUnique({ where: { id }, select: { status: true } })
+    if (!existing) return reply.code(404).send({ error: 'not_found' })
+    if (existing.status !== 'queued') {
+      return reply.code(409).send({ error: 'not_queued', message: `SongSeed is ${existing.status}; only queued prompts can be edited` })
+    }
+
+    const data: any = {}
+    if (parsed.data.lyrics !== undefined) data.lyrics = parsed.data.lyrics
+    if (parsed.data.style !== undefined) data.style = parsed.data.style
+    if (parsed.data.negativeStyle !== undefined) data.negativeStyle = parsed.data.negativeStyle
+    if (parsed.data.title !== undefined) data.title = parsed.data.title
+    if (parsed.data.vocalGender !== undefined) data.vocalGender = parsed.data.vocalGender
+
+    const row = await prisma.songSeed.update({
+      where: { id },
+      data,
+      include: {
+        hook: { select: { id: true, text: true } },
+        outcome: true,
+        referenceTrack: { include: { styleAnalysis: true } },
+        songSeedBatch: true,
+        lineageRows: { include: { song: true } },
+      },
+    })
+    const icp = await prisma.iCP.findUnique({ where: { id: row.icpId }, select: { id: true, name: true } })
+    return { ...row, icp }
   })
 
   // Song Creation Queue dashboard: per-outcome inventory for an ICP.
