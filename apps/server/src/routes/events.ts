@@ -82,16 +82,19 @@ export const eventsRoutes: FastifyPluginAsync = async (app) => {
     })
 
     // Update campaign play state counters.
-    // song_complete → increment songs_played_since_ad for the store.
-    // Uses updateMany instead of upsert so stores without campaigns (no row) are a no-op.
-    // The row is created by the ad_play path below when a campaign first fires.
-    const songCompleteStores = [...new Set(
-      events.filter((e) => e.event_type === 'song_complete').map((e) => e.store_id),
-    )]
-    await Promise.all(songCompleteStores.map((storeId) =>
+    // song_complete → increment songs_played_since_ad by the exact number of
+    // completions for that store in this batch (batches may contain multiple
+    // song_completes when songs are short or events are held before flush).
+    // updateMany is a no-op for stores with no CampaignPlayState row; the row
+    // is bootstrapped by injectAdIfDue the first time a campaign is active.
+    const songCompleteCountByStore = new Map<string, number>()
+    for (const e of events.filter((e) => e.event_type === 'song_complete')) {
+      songCompleteCountByStore.set(e.store_id, (songCompleteCountByStore.get(e.store_id) ?? 0) + 1)
+    }
+    await Promise.all([...songCompleteCountByStore.entries()].map(([storeId, count]) =>
       prisma.campaignPlayState.updateMany({
         where: { storeId },
-        data: { songsPlayedSinceAd: { increment: 1 } },
+        data: { songsPlayedSinceAd: { increment: count } },
       }),
     ))
 
