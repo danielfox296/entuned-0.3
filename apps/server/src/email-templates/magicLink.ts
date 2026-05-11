@@ -16,7 +16,7 @@ export interface MagicLinkProps {
 }
 
 export function subject(_props: MagicLinkProps): string {
-  return 'Your music is ready'
+  return 'Your Entuned sign-in link'
 }
 
 export function html(props: MagicLinkProps): string {

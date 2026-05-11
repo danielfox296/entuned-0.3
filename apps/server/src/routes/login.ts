@@ -290,6 +290,12 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
         rateLimit: {
           max: 5,
           timeWindow: '15 minutes',
+          // Key by email so per-IP rotation can't spam a single address.
+          keyGenerator: (req) => {
+            const body = req.body as Record<string, unknown>
+            const email = typeof body?.email === 'string' ? body.email.toLowerCase().trim() : ''
+            return `magic-link:${email || req.ip}`
+          },
           errorResponseBuilder: (_req, ctx) => ({
             error: 'rate_limited',
             message: `We just sent you a few sign-in links. Wait about ${Math.ceil((ctx.ttl ?? 60_000) / 60_000)} minute${ctx.ttl && ctx.ttl > 60_000 ? 's' : ''} and try again, or check your inbox / spam.`,
