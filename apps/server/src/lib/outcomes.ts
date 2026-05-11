@@ -28,6 +28,36 @@ import { prisma } from '../db.js'
 
 const FREE_TIER_PREFERENCE = ['all outcomes', 'add energy', 'lift energy']
 
+/**
+ * Resolve the set of Outcome IDs currently allowed for free-tier stores by
+ * joining FreeTierOutcome (keyed by outcomeKey) against the live Outcome table.
+ * Used everywhere a free-tier store could otherwise pick an outcome outside
+ * the allowlist — selection override, schedule slots, default fallback.
+ *
+ * Cheap to call (one indexed join). Don't cache across requests — operators
+ * toggle this set live from the Free Tier Outcomes panel.
+ */
+export async function getFreeTierAllowedOutcomeIds(): Promise<Set<string>> {
+  const allowedKeys = await prisma.freeTierOutcome.findMany({ select: { outcomeKey: true } })
+  if (allowedKeys.length === 0) return new Set()
+  const outcomes = await prisma.outcome.findMany({
+    where: { outcomeKey: { in: allowedKeys.map((r) => r.outcomeKey) } },
+    select: { id: true },
+  })
+  return new Set(outcomes.map((o) => o.id))
+}
+
+/** True iff the given outcome is in the FreeTierOutcome allowlist. */
+export async function isFreeTierAllowedOutcome(outcomeId: string): Promise<boolean> {
+  const outcome = await prisma.outcome.findUnique({
+    where: { id: outcomeId },
+    select: { outcomeKey: true },
+  })
+  if (!outcome) return false
+  const row = await prisma.freeTierOutcome.findUnique({ where: { outcomeKey: outcome.outcomeKey } })
+  return !!row
+}
+
 export async function pickSystemDefaultOutcomeId(tier?: string): Promise<string | null> {
   if (tier === 'free') {
     // Find the canonical outcomeKey for each preferred name and check whether

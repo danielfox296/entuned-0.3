@@ -20,23 +20,39 @@ export function OutcomeSchedule() {
   const [storeId, setStoreId] = useStoreSelection()
   const [rows, setRows] = useState<ScheduleSlot[] | null>(null)
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
+  const [freeTierAllowedKeys, setFreeTierAllowedKeys] = useState<Set<string> | null>(null)
+  const [storeTier, setStoreTier] = useState<string | null>(null)
   const [adding, setAdding] = useState<{ daysOfWeek: number[]; startTime: string; endTime: string; outcomeId: string } | null>(null)
   const [addBusy, setAddBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   const tz = stores?.find((s) => s.id === storeId)?.timezone ?? null
 
+  // Free-tier stores can only schedule outcomes in the FreeTierOutcome
+  // allowlist. Filter the dropdown to match — the server enforces too (409
+  // outcome_not_in_free_tier_allowlist), but the UI shouldn't offer choices
+  // it knows will be rejected.
+  const filteredOutcomes = (() => {
+    if (storeTier !== 'free') return outcomes
+    if (!outcomes || !freeTierAllowedKeys) return outcomes
+    return outcomes.filter((o) => freeTierAllowedKeys.has(o.outcomeKey))
+  })()
+
   useEffect(() => {
     const token = getToken(); if (!token) return
     api.stores(token).then(setStores).catch((e) => setErr(e.message))
     api.outcomes(token).then(setOutcomes).catch((e) => setErr(e.message))
+    api.freeTierOutcomes(token)
+      .then((fto) => setFreeTierAllowedKeys(new Set(fto.filter((x) => x.availableOnFree).map((x) => x.outcomeKey))))
+      .catch(() => setFreeTierAllowedKeys(new Set()))
   }, [])
 
   useEffect(() => {
-    if (!storeId) { setRows(null); return }
+    if (!storeId) { setRows(null); setStoreTier(null); return }
     const token = getToken(); if (!token) return
-    setRows(null)
+    setRows(null); setStoreTier(null)
     api.schedule(storeId, token).then(setRows).catch((e) => setErr(e.message))
+    api.storeDetail(storeId, token).then((d) => setStoreTier(d.store.tier)).catch(() => setStoreTier(null))
   }, [storeId])
 
   const reload = async () => {
@@ -76,7 +92,7 @@ export function OutcomeSchedule() {
           {adding && (
             <MultiDayCreateForm
               draft={adding}
-              outcomes={outcomes}
+              outcomes={filteredOutcomes}
               busy={addBusy}
               onChange={setAdding}
               onSubmit={async () => {
@@ -100,9 +116,15 @@ export function OutcomeSchedule() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8 }}>
             {DAYS.map((d) => (
-              <DayColumn key={d.dow} day={d} rows={grouped[d.dow] ?? []} outcomes={outcomes} onChanged={reload} />
+              <DayColumn key={d.dow} day={d} rows={grouped[d.dow] ?? []} outcomes={filteredOutcomes} onChanged={reload} />
             ))}
           </div>
+
+          {storeTier === 'free' && (
+            <div style={{ fontSize: 11, fontFamily: T.mono, color: T.textDim }}>
+              Free-tier locations can only schedule outcomes from the free-tier allowlist.
+            </div>
+          )}
         </>
       )}
     </div>

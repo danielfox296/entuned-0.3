@@ -2,6 +2,7 @@
 // Resolution order: operator selection > schedule slot covering now (store-local) > store default.
 
 import { prisma } from '../db.js'
+import { getFreeTierAllowedOutcomeIds } from './outcomes.js'
 
 const MIN_OVERRIDE_FLOOR_MS = 30 * 60 * 1000 // 30 minutes
 
@@ -48,11 +49,23 @@ export async function resolveActiveOutcome(storeId: string, now: Date = new Date
   const store = await prisma.store.findUnique({ where: { id: storeId } })
   if (!store) return null
 
+  // Runtime free-tier guard: even if write-time guards or migrations missed
+  // something, never resolve to an outcome that isn't in the FreeTierOutcome
+  // allowlist for a free-tier store. Skips offending sources rather than
+  // returning them — falls through selection → schedule → default. Empty
+  // allowlist short-circuits (treat as "all outcomes allowed" — prevents a
+  // mis-configured DB from blocking playback entirely).
+  const isFree = store.tier === 'free'
+  const allowedIds = isFree ? await getFreeTierAllowedOutcomeIds() : null
+  const isAllowed = (outcomeId: string) =>
+    !isFree || !allowedIds || allowedIds.size === 0 || allowedIds.has(outcomeId)
+
   // 1. Live override?
   if (
     store.outcomeSelectionId &&
     store.outcomeSelectionExpiresAt &&
-    now < store.outcomeSelectionExpiresAt
+    now < store.outcomeSelectionExpiresAt &&
+    isAllowed(store.outcomeSelectionId)
   ) {
     return {
       outcomeId: store.outcomeSelectionId,
@@ -70,13 +83,13 @@ export async function resolveActiveOutcome(storeId: string, now: Date = new Date
   for (const r of rows) {
     const start = timeToSeconds(r.startTime)
     const end = timeToSeconds(r.endTime)
-    if (secondsOfDay >= start && secondsOfDay < end) {
+    if (secondsOfDay >= start && secondsOfDay < end && isAllowed(r.outcomeId)) {
       return { outcomeId: r.outcomeId, source: 'schedule' }
     }
   }
 
   // 3. Default outcome.
-  if (store.defaultOutcomeId) {
+  if (store.defaultOutcomeId && isAllowed(store.defaultOutcomeId)) {
     return { outcomeId: store.defaultOutcomeId, source: 'default' }
   }
 

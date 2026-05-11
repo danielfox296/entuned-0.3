@@ -22,7 +22,7 @@ import { prisma } from '../db.js'
 import { verify } from '../lib/auth.js'
 import bcrypt from 'bcryptjs'
 import { decompose } from '../lib/decomposer/decomposer.js'
-import { pickSystemDefaultOutcomeId } from '../lib/outcomes.js'
+import { pickSystemDefaultOutcomeId, isFreeTierAllowedOutcome } from '../lib/outcomes.js'
 import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 import { runEno } from '../lib/eno/eno.js'
@@ -2380,6 +2380,13 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const id = (req.params as any).id as string
     const parsed = OverrideBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const target = await prisma.store.findUnique({ where: { id }, select: { tier: true } })
+    if (target?.tier === 'free' && !(await isFreeTierAllowedOutcome(parsed.data.outcomeId))) {
+      return reply.code(409).send({
+        error: 'outcome_not_in_free_tier_allowlist',
+        message: 'This outcome is not available on the free tier.',
+      })
+    }
     try {
       const { outcomeId, expiresAt } = await setOverride(id, parsed.data.outcomeId)
       await prisma.playbackEvent.create({
@@ -2454,6 +2461,15 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (hhmmToSec(parsed.data.startTime) >= hhmmToSec(parsed.data.endTime)) {
       return reply.code(400).send({ error: 'start_must_precede_end' })
     }
+    // Free-tier guard: schedule slots may only reference outcomes in the
+    // FreeTierOutcome allowlist (same rule that gates default-outcome picks).
+    const target = await prisma.store.findUnique({ where: { id }, select: { tier: true } })
+    if (target?.tier === 'free' && !(await isFreeTierAllowedOutcome(parsed.data.outcomeId))) {
+      return reply.code(409).send({
+        error: 'outcome_not_in_free_tier_allowlist',
+        message: 'This outcome is not available on the free tier.',
+      })
+    }
     const newStart = hhmmToSec(parsed.data.startTime)
     const newEnd = hhmmToSec(parsed.data.endTime)
     const existing = await prisma.scheduleSlot.findMany({ where: { storeId: id, dayOfWeek: parsed.data.dayOfWeek } })
@@ -2495,6 +2511,15 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
     const current = await prisma.scheduleSlot.findUnique({ where: { id } })
     if (!current) return reply.code(404).send({ error: 'not_found' })
+    // Free-tier guard: same rule as create — outcome must be allowlisted when
+    // the owning store is free tier.
+    const target = await prisma.store.findUnique({ where: { id: current.storeId }, select: { tier: true } })
+    if (target?.tier === 'free' && !(await isFreeTierAllowedOutcome(parsed.data.outcomeId))) {
+      return reply.code(409).send({
+        error: 'outcome_not_in_free_tier_allowlist',
+        message: 'This outcome is not available on the free tier.',
+      })
+    }
     const updStart = hhmmToSec(parsed.data.startTime)
     const updEnd = hhmmToSec(parsed.data.endTime)
     const siblings = await prisma.scheduleSlot.findMany({
