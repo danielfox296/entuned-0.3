@@ -267,6 +267,12 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
           {!activeOutcomeId && (
             <Empty>select an outcome to start drafting hooks</Empty>
           )}
+          {activeOutcomeId && <ManualHookEntry onAdd={(text) => {
+            setRows((rs) => [{
+              text, vocalGender: null, hookId: null, persistedAs: null,
+              rejectionReason: null, saving: false, editing: false,
+            }, ...rs])
+          }} />}
           {activeOutcomeId && drafting && (
             <LlmProgress
               etaSeconds={Math.max(8, n * 3)}
@@ -274,7 +280,7 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
             />
           )}
           {activeOutcomeId && !drafting && rows.length === 0 && (
-            <Empty>click Draft to generate hooks</Empty>
+            <Empty>click Draft to generate hooks, or type one above</Empty>
           )}
           {rows.map((row, idx) => {
             const persisted = !!row.hookId
@@ -395,6 +401,34 @@ function Heading({ children }: { children: React.ReactNode }) {
     <div style={{
       fontFamily: T.sans, fontSize: 13, color: T.textDim, fontWeight: 500,
     }}>{children}</div>
+  )
+}
+
+function ManualHookEntry({ onAdd }: { onAdd: (text: string) => void }) {
+  const [value, setValue] = useState('')
+  const submit = () => {
+    const t = value.trim()
+    if (!t) return
+    onAdd(t)
+    setValue('')
+  }
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') submit() }}
+        placeholder="type a hook line manually…"
+        style={{
+          flex: 1, background: T.bg, color: T.text,
+          border: `1px solid ${T.border}`, borderRadius: 3,
+          padding: '8px 10px', fontFamily: T.sans, fontSize: 14,
+          outline: 'none',
+        }}
+      />
+      <Button onClick={submit} disabled={!value.trim()}>Add</Button>
+    </div>
   )
 }
 

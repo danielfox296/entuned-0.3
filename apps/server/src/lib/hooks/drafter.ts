@@ -272,11 +272,15 @@ Output JSON only.`
   return { systemPrompt: prompt.promptText, userMessage, existingHookTexts }
 }
 
-/**
- * Draft hooks using the per-outcome hookPrompt. The prompt is sent as-is to
- * Claude; the response is parsed as plain text lines (one hook per line).
- * No ICP psychographic data is injected — the prompt is the complete brief.
- */
+const OUTCOME_PROMPT_SYSTEM = `You generate hook lines for songs. The user will provide a creative brief.
+
+Return JSON only, no prose, no markdown fences:
+
+{ "hooks": [ { "text": "...", "vocal_gender": null }, ... ] }
+
+vocal_gender values: "male", "female", "duet", or null (gender-neutral, the default for most hooks).
+`.trim()
+
 async function draftHooksFromOutcomePrompt(opts: {
   hookPrompt: string
   icpId: string
@@ -298,6 +302,7 @@ async function draftHooksFromOutcomePrompt(opts: {
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 4000,
+    system: [{ type: 'text', text: OUTCOME_PROMPT_SYSTEM, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: opts.hookPrompt }],
   })
 
@@ -305,11 +310,32 @@ async function draftHooksFromOutcomePrompt(opts: {
   if (!textBlock?.text) throw new Error('Hook drafter returned no text')
   const raw = textBlock.text as string
 
-  const hooks: DraftedHook[] = raw
-    .split('\n')
-    .map((line) => line.replace(/^\d+[\.\)]\s*/, '').replace(/^[-–—•]\s*/, '').replace(/^[""]|[""]$/g, '').trim())
-    .filter((line) => line.length >= 4 && line.length <= 200)
-    .map((text) => ({ text, vocalGender: null }))
+  const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+  const start = cleaned.indexOf('{')
+  if (start < 0) throw new Error('No JSON object found in drafter output')
+  const parsed = JSON.parse(cleaned.slice(start)) as { hooks: unknown }
+  if (!Array.isArray(parsed.hooks)) throw new Error('Drafter output missing hooks array')
+
+  const allowed: HookVocalGender[] = ['male', 'female', 'duet', null]
+  const hooks: DraftedHook[] = parsed.hooks
+    .map((row): DraftedHook | null => {
+      if (typeof row === 'string') {
+        const t = row.trim()
+        return t ? { text: t, vocalGender: null } : null
+      }
+      if (row && typeof row === 'object') {
+        const r = row as { text?: unknown; vocal_gender?: unknown; vocalGender?: unknown }
+        const text = typeof r.text === 'string' ? r.text.trim() : ''
+        if (!text) return null
+        const rawGender = r.vocal_gender ?? r.vocalGender
+        const vocalGender =
+          rawGender === 'male' || rawGender === 'female' || rawGender === 'duet' ? rawGender : null
+        if (!allowed.includes(vocalGender)) return null
+        return { text, vocalGender }
+      }
+      return null
+    })
+    .filter((h): h is DraftedHook => h !== null)
 
   const existingTrigrams = new Set<string>()
   for (const t of existingHookTexts) {
