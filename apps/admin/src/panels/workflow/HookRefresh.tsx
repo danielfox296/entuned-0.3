@@ -65,6 +65,17 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
     }).catch((e) => setErr(e.message))
   }, [ctx.icpId])
 
+  // Honor an outcome pre-select hint from another panel (e.g. Pipeline → click
+  // on an idle-outcome chip). Read once on mount, then clear so navigating away
+  // and back doesn't keep re-selecting.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const pending = window.sessionStorage.getItem('workflow.pendingOutcomeId')
+    if (!pending) return
+    window.sessionStorage.removeItem('workflow.pendingOutcomeId')
+    setActiveOutcomeId(pending)
+  }, [])
+
   const liveOutcomes = useMemo(
     () => (outcomes ?? [])
       .filter((o) => !o.supersededAt)

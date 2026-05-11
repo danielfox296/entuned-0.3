@@ -108,7 +108,15 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
     }
   }, [icpId, styleBuilder, reload])
 
-  const navTo = (sub: string) => { window.location.hash = `workflows/${encodeURIComponent(sub)}` }
+  const navTo = (sub: string, pendingOutcomeId?: string) => {
+    // Hand the destination panel a hint via sessionStorage so it can pre-select
+    // the outcome we were just looking at. The destination panel reads + clears
+    // this on mount. Keeps URL clean while making deep-links land somewhere useful.
+    if (pendingOutcomeId && typeof window !== 'undefined') {
+      window.sessionStorage.setItem('workflow.pendingOutcomeId', pendingOutcomeId)
+    }
+    window.location.hash = `workflows/${encodeURIComponent(sub)}`
+  }
 
   const totals = useMemo(() => {
     if (!inv) return null
@@ -195,22 +203,24 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
               batchSize={batchSize[o.id] ?? 1}
               onBatchSizeChange={(n) => setBatchSize((b) => ({ ...b, [o.id]: n }))}
               onGenerate={generate}
-              onNeedHooks={() => navTo('Hook Writing')}
-              onNeedRefs={() => navTo('Reference Tracks')}
+              onNeedHooks={() => navTo('Hook Writing', o.id)}
+              onNeedRefs={() => navTo('Reference Tracks', o.id)}
             />
           ))}
         </div>
       )}
 
-      {/* Idle outcomes — compact dimmed rows, still visible */}
+      {/* Idle outcomes — chip flow. Clicking pre-selects the outcome in Hook Writing. */}
       {inv && idle.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono, letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: 4 }}>
-            untouched · {idle.length}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontSize: 11, color: T.textDim, fontFamily: T.mono, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+            or start an outcome with no hooks yet
           </div>
-          {idle.map((o) => (
-            <IdleRow key={o.id} row={o} onStart={() => navTo('Hook Writing')} />
-          ))}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {idle.map((o) => (
+              <IdleChip key={o.id} row={o} onStart={() => navTo('Hook Writing', o.id)} />
+            ))}
+          </div>
         </div>
       )}
 
@@ -322,15 +332,24 @@ function OutcomeCard({
   )
 }
 
-function IdleRow({ row, onStart }: { row: SongCreationQueueOutcomeRow; onStart: () => void }) {
+function IdleChip({ row, onStart }: { row: SongCreationQueueOutcomeRow; onStart: () => void }) {
   const name = row.displayTitle ?? row.title
+  const [hover, setHover] = useState(false)
   return (
-    <div style={idleRowStyle}>
-      <span style={{ fontSize: 12, fontFamily: T.sans, color: T.textMuted, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {name}
-      </span>
-      <button onClick={onStart} style={subtleLink}>start →</button>
-    </div>
+    <button
+      onClick={onStart}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title={`Start writing hooks for "${name}"`}
+      style={{
+        background: hover ? T.accentGlow : T.surfaceRaised,
+        border: `1px solid ${hover ? T.accentMuted : T.borderSubtle}`,
+        color: hover ? T.accent : T.textMuted,
+        borderRadius: 3, padding: '4px 10px',
+        fontFamily: T.sans, fontSize: 12, cursor: 'pointer',
+        whiteSpace: 'nowrap',
+      }}
+    >{name}</button>
   )
 }
 
@@ -508,14 +527,3 @@ const ghostBtn: CSSProperties = {
   padding: '5px 12px', borderRadius: 3, fontFamily: T.mono, fontSize: 13, cursor: 'pointer',
 }
 
-const idleRowStyle: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 12,
-  padding: '6px 14px', borderRadius: 3,
-  borderLeft: `3px solid transparent`,
-  opacity: 0.65,
-}
-
-const subtleLink: CSSProperties = {
-  background: 'transparent', border: 'none', color: T.textDim,
-  fontFamily: T.mono, fontSize: 11, cursor: 'pointer', padding: '2px 4px',
-}
