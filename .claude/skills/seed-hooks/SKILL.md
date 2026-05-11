@@ -39,33 +39,62 @@ Hook Writing                Hook → Prompt              Song Creation Queue
 
 `Workflows → Hook Writing`. Verify ICP filter is Gary.
 
+### Layout (post-redesign)
+
+Two-column workspace:
+- **Left (1/3):** outcome cards stacked vertically. Each card shows the outcome name + `N accepted` count. Selected card highlights and reveals a number input (default 5) + `Draft` button.
+- **Right (2/3):** drafted hooks appear here as N rows of `[textarea][Accept]`. Clicking `Accept` greys the row and the button becomes `Edit`. There is no separate "approved" column anymore — only the count badge on the card.
+
+Drafts are **ephemeral until Accept** — switching outcomes or refreshing the page discards unaccepted drafts.
+
 ### Decide which outcomes need more hooks
 
 Cross-reference `Library → Pool Depth`:
 - Outcome with **0 songs** = critical, needs hooks ASAP
 - Outcome with **< 5 songs** = critical, but lower priority
 
-A reasonable target is **8–10 approved hooks per outcome** so you have headroom for multiple seed runs.
+A reasonable target is **8–10 accepted hooks per outcome** so you have headroom for multiple seed runs.
 
-### Generate and approve drafts
+### Generate and accept drafts
 
 For each outcome you want to seed:
 
-1. **Click the outcome row** in the main list. Match by regex `^OutcomeName\d` (e.g. `^Calm\d`) — the count digit immediately follows the name. There's a condensed nav row that uses `Calm · 5`; avoid that one.
+1. **Click the outcome card** in the left column. Cards are `<div>` elements (not buttons) containing the outcome name and an `N accepted` line.
+   ```js
+   Array.from(document.querySelectorAll('div'))
+     .find(d => {
+       const t = d.textContent || ''
+       return t.startsWith('OutcomeName') && /\d+ accepted/.test(t) && d.children.length <= 3
+     })
+     ?.click()
+   ```
 
-2. **Click `generate 5 drafts`** to bulk-generate AI hook suggestions. Wait 30–60s.
-
-3. **Verify drafts appeared**: read the page text for `Drafts (5)`. If still `Drafts (0)`, wait another 30s — there is no spinner.
-
-4. **Approve all drafts** with one JS call:
+2. **Click `Draft`** inside the now-active card. Wait 30–60s.
    ```js
    Array.from(document.querySelectorAll('button'))
-     .filter(b => b.textContent.trim() === 'approve')
+     .find(b => b.textContent.trim() === 'Draft')
+     ?.click()
+   ```
+
+3. **Verify drafts appeared:** check that the right column has N `<textarea>` elements with non-empty values and N adjacent `Accept` buttons. If not yet, wait another 30s — there is a progress bar but it does not block.
+   ```js
+   document.querySelectorAll('textarea').length  // should equal your N
+   ```
+
+4. **Accept all drafts** with one JS call:
+   ```js
+   Array.from(document.querySelectorAll('button'))
+     .filter(b => b.textContent.trim() === 'Accept' && !b.disabled)
      .forEach(b => b.click())
    ```
-   Each click emits a `hook approved` toast.
+   Each click emits a `hook saved` toast and the card's `accepted` count increments. Accepted rows grey out and their button changes to `Edit` — they will not be re-accepted by a second pass.
 
-5. **Watch out**: don't immediately click `generate` again after switching outcomes — the panel switch is async. Always re-verify the active outcome before any action button click. If you skip this, you'll generate drafts on the wrong outcome.
+5. **Read draft text** (e.g. for the RUN_LOG) before accepting:
+   ```js
+   Array.from(document.querySelectorAll('textarea')).map(t => t.value)
+   ```
+
+6. **Watch out:** clicking a different outcome card wipes the drafts in the right column. Always finish accepting (or copying) the current outcome's drafts before switching.
 
 ## Phase 2 — Hook → Prompt
 
@@ -109,32 +138,26 @@ Click `Song Creation Queue` in the nav. Confirm the new prompts appear with titl
 ## Proven JS patterns
 
 ```js
-// Hook Writing — switch to outcome's full pane (avoid condensed nav row)
-Array.from(document.querySelectorAll('button'))
-  .find(b => b.textContent.match(/^OutcomeName\d/))
+// Hook Writing — select an outcome card (cards are divs, not buttons)
+Array.from(document.querySelectorAll('div'))
+  .find(d => {
+    const t = d.textContent || '';
+    return t.startsWith('OutcomeName') && /\d+ accepted/.test(t) && d.children.length <= 3;
+  })
   ?.click();
 
-// Hook Writing — click bulk generate
+// Hook Writing — click Draft (inside the active card)
 Array.from(document.querySelectorAll('button'))
-  .find(b => b.textContent.trim() === 'generate 5 drafts')
+  .find(b => b.textContent.trim() === 'Draft')
   ?.click();
 
-// Hook Writing — approve all visible drafts
+// Hook Writing — accept all visible drafts (skips already-accepted rows)
 Array.from(document.querySelectorAll('button'))
-  .filter(b => b.textContent.trim() === 'approve')
+  .filter(b => b.textContent.trim() === 'Accept' && !b.disabled)
   .forEach(b => b.click());
 
-// Hook Writing — read draft hook text by walking up from each approve button
-const approveBtns = Array.from(document.querySelectorAll('button'))
-  .filter(b => b.textContent.trim() === 'approve');
-const drafts = approveBtns.map(b => {
-  let c = b.parentElement;
-  for (let i = 0; i < 5 && c; i++) {
-    const t = c.textContent.trim();
-    if (t.length > 30 && t.length < 500) return t;
-    c = c.parentElement;
-  }
-});
+// Hook Writing — read all draft texts
+Array.from(document.querySelectorAll('textarea')).map(t => t.value);
 
 // Hook → Prompt — switch outcome (then setTimeout 1500ms before next click)
 Array.from(document.querySelectorAll('button'))

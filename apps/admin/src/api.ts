@@ -1058,7 +1058,7 @@ export const api = {
     req<PoolDepthResponse>('/admin/pool-depth', {}, token),
   icpHooks: (icpId: string, token: string) =>
     req<HookRowFull[]>(`/admin/icps/${icpId}/hooks`, {}, token),
-  createHook: (icpId: string, body: { text: string; outcomeId: string; approve?: boolean }, token: string) =>
+  createHook: (icpId: string, body: { text: string; outcomeId: string; vocalGender?: HookVocalGender; approve?: boolean }, token: string) =>
     req<HookRowFull>(`/admin/icps/${icpId}/hooks`, { method: 'POST', body: JSON.stringify(body) }, token),
   updateHook: (id: string, body: { text?: string; outcomeId?: string }, token: string) =>
     req<HookRowFull>(`/admin/hooks/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),

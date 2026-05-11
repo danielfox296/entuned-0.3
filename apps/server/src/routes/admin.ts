@@ -1883,6 +1883,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   const HookCreateBody = z.object({
     text: z.string().min(1),
     outcomeId: z.string().uuid(),
+    vocalGender: z.enum(['male', 'female', 'duet']).nullable().optional(),
     approve: z.boolean().optional(),
   })
 
@@ -2019,6 +2020,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         icpId,
         outcomeId: parsed.data.outcomeId,
         text: parsed.data.text,
+        vocalGender: parsed.data.vocalGender ?? null,
         status: parsed.data.approve ? 'approved' : 'draft',
       }
       if (parsed.data.approve) {
