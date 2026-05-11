@@ -54,10 +54,10 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Outcome Schedule'],
     description: '' },
   { key: 'outcomes', label: 'Outcomes', short: 'Outcomes', icon: Target,
-    cards: ['Outcome Library', 'Style Rules', 'Hook Prompts', 'Dry Run'],
+    cards: ['Outcome Library', 'Style Rules', 'Dry Run'],
     description: '' },
   { key: 'engine', label: 'Prompts & Rules', short: 'Prompts & Rules', icon: Settings,
-    cards: ['Hook Drafter', 'Decomposition', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Form Archetypes', 'Reference Track Suggester'],
+    cards: ['Hook Prompts', 'Hook Drafter (legacy)', 'Decomposition', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Form Archetypes', 'Reference Track Suggester'],
     description: '' },
   { key: 'catalogue', label: 'Library', short: 'Library', icon: Music2,
     cards: ['Song Browser', 'Flagged Review', 'Pool Depth', 'Free Tier Outcomes'],
@@ -285,7 +285,8 @@ function EngineRouter({ cards }: { cards: string[] }) {
           )
         })}
       </div>
-      {active === 'Hook Drafter' && <HookDrafterPrompt />}
+      {active === 'Hook Prompts' && <OutcomeLyricFactor />}
+      {active === 'Hook Drafter (legacy)' && <HookDrafterPrompt />}
       {active === 'Decomposition' && <DecomposerRules />}
       {active === 'Style Exclusion Rules' && <FailureRules />}
       {active === 'Lyric Ban List' && <LyricBanList />}
@@ -459,7 +460,6 @@ function OutcomesRouter({ cards }: { cards: string[] }) {
       </div>
       {active === 'Outcome Library' && <OutcomeLibrary />}
       {active === 'Style Rules' && <OutcomeFactorPrompt />}
-      {active === 'Hook Prompts' && <OutcomeLyricFactor />}
       {active === 'Dry Run' && <DryRun />}
     </div>
   )
