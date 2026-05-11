@@ -272,11 +272,74 @@ Output JSON only.`
   return { systemPrompt: prompt.promptText, userMessage, existingHookTexts }
 }
 
+/**
+ * Draft hooks using the per-outcome hookPrompt. The prompt is sent as-is to
+ * Claude; the response is parsed as plain text lines (one hook per line).
+ * No ICP psychographic data is injected — the prompt is the complete brief.
+ */
+async function draftHooksFromOutcomePrompt(opts: {
+  hookPrompt: string
+  icpId: string
+  outcomeId: string
+  n: number
+}): Promise<DraftHooksResult> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
+  const client = new Anthropic({ apiKey })
+
+  const existingHooks = await prisma.hook.findMany({
+    where: { icpId: opts.icpId, outcomeId: opts.outcomeId },
+    select: { text: true },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+  })
+  const existingHookTexts = existingHooks.map((h) => h.text)
+
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 4000,
+    messages: [{ role: 'user', content: opts.hookPrompt }],
+  })
+
+  const textBlock = response.content.find((b: any) => b.type === 'text') as any
+  if (!textBlock?.text) throw new Error('Hook drafter returned no text')
+  const raw = textBlock.text as string
+
+  const hooks: DraftedHook[] = raw
+    .split('\n')
+    .map((line) => line.replace(/^\d+[\.\)]\s*/, '').replace(/^[-–—•]\s*/, '').replace(/^[""]|[""]$/g, '').trim())
+    .filter((line) => line.length >= 4 && line.length <= 200)
+    .map((text) => ({ text, vocalGender: null }))
+
+  const existingTrigrams = new Set<string>()
+  for (const t of existingHookTexts) {
+    for (const tg of extractTrigrams(t)) existingTrigrams.add(tg)
+  }
+  const deduped = hooks.filter((h) => !sharesTooManyTrigrams(h.text, existingTrigrams))
+
+  return { hooks: deduped, rawText: raw, promptUsed: opts.hookPrompt }
+}
+
 export async function draftHooks(opts: {
   icpId: string
   outcomeId: string
   n: number
 }): Promise<DraftHooksResult> {
+  // Check for per-outcome hookPrompt first — if set, use it as the complete
+  // prompt with no ICP context injection.
+  const outcome = await prisma.outcome.findUniqueOrThrow({
+    where: { id: opts.outcomeId },
+    select: { outcomeKey: true },
+  })
+  const factor = await prisma.outcomeLyricFactor.findUnique({
+    where: { outcomeKey: outcome.outcomeKey },
+    select: { hookPrompt: true },
+  })
+  if (factor?.hookPrompt?.trim()) {
+    return draftHooksFromOutcomePrompt({ hookPrompt: factor.hookPrompt, ...opts })
+  }
+
+  // Legacy path: ICP-entangled prompt with complex context building
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
   const client = new Anthropic({ apiKey })
@@ -300,9 +363,6 @@ export async function draftHooks(opts: {
   const parsed = JSON.parse(cleaned.slice(start)) as { hooks: unknown }
   if (!Array.isArray(parsed.hooks)) throw new Error('Drafter output missing hooks array')
 
-  // Accept both shapes: legacy bare-string array and the v2 structured-object
-  // array. The structured form is what the current prompt produces, but
-  // tolerating bare strings keeps prompt edits forgiving.
   const allowed: HookVocalGender[] = ['male', 'female', 'duet', null]
   const hooks: DraftedHook[] = parsed.hooks
     .map((row): DraftedHook | null => {

@@ -2,13 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { api, getToken, outcomeLabel } from '../../api.js'
 import type { OutcomeLyricFactorRow } from '../../api.js'
 import { T } from '../../tokens.js'
-import { Button, Section, S, useToast } from '../../ui/index.js'
+import { Button, S, useToast } from '../../ui/index.js'
 
-/**
- * Per-outcome editable guidance string injected into the Hook Drafter user
- * message under "Lyric guidance for this outcome". Keyed by outcomeKey so
- * iterating doesn't spawn new Outcome versions.
- */
 export function OutcomeLyricFactor() {
   const [rows, setRows] = useState<OutcomeLyricFactorRow[] | null>(null)
   const [drafts, setDrafts] = useState<Record<string, string>>({})
@@ -33,24 +28,29 @@ export function OutcomeLyricFactor() {
     () => (rows && activeKey ? rows.find((r) => r.outcomeKey === activeKey) ?? null : null),
     [rows, activeKey],
   )
-  const draftValue = active ? (drafts[active.outcomeKey] ?? active.templateText) : ''
-  const dirty = !!active && draftValue !== active.templateText
+  const draftValue = active ? (drafts[active.outcomeKey] ?? active.hookPrompt ?? '') : ''
+  const savedValue = active?.hookPrompt ?? ''
+  const dirty = !!active && draftValue !== savedValue
 
   const save = async () => {
     if (!active || !dirty) return
     const token = getToken(); if (!token) return
     setBusy(active.outcomeKey); setErr(null)
     try {
-      await api.saveOutcomeLyricFactor(active.outcomeKey, { templateText: draftValue }, token)
+      await api.saveOutcomeLyricFactor(active.outcomeKey, { hookPrompt: draftValue || null }, token)
       setDrafts((d) => { const n = { ...d }; delete n[active.outcomeKey]; return n })
       await reload()
-      toast.success(`saved guidance for ${outcomeLabel(active)}`)
+      toast.success(`saved hook prompt for ${outcomeLabel(active)}`)
     } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'failed to save') }
     finally { setBusy(null) }
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textDim, lineHeight: 1.5 }}>
+        Per-outcome prompt sent directly to the LLM when drafting hooks. The entire prompt — no ICP data is injected.
+      </div>
+
       {err && <div style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</div>}
       {!rows && <div style={{ color: T.textMuted, fontFamily: T.sans, fontSize: S.small }}>loading…</div>}
 
@@ -61,41 +61,40 @@ export function OutcomeLyricFactor() {
       )}
 
       {rows && rows.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 16, alignItems: 'start' }}>
-          {/* Outcome list */}
+        <>
+          {/* Outcome tabs — horizontal across the top */}
           <div style={{
-            border: `1px solid ${T.border}`, borderRadius: 4, overflow: 'hidden',
-            background: T.surface,
+            display: 'flex', flexWrap: 'wrap', gap: 6,
+            borderBottom: `1px solid ${T.border}`, paddingBottom: 10,
           }}>
             {rows.map((r) => {
               const on = r.outcomeKey === activeKey
-              const hasGuidance = (drafts[r.outcomeKey] ?? r.templateText).trim().length > 0
-              const isDirty = drafts[r.outcomeKey] !== undefined && drafts[r.outcomeKey] !== r.templateText
+              const hasPrompt = (drafts[r.outcomeKey] ?? r.hookPrompt ?? '').trim().length > 0
+              const isDirty = drafts[r.outcomeKey] !== undefined && drafts[r.outcomeKey] !== (r.hookPrompt ?? '')
               return (
                 <button
                   key={r.outcomeKey}
                   onClick={() => setActiveKey(r.outcomeKey)}
                   style={{
-                    width: '100%', textAlign: 'left',
                     background: on ? T.accentGlow : 'transparent',
-                    border: 'none',
-                    borderLeft: on ? `2px solid ${T.accent}` : '2px solid transparent',
-                    borderBottom: `1px solid ${T.borderSubtle}`,
-                    color: T.text,
-                    padding: '10px 12px', cursor: 'pointer',
-                    fontFamily: T.sans, fontSize: S.small,
-                    display: 'flex', flexDirection: 'column', gap: 3,
+                    border: on ? `1px solid ${T.accent}` : `1px solid ${T.borderSubtle}`,
+                    borderRadius: 4,
+                    color: on ? T.text : T.textMuted,
+                    padding: '6px 14px', cursor: 'pointer',
+                    fontFamily: T.sans, fontSize: 13, fontWeight: on ? 500 : 400,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    transition: 'all 0.1s ease',
                   }}
                 >
-                  <span style={{ fontWeight: on ? 500 : 400 }}>
-                    {outcomeLabel(r)}
-                    {isDirty && <span style={{ color: T.warn, marginLeft: 6 }}>•</span>}
-                  </span>
-                  <span style={{
-                    fontSize: S.label, color: hasGuidance ? T.accentMuted : T.textDim,
-                  }}>
-                    {hasGuidance ? 'has guidance' : 'no guidance'}
-                  </span>
+                  <span>{outcomeLabel(r)}</span>
+                  {isDirty && <span style={{ color: T.warn, fontSize: 16, lineHeight: 1 }}>•</span>}
+                  {!isDirty && (
+                    <span style={{
+                      width: 6, height: 6, borderRadius: '50%',
+                      background: hasPrompt ? T.success : T.borderSubtle,
+                      flexShrink: 0,
+                    }} />
+                  )}
                 </button>
               )
             })}
@@ -103,26 +102,26 @@ export function OutcomeLyricFactor() {
 
           {/* Editor */}
           {active ? (
-            <Section
-              title={`Guidance for "${outcomeLabel(active)}"`}
-              subtitle="Injected into the Hook Drafter as authoritative guidance for this outcome's emotional target. Keep it concrete: diction, imagery, what to avoid."
-            >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ fontFamily: T.sans, fontSize: 14, color: T.text, fontWeight: 500 }}>
+                {outcomeLabel(active)}
+              </div>
               <textarea
                 value={draftValue}
                 onChange={(e) => setDrafts({ ...drafts, [active.outcomeKey]: e.target.value })}
-                rows={18}
-                placeholder={`e.g. for "${outcomeLabel(active)}", lean into open vowels, present-tense verbs, body-aware imagery; avoid command-form, urgency words, market-y phrasing…`}
+                rows={24}
+                placeholder="Paste the complete hook generation prompt for this outcome…"
                 style={{
                   width: '100%', boxSizing: 'border-box',
                   background: T.bg, color: T.text,
                   border: `1px solid ${T.border}`, borderRadius: 4,
-                  padding: '10px 12px', fontFamily: T.sans, fontSize: 14,
-                  lineHeight: 1.55, resize: 'vertical', outline: 'none',
+                  padding: '12px 14px', fontFamily: T.sans, fontSize: 13,
+                  lineHeight: 1.6, resize: 'vertical', outline: 'none',
                 }}
               />
-              <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <Button onClick={save} disabled={!dirty} busy={busy === active.outcomeKey}>
-                  {busy === active.outcomeKey ? 'saving…' : (dirty ? 'save guidance' : 'no changes')}
+                  {busy === active.outcomeKey ? 'saving…' : (dirty ? 'save' : 'no changes')}
                 </Button>
                 {dirty && (
                   <Button
@@ -132,18 +131,18 @@ export function OutcomeLyricFactor() {
                 )}
                 <span style={{ flex: 1 }} />
                 {active.updatedAt && (
-                  <span style={{ fontFamily: T.sans, fontSize: S.label, color: T.textDim }}>
+                  <span style={{ fontFamily: T.sans, fontSize: 11, color: T.textDim }}>
                     updated {new Date(active.updatedAt).toLocaleString()}
                   </span>
                 )}
               </div>
-            </Section>
+            </div>
           ) : (
             <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>
-              pick an outcome on the left to edit its lyric guidance
+              pick an outcome above to edit its hook prompt
             </div>
           )}
-        </div>
+        </>
       )}
     </div>
   )

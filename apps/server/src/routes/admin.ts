@@ -1349,13 +1349,15 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       displayTitle: o.displayTitle,
       version: o.version,
       templateText: factorByKey.get(o.outcomeKey)?.templateText ?? '',
+      hookPrompt: factorByKey.get(o.outcomeKey)?.hookPrompt ?? null,
       notes: factorByKey.get(o.outcomeKey)?.notes ?? null,
       updatedAt: factorByKey.get(o.outcomeKey)?.updatedAt?.toISOString() ?? null,
     }))
   })
 
   const OutcomeLyricFactorBody = z.object({
-    templateText: z.string(),
+    templateText: z.string().optional(),
+    hookPrompt: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),
   })
 
@@ -1367,14 +1369,19 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     // Confirm the outcome family exists.
     const exists = await prisma.outcome.findFirst({ where: { outcomeKey }, select: { id: true } })
     if (!exists) return reply.code(404).send({ error: 'unknown_outcome' })
+    const updateData: Record<string, unknown> = { updatedById: op.accountId }
+    if (parsed.data.templateText !== undefined) updateData.templateText = parsed.data.templateText
+    if (parsed.data.hookPrompt !== undefined) updateData.hookPrompt = parsed.data.hookPrompt
+    if (parsed.data.notes !== undefined) updateData.notes = parsed.data.notes ?? null
     const row = await prisma.outcomeLyricFactor.upsert({
       where: { outcomeKey },
-      update: { templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, updatedById: op.accountId },
-      create: { outcomeKey, templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, updatedById: op.accountId },
+      update: updateData,
+      create: { outcomeKey, templateText: parsed.data.templateText ?? '', hookPrompt: parsed.data.hookPrompt ?? null, notes: parsed.data.notes ?? null, updatedById: op.accountId },
     })
     return {
       outcomeKey: row.outcomeKey,
       templateText: row.templateText,
+      hookPrompt: row.hookPrompt,
       notes: row.notes,
       updatedAt: row.updatedAt.toISOString(),
     }

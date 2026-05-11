@@ -186,6 +186,7 @@ export interface OutcomeLyricFactorRow {
   displayTitle: string | null
   version: number
   templateText: string
+  hookPrompt: string | null
   notes: string | null
   updatedAt: string | null
 }
@@ -1065,8 +1066,8 @@ export const api = {
     req<OutcomeRowFull>(`/admin/outcomes/${id}/supersede`, { method: 'POST' }, token),
   outcomeLyricFactors: (token: string) =>
     req<OutcomeLyricFactorRow[]>('/admin/outcome-lyric-factors', {}, token),
-  saveOutcomeLyricFactor: (outcomeKey: string, body: { templateText: string; notes?: string | null }, token: string) =>
-    req<{ outcomeKey: string; templateText: string; notes: string | null; updatedAt: string }>(
+  saveOutcomeLyricFactor: (outcomeKey: string, body: { templateText?: string; hookPrompt?: string | null; notes?: string | null }, token: string) =>
+    req<{ outcomeKey: string; templateText: string; hookPrompt: string | null; notes: string | null; updatedAt: string }>(
       `/admin/outcome-lyric-factors/${outcomeKey}`,
       { method: 'PUT', body: JSON.stringify(body) },
       token,

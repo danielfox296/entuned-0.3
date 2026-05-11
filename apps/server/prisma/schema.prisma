@@ -649,6 +649,7 @@ model FormArchetype {
 model OutcomeLyricFactor {
   outcomeKey   String   @id @map("outcome_key") @db.Uuid
   templateText String   @default("") @map("template_text")
+  hookPrompt   String?  @map("hook_prompt")
   notes        String?
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   updatedById  String?  @map("updated_by") @db.Uuid

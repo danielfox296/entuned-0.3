@@ -54,7 +54,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Outcome Schedule'],
     description: '' },
   { key: 'outcomes', label: 'Outcomes', short: 'Outcomes', icon: Target,
-    cards: ['Outcome Library', 'Style Rules', 'Lyric Rules', 'Dry Run'],
+    cards: ['Outcome Library', 'Style Rules', 'Hook Prompts', 'Dry Run'],
     description: '' },
   { key: 'engine', label: 'Prompts & Rules', short: 'Prompts & Rules', icon: Settings,
     cards: ['Hook Drafter', 'Decomposition', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Form Archetypes', 'Reference Track Suggester'],
@@ -459,7 +459,7 @@ function OutcomesRouter({ cards }: { cards: string[] }) {
       </div>
       {active === 'Outcome Library' && <OutcomeLibrary />}
       {active === 'Style Rules' && <OutcomeFactorPrompt />}
-      {active === 'Lyric Rules' && <OutcomeLyricFactor />}
+      {active === 'Hook Prompts' && <OutcomeLyricFactor />}
       {active === 'Dry Run' && <DryRun />}
     </div>
   )
