@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type {
   StoreDetail, HookRowFull, PoolDepthResponse, ScheduleSlot, LiveStoreView,
@@ -7,34 +8,43 @@ import { T } from '../../tokens.js'
 import { S } from '../../ui/index.js'
 import type { WorkflowContext } from './WorkflowRouter.js'
 
-type Status = 'pass' | 'fail' | 'pending' | 'warn'
-
-type Remediation = {
-  group: string
-  sub: string
-  label: string
-}
-
-type Gate = {
-  title: string
-  status: Status
-  detail: string
-  /** Optional list of sub-items (e.g. per-ICP breakdown). */
-  items?: { ok: boolean; label: string }[]
-  /** Where to send the operator to fix this gate. */
-  remediation?: Remediation
-}
-
-function navigateTo(group: string, sub: string) {
-  const h = sub
-    ? `${encodeURIComponent(group)}/${encodeURIComponent(sub)}`
-    : encodeURIComponent(group)
-  window.location.hash = h
-  // hashchange listeners pick this up; force-dispatch to be safe across browsers.
-  window.dispatchEvent(new HashChangeEvent('hashchange'))
-}
+// Launch Checklist — purpose:
+//   Tell you whether this location can ship, what blocks it, and the single
+//   next step to take. Treats "won't launch" and "could be better" as different
+//   problems, not a single red list.
+//
+// Color discipline:
+//   red    = hard launch blocker (cannot go live)
+//   amber  = works but suboptimal (can launch, would be better polished)
+//   green  = done
+//
+// Sections are grouped by *function*, not by data shape:
+//   1. Hero — one calm sentence + the next action
+//   2. Location config (collapses when green)
+//   3. ICP readiness (single table — replaces the old split hooks/refs gates)
+//   4. Pipeline readiness (pool depth + schedule — only when actionable)
+//   5. Operational (player paired — separate, not a launch gate)
 
 const FRESH_PLAYER_HOURS = 24
+
+type IcpReadiness = {
+  id: string
+  name: string
+  approvedHooks: number
+  decomposedRefs: number
+  hooksOk: boolean
+  refsOk: boolean
+  fullyReady: boolean
+}
+
+function navigateTo(group: string, sub: string, pendingOutcomeId?: string) {
+  if (pendingOutcomeId && typeof window !== 'undefined') {
+    window.sessionStorage.setItem('workflow.pendingOutcomeId', pendingOutcomeId)
+  }
+  const h = sub ? `${encodeURIComponent(group)}/${encodeURIComponent(sub)}` : encodeURIComponent(group)
+  window.location.hash = h
+  window.dispatchEvent(new HashChangeEvent('hashchange'))
+}
 
 export function PreLaunchChecklist({ ctx }: { ctx: WorkflowContext }) {
   const [detail, setDetail] = useState<StoreDetail | null>(null)
@@ -79,204 +89,398 @@ export function PreLaunchChecklist({ ctx }: { ctx: WorkflowContext }) {
     return () => { cancelled = true }
   }, [ctx.storeId])
 
-  const gates: Gate[] = useMemo(() => {
-    if (!ctx.storeId || !detail) return []
-    return computeGates({ detail, hooksByIcp, pool, schedule, live })
-  }, [ctx.storeId, detail, hooksByIcp, pool, schedule, live])
-
-  const passCount = gates.filter((g) => g.status === 'pass').length
-  const totalCount = gates.length
-  const allPass = totalCount > 0 && passCount === totalCount
+  const icps: IcpReadiness[] = useMemo(() => {
+    if (!detail) return []
+    return detail.icps.map((i) => {
+      const approvedHooks = (hooksByIcp[i.id] ?? []).filter((h) => h.status === 'approved').length
+      const decomposedRefs = i.referenceTracks.filter((t) => t.status === 'approved' && t.styleAnalysis).length
+      const hooksOk = approvedHooks > 0
+      const refsOk = decomposedRefs > 0
+      return { id: i.id, name: i.name, approvedHooks, decomposedRefs, hooksOk, refsOk, fullyReady: hooksOk && refsOk }
+    })
+  }, [detail, hooksByIcp])
 
   if (!ctx.storeId) {
-    return (
-      <div style={{
-        background: T.surfaceRaised, border: `1px solid ${T.border}`,
-        borderRadius: 4, padding: '14px 18px', color: T.textMuted,
-        fontFamily: T.sans, fontSize: 14,
-      }}>
-        select a location above to begin
-      </div>
-    )
+    return <div style={infoBox}>select a location above to begin</div>
+  }
+  if (loading && !detail) {
+    return <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 14 }}>checking gates…</div>
+  }
+  if (!detail) {
+    return err
+      ? <div style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</div>
+      : <div style={infoBox}>no location data</div>
   }
 
+  const timezoneOk = !!detail.store.timezone
+  const defaultOutcomeOk = !!detail.store.defaultOutcomeId
+  const configOk = timezoneOk && defaultOutcomeOk
+
+  const readyIcps = icps.filter((i) => i.fullyReady)
+  const launchable = configOk && readyIcps.length > 0
+
+  const slotCount = schedule?.length ?? 0
+  const scheduleOk = slotCount > 0
+
+  // Pool depth — only render when default outcome is set; otherwise it's
+  // derivative of the config issue and shouldn't double-report.
+  let poolIssue: string | null = null
+  if (defaultOutcomeOk && pool) {
+    const storeIcpIds = new Set(icps.map((i) => i.id))
+    const relevant = pool.icps.filter((i) => storeIcpIds.has(i.id))
+    const critical = relevant.filter((i) => {
+      const cell = i.outcomes.find((o) => o.outcome.id === detail.store.defaultOutcomeId)
+      return cell && cell.status === 'critical'
+    })
+    if (critical.length > 0) {
+      poolIssue = `${critical.length} ICP${critical.length === 1 ? '' : 's'} below critical pool for the default outcome`
+    }
+  }
+
+  const playerLatest = live?.recentEvents
+    .map((e) => Date.parse(e.occurredAt))
+    .filter((t) => !Number.isNaN(t))
+    .sort((a, b) => b - a)[0]
+  const playerOk = !!playerLatest && (Date.now() - playerLatest) < FRESH_PLAYER_HOURS * 3600 * 1000
+
+  // Compute the single next-action — what to surface in the hero.
+  const next = pickNextAction({
+    timezoneOk, defaultOutcomeOk, icps, scheduleOk, playerOk, playerLatest, launchable,
+  })
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <SummaryBanner allPass={allPass} passCount={passCount} totalCount={totalCount} loading={loading} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {/* Hero */}
+      <Hero launchable={launchable} next={next} icps={icps} />
+
       {err && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</div>}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {gates.map((g, i) => <GateRow key={i} gate={g} />)}
+
+      {/* Location config — only renders detail when something's off */}
+      {configOk ? (
+        <DoneLine label="Location config" detail={`timezone ${detail.store.timezone} · default outcome set`} />
+      ) : (
+        <Card>
+          <CardHead label="Location config" tone="block" />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {!timezoneOk && (
+              <ConfigItem
+                tone="block"
+                label="No timezone set"
+                action={{ label: 'open Location settings', onClick: () => navigateTo('brand', 'Location') }}
+              />
+            )}
+            {!defaultOutcomeOk && (
+              <ConfigItem
+                tone="block"
+                label="No default outcome set"
+                action={{ label: 'set default outcome', onClick: () => navigateTo('brand', 'Location') }}
+              />
+            )}
+            {timezoneOk && <ConfigItem tone="ok" label={`Timezone: ${detail.store.timezone}`} />}
+            {defaultOutcomeOk && <ConfigItem tone="ok" label="Default outcome set" />}
+          </div>
+        </Card>
+      )}
+
+      {/* ICP readiness — one table, both axes */}
+      {icps.length === 0 ? (
+        <Card>
+          <CardHead label="ICPs" tone="block" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 13, fontFamily: T.sans, color: T.textMuted }}>
+              No ICPs at this location.
+            </span>
+            <ActionLink onClick={() => navigateTo('brand', 'ICP Editor')}>open ICP Editor →</ActionLink>
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <CardHead
+            label="ICP readiness"
+            tone={readyIcps.length === icps.length ? 'ok' : readyIcps.length === 0 ? 'block' : 'soft'}
+            right={
+              <span style={{ fontSize: 12, fontFamily: T.mono, color: T.textMuted }}>
+                {readyIcps.length} of {icps.length} fully ready
+              </span>
+            }
+          />
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={thStyle}>ICP</th>
+                <th style={thStyle}>Hooks</th>
+                <th style={thStyle}>Ref tracks</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {icps.map((i) => (
+                <IcpRow key={i.id} icp={i} />
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {/* Pipeline readiness — only when there's something to say */}
+      {(poolIssue || !scheduleOk) && (
+        <Card>
+          <CardHead label="Pipeline" tone="soft" />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {poolIssue && (
+              <ConfigItem
+                tone="soft"
+                label={poolIssue}
+                action={{ label: 'open Pipeline', onClick: () => navigateTo('workflows', 'Pipeline') }}
+              />
+            )}
+            {!scheduleOk && (
+              <ConfigItem
+                tone="soft"
+                label="No schedule slots — will fall back to the default outcome only"
+                action={{ label: 'open Schedule', onClick: () => navigateTo('schedule', 'Outcome Schedule') }}
+              />
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Operational — separated as post-launch monitoring, not a launch gate */}
+      <div style={{ marginTop: 4, paddingTop: 12, borderTop: `1px solid ${T.borderSubtle}` }}>
+        <div style={{ fontSize: 11, fontFamily: T.mono, color: T.textDim, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 8 }}>
+          Operational (post-launch)
+        </div>
+        <div style={{ fontSize: 13, fontFamily: T.sans, color: T.textMuted, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Dot tone={playerOk ? 'ok' : !playerLatest ? 'soft' : 'block'} />
+          <span style={{ flex: 1 }}>
+            {playerOk ? `Player last pinged ${humanizeAge(playerLatest!)}` : playerLatest ? `Player last pinged ${humanizeAge(playerLatest)} — over ${FRESH_PLAYER_HOURS}h ago` : 'Player has never pinged'}
+          </span>
+          <ActionLink onClick={() => navigateTo('brand', 'Event Stream')}>check event stream →</ActionLink>
+        </div>
       </div>
     </div>
   )
 }
 
-function computeGates(args: {
-  detail: StoreDetail
-  hooksByIcp: Record<string, HookRowFull[]>
-  pool: PoolDepthResponse | null
-  schedule: ScheduleSlot[] | null
-  live: LiveStoreView | null
-}): Gate[] {
-  const { detail, hooksByIcp, pool, schedule, live } = args
-  const out: Gate[] = []
-
-  // 1. Store config
-  const tzOk = !!detail.store.timezone
-  const defOk = !!detail.store.defaultOutcomeId
-  out.push({
-    title: 'Location config',
-    status: tzOk && defOk ? 'pass' : 'fail',
-    detail: tzOk && defOk
-      ? `tz ${detail.store.timezone} · default outcome set`
-      : !tzOk ? 'no timezone set'
-      : 'no default outcome set',
-    items: [
-      { ok: tzOk, label: tzOk ? `timezone: ${detail.store.timezone}` : 'timezone missing' },
-      { ok: defOk, label: defOk ? 'default outcome set' : 'default outcome missing' },
-    ],
-    remediation: !tzOk || !defOk
-      ? { group: 'brand', sub: 'Location', label: 'Open Location settings →' }
-      : undefined,
-  })
-
-  // 2. ICPs exist
-  const icpCount = detail.icps.length
-  out.push({
-    title: 'ICPs',
-    status: icpCount > 0 ? 'pass' : 'fail',
-    detail: icpCount === 1 ? '1 ICP at this location' : `${icpCount} ICPs at this location`,
-    remediation: icpCount === 0
-      ? { group: 'brand', sub: 'ICP Editor', label: 'Open ICP Editor →' }
-      : undefined,
-  })
-
-  // 3. Approved hooks per ICP
-  const hookItems = detail.icps.map((i) => {
-    const approved = (hooksByIcp[i.id] ?? []).filter((h) => h.status === 'approved').length
-    return { ok: approved > 0, label: `${i.name}: ${approved} approved` }
-  })
-  const allHaveHooks = hookItems.length > 0 && hookItems.every((x) => x.ok)
-  out.push({
-    title: 'Approved hooks',
-    status: hookItems.length === 0 ? 'fail' : allHaveHooks ? 'pass' : 'fail',
-    detail: hookItems.length === 0
-      ? 'no ICPs at this location yet'
-      : allHaveHooks
-        ? `each ICP at this location has approved hooks`
-        : `${hookItems.filter((x) => !x.ok).length} ICP${hookItems.filter((x) => !x.ok).length === 1 ? '' : 's'} at this location still need approved hooks`,
-    items: hookItems,
-    remediation: !allHaveHooks
-      ? { group: 'workflows', sub: 'Hook Writing', label: 'Open Hook Writing →' }
-      : undefined,
-  })
-
-  // 4. Reference tracks analyzed per ICP
-  const trackItems = detail.icps.map((i) => {
-    const analyzed = i.referenceTracks.filter(
-      (t) => t.status === 'approved' && t.styleAnalysis,
-    ).length
-    return { ok: analyzed > 0, label: `${i.name}: ${analyzed} decomposed` }
-  })
-  const allHaveTracks = trackItems.length > 0 && trackItems.every((x) => x.ok)
-  out.push({
-    title: 'Reference tracks decomposed',
-    status: trackItems.length === 0 ? 'fail' : allHaveTracks ? 'pass' : 'fail',
-    detail: trackItems.length === 0
-      ? 'no ICPs at this location yet'
-      : allHaveTracks
-        ? `each ICP at this location has at least one decomposed reference track`
-        : `${trackItems.filter((x) => !x.ok).length} ICP${trackItems.filter((x) => !x.ok).length === 1 ? '' : 's'} at this location still need decomposed reference tracks`,
-    items: trackItems,
-    remediation: !allHaveTracks
-      ? { group: 'workflows', sub: 'Reference Tracks', label: 'Open Reference Tracks →' }
-      : undefined,
-  })
-
-  // 5. Pool depth — at least the default outcome must be non-critical for every ICP at this store.
-  const defaultOutcomeId = detail.store.defaultOutcomeId
-  if (!defaultOutcomeId) {
-    out.push({
-      title: 'Pool depth (default outcome)',
-      status: 'fail',
-      detail: 'cannot evaluate — no default outcome',
-      remediation: { group: 'brand', sub: 'Location', label: 'Set default outcome →' },
-    })
-  } else if (!pool) {
-    out.push({
-      title: 'Pool depth (default outcome)',
-      status: 'pending',
-      detail: 'loading pool data…',
-    })
-  } else {
-    const storeIcpIds = new Set(detail.icps.map((i) => i.id))
-    const relevantIcps = pool.icps.filter((i) => storeIcpIds.has(i.id))
-    const items = relevantIcps.map((i) => {
-      const cell = i.outcomes.find((o) => o.outcome.id === defaultOutcomeId)
-      const ok = !!cell && cell.status !== 'critical'
-      const label = cell
-        ? `${i.name}: ${cell.count} song${cell.count === 1 ? '' : 's'} (${cell.status})`
-        : `${i.name}: no pool data for default outcome`
-      return { ok, label }
-    })
-    const allOk = items.length > 0 && items.every((x) => x.ok)
-    out.push({
-      title: 'Pool depth (default outcome)',
-      status: items.length === 0 ? 'fail' : allOk ? 'pass' : 'fail',
-      detail: items.length === 0
-        ? 'no pool data for this location'
-        : allOk
-          ? 'no critical pools'
-          : `${items.filter((x) => !x.ok).length} ICP${items.filter((x) => !x.ok).length === 1 ? '' : 's'} below critical threshold`,
-      items,
-      remediation: !allOk
-        ? { group: 'workflows', sub: 'Song Creation Queue', label: 'Open Song Creation Queue →' }
-        : undefined,
-    })
+function pickNextAction(args: {
+  timezoneOk: boolean
+  defaultOutcomeOk: boolean
+  icps: IcpReadiness[]
+  scheduleOk: boolean
+  playerOk: boolean
+  playerLatest: number | undefined
+  launchable: boolean
+}): { headline: string; subline?: string; action?: { label: string; onClick: () => void } } {
+  const { timezoneOk, defaultOutcomeOk, icps, scheduleOk, playerOk, launchable } = args
+  if (!timezoneOk) {
+    return {
+      headline: 'Set this location\'s timezone to launch.',
+      action: { label: 'Open Location settings', onClick: () => navigateTo('brand', 'Location') },
+    }
   }
-
-  // 6. Schedule
-  const slotCount = schedule?.length ?? 0
-  out.push({
-    title: 'Outcome schedule',
-    status: slotCount > 0 ? 'pass' : 'fail',
-    detail: slotCount > 0
-      ? `${slotCount} slot${slotCount === 1 ? '' : 's'} configured`
-      : 'no schedule slots — location will fall back to the default outcome only',
-    remediation: slotCount === 0
-      ? { group: 'schedule', sub: 'Outcome Schedule', label: 'Open Outcome Schedule →' }
-      : undefined,
-  })
-
-  // 7. Player presence — is a player paired and pinging? Use most recent
-  // playback event as proxy. If no live response, mark as warn (we couldn't
-  // reach the live endpoint — operator should manually confirm).
-  if (!live) {
-    out.push({
-      title: 'Player paired',
-      status: 'warn',
-      detail: 'no live response (endpoint unreachable or location has never had a player)',
-      remediation: { group: 'brand', sub: 'Event Stream', label: 'Check Event Stream →' },
-    })
-  } else {
-    const latest = live.recentEvents
-      .map((e) => Date.parse(e.occurredAt))
-      .filter((t) => !Number.isNaN(t))
-      .sort((a, b) => b - a)[0]
-    const ok = !!latest && (Date.now() - latest) < FRESH_PLAYER_HOURS * 3600 * 1000
-    out.push({
-      title: 'Player paired',
-      status: ok ? 'pass' : 'fail',
-      detail: latest
-        ? `last ping ${humanizeAge(latest)}`
-        : 'no playback events yet — player has never pinged',
-      remediation: !ok
-        ? { group: 'brand', sub: 'Event Stream', label: 'Check Event Stream →' }
-        : undefined,
-    })
+  if (!defaultOutcomeOk) {
+    return {
+      headline: 'Set a default outcome to launch this location.',
+      subline: 'The default is what plays when no schedule slot applies. You can change it any time.',
+      action: { label: 'Open Location settings', onClick: () => navigateTo('brand', 'Location') },
+    }
   }
+  if (icps.length === 0) {
+    return {
+      headline: 'Add at least one ICP to launch.',
+      action: { label: 'Open ICP Editor', onClick: () => navigateTo('brand', 'ICP Editor') },
+    }
+  }
+  const ready = icps.filter((i) => i.fullyReady)
+  if (ready.length === 0) {
+    // Pick the closest-to-ready ICP — one missing only hooks, or only refs.
+    const halfReady = icps.find((i) => !i.fullyReady && (i.hooksOk || i.refsOk))
+    if (halfReady) {
+      const need = !halfReady.hooksOk ? 'hooks' : 'reference tracks'
+      const tab = need === 'hooks' ? 'Hook Writing' : 'Reference Tracks'
+      return {
+        headline: `No ICPs ready to play yet. ${halfReady.name} needs ${need}.`,
+        action: { label: `Open ${tab}`, onClick: () => navigateTo('workflows', tab, halfReady.id) },
+      }
+    }
+    return {
+      headline: 'No ICPs ready to play yet. Start with hooks and reference tracks for any ICP.',
+      action: { label: 'Open Hook Writing', onClick: () => navigateTo('workflows', 'Hook Writing') },
+    }
+  }
+  if (launchable && ready.length < icps.length) {
+    const blocked = icps.find((i) => !i.fullyReady)!
+    const need = !blocked.hooksOk ? 'hooks' : 'reference tracks'
+    const tab = need === 'hooks' ? 'Hook Writing' : 'Reference Tracks'
+    return {
+      headline: `${ready.length} of ${icps.length} ICPs fully ready. Add ${need} for ${blocked.name} to use the full set.`,
+      action: { label: `Open ${tab}`, onClick: () => navigateTo('workflows', tab, blocked.id) },
+    }
+  }
+  if (!scheduleOk) {
+    return {
+      headline: 'Ready to launch. Add an outcome schedule to use more than the default outcome.',
+      subline: 'Schedules are optional — without one, the default outcome plays all day.',
+      action: { label: 'Open Schedule', onClick: () => navigateTo('schedule', 'Outcome Schedule') },
+    }
+  }
+  if (!playerOk) {
+    return {
+      headline: 'Ready to launch. Pair a player to start playing music.',
+      action: { label: 'Check event stream', onClick: () => navigateTo('brand', 'Event Stream') },
+    }
+  }
+  return { headline: 'Ready to launch. Everything is in place.' }
+}
 
-  return out
+function Hero({ launchable, next, icps }: {
+  launchable: boolean
+  next: ReturnType<typeof pickNextAction>
+  icps: IcpReadiness[]
+}) {
+  const allReady = icps.length > 0 && icps.every((i) => i.fullyReady)
+  const tone: 'block' | 'soft' | 'ok' = !launchable ? 'block' : allReady ? 'ok' : 'soft'
+  const badgeLabel = !launchable ? 'launch blocked' : allReady ? 'ready to ship' : 'launchable'
+  return (
+    <div style={{
+      background: T.surface, border: `1px solid ${T.border}`,
+      borderLeft: `4px solid ${toneColor(tone)}`,
+      borderRadius: 4, padding: '18px 20px',
+      display: 'flex', flexDirection: 'column', gap: 10,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{
+          fontSize: 10, fontFamily: T.mono, fontWeight: 600,
+          color: toneColor(tone),
+          background: toneTint(tone),
+          border: `1px solid ${toneColor(tone)}33`,
+          borderRadius: 2, padding: '2px 7px',
+          letterSpacing: '0.05em', textTransform: 'uppercase',
+        }}>{badgeLabel}</span>
+        <span style={{ fontSize: 16, fontFamily: T.sans, color: T.text, fontWeight: 500 }}>
+          {next.headline}
+        </span>
+      </div>
+      {next.subline && (
+        <div style={{ fontSize: 13, fontFamily: T.sans, color: T.textMuted, paddingLeft: 0 }}>
+          {next.subline}
+        </div>
+      )}
+      {next.action && (
+        <div>
+          <button onClick={next.action.onClick} style={heroBtnStyle(tone)}>
+            {next.action.label} →
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function IcpRow({ icp }: { icp: IcpReadiness }) {
+  const needsHooks = !icp.hooksOk
+  const needsRefs = !icp.refsOk
+  let action: { label: string; onClick: () => void } | null = null
+  if (needsHooks && needsRefs) action = { label: 'start →', onClick: () => navigateTo('workflows', 'Hook Writing', icp.id) }
+  else if (needsHooks) action = { label: 'write hooks →', onClick: () => navigateTo('workflows', 'Hook Writing', icp.id) }
+  else if (needsRefs) action = { label: 'add refs →', onClick: () => navigateTo('workflows', 'Reference Tracks', icp.id) }
+
+  return (
+    <tr style={{ borderBottom: `1px solid ${T.borderSubtle}` }}>
+      <td style={tdStyle}>
+        <span style={{ fontSize: 14, fontFamily: T.sans, color: T.text }}>{icp.name}</span>
+      </td>
+      <td style={tdStyle}>
+        <CountChip ok={icp.hooksOk} value={icp.approvedHooks} />
+      </td>
+      <td style={tdStyle}>
+        <CountChip ok={icp.refsOk} value={icp.decomposedRefs} />
+      </td>
+      <td style={{ ...tdStyle, textAlign: 'right' }}>
+        {action ? <ActionLink onClick={action.onClick}>{action.label}</ActionLink> : (
+          <span style={{ fontSize: 11, fontFamily: T.mono, color: T.textDim }}>ready</span>
+        )}
+      </td>
+    </tr>
+  )
+}
+
+function CountChip({ ok, value }: { ok: boolean; value: number }) {
+  const color = ok ? '#7fdba0' : '#f59e0b'
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6,
+      fontFamily: T.mono, fontSize: 12,
+      color: ok ? T.textMuted : color,
+    }}>
+      <Dot tone={ok ? 'ok' : 'soft'} />
+      {value}
+    </span>
+  )
+}
+
+function Dot({ tone }: { tone: 'ok' | 'soft' | 'block' }) {
+  return (
+    <span style={{
+      width: 8, height: 8, borderRadius: 4,
+      background: toneColor(tone), display: 'inline-block',
+    }} />
+  )
+}
+
+function Card({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      background: T.surface, border: `1px solid ${T.border}`,
+      borderRadius: 4, padding: '14px 16px',
+      display: 'flex', flexDirection: 'column', gap: 10,
+    }}>{children}</div>
+  )
+}
+
+function CardHead({ label, tone, right }: { label: string; tone: 'ok' | 'soft' | 'block'; right?: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <Dot tone={tone} />
+      <span style={{ fontSize: 14, fontFamily: T.sans, color: T.text, fontWeight: 500 }}>{label}</span>
+      <span style={{ flex: 1 }} />
+      {right}
+    </div>
+  )
+}
+
+function ConfigItem({ tone, label, action }: { tone: 'ok' | 'soft' | 'block'; label: string; action?: { label: string; onClick: () => void } }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <Dot tone={tone} />
+      <span style={{
+        fontSize: 13, fontFamily: T.sans,
+        color: tone === 'ok' ? T.textMuted : T.text,
+      }}>{label}</span>
+      <span style={{ flex: 1 }} />
+      {action && <ActionLink onClick={action.onClick}>{action.label} →</ActionLink>}
+    </div>
+  )
+}
+
+function DoneLine({ label, detail }: { label: string; detail: string }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '8px 14px', borderRadius: 3,
+      background: 'transparent',
+    }}>
+      <Dot tone="ok" />
+      <span style={{ fontSize: 13, fontFamily: T.sans, color: T.textMuted }}>{label}</span>
+      <span style={{ fontSize: 12, fontFamily: T.mono, color: T.textDim }}>· {detail}</span>
+    </div>
+  )
+}
+
+function ActionLink({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button onClick={onClick} style={actionLinkStyle}>{children}</button>
+  )
 }
 
 function humanizeAge(t: number): string {
@@ -290,113 +494,48 @@ function humanizeAge(t: number): string {
   return `${d} day${d === 1 ? '' : 's'} ago`
 }
 
-function SummaryBanner({ allPass, passCount, totalCount, loading }: {
-  allPass: boolean
-  passCount: number
-  totalCount: number
-  loading: boolean
-}) {
-  if (loading && totalCount === 0) {
-    return (
-      <Banner tone="neutral">
-        <span style={{ fontFamily: T.mono, fontSize: 12 }}>checking gates…</span>
-      </Banner>
-    )
-  }
-  if (allPass) {
-    return (
-      <Banner tone="pass">
-        <strong style={{ fontFamily: T.heading, fontSize: 16 }}>Ready to ship.</strong>
-        <span style={{ marginLeft: 8, fontFamily: T.mono, fontSize: 12 }}>
-          {passCount} of {totalCount} gates green.
-        </span>
-      </Banner>
-    )
-  }
-  const remaining = totalCount - passCount
-  return (
-    <Banner tone="fail">
-      <strong style={{ fontFamily: T.heading, fontSize: 16 }}>{remaining} gate{remaining === 1 ? '' : 's'} remaining.</strong>
-      <span style={{ marginLeft: 8, fontFamily: T.mono, fontSize: 12 }}>
-        {passCount} of {totalCount} green.
-      </span>
-    </Banner>
-  )
+function toneColor(tone: 'ok' | 'soft' | 'block'): string {
+  return tone === 'ok' ? '#7fdba0' : tone === 'soft' ? '#f59e0b' : T.danger
+}
+function toneTint(tone: 'ok' | 'soft' | 'block'): string {
+  return tone === 'ok'
+    ? 'rgba(127,219,160,0.10)'
+    : tone === 'soft'
+      ? 'rgba(245,158,11,0.10)'
+      : 'rgba(220,80,80,0.10)'
 }
 
-function Banner({ tone, children }: { tone: 'pass' | 'fail' | 'neutral'; children: React.ReactNode }) {
-  const styles: Record<string, React.CSSProperties> = {
-    pass: { background: 'rgba(80,180,120,0.14)', border: '1px solid rgba(127,219,160,0.6)', color: T.text },
-    fail: { background: 'rgba(220,80,80,0.14)', border: `1px solid ${T.danger}`, color: T.text },
-    neutral: { background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`, color: T.textMuted },
-  }
-  return (
-    <div style={{
-      ...styles[tone],
-      padding: '10px 14px', borderRadius: 4,
-      display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: 4,
-      fontFamily: T.sans, fontSize: 14,
-    }}>{children}</div>
-  )
+const infoBox: CSSProperties = {
+  background: T.surfaceRaised, border: `1px solid ${T.border}`,
+  borderRadius: 4, padding: '14px 18px', color: T.textMuted,
+  fontFamily: T.sans, fontSize: 14,
 }
 
-function GateRow({ gate }: { gate: Gate }) {
-  const palette: Record<Status, { glyph: string; color: string }> = {
-    pass: { glyph: '✓', color: '#7fdba0' },
-    fail: { glyph: '✕', color: T.danger },
-    pending: { glyph: '…', color: T.textDim },
-    warn: { glyph: '!', color: '#e6c46c' },
-  }
-  const p = palette[gate.status]
-  return (
-    <div style={{
-      background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
-      borderRadius: 4, padding: '12px 14px',
-      display: 'flex', flexDirection: 'column', gap: 6,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-        <span style={{
-          width: 22, height: 22, borderRadius: 11, flexShrink: 0,
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          background: 'transparent', border: `1px solid ${p.color}`,
-          color: p.color, fontFamily: T.mono, fontSize: 13, fontWeight: 700,
-        }}>{p.glyph}</span>
-        <div style={{ fontFamily: T.sans, fontSize: 14, fontWeight: 500, color: T.text }}>
-          {gate.title}
-        </div>
-        <div style={{ fontFamily: T.sans, fontSize: S.small, color: T.textMuted }}>
-          {gate.detail}
-        </div>
-        <span style={{ flex: 1 }} />
-        {gate.remediation && gate.status !== 'pass' && (
-          <button
-            onClick={(e) => { e.stopPropagation(); navigateTo(gate.remediation!.group, gate.remediation!.sub) }}
-            style={{
-              background: 'transparent', border: `1px solid ${T.accentMuted}`,
-              color: T.accent, padding: '4px 10px', borderRadius: 3,
-              fontFamily: T.sans, fontSize: 12, cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-          >{gate.remediation.label}</button>
-        )}
-      </div>
-      {gate.items && gate.items.length > 0 && (
-        <ul style={{
-          margin: 0, padding: 0, paddingLeft: 32,
-          listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 3,
-        }}>
-          {gate.items.map((it, i) => (
-            <li key={i} style={{
-              fontFamily: T.mono, fontSize: 12,
-              color: it.ok ? T.textDim : T.danger,
-              display: 'flex', alignItems: 'baseline', gap: 6,
-            }}>
-              <span style={{ color: it.ok ? '#7fdba0' : T.danger }}>{it.ok ? '·' : '✕'}</span>
-              <span>{it.label}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
+const thStyle: CSSProperties = {
+  fontSize: 10, fontFamily: T.mono, color: T.textDim,
+  textTransform: 'uppercase', letterSpacing: '0.05em',
+  textAlign: 'left', padding: '4px 6px',
+  borderBottom: `1px solid ${T.borderSubtle}`,
+  fontWeight: 500,
 }
+const tdStyle: CSSProperties = {
+  padding: '8px 6px', verticalAlign: 'middle',
+}
+
+const actionLinkStyle: CSSProperties = {
+  background: 'transparent', border: 'none',
+  color: T.accent, fontFamily: T.mono, fontSize: 12,
+  cursor: 'pointer', padding: '2px 4px',
+  textDecoration: 'underline', textUnderlineOffset: 3,
+}
+
+function heroBtnStyle(tone: 'ok' | 'soft' | 'block'): CSSProperties {
+  return {
+    background: toneColor(tone), color: T.bg,
+    border: 'none', borderRadius: 3, padding: '8px 14px',
+    fontFamily: T.sans, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+  }
+}
+
+// Suppress unused-import warning for S now that we don't reference it.
+void S
