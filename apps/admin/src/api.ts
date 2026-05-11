@@ -979,6 +979,18 @@ export const api = {
     req<StoreSummary>('/admin/stores', { method: 'POST', body: JSON.stringify(body) }, token),
   updateStore: (id: string, body: StoreUpdateBody, token: string) =>
     req<StoreSummary & { goLiveDate: string | null; defaultOutcomeId: string | null }>(`/admin/stores/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+  deleteStore: (id: string, token: string) =>
+    req<{
+      ok: true
+      deleted: {
+        store: string
+        playbackEvents: number
+        posEvents: number
+        posPullRuns: number
+        retailNextSnapshots: number
+        retailNextRuns: number
+      }
+    }>(`/admin/stores/${id}`, { method: 'DELETE' }, token),
   createIcp: (body: IcpCreateBody, token: string) =>
     req<IcpRow>('/admin/icps', { method: 'POST', body: JSON.stringify(body) }, token),
   updateIcp: (id: string, body: IcpUpdate, token: string) =>

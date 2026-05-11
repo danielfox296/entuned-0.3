@@ -23,7 +23,13 @@ export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void 
   const [creating, setCreating] = useState<StoreCreateBody | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [deleteArmed, setDeleteArmed] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleteBusy, setDeleteBusy] = useState(false)
   const toast = useToast()
+
+  const cancelDelete = () => { setDeleteArmed(false); setDeleteConfirmText('') }
+  useEffect(() => { cancelDelete() }, [storeId])
 
   const reloadAll = async () => {
     const token = getToken(); if (!token) return
@@ -70,6 +76,30 @@ export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void 
       toast.success(`location "${detail.name}" saved`)
     } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'failed to save location') }
     finally { setBusy(false) }
+  }
+
+  const deleteStore = async () => {
+    if (!detail) return
+    if (deleteConfirmText.trim() !== detail.name) return
+    const token = getToken(); if (!token) return
+    setDeleteBusy(true); setErr(null)
+    try {
+      const result = await api.deleteStore(detail.id, token)
+      const c = result.deleted
+      const summary = [
+        `${c.playbackEvents} playback event${c.playbackEvents === 1 ? '' : 's'}`,
+        `${c.posEvents} POS event${c.posEvents === 1 ? '' : 's'}`,
+        `${c.posPullRuns} POS run${c.posPullRuns === 1 ? '' : 's'}`,
+        `${c.retailNextSnapshots} RetailNext snapshot${c.retailNextSnapshots === 1 ? '' : 's'}`,
+      ].join(', ')
+      toast.success(`deleted "${c.store}" — ${summary}`)
+      setStoreId(null)
+      reloadAll()
+    } catch (e: any) {
+      setErr(e.message); toast.error(e.message ?? 'failed to delete location')
+    } finally {
+      setDeleteBusy(false); setDeleteArmed(false); setDeleteConfirmText('')
+    }
   }
 
   const submitCreate = async () => {
@@ -178,6 +208,55 @@ export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void 
           </div>
 
           <TierPanel storeId={detail.id} storeName={detail.name} />
+
+          <div style={{
+            marginTop: S.xl, padding: S.lg,
+            border: `1px solid ${T.danger}`, borderRadius: S.r4,
+            display: 'flex', flexDirection: 'column', gap: S.sm,
+          }}>
+            <div style={{ fontSize: S.small, fontFamily: T.sans, color: T.danger, fontWeight: 600 }}>
+              Danger zone
+            </div>
+            <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.textMuted, lineHeight: 1.5 }}>
+              Hard-deletes this location and every record that hangs off it: playback events, POS ingest history, RetailNext snapshots, campaigns, schedule slots, ICP links, assignments, subscriptions, tier history. Songs and ICPs stay (shared / parented to the client). Irreversible.
+            </div>
+
+            {!deleteArmed ? (
+              <div>
+                <Button variant="danger" onClick={() => setDeleteArmed(true)}>Delete location</Button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: S.sm }}>
+                <div style={{ fontSize: S.label, fontFamily: T.sans, color: T.text }}>
+                  Type <strong>{detail.name}</strong> to confirm:
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <Input
+                    autoFocus
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && deleteConfirmText.trim() === detail.name) void deleteStore()
+                      if (e.key === 'Escape') cancelDelete()
+                    }}
+                    placeholder={detail.name}
+                  />
+                  <button
+                    onClick={() => void deleteStore()}
+                    disabled={deleteBusy || deleteConfirmText.trim() !== detail.name}
+                    style={{
+                      background: T.danger, color: '#fff', border: 'none',
+                      padding: '6px 12px', borderRadius: S.r3,
+                      fontFamily: T.sans, fontSize: S.small, fontWeight: 600,
+                      cursor: (deleteBusy || deleteConfirmText.trim() !== detail.name) ? 'default' : 'pointer',
+                      opacity: (deleteBusy || deleteConfirmText.trim() !== detail.name) ? 0.5 : 1,
+                    }}
+                  >{deleteBusy ? 'deleting…' : 'Confirm delete'}</button>
+                  <Button variant="ghost" onClick={cancelDelete} disabled={deleteBusy}>Cancel</Button>
+                </div>
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>

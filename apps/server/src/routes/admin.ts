@@ -25,7 +25,7 @@ import { decompose } from '../lib/decomposer/decomposer.js'
 import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 import { runEno } from '../lib/eno/eno.js'
-import { FREE_TIER_ICP_ID } from '../lib/freeTier.js'
+import { FREE_TIER_ICP_ID, FREE_TIER_AD_STORE_ID } from '../lib/freeTier.js'
 import { downloadAndUploadFromUrl, uploadBuffer } from '../lib/r2.js'
 import { draftHooks, getOrSeedHookWriterPrompt, buildHookDrafterContext } from '../lib/hooks/drafter.js'
 import { suggestReferenceTracks } from '../lib/ref-tracks/suggester.js'
@@ -700,6 +700,46 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     } catch {
       return reply.code(404).send({ error: 'not_found' })
     }
+  })
+
+  app.delete('/stores/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+
+    if (id === FREE_TIER_AD_STORE_ID) {
+      return reply.code(403).send({ error: 'cannot_delete_sentinel_store' })
+    }
+
+    const store = await prisma.store.findUnique({
+      where: { id },
+      select: { id: true, name: true },
+    })
+    if (!store) return reply.code(404).send({ error: 'not_found' })
+
+    const counts = await prisma.$transaction(async (tx) => {
+      // Store-scoped non-cascade tables — must go first (RESTRICT default).
+      const playbackEvents = await tx.playbackEvent.deleteMany({ where: { storeId: id } })
+      const posEvents = await tx.pOSEvent.deleteMany({ where: { storeId: id } })
+      const posPullRuns = await tx.pOSPullRun.deleteMany({ where: { storeId: id } })
+      const retailHourly = await tx.retailNextHourlySnapshot.deleteMany({ where: { storeId: id } })
+      const retailDaily = await tx.retailNextDailySnapshot.deleteMany({ where: { storeId: id } })
+      const retailRuns = await tx.retailNextIngestRun.deleteMany({ where: { storeId: id } })
+
+      // Store delete cascades: StoreICP, StoreAssignment, StoreRetiredSong,
+      // ScheduleSlot, Campaign (→ AdAsset), CampaignPlayState, Subscription,
+      // PlayerBinding, TierChangeLog.
+      await tx.store.delete({ where: { id } })
+
+      return {
+        playbackEvents: playbackEvents.count,
+        posEvents: posEvents.count,
+        posPullRuns: posPullRuns.count,
+        retailNextSnapshots: retailHourly.count + retailDaily.count,
+        retailNextRuns: retailRuns.count,
+      }
+    })
+
+    return reply.send({ ok: true, deleted: { store: store.name, ...counts } })
   })
 
   app.get('/stores', async (req, reply) => {
