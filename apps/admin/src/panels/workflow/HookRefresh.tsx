@@ -12,11 +12,24 @@ type DraftRow = {
   vocalGender: HookVocalGender
   /** Set once the row has been written to the DB. */
   hookId: string | null
-  /** True while accepting or saving an edit. */
+  /** Status the row was persisted as. null while still a working draft. */
+  persistedAs: 'approved' | 'rejected' | null
+  /** Reason captured if the row was persisted as 'rejected'. */
+  rejectionReason: string | null
+  /** True while accepting/rejecting or saving an edit. */
   saving: boolean
   /** True when an already-accepted row has been re-opened for edit. */
   editing: boolean
 }
+
+const REJECT_REASONS = [
+  'too generic',
+  'off-brand voice',
+  'wrong tone',
+  'clichéd image',
+  'mouth-feel',
+] as const
+type RejectReason = typeof REJECT_REASONS[number] | 'other'
 
 export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
   const toast = useToast()
@@ -77,6 +90,8 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
         text: h.text,
         vocalGender: h.vocalGender,
         hookId: null,
+        persistedAs: null,
+        rejectionReason: null,
         saving: false,
         editing: false,
       })))
@@ -106,13 +121,37 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
         text, outcomeId, vocalGender: row.vocalGender, approve: true,
       }, token)
       setRows((rs) => rs.map((r, i) => i === idx
-        ? { ...r, saving: false, hookId: created.id, editing: false }
+        ? { ...r, saving: false, hookId: created.id, persistedAs: 'approved', editing: false }
         : r))
       setAcceptedCounts((c) => ({ ...c, [outcomeId]: (c[outcomeId] ?? 0) + 1 }))
       toast.success('hook saved')
     } catch (e: any) {
       setRows((rs) => rs.map((r, i) => i === idx ? { ...r, saving: false } : r))
       toast.error(e.message ?? 'failed to save hook')
+    }
+  }
+
+  const reject = async (idx: number, reason: string) => {
+    if (!ctx.icpId || !activeOutcomeId) return
+    const row = rows[idx]
+    if (!row || row.saving || row.hookId) return
+    const text = row.text.trim()
+    if (!text) return
+    const token = getToken(); if (!token) return
+    const outcomeId = activeOutcomeId
+    setRows((rs) => rs.map((r, i) => i === idx ? { ...r, saving: true } : r))
+    try {
+      const created = await api.createHook(ctx.icpId, {
+        text, outcomeId, vocalGender: row.vocalGender,
+        reject: reason ? { reason } : true,
+      }, token)
+      setRows((rs) => rs.map((r, i) => i === idx
+        ? { ...r, saving: false, hookId: created.id, persistedAs: 'rejected', rejectionReason: reason || null, editing: false }
+        : r))
+      toast.success(reason ? `rejected — ${reason}` : 'rejected')
+    } catch (e: any) {
+      setRows((rs) => rs.map((r, i) => i === idx ? { ...r, saving: false } : r))
+      toast.error(e.message ?? 'failed to reject hook')
     }
   }
 
@@ -227,17 +266,26 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
             <Empty>click Draft to generate hooks</Empty>
           )}
           {rows.map((row, idx) => {
-            const accepted = !!row.hookId
-            const locked = accepted && !row.editing
-            const buttonLabel = row.saving
+            const persisted = !!row.hookId
+            const isRejected = row.persistedAs === 'rejected'
+            const isApproved = row.persistedAs === 'approved'
+            const locked = persisted && !row.editing
+            const editingApproved = isApproved && row.editing
+
+            const acceptLabel = row.saving
               ? '…'
-              : !accepted ? 'Accept'
-              : row.editing ? 'Save' : 'Edit'
-            const onClick = !accepted ? () => accept(idx)
-              : row.editing ? () => saveEdit(idx)
-              : () => startEdit(idx)
+              : isApproved && row.editing ? 'Save'
+              : isApproved ? 'Edit'
+              : 'Accept'
+            const acceptClick = isApproved && row.editing ? () => saveEdit(idx)
+              : isApproved ? () => startEdit(idx)
+              : () => accept(idx)
+
             return (
-              <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+              <div key={idx} style={{
+                display: 'flex', gap: 8, alignItems: 'stretch',
+                opacity: isRejected ? 0.55 : 1,
+              }}>
                 <textarea
                   value={row.text}
                   onChange={(e) => setRowText(idx, e.target.value)}
@@ -251,10 +299,21 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
                     borderRadius: 3, padding: '8px 10px',
                     fontFamily: T.sans, fontSize: 14, lineHeight: 1.4,
                     resize: 'vertical', outline: 'none',
+                    textDecoration: isRejected ? 'line-through' : 'none',
                   }}
                 />
-                <Button onClick={onClick} disabled={row.saving || !row.text.trim()}>
-                  {buttonLabel}
+                {!persisted && (
+                  <RejectControl
+                    disabled={row.saving || !row.text.trim()}
+                    onReject={(reason) => reject(idx, reason)}
+                  />
+                )}
+                <Button
+                  onClick={acceptClick}
+                  disabled={row.saving || !row.text.trim() || isRejected || (persisted && !editingApproved && isApproved)}
+                  variant={isRejected ? 'ghost' : undefined}
+                >
+                  {isRejected ? `rejected${row.rejectionReason ? ` — ${row.rejectionReason}` : ''}` : acceptLabel}
                 </Button>
               </div>
             )
@@ -263,6 +322,59 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
       </div>
 
       {err && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</div>}
+    </div>
+  )
+}
+
+/** Reject button paired with a preset-reason picker. One click rejects with
+ *  the currently-selected reason; "other…" opens a small inline prompt for
+ *  freeform text. Default reason is "too generic" — the most common reject. */
+function RejectControl({ disabled, onReject }: { disabled: boolean; onReject: (reason: string) => void }) {
+  const [reason, setReason] = useState<RejectReason>('too generic')
+  const [otherText, setOtherText] = useState('')
+  const isOther = reason === 'other'
+
+  const handleClick = () => {
+    if (disabled) return
+    const finalReason = isOther ? otherText.trim() : reason
+    if (isOther && !finalReason) return
+    onReject(finalReason)
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'stretch', gap: 4 }}>
+      <select
+        value={reason}
+        onChange={(e) => setReason(e.target.value as RejectReason)}
+        disabled={disabled}
+        style={{
+          background: T.bg, color: T.textMuted,
+          border: `1px solid ${T.border}`, borderRadius: 3,
+          padding: '0 8px', fontFamily: T.mono, fontSize: 12, outline: 'none',
+        }}
+        title="Reason — fed back to the drafter as an anti-anchor"
+      >
+        {REJECT_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+        <option value="other">other…</option>
+      </select>
+      {isOther && (
+        <input
+          type="text"
+          placeholder="reason"
+          value={otherText}
+          onChange={(e) => setOtherText(e.target.value)}
+          disabled={disabled}
+          maxLength={120}
+          style={{
+            width: 140, background: T.bg, color: T.text,
+            border: `1px solid ${T.border}`, borderRadius: 3,
+            padding: '0 8px', fontFamily: T.mono, fontSize: 12, outline: 'none',
+          }}
+        />
+      )}
+      <Button onClick={handleClick} disabled={disabled || (isOther && !otherText.trim())} variant="tinyDanger">
+        Reject
+      </Button>
     </div>
   )
 }

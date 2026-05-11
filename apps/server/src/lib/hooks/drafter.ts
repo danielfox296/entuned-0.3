@@ -176,15 +176,15 @@ export async function buildHookDrafterContext(opts: {
 
   const existingHooks = await prisma.hook.findMany({
     where: { icpId: opts.icpId, outcomeId: opts.outcomeId },
-    select: { text: true, status: true },
+    select: { text: true, status: true, rejectionReason: true },
     orderBy: { createdAt: 'desc' },
     take: 50,
   })
 
   // Split by status so the prompt can use approved hooks as positive anchors
-  // ("write more in this voice") and treat rejected/draft hooks only as
-  // do-not-repeat references. Every approval becomes a teaching signal for
-  // the next batch — the model learns the operator's editorial taste.
+  // ("write more in this voice") and rejected hooks as anti-anchors with their
+  // captured reasons. Every approval and every rejection becomes a teaching
+  // signal for the next batch.
   const approvedExemplars = existingHooks
     .filter((h) => h.status === 'approved')
     .slice(0, 12)
@@ -192,7 +192,7 @@ export async function buildHookDrafterContext(opts: {
   const rejectedSamples = existingHooks
     .filter((h) => h.status === 'rejected')
     .slice(0, 8)
-    .map((h) => h.text)
+    .map((h) => ({ text: h.text, reason: h.rejectionReason }))
 
   const icpDescriptor = [
     icp.name && `Name: ${icp.name}`,
@@ -248,9 +248,9 @@ ${approvedExemplars.map((t) => `- "${t}"`).join('\n')}
 
 ` : ''}${rejectedSamples.length > 0 ? `# Rejected hooks — avoid this shape
 
-These hooks were rejected for this ICP + outcome. Do not write anything that occupies a similar shape (similar register, similar abstraction level, similar image cluster). Read them as the boundary of what doesn't fit.
+These hooks were rejected for this ICP + outcome. Each line includes the reason it was rejected when one was captured. Read the reason as the boundary of what doesn't fit — do not write anything that triggers the same problem.
 
-${rejectedSamples.map((t) => `- "${t}"`).join('\n')}
+${rejectedSamples.map((h) => h.reason ? `- "${h.text}" — reason: ${h.reason}` : `- "${h.text}"`).join('\n')}
 
 ` : ''}# Existing hooks (do not repeat verbatim)
 

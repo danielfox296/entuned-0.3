@@ -1925,6 +1925,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     outcomeId: z.string().uuid(),
     vocalGender: z.enum(['male', 'female', 'duet']).nullable().optional(),
     approve: z.boolean().optional(),
+    /** Persist as rejected with optional reason. Mutually exclusive with approve. */
+    reject: z.union([z.boolean(), z.object({ reason: z.string().max(280).optional() })]).optional(),
   })
 
   // ----- Hook Drafter (per-ICP prompt + LLM run) -----
@@ -2055,17 +2057,27 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const icpId = (req.params as any).id as string
     const parsed = HookCreateBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    if (parsed.data.approve && parsed.data.reject) {
+      return reply.code(400).send({ error: 'approve_and_reject_are_mutually_exclusive' })
+    }
     try {
+      const rejectReason = parsed.data.reject && typeof parsed.data.reject === 'object'
+        ? parsed.data.reject.reason?.trim() || null
+        : null
+      const status = parsed.data.approve ? 'approved' : parsed.data.reject ? 'rejected' : 'draft'
       const data: any = {
         icpId,
         outcomeId: parsed.data.outcomeId,
         text: parsed.data.text,
         vocalGender: parsed.data.vocalGender ?? null,
-        status: parsed.data.approve ? 'approved' : 'draft',
+        status,
       }
       if (parsed.data.approve) {
         data.approvedAt = new Date()
         data.approvedById = op.accountId
+      }
+      if (parsed.data.reject) {
+        data.rejectionReason = rejectReason
       }
       const row = await prisma.hook.create({ data, include: { outcome: { select: { id: true, title: true, displayTitle: true, version: true } } } })
       return row
@@ -2091,6 +2103,29 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (!existing) return reply.code(404).send({ error: 'not_found' })
     const row = await prisma.hook.update({
       where: { id }, data: parsed.data,
+      include: { outcome: { select: { id: true, title: true, displayTitle: true, version: true } } },
+    })
+    return row
+  })
+
+  const HookRejectBody = z.object({
+    reason: z.string().max(280).optional(),
+  })
+
+  // Reject a draft hook. Persists status='rejected' and captures an optional
+  // reason that feeds the next drafter batch as an anti-anchor.
+  app.post('/hooks/:id/reject', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = HookRejectBody.safeParse(req.body ?? {})
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const existing = await prisma.hook.findUnique({ where: { id } })
+    if (!existing) return reply.code(404).send({ error: 'not_found' })
+    if (existing.status === 'approved') return reply.code(409).send({ error: 'approved_hook_cannot_be_rejected' })
+    if (existing.status === 'rejected') return existing
+    const row = await prisma.hook.update({
+      where: { id },
+      data: { status: 'rejected', rejectionReason: parsed.data.reason?.trim() || null },
       include: { outcome: { select: { id: true, title: true, displayTitle: true, version: true } } },
     })
     return row

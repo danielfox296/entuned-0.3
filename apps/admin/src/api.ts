@@ -1092,12 +1092,14 @@ export const api = {
     req<PoolDepthResponse>('/admin/pool-depth', {}, token),
   icpHooks: (icpId: string, token: string) =>
     req<HookRowFull[]>(`/admin/icps/${icpId}/hooks`, {}, token),
-  createHook: (icpId: string, body: { text: string; outcomeId: string; vocalGender?: HookVocalGender; approve?: boolean }, token: string) =>
+  createHook: (icpId: string, body: { text: string; outcomeId: string; vocalGender?: HookVocalGender; approve?: boolean; reject?: { reason?: string } | boolean }, token: string) =>
     req<HookRowFull>(`/admin/icps/${icpId}/hooks`, { method: 'POST', body: JSON.stringify(body) }, token),
   updateHook: (id: string, body: { text?: string; outcomeId?: string }, token: string) =>
     req<HookRowFull>(`/admin/hooks/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   approveHook: (id: string, token: string) =>
     req<HookRowFull>(`/admin/hooks/${id}/approve`, { method: 'POST' }, token),
+  rejectHook: (id: string, reason: string | null, token: string) =>
+    req<HookRowFull>(`/admin/hooks/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason: reason ?? undefined }) }, token),
   deleteHook: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/hooks/${id}`, { method: 'DELETE' }, token),
   bulkCreateHooks: (
