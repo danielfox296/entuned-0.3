@@ -348,7 +348,7 @@ function PlayerUrlRow({ url }: { url: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
       <div style={{
-        flex: 1, minWidth: 240,
+        flex: 1, minWidth: 0,
         background: T.inkDeep,
         border: `1px solid ${T.borderSubtle}`,
         borderRadius: 10, padding: '7px 12px',

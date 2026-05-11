@@ -177,7 +177,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
 
         {/* Page content */}
-        <div style={{ padding: '24px 40px' }}>
+        <div style={{ padding: '24px 16px' }}>
           {children}
         </div>
       </div>

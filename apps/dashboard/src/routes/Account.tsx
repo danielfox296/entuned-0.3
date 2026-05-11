@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Download, ExternalLink, Lock, LogOut, Pencil } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { T } from '../tokens.js'
@@ -9,6 +9,17 @@ import { api, TIER_LABEL, TIER_RANK, PLAYER_URL, type MeAccount, type Tier } fro
 import { useAuth } from '../lib/auth.jsx'
 import { useTier } from '../lib/tier.jsx'
 import content from '../content/account.yaml'
+
+function useMobile() {
+  const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const handler = (e: MediaQueryListEvent) => setMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+  return mobile
+}
 
 // /account — profile, billing portal, indemnification cert, sign-out.
 // Profile fields are read-only in v1; rename ships in v1.5.
@@ -71,9 +82,9 @@ export function Account() {
           ) : (
             <div style={{
               display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between', gap: 16,
+              justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
             }}>
-              <div style={{ color: T.textMuted, fontSize: 14 }}>
+              <div style={{ color: T.textMuted, fontSize: 14, minWidth: 0 }}>
                 {content.billing.free_body}
               </div>
               <a href="/upgrade" style={{
@@ -90,9 +101,9 @@ export function Account() {
         <Card title={content.cert.title}>
           <div style={{
             display: 'flex', alignItems: 'center',
-            justifyContent: 'space-between', gap: 16,
+            justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
           }}>
-            <div style={{ color: T.textMuted, fontSize: 14, lineHeight: 1.5 }}>
+            <div style={{ color: T.textMuted, fontSize: 14, lineHeight: 1.5, minWidth: 0 }}>
               {content.cert.body}
             </div>
             <a
@@ -115,8 +126,8 @@ export function Account() {
         </Card>
 
         <Card title={content.session.title}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-            <div style={{ fontSize: 14, color: T.textMuted }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 14, color: T.textMuted, minWidth: 0, wordBreak: 'break-all' }}>
               {content.session.signed_in_as}<span style={{ color: T.text }}>{user?.email}</span>
             </div>
             <button
@@ -192,6 +203,7 @@ function ProfileCard({ email, account, tier, tierExtra, onSaved }: {
   tierExtra: string | null
   onSaved: () => void
 }) {
+  const mobile = useMobile()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState({
     companyName: account?.companyName ?? '',
@@ -233,7 +245,7 @@ function ProfileCard({ email, account, tier, tierExtra, onSaved }: {
 
   return (
     <Card title={content.profile.title}>
-      <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', rowGap: 10, fontSize: 14, alignItems: 'center' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '160px 1fr', rowGap: mobile ? 4 : 10, fontSize: 14, alignItems: 'center' }}>
         {/* Email — always read-only with a lock hint */}
         <span style={{ color: T.textDim }}>{content.profile.email_label}</span>
         <span style={{ color: T.text, display: 'inline-flex', alignItems: 'center', gap: 6 }}>

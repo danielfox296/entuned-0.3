@@ -1,11 +1,23 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { T } from '../tokens.js'
 import { Button, Eyebrow, Input, Logo } from '../ui/index.js'
 import { api } from '../api.js'
 import content from '../content/start.yaml'
 
+function useMobile() {
+  const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const handler = (e: MediaQueryListEvent) => setMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+  return mobile
+}
+
 export function Start() {
+  const mobile = useMobile()
   const [searchParams] = useSearchParams()
   const next = searchParams.get('next') ?? undefined
   const errorParam = searchParams.get('error')
@@ -46,7 +58,7 @@ export function Start() {
       alignItems: 'center',
       justifyContent: 'center',
       fontFamily: T.sans,
-      padding: '28px 64px 56px',
+      padding: mobile ? '24px 16px 40px' : '28px 64px 56px',
       color: T.text,
     }}>
       <div style={{ marginBottom: 48 }}>
@@ -113,7 +125,7 @@ export function Start() {
           backdropFilter: 'blur(12px)',
           border: `1px solid ${T.border}`,
           borderRadius: 12,
-          padding: '40px 36px',
+          padding: mobile ? '24px 20px' : '40px 36px',
         }}>
           {sent ? (
             <>
