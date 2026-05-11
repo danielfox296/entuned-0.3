@@ -101,10 +101,10 @@ export async function buildNegativeStyle(styleAnalysis: StyleAnalysis): Promise<
   }
 }
 
-const NEGATIVE_STYLE_HARD_CAP = 400
+export const NEGATIVE_STYLE_HARD_CAP = 400
 
 /** Join terms with ", " up to `cap` chars, preserving full terms (never mid-word). */
-function capJoined(terms: string[], cap: number): string {
+export function capJoined(terms: string[], cap: number): string {
   let out = ''
   for (const t of terms) {
     const candidate = out.length === 0 ? t : `${out}, ${t}`
