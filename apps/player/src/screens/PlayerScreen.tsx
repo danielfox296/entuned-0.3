@@ -254,6 +254,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
   }, [session.mode, session.slug, session.storeId, session.token]);
 
   const playFromQueue = useCallback(async () => {
+    // Proactively unlock AudioContext before any play call — iOS suspends it on backgrounding.
+    try {
+      const ctx = (window as unknown as { Howler?: { ctx?: AudioContext } }).Howler?.ctx;
+      if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+    } catch {}
     let head = queueRef.current[0];
     if (!head) {
       const fresh = await refill();
@@ -538,11 +543,12 @@ export function PlayerScreen({ session, onLogout }: Props) {
 
       const p = player.getProgress();
       if (!p || p.duration <= 0) return;
-      // Last 5% of the track is the natural-end zone — don't false-positive here.
-      if (p.elapsed >= p.duration * 0.95) return;
 
       const now = Date.now();
       const stall = stallRef.current;
+      // In the final 5% the track should end naturally; give onend a 4s window
+      // before treating frozen progress as a stall (shorter than the normal 20s).
+      const inEndZone = p.elapsed >= p.duration * 0.95;
 
       if (stall.elapsed < 0 || Math.abs(p.elapsed - stall.elapsed) > 0.1) {
         // Progress is moving — healthy.
@@ -552,12 +558,14 @@ export function PlayerScreen({ session, onLogout }: Props) {
       }
 
       const stalledMs = now - stall.since;
-      if (stalledMs >= WARN_MS && !bufferingRef.current) {
+      const effectiveSkipMs = inEndZone ? 4_000 : SKIP_MS;
+
+      if (stalledMs >= WARN_MS && !bufferingRef.current && !inEndZone) {
         console.warn(`[player] audio stalled at ${p.elapsed.toFixed(1)}s / ${p.duration.toFixed(1)}s`);
         bufferingRef.current = true;
         setBuffering(true);
       }
-      if (stalledMs >= SKIP_MS) {
+      if (stalledMs >= effectiveSkipMs) {
         console.warn("[player] stall timeout — skipping track");
         stallRef.current = { elapsed: -1, since: now };
         bufferingRef.current = false;
@@ -576,6 +584,16 @@ export function PlayerScreen({ session, onLogout }: Props) {
     if (bufferingRef.current) { bufferingRef.current = false; setBuffering(false); }
   }, [currentItem]);
 
+  // Preload the next queued song into the inactive deck so it's ready before onend fires.
+  // Ads are excluded — they use createAndPlay directly at full volume.
+  useEffect(() => {
+    const next = queue[0];
+    if (next?.type !== "ad" && next?.audioUrl) {
+      playerRef.current?.preloadNext(next.audioUrl);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queue[0]?.audioUrl]);
+
   // ── Resume after tab refocus / screen wake ────────────────────────────────
   useEffect(() => {
     const resume = () => {
@@ -592,11 +610,16 @@ export function PlayerScreen({ session, onLogout }: Props) {
       setIsPlaying(true);
     };
     const onVisibility = () => { if (document.visibilityState === "visible") resume(); };
+    const onPageHide = () => { wasPlayingRef.current = playerRef.current?.isPlaying() ?? false; };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", resume);
+    window.addEventListener("pageshow", resume);
+    window.addEventListener("pagehide", onPageHide);
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", resume);
+      window.removeEventListener("pageshow", resume);
+      window.removeEventListener("pagehide", onPageHide);
     };
   }, []);
 
