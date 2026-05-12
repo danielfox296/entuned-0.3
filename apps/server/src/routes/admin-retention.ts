@@ -1,5 +1,9 @@
 // GET /admin/retention — read-only aggregation over PlaybackEvent + Store data.
 // No new tables, no schema changes, compute on request.
+//
+// Honest-data rule: every number returned here is derived from real logged
+// events. No estimates, no fallback heuristics. If we don't have the event,
+// we don't fabricate the number — we just don't show it.
 
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import { prisma } from '../db.js'
@@ -39,40 +43,13 @@ function countSessions(starts: { occurredAt: Date }[]): number {
   return sessions
 }
 
-// Pair song_starts with song_completes by songId. Completed songs use actual duration;
-// unmatched starts get a 2-minute estimate. Both arrays must be sorted by occurredAt asc.
-function computeDurationSeconds(
-  starts: { occurredAt: Date; songId: string | null }[],
-  completes: { occurredAt: Date; songId: string | null }[],
-): number {
-  const completesBySong = new Map<string, Date[]>()
-  for (const c of completes) {
-    if (!c.songId) continue
-    const arr = completesBySong.get(c.songId) ?? []
-    arr.push(c.occurredAt)
-    completesBySong.set(c.songId, arr)
-  }
-
-  const ptrBySong = new Map<string, number>()
-  let totalSec = 0
-
-  for (const s of starts) {
-    if (!s.songId) { totalSec += 120; continue }
-    const times = completesBySong.get(s.songId)
-    if (!times || times.length === 0) { totalSec += 120; continue }
-    const ptr = ptrBySong.get(s.songId) ?? 0
-    let matched = false
-    for (let i = ptr; i < times.length; i++) {
-      if (times[i]! > s.occurredAt) {
-        totalSec += (times[i]!.getTime() - s.occurredAt.getTime()) / 1000
-        ptrBySong.set(s.songId, i + 1)
-        matched = true
-        break
-      }
-    }
-    if (!matched) totalSec += 120
-  }
-  return totalSec
+// Activation: real signals only. ≥ 2 sessions AND ≥ 10 song_starts ever.
+// Captures "the store actually came back at least once and used it for more
+// than a token few songs" — without inventing duration numbers.
+const ACTIVATION_MIN_SESSIONS = 2
+const ACTIVATION_MIN_SONGS = 10
+function isActivated(songStarts: number, sessions: number): boolean {
+  return sessions >= ACTIVATION_MIN_SESSIONS && songStarts >= ACTIVATION_MIN_SONGS
 }
 
 export const adminRetentionRoutes: FastifyPluginAsync = async (app) => {
@@ -101,13 +78,13 @@ export const adminRetentionRoutes: FastifyPluginAsync = async (app) => {
       // All song_start events ever — drives lastPlayAt, status, sessions, activation
       prisma.playbackEvent.findMany({
         where: { eventType: 'song_start' },
-        select: { storeId: true, occurredAt: true, songId: true },
+        select: { storeId: true, occurredAt: true },
         orderBy: { occurredAt: 'asc' },
       }),
-      // All song_complete events ever — paired with starts for duration
+      // All song_complete events ever — real completion count
       prisma.playbackEvent.findMany({
         where: { eventType: 'song_complete' },
-        select: { storeId: true, occurredAt: true, songId: true },
+        select: { storeId: true, occurredAt: true },
         orderBy: { occurredAt: 'asc' },
       }),
       // Window skips for skip rate
@@ -117,18 +94,18 @@ export const adminRetentionRoutes: FastifyPluginAsync = async (app) => {
       }),
     ])
 
-    // Group raw events by storeId
-    const startsByStore = new Map<string, { occurredAt: Date; songId: string | null }[]>()
+    // Group by store
+    const startsByStore = new Map<string, { occurredAt: Date }[]>()
     for (const e of allStarts) {
       const arr = startsByStore.get(e.storeId) ?? []
-      arr.push({ occurredAt: e.occurredAt, songId: e.songId })
+      arr.push({ occurredAt: e.occurredAt })
       startsByStore.set(e.storeId, arr)
     }
 
-    const completesByStore = new Map<string, { occurredAt: Date; songId: string | null }[]>()
+    const completesByStore = new Map<string, { occurredAt: Date }[]>()
     for (const e of allCompletes) {
       const arr = completesByStore.get(e.storeId) ?? []
-      arr.push({ occurredAt: e.occurredAt, songId: e.songId })
+      arr.push({ occurredAt: e.occurredAt })
       completesByStore.set(e.storeId, arr)
     }
 
@@ -137,36 +114,33 @@ export const adminRetentionRoutes: FastifyPluginAsync = async (app) => {
       skipCountByStore.set(e.storeId, (skipCountByStore.get(e.storeId) ?? 0) + 1)
     }
 
-    // Per-store computation
     const storeRows = stores.map((store) => {
       const tier = effectiveTier(store)
       const allTimeStarts = startsByStore.get(store.id) ?? []
       const allTimeCompletes = completesByStore.get(store.id) ?? []
 
-      // Last play (most recent song_start, arrays are sorted asc so last element is latest)
-      const lastStart = allTimeStarts.length > 0 ? allTimeStarts[allTimeStarts.length - 1]!.occurredAt : null
+      // Last play — arrays are sorted asc, last element is latest
+      const lastStart = allTimeStarts.length > 0
+        ? allTimeStarts[allTimeStarts.length - 1]!.occurredAt
+        : null
 
-      // Status
       let status: 'active' | 'quiet' | 'gone_dark' | 'never_played'
       if (!lastStart) status = 'never_played'
       else if (lastStart >= sevenDaysAgo) status = 'active'
       else if (lastStart >= fourteenDaysAgo) status = 'quiet'
       else status = 'gone_dark'
 
-      // Activation (all-time): ≥ 2 hours accumulated AND ≥ 2 sessions
+      // Activation: all-time real signals
       const allTimeSessions = countSessions(allTimeStarts)
-      const allTimeDurationSec = computeDurationSeconds(allTimeStarts, allTimeCompletes)
-      const activated = allTimeDurationSec >= 7200 && allTimeSessions >= 2
+      const activated = isActivated(allTimeStarts.length, allTimeSessions)
 
-      // Window metrics
+      // Window metrics — all real counts
       const windowStarts = allTimeStarts.filter((e) => e.occurredAt >= windowStart)
       const windowCompletes = allTimeCompletes.filter((e) => e.occurredAt >= windowStart)
       const skipsInWindow = skipCountByStore.get(store.id) ?? 0
-      const completesInWindow = windowCompletes.length
-      const skipDenominator = skipsInWindow + completesInWindow
+      const skipDenominator = skipsInWindow + windowCompletes.length
       const skipRate = skipDenominator > 0 ? skipsInWindow / skipDenominator : 0
       const sessionsInWindow = countSessions(windowStarts)
-      const durationSecInWindow = computeDurationSeconds(windowStarts, windowCompletes)
 
       return {
         storeId: store.id,
@@ -175,16 +149,15 @@ export const adminRetentionRoutes: FastifyPluginAsync = async (app) => {
         tier,
         createdAt: store.createdAt.toISOString(),
         lastPlayAt: lastStart ? lastStart.toISOString() : null,
-        totalHoursPlayed: parseFloat((durationSecInWindow / 3600).toFixed(2)),
+        songsStarted: windowStarts.length,
+        songsCompleted: windowCompletes.length,
         sessionsInWindow,
         skipRate: parseFloat(skipRate.toFixed(4)),
-        songsPlayed: windowStarts.length,
         activated,
         status,
       }
     })
 
-    // Fleet overview
     const overview = {
       totalStores: storeRows.length,
       activeStores: storeRows.filter((s) => s.status === 'active').length,
@@ -194,7 +167,6 @@ export const adminRetentionRoutes: FastifyPluginAsync = async (app) => {
       paidStores: storeRows.filter((s) => ['core', 'pro', 'enterprise', 'mvp_pilot'].includes(s.tier)).length,
     }
 
-    // Cohort table — group stores by ISO week of createdAt
     const cohortMap = new Map<string, { signups: number; activated: number; convertedToPaid: number; stillActive: number }>()
     for (let i = 0; i < stores.length; i++) {
       const store = stores[i]!
@@ -215,6 +187,10 @@ export const adminRetentionRoutes: FastifyPluginAsync = async (app) => {
     reply.send({
       generatedAt: now.toISOString(),
       windowDays,
+      activationCriteria: {
+        minSessions: ACTIVATION_MIN_SESSIONS,
+        minSongStarts: ACTIVATION_MIN_SONGS,
+      },
       overview,
       stores: storeRows,
       cohorts,

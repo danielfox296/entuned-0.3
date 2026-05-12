@@ -51,7 +51,6 @@ export function RetentionDashboard() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Tab row + window selector */}
       <div style={{
         display: 'flex', alignItems: 'center', borderBottom: `1px solid ${T.borderSubtle}`,
       }}>
@@ -90,11 +89,12 @@ export function RetentionDashboard() {
       {data && !loading && (
         <>
           {tab === 'Overview' && <OverviewTab data={data} />}
-          {tab === 'Stores' && <StoresTab stores={sortedStores} />}
+          {tab === 'Stores' && <StoresTab stores={sortedStores} criteria={data.activationCriteria} />}
           {tab === 'Gone Dark' && (
-            <StoresTab stores={sortedStores.filter(
-              (s) => s.status === 'gone_dark' || s.status === 'quiet',
-            )} />
+            <StoresTab
+              stores={sortedStores.filter((s) => s.status === 'gone_dark' || s.status === 'quiet')}
+              criteria={data.activationCriteria}
+            />
           )}
         </>
       )}
@@ -105,30 +105,67 @@ export function RetentionDashboard() {
 // ── Overview tab ───────────────────────────────────────────────
 
 function OverviewTab({ data }: { data: RetentionResponse }) {
-  const { overview, cohorts } = data
+  const { overview, cohorts, activationCriteria, windowDays } = data
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* Summary cards */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <StatCard label="Total Stores" value={overview.totalStores} color={T.textMuted} />
-        <StatCard label="Active (7d)" value={overview.activeStores} color={T.success} />
-        <StatCard label="Activated" value={overview.activatedStores} color={T.accent} />
-        <StatCard label="Gone Dark" value={overview.goneDarkStores} color={T.danger} />
-        <StatCard label="Free" value={overview.freeStores} color={T.textMuted} />
-        <StatCard label="Paid" value={overview.paidStores} color={T.gold} />
+        <StatCard
+          label="Total Stores"
+          value={overview.totalStores}
+          color={T.textMuted}
+          hint="All stores in the system"
+        />
+        <StatCard
+          label="Active"
+          value={overview.activeStores}
+          color={T.success}
+          hint="Played a song in the last 7 days"
+        />
+        <StatCard
+          label="Activated"
+          value={overview.activatedStores}
+          color={T.accent}
+          hint={`≥ ${activationCriteria.minSongStarts} songs across ≥ ${activationCriteria.minSessions} sessions (ever)`}
+        />
+        <StatCard
+          label="Gone Dark"
+          value={overview.goneDarkStores}
+          color={T.danger}
+          hint="Played before, but not in the last 14 days"
+        />
+        <StatCard
+          label="Free"
+          value={overview.freeStores}
+          color={T.textMuted}
+          hint="Stores on the Entuned Free tier"
+        />
+        <StatCard
+          label="Paid"
+          value={overview.paidStores}
+          color={T.gold}
+          hint="Core / Pro / Enterprise (paid or comp)"
+        />
       </div>
 
-      {/* Cohort table */}
       <div>
         <div style={{
           fontSize: 13, fontFamily: T.sans, color: T.textDim,
-          textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10,
+          textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6,
         }}>Cohort conversion</div>
+        <div style={{
+          fontSize: 12, fontFamily: T.sans, color: T.textFaint, marginBottom: 10,
+          lineHeight: 1.5,
+        }}>
+          Stores grouped by the ISO week they were created. Activation and "still
+          active" use all-time signals; "still active" means at least one song
+          played in the last 7 days. Window selector ({windowDays}d) does not
+          affect this table.
+        </div>
         <div style={{ border: `1px solid ${T.border}`, borderRadius: 4, overflow: 'hidden' }}>
           <CohortHeader />
           {cohorts.length === 0 && (
             <div style={{ padding: 24, textAlign: 'center', color: T.textDim, fontFamily: T.sans, fontSize: 14 }}>
-              No cohort data yet
+              No stores yet
             </div>
           )}
           {cohorts.map((row) => <CohortDataRow key={row.cohortWeek} row={row} />)}
@@ -138,12 +175,15 @@ function OverviewTab({ data }: { data: RetentionResponse }) {
   )
 }
 
-function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
+function StatCard({ label, value, color, hint }: {
+  label: string; value: number; color: string; hint?: string
+}) {
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column', gap: 4,
-      padding: '12px 18px', borderRadius: 4,
-      border: `1px solid ${T.border}`, background: T.surface, minWidth: 120,
+      display: 'flex', flexDirection: 'column', gap: 6,
+      padding: '14px 18px', borderRadius: 4,
+      border: `1px solid ${T.border}`, background: T.surface,
+      minWidth: 170, maxWidth: 220, flex: '1 1 170px',
     }}>
       <div style={{ fontFamily: T.sans, fontSize: 28, fontWeight: 600, color, lineHeight: 1 }}>
         {value}
@@ -151,6 +191,11 @@ function StatCard({ label, value, color }: { label: string; value: number; color
       <div style={{ fontFamily: T.sans, fontSize: 12, color: T.textDim, textTransform: 'uppercase', letterSpacing: 0.4 }}>
         {label}
       </div>
+      {hint && (
+        <div style={{ fontFamily: T.sans, fontSize: 11, color: T.textFaint, lineHeight: 1.4 }}>
+          {hint}
+        </div>
+      )}
     </div>
   )
 }
@@ -198,18 +243,30 @@ function CohortDataRow({ row }: { row: CohortRow }) {
 
 // ── Stores tab ─────────────────────────────────────────────────
 
-const STORE_COLS = '1.8fr 1.4fr 80px 110px 120px 80px 70px 70px 80px 80px'
+const STORE_COLS = '1.8fr 1.4fr 80px 110px 110px 80px 80px 90px 80px 80px'
 
-function StoresTab({ stores }: { stores: StoreRetentionRow[] }) {
+function StoresTab({ stores, criteria }: {
+  stores: StoreRetentionRow[]
+  criteria: { minSessions: number; minSongStarts: number }
+}) {
   return (
-    <div style={{ border: `1px solid ${T.border}`, borderRadius: 4, overflow: 'hidden' }}>
-      <StoreHeader />
-      {stores.length === 0 && (
-        <div style={{ padding: 24, textAlign: 'center', color: T.textDim, fontFamily: T.sans, fontSize: 14 }}>
-          No stores to show
-        </div>
-      )}
-      {stores.map((s) => <StoreDataRow key={s.storeId} row={s} />)}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{
+        fontSize: 12, fontFamily: T.sans, color: T.textFaint, lineHeight: 1.5,
+      }}>
+        Started / Completed / Sessions / Skip are counts within the selected
+        window. Last Play and Activated are all-time. Activated = ≥ {criteria.minSongStarts}{' '}
+        songs across ≥ {criteria.minSessions} sessions (ever).
+      </div>
+      <div style={{ border: `1px solid ${T.border}`, borderRadius: 4, overflow: 'hidden' }}>
+        <StoreHeader />
+        {stores.length === 0 && (
+          <div style={{ padding: 24, textAlign: 'center', color: T.textDim, fontFamily: T.sans, fontSize: 14 }}>
+            No stores to show
+          </div>
+        )}
+        {stores.map((s) => <StoreDataRow key={s.storeId} row={s} />)}
+      </div>
     </div>
   )
 }
@@ -230,9 +287,9 @@ function StoreHeader() {
       <span style={{ ...cell, textAlign: 'right' }}>Tier</span>
       <span style={cell}>Status</span>
       <span style={{ ...cell, textAlign: 'right' }}>Last Play</span>
-      <span style={{ ...cell, textAlign: 'right' }}>Hours</span>
+      <span style={{ ...cell, textAlign: 'right' }}>Started</span>
+      <span style={{ ...cell, textAlign: 'right' }}>Completed</span>
       <span style={{ ...cell, textAlign: 'right' }}>Sessions</span>
-      <span style={{ ...cell, textAlign: 'right' }}>Songs</span>
       <span style={{ ...cell, textAlign: 'right' }}>Skip %</span>
       <span style={{ ...cell, textAlign: 'right' }}>Activated</span>
     </div>
@@ -255,6 +312,7 @@ const STATUS_LABEL: Record<StoreRetentionRow['status'], string> = {
 function StoreDataRow({ row }: { row: StoreRetentionRow }) {
   const statusColor = STATUS_COLOR[row.status]
   const skipPct = (row.skipRate * 100).toFixed(0) + '%'
+  const hasSkipData = row.skipRate > 0 || row.songsCompleted > 0
   const skipColor = row.skipRate > 0.4 ? T.danger : T.textMuted
 
   const lastPlayLabel = row.lastPlayAt
@@ -277,16 +335,17 @@ function StoreDataRow({ row }: { row: StoreRetentionRow }) {
       <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
         <span style={{
           width: 7, height: 7, borderRadius: '50%',
-          background: statusColor, flexShrink: 0,
-          display: 'inline-block',
+          background: statusColor, flexShrink: 0, display: 'inline-block',
         }} />
         <span style={{ color: statusColor, fontSize: 12 }}>{STATUS_LABEL[row.status]}</span>
       </span>
       <span style={{ color: T.textMuted, textAlign: 'right' }}>{lastPlayLabel}</span>
-      <span style={{ color: T.textMuted, textAlign: 'right' }}>{row.totalHoursPlayed}h</span>
+      <span style={{ color: T.textMuted, textAlign: 'right' }}>{row.songsStarted}</span>
+      <span style={{ color: T.textMuted, textAlign: 'right' }}>{row.songsCompleted}</span>
       <span style={{ color: T.textMuted, textAlign: 'right' }}>{row.sessionsInWindow}</span>
-      <span style={{ color: T.textMuted, textAlign: 'right' }}>{row.songsPlayed}</span>
-      <span style={{ color: skipColor, textAlign: 'right' }}>{row.songsPlayed > 0 ? skipPct : '—'}</span>
+      <span style={{ color: skipColor, textAlign: 'right' }}>
+        {hasSkipData ? skipPct : '—'}
+      </span>
       <span style={{ textAlign: 'right', color: row.activated ? T.success : T.textDim }}>
         {row.activated ? '✓' : '—'}
       </span>

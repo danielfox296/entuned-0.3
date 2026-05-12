@@ -853,10 +853,10 @@ export interface StoreRetentionRow {
   tier: string
   createdAt: string
   lastPlayAt: string | null
-  totalHoursPlayed: number
+  songsStarted: number
+  songsCompleted: number
   sessionsInWindow: number
   skipRate: number
-  songsPlayed: number
   activated: boolean
   status: 'active' | 'quiet' | 'gone_dark' | 'never_played'
 }
@@ -872,6 +872,10 @@ export interface CohortRow {
 export interface RetentionResponse {
   generatedAt: string
   windowDays: number
+  activationCriteria: {
+    minSessions: number
+    minSongStarts: number
+  }
   overview: {
     totalStores: number
     activeStores: number
