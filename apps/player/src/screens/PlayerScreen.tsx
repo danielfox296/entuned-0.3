@@ -707,7 +707,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
       style={{
         position: "relative",
         width: "100vw",
-        minHeight: "100vh",
+        height: "100%",
         overflow: "hidden",
         background: twoCol
           ? "linear-gradient(rgba(22,21,18,0.82), rgba(13,11,9,0.94)), url('/hero-start.jpg')"
