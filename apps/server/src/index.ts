@@ -11,6 +11,7 @@ import { eventsRoutes } from './routes/events.js'
 import { authRoutes } from './routes/auth.js'
 import { loginRoutes } from './routes/login.js'
 import { adminRoutes } from './routes/admin.js'
+import { adminRetentionRoutes } from './routes/admin-retention.js'
 import { billingRoutes } from './routes/billing.js'
 import { meRoutes } from './routes/me.js'
 import { emailRoutes } from './routes/email.js'
@@ -62,6 +63,7 @@ await app.register(authRoutes, { prefix: '/auth' })
 // See login.ts top-of-file note.
 await app.register(loginRoutes, { prefix: '/login' })
 await app.register(adminRoutes, { prefix: '/admin' })
+await app.register(adminRetentionRoutes, { prefix: '/admin' })
 // Billing — registered with NO prefix because the routes themselves carry
 // their full paths (`/billing/*` and `/webhooks/stripe`). The plugin
 // installs its own content-type parser inside its encapsulated scope so the

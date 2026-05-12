@@ -33,6 +33,7 @@ import { SongBrowser } from './panels/catalogue/SongBrowser.js'
 import { FlaggedReview } from './panels/catalogue/FlaggedReview.js'
 import { FreeTierOutcomes } from './panels/catalogue/FreeTierOutcomes.js'
 import { WorkflowRouter } from './panels/workflow/WorkflowRouter.js'
+import { RetentionDashboard } from './panels/monitoring/RetentionDashboard.js'
 import { SalesDataIngest } from './panels/salesdata/SalesDataIngest.js'
 import { EmailTemplates } from './panels/email/EmailTemplates.js'
 import { useNavGroup, useNavSub } from './nav.js'
@@ -75,8 +76,8 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Hypothesis Queue', 'Hypothesis Detail', 'Promotion History'],
     description: '', deferred: true },
   { key: 'monitoring', label: 'Monitoring & Alerts', short: 'Monitoring', icon: Activity,
-    cards: ['Alert Feed', 'Metric Source Registry'],
-    description: '', deferred: true },
+    cards: ['Retention Dashboard'],
+    description: '' },
 ]
 
 // ── Sidebar ────────────────────────────────────────────────────
@@ -233,7 +234,8 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
          group.key === 'outcomes' ? <OutcomesRouter cards={group.cards} /> :
          group.key === 'catalogue' ? <CatalogueRouter cards={group.cards} /> :
          group.key === 'salesdata' ? <SalesDataIngest /> :
-         group.key === 'email' ? <EmailTemplates /> : (
+         group.key === 'email' ? <EmailTemplates /> :
+         group.key === 'monitoring' ? <RetentionDashboard /> : (
         <>
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12,

@@ -844,6 +844,46 @@ export interface CampaignCreateBody {
 
 export type CampaignUpdateBody = Partial<CampaignCreateBody>
 
+// --- Retention ---
+
+export interface StoreRetentionRow {
+  storeId: string
+  storeName: string
+  clientName: string
+  tier: string
+  createdAt: string
+  lastPlayAt: string | null
+  totalHoursPlayed: number
+  sessionsInWindow: number
+  skipRate: number
+  songsPlayed: number
+  activated: boolean
+  status: 'active' | 'quiet' | 'gone_dark' | 'never_played'
+}
+
+export interface CohortRow {
+  cohortWeek: string
+  signups: number
+  activated: number
+  convertedToPaid: number
+  stillActive: number
+}
+
+export interface RetentionResponse {
+  generatedAt: string
+  windowDays: number
+  overview: {
+    totalStores: number
+    activeStores: number
+    activatedStores: number
+    goneDarkStores: number
+    freeStores: number
+    paidStores: number
+  }
+  stores: StoreRetentionRow[]
+  cohorts: CohortRow[]
+}
+
 // --- API methods ---
 
 export const api = {
@@ -1298,6 +1338,12 @@ export const api = {
     const fd = new FormData()
     for (const f of files) fd.append('files', f)
     return upload<{ songSeed: SongSeedRow; lineageRows: any[] }>(`/admin/song-seeds/${id}/accept-files`, fd, token)
+  },
+
+  // --- Retention ---
+  retention: (windowDays: number | undefined, token: string) => {
+    const qs = windowDays ? `?windowDays=${windowDays}` : ''
+    return req<RetentionResponse>(`/admin/retention${qs}`, {}, token)
   },
 
   // --- Operator management ---
