@@ -253,7 +253,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
     } catch (e) { console.warn("[player] outcomes failed", e); }
   }, [session.mode, session.slug, session.storeId, session.token]);
 
-  const playFromQueue = useCallback(async () => {
+  const playFromQueue = useCallback(async (playOpts?: { hardCut?: boolean }) => {
     // Proactively unlock AudioContext before any play call — iOS suspends it on backgrounding.
     try {
       const ctx = (window as unknown as { Howler?: { ctx?: AudioContext } }).Howler?.ctx;
@@ -278,7 +278,10 @@ export function PlayerScreen({ session, onLogout }: Props) {
     currentRef.current = head;
     trackStartedAtRef.current = new Date().toISOString();
     wasPlayingRef.current = true;
-    playerRef.current?.createAndPlay(head.audioUrl, head.type === "ad" ? { volume: AD_VOLUME } : undefined);
+    playerRef.current?.createAndPlay(head.audioUrl, {
+      ...(head.type === "ad" ? { volume: AD_VOLUME } : {}),
+      ...(playOpts?.hardCut ? { hardCut: true } : {}),
+    });
     setIsPlaying(true);
     emit(head.type === "ad" ? "ad_play" : "song_start", head);
   }, [refill, emit]);
@@ -289,6 +292,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
       emit("song_complete", completed);
       setPlayedCount((c) => c + 1);
     }
+    // Natural transition — let the player run its 200ms crossfade.
     await playFromQueue();
   }, [emit, playFromQueue]);
 
@@ -300,7 +304,10 @@ export function PlayerScreen({ session, onLogout }: Props) {
       emit("song_complete", cur);
       setPlayedCount((c) => c + 1);
     }
-    await playFromQueue();
+    // User-initiated skip — hard-cut so rapid clicks don't muddy the audio
+    // with stacked fades. Each click stops the current deck instantly and
+    // starts the next at full volume (uses preloaded deck if available).
+    await playFromQueue({ hardCut: true });
   }, [emit, playFromQueue]);
 
   const togglePlayPause = useCallback(() => {

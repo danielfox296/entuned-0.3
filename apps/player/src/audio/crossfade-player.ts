@@ -180,7 +180,7 @@ export class CrossfadePlayer {
     });
   }
 
-  createAndPlay(url: string, opts?: { volume?: number }): void {
+  createAndPlay(url: string, opts?: { volume?: number; hardCut?: boolean }): void {
     this.startHeartbeat();
     this.resumeAudioContext();
     this.clearNearEnd();
@@ -190,7 +190,10 @@ export class CrossfadePlayer {
     // Use the howl's actual playing state, not just status, so playerror'd
     // decks don't trigger a crossfade against silence.
     const prevWasPlaying = prev.howl !== null && prev.howl.playing();
-    const doCrossfade = prevWasPlaying && this.crossfadeMs > 0;
+    // hardCut: caller is responding to an explicit user action (skip) — kill
+    // the current deck instantly and play the next at full volume. Crossfade
+    // is reserved for natural transitions where overlap sounds smooth.
+    const doCrossfade = prevWasPlaying && this.crossfadeMs > 0 && !opts?.hardCut;
 
     let inactive = this.getInactiveDeck();
     // Inactive slot is still fading out from a previous transition — hard-stop
