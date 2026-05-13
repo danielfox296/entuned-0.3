@@ -11,6 +11,7 @@ import { ReportModal, type ReportReason } from "../components/ReportModal.js";
 import { TooltipTour, tourSeen, type TourStep } from "../components/TooltipTour.js";
 import { UpgradeRail } from "../components/UpgradeRail.js";
 import { saveSession, type Session } from "../lib/storage.js";
+import { trackPlayerLanding, trackFirstPlay, trackTrackComplete } from "../lib/ga4.js";
 import logoUrl from "/entuned_logo.png";
 import lockscreenArtUrl from "/lockscreen-art.png";
 
@@ -151,6 +152,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
     const t = setTimeout(() => setTourActive(true), 50);
     return () => clearTimeout(t);
   }, []);
+  // GA4 — fire landing event once on mount.
+  useEffect(() => {
+    trackPlayerLanding(session.mode === 'slug' ? session.slug : undefined);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Welcome flash — only on first visit, slug-mode only (operators don't need
   // a "your music is ready" greeting; they signed in deliberately).
   const [showWelcome, setShowWelcome] = useState<boolean>(
@@ -284,12 +290,14 @@ export function PlayerScreen({ session, onLogout }: Props) {
     });
     setIsPlaying(true);
     emit(head.type === "ad" ? "ad_play" : "song_start", head);
+    if (head.type !== "ad") trackFirstPlay(head.title);
   }, [refill, emit]);
 
   const advanceToNext = useCallback(async () => {
     const completed = currentRef.current;
     if (completed && completed.type !== "ad") {
       emit("song_complete", completed);
+      trackTrackComplete(completed.title);
       setPlayedCount((c) => c + 1);
     }
     // Natural transition — let the player run its 200ms crossfade.

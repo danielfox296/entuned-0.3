@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { RequireAuth } from './lib/auth.jsx'
 import { Start } from './routes/Start.js'
 import { Welcome } from './routes/Welcome.js'
@@ -10,6 +11,15 @@ import { Schedule } from './routes/Schedule.js'
 import { Integrations } from './routes/Integrations.js'
 import { Reports } from './routes/Reports.js'
 import { Upgrade } from './routes/Upgrade.js'
+import { trackPageView } from './lib/ga4.js'
+
+// SPA virtual pageview — fires on every React Router transition so GA4
+// picks up in-app navigation that wouldn't trigger a full page load.
+function GA4PageTracker() {
+  const { pathname } = useLocation()
+  useEffect(() => { trackPageView(pathname) }, [pathname])
+  return null
+}
 
 // Top-level route table for the customer dashboard.
 //
@@ -18,6 +28,7 @@ import { Upgrade } from './routes/Upgrade.js'
 export function App() {
   return (
     <BrowserRouter>
+      <GA4PageTracker />
       <Routes>
         <Route path="/start"   element={<Start />} />
         <Route path="/welcome" element={<Welcome />} />

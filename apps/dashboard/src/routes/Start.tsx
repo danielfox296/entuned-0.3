@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { T } from '../tokens.js'
 import { Button, Eyebrow, Input, Logo } from '../ui/index.js'
 import { api } from '../api.js'
+import { trackDashboardLanding, trackSignUp } from '../lib/ga4.js'
 import content from '../content/start.yaml'
 
 function useMobile() {
@@ -22,6 +23,9 @@ export function Start() {
   const next = searchParams.get('next') ?? undefined
   const errorParam = searchParams.get('error')
 
+  // GA4 — fire landing event once on mount.
+  useEffect(() => { trackDashboardLanding() }, [])
+
   const linkErrorCopy = (() => {
     if (!errorParam) return null
     const map = content.link_errors as Record<string, string>
@@ -39,6 +43,7 @@ export function Start() {
     setBusy(true)
     try {
       await api.requestMagicLink(email, next)
+      trackSignUp('magic_link')
       setSent(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : content.generic_error)
@@ -215,6 +220,7 @@ export function Start() {
 
               <a
                 href={api.googleLoginUrl(next)}
+                onClick={() => trackSignUp('google')}
                 style={{
                   display: 'block',
                   background: 'transparent',

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { T } from '../tokens.js'
 import { Eyebrow, Logo } from '../ui/index.js'
 import { api } from '../api.js'
+import { trackOnboardingComplete } from '../lib/ga4.js'
 import content from '../content/welcome.yaml'
 
 // /welcome?session=cs_... — landing page after Stripe Checkout returns.
@@ -30,6 +31,7 @@ export function Welcome() {
         if (cancelled) return
         if (r.status === 'provisioned') {
           setStatus('ready')
+          trackOnboardingComplete()
           // Brief pause for the confirmation, then straight to the brand
           // intake. /welcome is only reached after Stripe checkout returns,
           // so the user is paid (Core+) and unlocked for /intake. This is
