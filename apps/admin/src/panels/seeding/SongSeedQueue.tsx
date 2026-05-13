@@ -13,6 +13,7 @@ import { SongSeed } from './SongSeed.js'
 import type { WorkflowContext } from '../workflow/WorkflowRouter.js'
 
 type StyleBuilder = 'router' | 'anchor' | 'legacy'
+type Pipeline = 'eno-1' | 'eno-2'
 
 type RowState =
   | 'ready'
@@ -62,9 +63,19 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
     return 'router'
   })
 
+  const [pipeline, setPipeline] = useState<Pipeline>(() => {
+    const saved = typeof window !== 'undefined' ? window.localStorage.getItem('songSeedQueue.pipeline') : null
+    if (saved === 'eno-1' || saved === 'eno-2') return saved
+    return 'eno-1'
+  })
+
   useEffect(() => {
     if (typeof window !== 'undefined') window.localStorage.setItem('songSeedQueue.styleBuilder', styleBuilder)
   }, [styleBuilder])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') window.localStorage.setItem('songSeedQueue.pipeline', pipeline)
+  }, [pipeline])
 
   const storeIcps = store?.icps ?? []
 
@@ -93,7 +104,7 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
     setErr(null)
     setLastResult(null)
     try {
-      const res = await api.runSeedBuilder({ icpId, outcomeId, n, styleBuilder }, token)
+      const res = await api.runSeedBuilder({ icpId, outcomeId, n, styleBuilder, pipeline }, token)
       setLastResult({ outcomeId, res })
       await reload()
     } catch (e: any) {
@@ -102,7 +113,7 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
     } finally {
       setBusyOutcome((b) => ({ ...b, [outcomeId]: false }))
     }
-  }, [icpId, styleBuilder, reload])
+  }, [icpId, styleBuilder, pipeline, reload])
 
   const navTo = (sub: string, pendingOutcomeId?: string) => {
     // Hand the destination panel a hint via sessionStorage so it can pre-select
@@ -165,7 +176,8 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
             <span style={{ color: T.text }}>{totals.seedsQueued}</span> queued for review
           </div>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <PipelineToggle value={pipeline} onChange={setPipeline} />
           <Segmented
             value={styleBuilder}
             onChange={setStyleBuilder}
@@ -352,6 +364,37 @@ function Segmented({ value, onChange, options }: {
             title={o.help}
             style={{
               background: on ? T.accent : 'transparent',
+              color: on ? T.bg : T.textMuted,
+              border: 'none', padding: '6px 12px', cursor: on ? 'default' : 'pointer',
+              fontFamily: T.mono, fontSize: 12, fontWeight: on ? 600 : 400,
+              borderLeft: i > 0 ? `1px solid ${T.border}` : 'none',
+            }}
+          >{o.label}</button>
+        )
+      })}
+    </div>
+  )
+}
+
+function PipelineToggle({ value, onChange }: { value: Pipeline; onChange: (v: Pipeline) => void }) {
+  const opts: Array<{ value: Pipeline; label: string; help: string }> = [
+    { value: 'eno-1', label: 'Eno-1', help: 'Current production pipeline. Pop-default lyric craft rules.' },
+    { value: 'eno-2', label: 'Eno-2', help: 'Genre-aware lyrics. Adapts craft rules to hip-hop, country, EDM, R&B, latin based on reference track.' },
+  ]
+  return (
+    <div style={{
+      display: 'inline-flex', border: `1px solid ${T.border}`, borderRadius: 4,
+      background: T.surface, overflow: 'hidden',
+    }}>
+      {opts.map((o, i) => {
+        const on = o.value === value
+        return (
+          <button
+            key={o.value}
+            onClick={() => onChange(o.value)}
+            title={o.help}
+            style={{
+              background: on ? (o.value === 'eno-2' ? '#b07d3b' : T.accent) : 'transparent',
               color: on ? T.bg : T.textMuted,
               border: 'none', padding: '6px 12px', cursor: on ? 'default' : 'pointer',
               fontFamily: T.mono, fontSize: 12, fontWeight: on ? 600 : 400,

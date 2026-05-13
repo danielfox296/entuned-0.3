@@ -11,6 +11,9 @@ import { injectArrangement, type ArrangementSections } from '../arranger/arrange
 import { resolveOutcomeParams } from '../variance/variance.js'
 import { extractVocalGender, type VocalGender } from '../mars/vocal-gender.js'
 import { pickFormArchetype } from './form-archetype.js'
+import { createSongSeedV2 } from './eno-v2.js'
+
+export type PipelineName = 'eno-1' | 'eno-2'
 
 export const OUTCOME_FACTOR_PROMPT_SEED = '{mood}, {tempo_bpm}bpm, {mode}' // prepended to style string. Mood is required on Outcome and leads the prefix as the affect anchor. Tokens {dynamics} {instrumentation} still resolve for backward compat with old templates but are deprecated — they were stamping genre-mismatched instrument lists onto every track and using rules-v8 banned vocab.
 
@@ -41,6 +44,8 @@ export interface SeedBuilderOptions {
   triggeredByUser?: string
   /** Mars style builder strategy for this batch. Defaults to STYLE_BUILDER env / 'router'. */
   styleBuilder?: StyleBuilderName
+  /** Pipeline version. 'eno-2' activates genre-aware lyrics. Defaults to 'eno-1'. */
+  pipeline?: PipelineName
 }
 
 export interface SeedBuilderResult {
@@ -52,6 +57,7 @@ export interface SeedBuilderResult {
 }
 
 export async function runEno(opts: SeedBuilderOptions): Promise<SeedBuilderResult> {
+  const pipeline = opts.pipeline ?? 'eno-1'
   const batch = await prisma.songSeedBatch.create({
     data: {
       icpId: opts.icpId,
@@ -59,6 +65,7 @@ export async function runEno(opts: SeedBuilderOptions): Promise<SeedBuilderResul
       requestedN: opts.n,
       triggeredBy: opts.triggeredBy,
       triggeredByUser: opts.triggeredByUser ?? null,
+      pipeline,
     },
   })
 
@@ -74,7 +81,9 @@ export async function runEno(opts: SeedBuilderOptions): Promise<SeedBuilderResul
 
   for (let i = 0; i < opts.n; i++) {
     try {
-      const result = await createSongSeed(batch.id, opts.icpId, opts.outcomeId, opts.styleBuilder)
+      const result = pipeline === 'eno-2'
+        ? await createSongSeedV2(batch.id, opts.icpId, opts.outcomeId, opts.styleBuilder)
+        : await createSongSeed(batch.id, opts.icpId, opts.outcomeId, opts.styleBuilder)
       if (!result.ok) {
         errors.push(result.reason ?? 'unknown')
         if (result.reason === 'pool_exhausted_hooks' || result.reason === 'pool_exhausted_reference_tracks') {
@@ -98,7 +107,7 @@ export async function runEno(opts: SeedBuilderOptions): Promise<SeedBuilderResul
   return { songSeedBatchId: batch.id, requestedN: opts.n, producedN: produced, reason, errors }
 }
 
-interface CreateSongSeedResult {
+export interface CreateSongSeedResult {
   ok: boolean
   songSeedId?: string
   reason?: string
@@ -214,9 +223,9 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
   }
 }
 
-type HookVocalGender = 'male' | 'female' | 'duet' | null
+export type HookVocalGender = 'male' | 'female' | 'duet' | null
 
-async function pickAvailableHook(icpId: string, outcomeId: string): Promise<{ id: string; text: string; vocalGender: HookVocalGender } | null> {
+export async function pickAvailableHook(icpId: string, outcomeId: string): Promise<{ id: string; text: string; vocalGender: HookVocalGender } | null> {
   const hooks = await prisma.hook.findMany({
     where: { icpId, outcomeId, status: 'approved' },
     select: {
@@ -235,12 +244,12 @@ async function pickAvailableHook(icpId: string, outcomeId: string): Promise<{ id
   return null
 }
 
-type RefTrackWithAnalysis = Awaited<ReturnType<typeof prisma.referenceTrack.findFirstOrThrow<{ include: { styleAnalysis: true } }>>>
+export type RefTrackWithAnalysis = Awaited<ReturnType<typeof prisma.referenceTrack.findFirstOrThrow<{ include: { styleAnalysis: true } }>>>
 
 // True if a ref track's vocal lead is compatible with the hook's vocal-gender
 // constraint. Null hookGender = unconstrained (any vocal track passes; only
 // instrumentals are excluded). Set hookGender = strict match required.
-function vocalGenderCompatible(refGender: VocalGender, hookGender: HookVocalGender): boolean {
+export function vocalGenderCompatible(refGender: VocalGender, hookGender: HookVocalGender): boolean {
   if (refGender === 'instrumental') return false
   if (!hookGender) return true
   if (hookGender === 'duet') return refGender === 'duet'
@@ -248,7 +257,7 @@ function vocalGenderCompatible(refGender: VocalGender, hookGender: HookVocalGend
   return refGender === hookGender || refGender === 'duet'
 }
 
-async function pickReferenceTrack(icpId: string, hookGender: HookVocalGender): Promise<RefTrackWithAnalysis | null> {
+export async function pickReferenceTrack(icpId: string, hookGender: HookVocalGender): Promise<RefTrackWithAnalysis | null> {
   // useCount alone doesn't spread bursts: it only increments on operator
   // accept (admin.ts), so every iteration of a burst sees the same snapshot
   // and grabs the same lowest-useCount track. Add in-flight + already-

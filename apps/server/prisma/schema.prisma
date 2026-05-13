@@ -504,6 +504,7 @@ model SongSeedBatch {
   reason          String?
   triggeredBy     String    @map("triggered_by")
   triggeredByUser String?   @map("triggered_by_user") @db.Uuid
+  pipeline        String?   // eno-1 | eno-2; null = eno-1 for backward compat
   startedAt       DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
   finishedAt      DateTime? @map("finished_at") @db.Timestamptz(6)
 
@@ -521,6 +522,7 @@ model SongSeed {
   outcomeId        String  @map("outcome_id") @db.Uuid
   referenceTrackId String? @map("reference_track_id") @db.Uuid
   status           String  @default("assembling") // assembling|queued|accepted|failed
+  pipeline         String? // eno-1 | eno-2; null = eno-1
 
   // Final Song Prompt payload
   style           String?
@@ -539,6 +541,7 @@ model SongSeed {
   resolvedTempoBpm           Int?     @map("resolved_tempo_bpm")
   resolvedMode               String?  @map("resolved_mode")
   firedExclusionRuleIds      String[] @map("fired_exclusion_rule_ids") @db.Uuid
+  genreBrief                 String?  @map("genre_brief")
   errorText                  String?  @map("error_text")
 
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)

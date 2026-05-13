@@ -2937,6 +2937,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     outcomeId: z.string().uuid(),
     n: z.number().int().min(1).max(20),
     styleBuilder: z.enum(['router', 'legacy', 'anchor']).optional(),
+    pipeline: z.enum(['eno-1', 'eno-2']).optional(),
   })
 
   app.post('/eno/run', async (req, reply) => {
@@ -2951,6 +2952,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         triggeredBy: 'manual',
         triggeredByUser: op.accountId,
         styleBuilder: parsed.data.styleBuilder,
+        pipeline: parsed.data.pipeline,
       })
       return result
     } catch (e: any) {

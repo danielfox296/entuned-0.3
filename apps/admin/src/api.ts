@@ -1252,7 +1252,7 @@ export const api = {
     req<SongSeedDetail>(`/admin/song-seeds/${id}`, {}, token),
   updateSongSeed: (id: string, body: { lyrics?: string; style?: string; negativeStyle?: string; title?: string; vocalGender?: 'male' | 'female' | 'duet' | 'instrumental' | null }, token: string) =>
     req<SongSeedDetail>(`/admin/song-seeds/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, token),
-  runSeedBuilder: (body: { icpId: string; outcomeId: string; n: number; styleBuilder?: 'router' | 'legacy' | 'anchor' }, token: string) =>
+  runSeedBuilder: (body: { icpId: string; outcomeId: string; n: number; styleBuilder?: 'router' | 'legacy' | 'anchor'; pipeline?: 'eno-1' | 'eno-2' }, token: string) =>
     req<SeedBuilderResult>('/admin/eno/run', { method: 'POST', body: JSON.stringify(body) }, token),
   songCreationQueueInventory: (icpId: string, token: string) =>
     req<SongCreationQueueInventory>(`/admin/song-creation-queue/inventory?icpId=${encodeURIComponent(icpId)}`, {}, token),
