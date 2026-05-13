@@ -97,7 +97,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
   if (mobile) {
     return (
-      <div style={{ width: '100%', minHeight: '100vh', background: T.bg, color: T.text, fontFamily: T.sans }}>
+      <div style={{ width: '100%', minHeight: '100vh', background: T.bg, color: T.text, fontFamily: T.sans, overflowX: 'hidden' }}>
         {/* Sticky top bar */}
         <div style={{
           position: 'sticky', top: 0, zIndex: 30,

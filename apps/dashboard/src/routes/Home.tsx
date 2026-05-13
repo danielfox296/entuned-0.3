@@ -103,7 +103,7 @@ function PlayerHeroCard({ url }: { url: string }) {
           background: T.inkDeep,
           border: `1px solid ${T.borderSubtle}`,
           borderRadius: 8, padding: '8px 12px',
-          fontFamily: T.mono, fontSize: 18,
+          fontFamily: T.mono, fontSize: 13,
           color: T.textFaint,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
@@ -179,11 +179,11 @@ function UpgradeCard({ tier }: { tier: Tier }) {
   if (copy.stat) {
     return (
       <div style={cardStyle}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 28, alignItems: 'center' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 20, alignItems: 'center' }}>
           {/* 1/3 — stat */}
           <div>
             <div style={{
-              fontFamily: T.heading, fontSize: 52, fontWeight: 700,
+              fontFamily: T.heading, fontSize: 44, fontWeight: 700,
               color: T.gold, letterSpacing: '-0.04em', lineHeight: 1,
               marginBottom: 8,
             }}>
