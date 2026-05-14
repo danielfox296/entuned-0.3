@@ -214,7 +214,7 @@ function PrimaryCTA({ href, children, disabled }: { href: string; children: stri
         fontSize: 14, fontWeight: 600, letterSpacing: 0.5,
         cursor: 'default',
       }}>
-        Already on Core or higher
+        Already on Boost or higher
       </span>
     )
   }
@@ -372,8 +372,8 @@ function LibraryBars() {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
       <BarRow label="Free" value={100} max={420} highlight={false} />
-      <BarRow label="Core, day 1" value={300} max={420} highlight />
-      <BarRow label="Core, month 1" value={420} max={420} highlight />
+      <BarRow label="Boost, day 1" value={300} max={420} highlight />
+      <BarRow label="Boost, month 1" value={420} max={420} highlight />
     </div>
   )
 }

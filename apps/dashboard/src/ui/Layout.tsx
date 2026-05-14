@@ -221,7 +221,7 @@ function NavRow({ item, unlocked, showTooltip }: { item: NavSpec; unlocked: bool
   const [hover, setHover] = useState(false)
   const isRoadmap = item.requires === 'roadmap'
   const showBadge = !unlocked
-  const badgeLabel = isRoadmap ? 'Soon' : (item.requires === 'core' ? 'Core' : 'Pro')
+  const badgeLabel = isRoadmap ? 'Soon' : (item.requires === 'core' ? 'Boost' : 'Pro')
 
   return (
     <div

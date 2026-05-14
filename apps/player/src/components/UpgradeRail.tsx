@@ -261,7 +261,7 @@ export function UpgradeRail({ rotationKey, tier, compact = false, withPhoto = fa
   const cta = slot.customizeCta ?? (() => {
     switch (slot.kind) {
       case "core_upsell":
-        return { label: "See what Core unlocks →", href: "https://app.entuned.co/upgrade" };
+        return { label: "See what Boost unlocks →", href: "https://app.entuned.co/upgrade" };
       case "pro_upsell":
         return { label: "See what Pro unlocks →", href: "https://app.entuned.co/upgrade" };
       case "core_reminder":

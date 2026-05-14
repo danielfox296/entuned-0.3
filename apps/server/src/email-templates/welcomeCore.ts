@@ -11,12 +11,12 @@ export interface WelcomeCoreProps {
 }
 
 export function subject(_props: WelcomeCoreProps): string {
-  return 'Welcome to Entuned Core'
+  return 'Welcome to Entuned Boost'
 }
 
 export function html(props: WelcomeCoreProps): string {
   const body = `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">You&rsquo;re on Core.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">You&rsquo;re on Boost.</p>
     <p style="margin:0 0 14px 0;">Two links to get running:</p>
     <p style="margin:0 0 6px 0;"><strong style="color:#50929c;">1. Dashboard</strong> &mdash; fill out Customer Profile so we can build a library around your customer.</p>
     ${button(props.dashboardUrl, 'Open dashboard')}
@@ -24,5 +24,5 @@ export function html(props: WelcomeCoreProps): string {
     ${button(props.playerUrl, 'Open player')}
     <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">Replies hit a real person.</p>
   `
-  return layout({ preheader: 'Your Core account is active. Two next steps inside.', body })
+  return layout({ preheader: 'Your Boost account is active. Two next steps inside.', body })
 }

@@ -143,7 +143,7 @@ function OverviewTab({ data }: { data: RetentionResponse }) {
           label="Paid"
           value={overview.paidStores}
           color={T.gold}
-          hint="Core / Pro / Enterprise (paid or comp)"
+          hint="Boost / Pro / Enterprise (paid or comp)"
         />
       </div>
 

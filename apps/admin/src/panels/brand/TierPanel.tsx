@@ -19,7 +19,7 @@ interface Props {
 const TIER_LABEL: Record<string, string> = {
   free: 'Entuned Free',
   mvp_pilot: 'MVP Pilot',
-  core: 'Core',
+  core: 'Boost',
   pro: 'Pro',
   enterprise: 'Enterprise',
 }
@@ -157,7 +157,7 @@ export function TierPanel({ storeId, storeName }: Props) {
               onChange={(e) => setGrantTier(e.target.value as 'core' | 'pro')}
               style={{ background: T.surfaceRaised, color: T.text, border: `1px solid ${T.border}`, padding: '6px 8px', fontFamily: T.sans, fontSize: S.small, width: '100%' }}
             >
-              <option value="core">Core</option>
+              <option value="core">Boost</option>
               <option value="pro">Pro</option>
             </select>
           </div>

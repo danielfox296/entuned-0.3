@@ -41,7 +41,7 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{playerUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Open player</a></td></tr></table>
     <p style="margin:22px 0 6px 0;font-size:14px;color:#8a929a;">When you have a minute &mdash; the dashboard is where you manage your account, add another location, or upgrade.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Open dashboard</a></td></tr></table>
-    <p style="margin:18px 0 0 0;font-size:14px;">Ready for music tuned to your specific customer? <a href="https://entuned.co/pricing.html" style="color:#50929c;">Unlock Core</a> for a private library built around the people who actually walk into your store.</p>
+    <p style="margin:18px 0 0 0;font-size:14px;">Ready for music tuned to your specific customer? <a href="https://entuned.co/pricing.html" style="color:#50929c;">Unlock Boost</a> for a private library built around the people who actually walk into your store.</p>
     <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">Replies hit a real person.</p>
     `.trim(),
     propsExample: {
@@ -50,10 +50,10 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     },
   },
   welcomeCore: {
-    subject: 'Welcome to Entuned Core',
-    preheader: 'Your Core account is active. Two next steps inside.',
+    subject: 'Welcome to Entuned Boost',
+    preheader: 'Your Boost account is active. Two next steps inside.',
     body: `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">You&rsquo;re on Core.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">You&rsquo;re on Boost.</p>
     <p style="margin:0 0 14px 0;">Two links to get running:</p>
     <p style="margin:0 0 6px 0;"><strong style="color:#50929c;">1. Dashboard</strong> &mdash; fill out Customer Profile so we can build a library around your customer.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Open dashboard</a></td></tr></table>
@@ -156,7 +156,7 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     preheader: 'Customer Profile tunes the library to your audience. Two minutes.',
     body: `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">Two minutes to a library built around your customer.</p>
-    <p style="margin:0 0 14px 0;">Your Core account can be tuned to the people who actually walk into your store. The seven Customer Profile questions are what we tune it from &mdash; about who they are, what they value, what would make them leave.</p>
+    <p style="margin:0 0 14px 0;">Your Boost account can be tuned to the people who actually walk into your store. The seven Customer Profile questions are what we tune it from &mdash; about who they are, what they value, what would make them leave.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{intakeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Set up Customer Profile</a></td></tr></table>
     <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">Fill it once and we get out of the way &mdash; you can come back and re-tune any time.</p>
     `.trim(),
@@ -166,10 +166,10 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     subject: 'Music tuned to who actually walks into your store',
     preheader: 'A library built around your customer. $99 / location / month.',
     body: `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">On Core, your library is built around your customer.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">On Boost, your library is built around your customer.</p>
     <p style="margin:0 0 14px 0;">Entuned Free gives you a soundtrack engineered for retail in general &mdash; Linger or Lift Energy on a 100+ song catalogue. It&rsquo;s the same one every store starts on.</p>
-    <p style="margin:0 0 14px 0;">On Core, you answer seven questions about who walks in and we build a private library around them. All research-backed outcomes unlocked. $99 per location, per month. No setup fee, no contracts, cancel any time.</p>
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Unlock Core</a></td></tr></table>
+    <p style="margin:0 0 14px 0;">On Boost, you answer seven questions about who walks in and we build a private library around them. All research-backed outcomes unlocked. $99 per location, per month. No setup fee, no contracts, cancel any time.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Unlock Boost</a></td></tr></table>
     <p style="margin:18px 0 6px 0;font-size:13px;color:#8a929a;">Your current player: <a href="{{playerUrl}}" style="color:#50929c;">{{playerUrl}}</a></p>
     `.trim(),
     propsExample: {
@@ -179,12 +179,12 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
   },
   engagedFreeToCore: {
     subject: 'You&rsquo;re putting hundreds of songs through your floor a week',
-    preheader: 'Same playback, sharper library on Core.',
+    preheader: 'Same playback, sharper library on Boost.',
     body: `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">{{songsPlayed}} songs through your store on Entuned Free.</p>
     <p style="margin:0 0 14px 0;">You&rsquo;re using the player. The music is doing real work for you on the catalogue every store starts on.</p>
-    <p style="margin:0 0 14px 0;">On Core, the same hours of playback hit a library built around your specific customer. Same staff, same hours, sharper match.</p>
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Unlock Core</a></td></tr></table>
+    <p style="margin:0 0 14px 0;">On Boost, the same hours of playback hit a library built around your specific customer. Same staff, same hours, sharper match.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Unlock Boost</a></td></tr></table>
     <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">Seven questions, two minutes of intake, and the library retunes around the answers.</p>
     `.trim(),
     propsExample: {
@@ -194,9 +194,9 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
   },
   scalingCoreToPro: {
     subject: 'You run multiple locations now. Pro is the next gear.',
-    preheader: '{{storeCount}} locations on Core. Pro is the next gear.',
+    preheader: '{{storeCount}} locations on Boost. Pro is the next gear.',
     body: `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">{{storeCount}} locations on Core.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">{{storeCount}} locations on Boost.</p>
     <p style="margin:0 0 14px 0;">At one location, you can hear the floor. At {{storeCount}}, you can&rsquo;t be everywhere &mdash; and you can&rsquo;t tell which hours need different music.</p>
     <p style="margin:0 0 14px 0;">Pro adds two things that pay for themselves at scale:</p>
     <ul style="margin:0 0 14px 0;padding-left:20px;">
@@ -212,10 +212,10 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     },
   },
   establishedCoreToPro: {
-    subject: 'A month of Core. Pro is where the data starts paying off.',
-    preheader: 'A month of Core. Pro is where the data starts paying off.',
+    subject: 'A month of Boost. Pro is where the data starts paying off.',
+    preheader: 'A month of Boost. Pro is where the data starts paying off.',
     body: `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">A month of Core, and you finished intake.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">A month of Boost, and you finished intake.</p>
     <p style="margin:0 0 14px 0;">The library is built around your customer. The next question is whether the music is moving the number you actually care about.</p>
     <p style="margin:0 0 14px 0;">Pro is where you find out:</p>
     <ul style="margin:0 0 14px 0;padding-left:20px;">

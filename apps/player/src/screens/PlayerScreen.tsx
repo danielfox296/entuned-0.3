@@ -41,7 +41,7 @@ function saveLoved(storeId: string, s: Set<string>) {
 // uppercase, 0.18em tracking. Color carries the tier signal.
 const TIER_LABEL: Record<string, string> = {
   free: "Free",
-  core: "Core",
+  core: "Boost",
   pro: "Pro",
   enterprise: "Enterprise",
 };
@@ -71,7 +71,7 @@ function TierEyebrow({ tier }: { tier: string }) {
     return (
       <a
         href="https://app.entuned.co/upgrade"
-        title="Upgrade to Core"
+        title="Upgrade to Boost"
         style={{
           ...sharedStyle,
           textDecoration: "none",
@@ -1046,7 +1046,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
           steps={[
             {
               target: outcomeRef.current,
-              body: "Pick what the music should do — Linger or Lift Energy. Or play All Outcomes. Unlock more with Core.",
+              body: "Pick what the music should do — Linger or Lift Energy. Or play All Outcomes. Unlock more with Boost.",
               placement: "above",
             },
             {

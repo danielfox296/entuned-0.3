@@ -23,9 +23,9 @@ export function html(props: EngagedFreeToCoreProps): string {
   const body = `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">${props.songsPlayed.toLocaleString()} songs through your store on Entuned Free.</p>
     <p style="margin:0 0 14px 0;">You&rsquo;re using the player. The music is doing real work for you on the catalogue every store starts on.</p>
-    <p style="margin:0 0 14px 0;">On Core, the same hours of playback hit a library built around your specific customer. Same staff, same hours, sharper match.</p>
-    ${button(props.upgradeUrl, 'Unlock Core')}
+    <p style="margin:0 0 14px 0;">On Boost, the same hours of playback hit a library built around your specific customer. Same staff, same hours, sharper match.</p>
+    ${button(props.upgradeUrl, 'Unlock Boost')}
     <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">Seven questions, two minutes of intake, and the library retunes around the answers.</p>
   `
-  return layout({ preheader: 'Same playback, sharper library on Core.', body })
+  return layout({ preheader: 'Same playback, sharper library on Boost.', body })
 }

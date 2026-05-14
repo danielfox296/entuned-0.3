@@ -14,12 +14,12 @@ export interface EstablishedCoreToProProps {
 }
 
 export function subject(_props: EstablishedCoreToProProps): string {
-  return 'A month of Core. Pro is where the data starts paying off.'
+  return 'A month of Boost. Pro is where the data starts paying off.'
 }
 
 export function html(props: EstablishedCoreToProProps): string {
   const body = `
-    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">A month of Core, and you finished intake.</p>
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">A month of Boost, and you finished intake.</p>
     <p style="margin:0 0 14px 0;">The library is built around your customer. The next question is whether the music is moving the number you actually care about.</p>
     <p style="margin:0 0 14px 0;">Pro is where you find out:</p>
     <ul style="margin:0 0 14px 0;padding-left:20px;">
@@ -30,5 +30,5 @@ export function html(props: EstablishedCoreToProProps): string {
     ${button(props.upgradeUrl, 'Unlock Pro')}
     <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">$399 per location, per month. The first time you forward a Lift Report to your CFO, it pays.</p>
   `
-  return layout({ preheader: 'A month of Core. Pro is where the data starts paying off.', body })
+  return layout({ preheader: 'A month of Boost. Pro is where the data starts paying off.', body })
 }

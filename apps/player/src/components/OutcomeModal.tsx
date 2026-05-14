@@ -170,7 +170,7 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
 
           {locked.length > 0 && (
             <>
-              <SectionLabel compact={compact}>Available on Core</SectionLabel>
+              <SectionLabel compact={compact}>Available on Boost</SectionLabel>
               <div style={{ display: "flex", flexDirection: "column", gap: compact ? 4 : 6 }}>
                 {locked.map((o) => (
                   <OutcomeRow
@@ -351,7 +351,7 @@ function OutcomeRow({
         textTransform: "uppercase",
         color: locked ? "rgba(212,225,229,0.45)" : "rgba(212,225,229,0.5)",
       }}>
-        {locked ? "Core" : empty ? "no songs" : `${count}`}
+        {locked ? "Boost" : empty ? "no songs" : `${count}`}
       </span>
     </button>
   );
