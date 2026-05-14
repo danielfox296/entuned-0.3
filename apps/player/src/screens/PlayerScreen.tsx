@@ -708,28 +708,39 @@ export function PlayerScreen({ session, onLogout }: Props) {
           <img src={logoUrl} alt="Entuned" style={{ width: 118, opacity: 0.7 }} />
           {session.tier ? <TierEyebrow tier={session.tier} /> : null}
         </div>
-        <div
-          onClick={() => {
-            if (session.mode === "slug") {
-              window.open("https://app.entuned.co", "_blank", "noopener,noreferrer");
-            } else {
-              setShowLogoutConfirm((v) => !v);
-            }
-          }}
-          style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}
-          title={session.mode === "slug" ? "Manage your account" : "Switch store / log out"}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle cx="12" cy="12" r="3" stroke="rgba(212,225,229,0.65)" strokeWidth="1.6" />
-            <path
-              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.05a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.05a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-              stroke="rgba(212,225,229,0.65)"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
+        {session.mode === "slug" ? (
+          <a
+            href="https://app.entuned.co"
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 12,
+              fontWeight: 500,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: "rgba(212,225,229,0.65)",
+              textDecoration: "none",
+            }}
+          >
+            Dashboard
+          </a>
+        ) : (
+          <div
+            onClick={() => setShowLogoutConfirm((v) => !v)}
+            style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}
+            title="Switch store / log out"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" stroke="rgba(212,225,229,0.65)" strokeWidth="1.6" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.05a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.05a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+                stroke="rgba(212,225,229,0.65)"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+        )}
       </div>
 
       {showLogoutConfirm ? (
@@ -881,7 +892,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
                   <rect x="16" y="5" width="5" height="18" rx="1.5" fill="rgba(232,238,240,0.95)" />
                 </svg>
               ) : (
-                <svg width="64" height="64" viewBox="0 0 28 28">
+                <svg width={currentItem ? 64 : 80} height={currentItem ? 64 : 80} viewBox="0 0 28 28">
                   <path d="M9 4l12 8-12 8z" fill="rgba(232,238,240,0.95)" />
                 </svg>
               )}

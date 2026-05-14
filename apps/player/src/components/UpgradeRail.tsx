@@ -18,6 +18,7 @@ type Slot = {
   points: string[];
   kind: SlotKind;
   photo: string;
+  customizeCta?: { label: string; href: string };
 };
 
 const SLOTS: Slot[] = [
@@ -103,6 +104,7 @@ const SLOTS: Slot[] = [
     ],
     kind: "core_reminder",
     photo: "/promo/mara-icp.jpg",
+    customizeCta: { label: "Customize this →", href: "https://app.entuned.co/intake" },
   },
   {
     anchor: "Two outcomes ready.",
@@ -133,6 +135,7 @@ const SLOTS: Slot[] = [
     ],
     kind: "core_reminder",
     photo: "/promo/retail-store.jpg",
+    customizeCta: { label: "Customize this →", href: "https://app.entuned.co/intake" },
   },
   // ── Pro feature reminders (for active Pro stores) ───────────────────────
   {
@@ -144,6 +147,7 @@ const SLOTS: Slot[] = [
     ],
     kind: "pro_reminder",
     photo: "/promo/parallax-green-lamp.jpg",
+    customizeCta: { label: "Customize this →", href: "https://app.entuned.co/schedule" },
   },
   {
     anchor: "Tied to your POS.",
@@ -254,7 +258,7 @@ export function UpgradeRail({ rotationKey, tier, compact = false, withPhoto = fa
   // every tier. Only the slot CONTENT and the CTA's label + href change per
   // kind. Don't reintroduce per-tier color accents here; that breaks the
   // shared visual aesthetic.
-  const cta = (() => {
+  const cta = slot.customizeCta ?? (() => {
     switch (slot.kind) {
       case "core_upsell":
         return { label: "See what Core unlocks →", href: "https://app.entuned.co/upgrade" };
