@@ -5,6 +5,14 @@ import type { OutcomeOption } from "../api.js";
 // "more outcomes" section of the upgrade page.
 const UPGRADE_URL = "https://app.entuned.co/upgrade#outcomes";
 
+// Canonical display order for free-tier modes. Chill → Steady → Upbeat.
+// Matches by lowercased title so capitalisation in the DB doesn't matter.
+const FREE_MODE_ORDER = ["chill", "steady", "upbeat"];
+function modeSortKey(o: OutcomeOption): number {
+  const idx = FREE_MODE_ORDER.indexOf(o.title.toLowerCase());
+  return idx === -1 ? 999 : idx;
+}
+
 // Brand teal — drives the modal's accent color throughout. No gold in this
 // surface; gold reads as Pro-tier signal elsewhere in the app and we want
 // the upsell here to feel like the same brand, not a different product.
@@ -28,10 +36,9 @@ type Props = {
 export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, onSelect, onSelectAll, onClear, onClose }: Props) {
   const isFree = viewerTier === "free";
 
-  // Split outcomes into available-now vs locked-on-Core. Available come first
-  // so the two free-tier outcomes are above the fold on phones; locked outcomes
-  // group below under their own header. Paid tiers see no split — the locked
-  // branch is empty.
+  // Split outcomes into available-now vs locked. Free-tier: available = modes
+  // (availableOnFree), locked = outcomes. Paid tiers: all available, none locked.
+  // Free modes are sorted Chill → Steady → Upbeat for consistent display order.
   const { available, locked } = useMemo(() => {
     const a: OutcomeOption[] = [];
     const l: OutcomeOption[] = [];
@@ -39,6 +46,7 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
       if (isFree && !o.availableOnFree) l.push(o);
       else a.push(o);
     }
+    if (isFree) a.sort((x, y) => modeSortKey(x) - modeSortKey(y));
     return { available: a, locked: l };
   }, [outcomes, isFree]);
 
@@ -138,15 +146,15 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
           </button>
         </div>
 
-        {/* Body — grouped "Available" then "Available on Core". overflowY:auto
-            is a fallback for extreme viewports; default sizing is tuned so all
-            outcomes fit without scroll on iPad-landscape and up. */}
+        {/* Body — Modes section then Outcomes section (free tier) or a single
+            Outcomes section (paid). overflowY:auto is a fallback for extreme
+            viewports; default sizing is tuned to fit without scroll on most screens. */}
         <div style={{ overflowY: "auto", padding: compact ? "12px 16px 14px" : "16px 20px 20px", flex: 1 }}>
-          <SectionLabel compact={compact}>Available now</SectionLabel>
+          <SectionLabel compact={compact}>{isFree ? "Modes" : "Outcomes"}</SectionLabel>
           <div style={{ display: "flex", flexDirection: "column", gap: compact ? 4 : 6, marginBottom: compact ? 12 : 18 }}>
-            {/* All Outcomes — same row treatment as a peer outcome */}
+            {/* Play All Available Modes — same row treatment as a peer outcome */}
             <OutcomeRow
-              label="All Outcomes"
+              label="Play All Available Modes"
               count={available.reduce((sum, o) => sum + o.poolSize, 0)}
               active={allOutcomesMode}
               empty={false}
@@ -170,7 +178,13 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
 
           {locked.length > 0 && (
             <>
-              <SectionLabel compact={compact}>Available on Boost</SectionLabel>
+              {/* Faint rule separating free modes from locked outcomes */}
+              <div style={{
+                height: 1,
+                background: "rgba(255,255,255,0.07)",
+                margin: compact ? "2px 0 10px" : "0 0 14px",
+              }} />
+              <SectionLabel compact={compact}>Outcomes</SectionLabel>
               <div style={{ display: "flex", flexDirection: "column", gap: compact ? 4 : 6 }}>
                 {locked.map((o) => (
                   <OutcomeRow
@@ -236,7 +250,7 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
                 fontWeight: 600,
                 letterSpacing: 0.2,
               }}>
-                Unlock all 9 outcomes
+                Unlock all outcomes
               </span>
               <span style={{
                 fontSize: 12,
