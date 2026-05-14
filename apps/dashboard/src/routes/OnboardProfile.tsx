@@ -1,8 +1,7 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { T } from '../tokens.js'
 import { Logo } from '../ui/index.js'
-import { api, type OnboardProfileInput } from '../api.js'
+import { api, primaryStore, PLAYER_URL, type OnboardProfileInput } from '../api.js'
 import content from '../content/onboard.yaml'
 
 type IndustryOption = { value: string; label: string }
@@ -12,7 +11,6 @@ type IndustryOption = { value: string; label: string }
 // After save, redirects to / (Home).
 
 export function OnboardProfile() {
-  const navigate = useNavigate()
   const [industry, setIndustry] = useState('')
   const [zip, setZip] = useState('')
   const [busy, setBusy] = useState(false)
@@ -29,7 +27,9 @@ export function OnboardProfile() {
       const body: OnboardProfileInput = { industry }
       if (zip.trim()) body.zip = zip.trim()
       await api.saveOnboardProfile(body)
-      navigate('/', { replace: true })
+      const { stores } = await api.meStores()
+      const store = primaryStore(stores)
+      window.location.href = store ? `${PLAYER_URL}/${store.slug}` : PLAYER_URL
     } catch {
       setError(content.error)
     } finally {
