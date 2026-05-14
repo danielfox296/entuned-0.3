@@ -13,7 +13,7 @@ import { uniqueStoreSlug } from '../lib/account.js'
 import { FREE_TIER_ICP_ID } from '../lib/freeTier.js'
 import { pickSystemDefaultOutcomeId } from '../lib/outcomes.js'
 
-const APPAREL_INDUSTRIES = new Set(['footwear', 'mens_apparel', 'womens_apparel', 'general_apparel'])
+const APPAREL_INDUSTRIES = new Set(['apparel', 'footwear', 'accessories'])
 
 function generateReferralCode(): string {
   return randomBytes(6).toString('base64url').slice(0, 8).toUpperCase()
@@ -97,8 +97,9 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
   // changing it requires re-verification (separate flow). Everything else
   // the customer can self-serve from the /account page.
   const INDUSTRY_VALUES = [
-    'footwear', 'mens_apparel', 'womens_apparel', 'general_apparel',
-    'home_goods', 'gift_specialty', 'jewelry_accessories', 'sporting_goods', 'other',
+    'apparel', 'footwear', 'accessories', 'beauty', 'home_decor',
+    'sporting_goods', 'food_beverage', 'pet', 'books_media', 'gifts',
+    'pharmacy', 'electronics', 'furniture', 'toy', 'other',
   ] as const
 
   const ProfilePatch = z.object({
