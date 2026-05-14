@@ -115,7 +115,7 @@ Each row reads `OutcomeName{N} hooks·{M} to work·{K} accepted`. To pick target
 
 For each target outcome:
 
-1. **Click the outcome row** in the main list. Match by regex `^OutcomeName\d+ hooks` (e.g. `^Calm\d+ hooks`).
+1. **Click the outcome row** in the main list. Match by regex `^OutcomeName\d+ hooks` (e.g. `^Linger\d+ hooks`). Dash shows the display label (e.g. "Stay & Browse"), not the internal title — match against whatever text is visible in the UI.
 
 2. **Wait ~1500ms** for the side panel to render. The inner controls aren't queryable until then.
 

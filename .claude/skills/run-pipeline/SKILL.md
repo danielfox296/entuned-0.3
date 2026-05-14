@@ -57,16 +57,31 @@ To make songs for a single ICP under a store, you only need gates 3, 4, 5 (the I
 
 ### Step 0a — Set default outcome (if missing)
 
-The live system has 9 named outcomes: **Calm, Lift Energy, Reinforce Brand, Convert Browsers, Move Through, Linger, Impulse Buy, Increase Order Value, Add More Items**. Pick from those.
+11 named outcomes in the live system. Free-tier stores use Chill / Steady / Upbeat (mood only, no lyrical priming). Boost stores unlock all 8 behavioral outcomes below.
+
+Boost outcomes — `title` is the internal/hook-gen name; Dash + player show the display label:
+
+| title (code / hook-gen) | Display label (Dash / player) | KPI |
+|---|---|---|
+| Linger | Stay & Browse | Dwell time |
+| Browse to Buy | Help Them Decide | Conversion |
+| Value Lift | Trade Them Up | AOV |
+| Add Items | Fill the Basket | UPT |
+| Impulse | Grab It Now | Conversion (spontaneous) |
+| Move Through | Keep It Moving | Throughput |
+| Brand Match | Our Sound | Brand affinity |
+| Status Lift | Swagger Spend | AOV (bravado) |
 
 Heuristic for picking from ICP psychographic intake:
-| ICP signal | → Outcome |
+| ICP signal | → title to use |
 |---|---|
-| "browsing", "looking around", "wow item" | Convert Browsers |
+| "browsing", "looking around", "discover" | Browse to Buy |
 | "in and out", "low patience", "task-oriented" | Move Through |
-| "wants to feel relaxed", "calm" | Calm |
-| "high-energy", "stimulus-driven" | Lift Energy |
-| (default if unsure) | Convert Browsers |
+| "wants to stay", "relaxed", "linger" | Linger |
+| "high-energy", "impulsive", "spontaneous" | Impulse |
+| "wants to spend more", "treat myself" | Value Lift |
+| "brand loyalty", "our aesthetic" | Brand Match |
+| (default if unsure) | Browse to Buy |
 
 Set via Clients → Location tab → "Default outcome" dropdown → save changes.
 

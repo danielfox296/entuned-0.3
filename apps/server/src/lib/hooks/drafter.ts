@@ -207,16 +207,13 @@ export async function buildHookDrafterContext(opts: {
     icp.turnOffs && `Turn-offs: ${icp.turnOffs}`,
   ].filter(Boolean).join('\n')
 
-  // The emotional target the brand chose for this outcome. `displayTitle` is
-  // the human/brand-facing label (e.g. "Calm"); `title` is an internal seed
-  // string (e.g. "arrows down") that on its own gives the LLM no signal.
-  const emotionalTarget = outcome.displayTitle ?? outcome.title
+  // title is the behavioral/LLM signal ("Linger", "Browse to Buy", etc.).
+  // displayTitle is the operator-facing retail label ("Stay & Browse", etc.) —
+  // a floor-management concept, not a lyric signal. Hook generation always keys on title.
+  const emotionalTarget = outcome.title
   const era = outcome.productionEra
   const outcomeDescriptor = [
     `Emotional target: ${emotionalTarget}`,
-    outcome.displayTitle && outcome.displayTitle !== outcome.title
-      ? `Internal name: ${outcome.title}`
-      : null,
     `Tempo: ${outcome.tempoBpm} bpm`,
     `Mode: ${outcome.mode}`,
     outcome.dynamics && `Dynamics: ${outcome.dynamics}`,
