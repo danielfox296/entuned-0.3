@@ -197,6 +197,8 @@ export function Start() {
                   <Eyebrow>{content.auth.email_label}</Eyebrow>
                   <BigInput
                     type="email"
+                    name="email"
+                    autoComplete="email"
                     value={email}
                     required
                     onChange={(e) => setEmail(e.target.value)}
