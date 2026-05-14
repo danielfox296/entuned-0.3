@@ -1,12 +1,21 @@
+import { useEffect, useRef } from 'react'
 import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
 import { LockScreen } from '../ui/LockScreen.js'
 import { useTier } from '../lib/tier.jsx'
+import { trackFeaturePageView, trackUpgradeCtaClick } from '../lib/ga4.js'
 import content from '../content/integrations.yaml'
 
 // /integrations — Pro+ in v2. Always LockScreen for now.
 export function Integrations() {
-  const { tier } = useTier()
+  const { tier, loading } = useTier()
+  const tracked = useRef(false)
+  useEffect(() => {
+    if (loading || tracked.current) return
+    tracked.current = true
+    trackFeaturePageView('integrations', true)
+  }, [loading])
+
   return (
     <Layout>
       <LockScreen
@@ -15,7 +24,9 @@ export function Integrations() {
         requiredTier="pro"
         currentTier={tier}
         timeToValue={content.lock.time_to_value}
+        bullets={content.lock.bullets}
         detail={content.lock.detail}
+        onCtaClick={() => trackUpgradeCtaClick('feature_page_integrations', 'pro')}
         preview={<IntegrationsPreview />}
       />
     </Layout>

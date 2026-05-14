@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Plus, Pencil, Archive, MapPin } from 'lucide-react'
 import { T } from '../tokens.js'
@@ -10,6 +10,7 @@ import {
   type IcpInput, type IcpListRow, type IcpRow, type StoreRow,
 } from '../api.js'
 import { useTier } from '../lib/tier.jsx'
+import { trackFeaturePageView, trackUpgradeCtaClick } from '../lib/ga4.js'
 import content from '../content/icp-intake.yaml'
 
 // /intake — Brand intake.
@@ -80,7 +81,13 @@ function hasExtendedFilled(a: Answers): boolean {
 }
 
 export function IcpIntake() {
-  const { stores, tier } = useTier()
+  const { stores, tier, loading } = useTier()
+  const tracked = useRef(false)
+  useEffect(() => {
+    if (loading || tracked.current) return
+    tracked.current = true
+    trackFeaturePageView('customer_profile', TIER_RANK[tier] < TIER_RANK.core)
+  }, [loading, tier])
 
   if (TIER_RANK[tier] < TIER_RANK.core) {
     return (
@@ -91,7 +98,9 @@ export function IcpIntake() {
           requiredTier="core"
           currentTier={tier}
           timeToValue={content.lock.time_to_value}
+          bullets={content.lock.bullets}
           detail={content.lock.detail}
+          onCtaClick={() => trackUpgradeCtaClick('feature_page_customer_profile', 'core')}
         />
       </Layout>
     )

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ExternalLink, Copy, Check, ArrowRight } from 'lucide-react'
+import { trackUpgradeCtaClick } from '../lib/ga4.js'
 import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
 import { Card } from '../ui/Card.js'
@@ -127,8 +128,6 @@ function PlayerHeroCard({ url }: { url: string }) {
 }
 
 interface UpgradeCopy {
-  stat?: string
-  statLabel?: string
   headline: string
   body: string
   ctaLabel: string
@@ -138,8 +137,6 @@ interface UpgradeCopy {
 function upgradeCopyFor(tier: Tier): UpgradeCopy | null {
   if (tier === 'free') {
     return {
-      stat: content.upgrade.free.stat,
-      statLabel: content.upgrade.free.stat_label,
       headline: content.upgrade.free.headline,
       body: content.upgrade.free.body,
       ctaLabel: content.upgrade.free.cta_label,
@@ -170,57 +167,15 @@ function UpgradeCard({ tier }: { tier: Tier }) {
   const copy = upgradeCopyFor(tier)
   if (!copy) return null
 
-  const cardStyle: React.CSSProperties = {
-    background: 'linear-gradient(135deg, rgba(215,175,116,0.10) 0%, rgba(215,175,116,0.03) 100%)',
-    border: `1px solid ${T.border}`,
-    borderRadius: 12, padding: 24,
-  }
-
-  if (copy.stat) {
-    return (
-      <div style={cardStyle}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 20, alignItems: 'center' }}>
-          {/* 1/3 — stat */}
-          <div>
-            <div style={{
-              fontFamily: T.heading, fontSize: 44, fontWeight: 700,
-              color: T.gold, letterSpacing: '-0.04em', lineHeight: 1,
-              marginBottom: 8,
-            }}>
-              {copy.stat}
-            </div>
-            <div style={{ fontSize: 13, color: T.textMuted, lineHeight: 1.45 }}>
-              {copy.statLabel}
-            </div>
-          </div>
-          {/* 2/3 — copy + CTA */}
-          <div>
-            <div style={{
-              fontFamily: T.heading, fontSize: 16, fontWeight: 600,
-              color: T.text, marginBottom: 8, letterSpacing: '-0.01em',
-            }}>
-              {copy.headline}
-            </div>
-            <div style={{
-              color: T.textMuted, fontSize: 14, fontFamily: T.sans,
-              lineHeight: 1.55, marginBottom: 16,
-            }}>
-              {copy.body}
-            </div>
-            <a href={api.checkoutUrl(copy.ctaTier)} style={ctaStyle}>
-              {copy.ctaLabel} <ArrowRight size={14} strokeWidth={2} />
-            </a>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div style={cardStyle}>
+    <div style={{
+      background: 'linear-gradient(135deg, rgba(215,175,116,0.10) 0%, rgba(215,175,116,0.03) 100%)',
+      border: `1px solid ${T.border}`,
+      borderRadius: 12, padding: 24,
+    }}>
       <div style={{
         fontFamily: T.heading, fontSize: 18, fontWeight: 500,
-        color: T.text, marginBottom: 8, letterSpacing: '-0.01em',
+        color: T.text, marginBottom: 6, letterSpacing: '-0.01em',
       }}>
         {copy.headline}
       </div>
@@ -230,7 +185,11 @@ function UpgradeCard({ tier }: { tier: Tier }) {
       }}>
         {copy.body}
       </div>
-      <a href={api.checkoutUrl(copy.ctaTier)} style={ctaStyle}>
+      <a
+        href={api.checkoutUrl(copy.ctaTier)}
+        onClick={() => trackUpgradeCtaClick('home_card', copy.ctaTier)}
+        style={ctaStyle}
+      >
         {copy.ctaLabel} <ArrowRight size={14} strokeWidth={2} />
       </a>
     </div>

@@ -17,6 +17,11 @@ interface LockScreenProps {
   // upgrade trade from abstract ("you'd unlock...") into concrete ("music
   // refreshes within 24h"). Keep to a single short line.
   timeToValue?: string
+  // Feature-specific benefit bullets. Render between the value line and
+  // the detail paragraph. Keep each to one tight line.
+  bullets?: string[]
+  // Called when the upgrade CTA is clicked. Wire up GA4 tracking here.
+  onCtaClick?: () => void
   // Visual preview of what the unlocked surface looks like. Renders below
   // the value line. Use a faked/illustrated mock so the trade is visceral
   // rather than text-only.
@@ -28,7 +33,7 @@ interface LockScreenProps {
 // bookmarked. Roadmap variant has no upgrade CTA — it's a teaser.
 export function LockScreen({
   tabName, valueLine, requiredTier, detail, currentTier,
-  timeToValue, preview,
+  timeToValue, bullets, onCtaClick, preview,
 }: LockScreenProps) {
   const isRoadmap = requiredTier === 'roadmap'
   const ctaTier: 'core' | 'pro' = requiredTier === 'roadmap' ? 'pro' : requiredTier
@@ -72,10 +77,27 @@ export function LockScreen({
         {timeToValue && !isRoadmap && (
           <div style={{
             color: T.accentMuted, fontSize: 13, fontFamily: T.sans,
-            marginBottom: 22,
+            marginBottom: bullets ? 14 : 22,
           }}>
             {timeToValue}
           </div>
+        )}
+
+        {bullets && bullets.length > 0 && (
+          <ul style={{
+            margin: '0 0 22px 0', padding: 0, listStyle: 'none',
+            display: 'grid', gap: 8,
+          }}>
+            {bullets.map((b) => (
+              <li key={b} style={{
+                display: 'flex', gap: 10, alignItems: 'baseline',
+                fontSize: 14, fontFamily: T.sans, color: T.textMuted, lineHeight: 1.5,
+              }}>
+                <span style={{ color: T.accent, flexShrink: 0 }}>—</span>
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
         )}
 
         {detail && (
@@ -91,6 +113,7 @@ export function LockScreen({
         {!isRoadmap && (
           <a
             href={api.checkoutUrl(ctaTier)}
+            onClick={onCtaClick}
             style={{
               display: 'inline-block',
               background: T.accent,

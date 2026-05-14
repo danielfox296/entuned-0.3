@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
@@ -7,6 +7,7 @@ import { Button, Input } from '../ui/index.js'
 import { api, TIER_RANK } from '../api.js'
 import type { ScheduleSlot, ScheduleSlotInput, OutcomeOption } from '../api.js'
 import { useTier } from '../lib/tier.jsx'
+import { trackFeaturePageView, trackUpgradeCtaClick } from '../lib/ga4.js'
 import content from '../content/schedule.yaml'
 
 const DAYS = [
@@ -20,7 +21,13 @@ const DAYS = [
 ]
 
 export function Schedule() {
-  const { stores, tier } = useTier()
+  const { stores, tier, loading } = useTier()
+  const tracked = useRef(false)
+  useEffect(() => {
+    if (loading || tracked.current) return
+    tracked.current = true
+    trackFeaturePageView('schedule', TIER_RANK[tier] < TIER_RANK.pro)
+  }, [loading, tier])
 
   if (TIER_RANK[tier] < TIER_RANK.pro) {
     return (
@@ -31,7 +38,9 @@ export function Schedule() {
           requiredTier="pro"
           currentTier={tier}
           timeToValue={content.lock.time_to_value}
+          bullets={content.lock.bullets}
           detail={content.lock.detail}
+          onCtaClick={() => trackUpgradeCtaClick('feature_page_schedule', 'pro')}
           preview={<SchedulePreview />}
         />
       </Layout>

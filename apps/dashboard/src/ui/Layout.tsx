@@ -8,6 +8,7 @@ import { T } from '../tokens.js'
 import { TIER_LABEL, TIER_PRICE, TIER_RANK, type Tier } from '../api.js'
 import { useAuth } from '../lib/auth.jsx'
 import { useTier } from '../lib/tier.jsx'
+import { trackLockedNavClick } from '../lib/ga4.js'
 import { Logo } from './Logo.js'
 
 type Icon = typeof HomeIcon
@@ -238,6 +239,7 @@ function NavRow({ item, unlocked, showTooltip }: { item: NavSpec; unlocked: bool
       <NavLink
         to={item.to}
         end={item.to === '/'}
+        onClick={!unlocked ? () => trackLockedNavClick(item.label, item.requires) : undefined}
         style={({ isActive }) => ({
           display: 'flex', alignItems: 'center', gap: 10,
           padding: '10px 14px',

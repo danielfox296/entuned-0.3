@@ -41,3 +41,23 @@ export function trackOnboardingComplete() {
 export function trackPageView(path: string) {
   fire('page_view', { page_path: path })
 }
+
+// ── Locked nav click ─────────────────────────────────────────────────
+// Fires when a user clicks a nav item their tier doesn't unlock.
+export function trackLockedNavClick(feature: string, requiredTier: string) {
+  fire('locked_nav_click', { feature, required_tier: requiredTier })
+}
+
+// ── Upgrade CTA click ────────────────────────────────────────────────
+// Fires when any upgrade CTA is clicked. source identifies where:
+//   'home_card' | 'feature_page_customer_profile' | 'feature_page_schedule' | 'feature_page_integrations'
+export function trackUpgradeCtaClick(source: string, targetTier: string) {
+  fire('upgrade_cta_click', { source, target_tier: targetTier })
+}
+
+// ── Feature page view ────────────────────────────────────────────────
+// Fires once per visit to a feature route, after tier is resolved.
+// locked=true means the user's tier doesn't include this feature.
+export function trackFeaturePageView(feature: string, locked: boolean) {
+  fire('feature_page_view', { feature, locked })
+}

@@ -26,12 +26,10 @@ preGateNote: "Play music in your store for a few days. We'll show you what's nex
 # free → has stat; core → no stat; pro/enterprise → no card.
 upgrade:
   free:
-    stat: "8–12%"
-    stat_label: "increase in willingness to pay"
-    headline: "Music built around your customer."
-    body: "When your music matches the people who walk through your door, they stay longer and spend more. Core builds your library around your specific customer — their taste, their identity, their vibe. $99 per location, per month."
+    headline: "Core: tune the music to your customer."
+    body: "$99 per location, per month."
     cta_label: "Unlock Core"
   core:
     headline: "Tie what you play to what you sell."
-    body: "On Pro, schedule outcome rotation through the day and connect Square, Shopify, or Lightspeed. $399 per location, per month."
+    body: "$399 per location, per month."
     cta_label: "Unlock Pro"

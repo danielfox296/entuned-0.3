@@ -5,9 +5,13 @@
 # LockScreen content shown to free-tier users
 lock:
   tab_name: "Customer Profile"
-  value_line: "Music tailored to the people who actually walk into your store."
-  time_to_value: "Fill it in and your library starts being built around your audience — usually live on the floor within a few days."
-  detail: "Ten questions about who walks in. The answers become your own music library, built around your specific customer instead of the one every store starts on."
+  value_line: "Music built for the specific person who walks into your store."
+  time_to_value: "Fill it in and your library starts building — music is live on your floor within a few days."
+  bullets:
+    - "7 questions about your customer's identity, taste, and values"
+    - "Your answers become a dedicated library of 300+ tracks, built around your ICP — not the general catalogue"
+    - "Change your profile any time — updated music lands on your floor the same day"
+  detail: "Every store on Entuned Free starts on the same baseline library. Core builds yours around your specific customer instead."
 
 # The 10 intake questions. Order is meaningful — first 3 are BASIC; the rest
 # are the extended set behind "Add more detail."

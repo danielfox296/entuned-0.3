@@ -7,8 +7,12 @@ heading: "Schedule"
 # LockScreen content shown to sub-Pro users
 lock:
   tab_name: "Schedule"
-  value_line: "Time-of-day outcome rotation. Music shifts as your customer mix changes through the day."
+  value_line: "The right outcome at the right hour, automatically."
   time_to_value: "Schedule rules apply on the next playback rotation — usually within an hour."
+  bullets:
+    - "Set opening calm, peak-hour energy, and closing wind-down as timed rules"
+    - "The mode switches automatically — no one on your floor has to remember to change it"
+    - "Rules run per location, independently"
   detail: "On Pro you'd schedule Linger for the morning lull and Lift Energy for Saturday afternoon — automatically, with one rule."
 
 # Editor — multi-day form, day columns, slot rows
