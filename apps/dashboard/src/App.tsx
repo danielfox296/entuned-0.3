@@ -11,6 +11,9 @@ import { Schedule } from './routes/Schedule.js'
 import { Integrations } from './routes/Integrations.js'
 import { Reports } from './routes/Reports.js'
 import { Upgrade } from './routes/Upgrade.js'
+import { OnboardProfile } from './routes/OnboardProfile.js'
+import { BoostTrial } from './routes/BoostTrial.js'
+import { ReferralLanding } from './routes/ReferralLanding.js'
 import { trackPageView } from './lib/ga4.js'
 
 // SPA virtual pageview — fires on every React Router transition so GA4
@@ -30,9 +33,16 @@ export function App() {
     <BrowserRouter>
       <GA4PageTracker />
       <Routes>
+        {/* Public routes */}
         <Route path="/start"   element={<Start />} />
         <Route path="/welcome" element={<Welcome />} />
+        <Route path="/r/:code" element={<ReferralLanding />} />
 
+        {/* Onboarding gate — server redirects here when industry === null */}
+        <Route path="/onboard"      element={<RequireAuth><OnboardProfile /></RequireAuth>} />
+        <Route path="/boost-trial"  element={<RequireAuth><BoostTrial /></RequireAuth>} />
+
+        {/* Authenticated app */}
         <Route path="/"             element={<RequireAuth><Home /></RequireAuth>} />
         <Route path="/locations"    element={<RequireAuth><Locations /></RequireAuth>} />
         <Route path="/intake"       element={<RequireAuth><IcpIntake /></RequireAuth>} />

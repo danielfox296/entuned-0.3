@@ -33,8 +33,8 @@ profile:
 billing:
   title: "Billing"
   comped_body: "Your account is currently comped — there's no active subscription to manage. If you have questions, reach out to us."
-  free_body: "You're on Entuned Free. Unlock Core for music tuned to your specific customer, plus pause / resume and a billing portal."
-  free_cta: "Unlock Core"
+  free_body: "You're on Entuned Free. Unlock Boost for music tuned to your specific customer, plus pause / resume and a billing portal."
+  free_cta: "Unlock Boost"
   portal_body: "Manage subscription, payment method, and invoices in Stripe."
   portal_cta: "Open billing portal"
   portal_error_prefix: "Couldn't open billing portal: "

@@ -1,0 +1,95 @@
+# boost-trial — editable text content for the /boost-trial ICP stepper.
+# 6 forced-choice questions that seed the onboarding ICP.
+
+heading: "Let's build your library."
+subhead: "Six questions about who walks into your store. Takes about 90 seconds."
+step_counter: "{{current}} of {{total}}"
+
+questions:
+  - id: "icpAgeCenter"
+    label: "How old is your core customer, roughly?"
+    options:
+      - value: "teen"
+        label: "Teenagers (13–17)"
+      - value: "young_adult"
+        label: "Young adults (18–29)"
+      - value: "midlife"
+        label: "Adults (30–49)"
+      - value: "older_adult"
+        label: "50 and up"
+
+  - id: "icpAgeRangeWide"
+    label: "Is your customer base a wide age range?"
+    options:
+      - value: "false"
+        label: "Fairly consistent"
+      - value: "true"
+        label: "Wide mix of ages"
+
+  - id: "icpGenderSkew"
+    label: "Does your customer skew a particular gender?"
+    options:
+      - value: "female"
+        label: "Mostly women"
+      - value: "male"
+        label: "Mostly men"
+      - value: "mixed"
+        label: "Pretty balanced"
+
+  - id: "icpShoppingMode"
+    label: "How does your customer typically shop?"
+    options:
+      - value: "browse"
+        label: "Browsing — they linger and explore"
+      - value: "mission"
+        label: "Mission-driven — they know what they want"
+      - value: "social"
+        label: "Social — shopping with others, experience matters"
+      - value: "routine"
+        label: "Routine — they're regulars on autopilot"
+
+  - id: "icpStorePersonality"
+    label: "How would you describe the feel of your store?"
+    options:
+      - value: "warm_local"
+        label: "Warm, local, personal"
+      - value: "cool_curated"
+        label: "Cool, curated, minimal"
+      - value: "energetic_fun"
+        label: "Energetic, fun, upbeat"
+      - value: "premium_calm"
+        label: "Premium, calm, aspirational"
+
+  - id: "icpCurrentMusic"
+    label: "What kind of music are you playing right now?"
+    options:
+      - value: "pop_hits"
+        label: "Pop hits / Top 40"
+      - value: "indie_alternative"
+        label: "Indie / alternative"
+      - value: "hip_hop_rnb"
+        label: "Hip hop / R&B"
+      - value: "country"
+        label: "Country"
+      - value: "classic_rock"
+        label: "Classic rock / oldies"
+      - value: "electronic"
+        label: "Electronic / dance"
+      - value: "jazz_soul"
+        label: "Jazz / soul / blues"
+      - value: "nothing"
+        label: "Nothing yet"
+      - value: "other"
+        label: "Something else"
+
+next: "Next"
+back: "Back"
+submit: "Build my library"
+submit_busy: "Starting…"
+error: "Something went wrong. Try again."
+
+# Confirmation screen shown after submission
+confirm:
+  heading: "Your library is being built."
+  body: "We've started generating music around your customer. Your 30-day Boost trial is running — you'll get an email when your first tracks are ready to play."
+  cta: "Go to dashboard"

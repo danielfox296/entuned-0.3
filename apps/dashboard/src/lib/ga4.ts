@@ -61,3 +61,30 @@ export function trackUpgradeCtaClick(source: string, targetTier: string) {
 export function trackFeaturePageView(feature: string, locked: boolean) {
   fire('feature_page_view', { feature, locked })
 }
+
+// ── Boost Trial funnel ────────────────────────────────────────────────
+export function trackBoostTrialStarted() {
+  fire('boost_trial_started')
+}
+
+export function trackBoostTrialQuestionAnswered(qNum: number, qId: string, value: string) {
+  fire(`boost_trial_q${qNum}_answered`, { question_id: qId, value })
+}
+
+export function trackBoostTrialCompleted() {
+  fire('boost_trial_completed')
+}
+
+// ── Referral ──────────────────────────────────────────────────────────
+export function trackReferralCodeGenerated() {
+  fire('referral_code_generated')
+}
+
+export function trackReferralShared(method: 'copy' | 'share') {
+  fire('referral_shared', { method })
+}
+
+// ── Post-conversion benchmarking ──────────────────────────────────────
+export function trackBenchmarkingCompleted() {
+  fire('benchmarking_completed')
+}

@@ -5,11 +5,11 @@
 heading: "Locations"
 subheading: "Each location plays its own soundtrack — its own player URL, its own pause control."
 
-# Add-location button (Core+ unlocked vs locked)
+# Add-location button (Boost+ unlocked vs locked)
 add:
   cta: "Add my location"
-  locked_cta: "Add my location · Core"
-  locked_tooltip: "Add location requires Core"
+  locked_cta: "Add my location · Boost"
+  locked_tooltip: "Add location requires Boost"
 
 # List states
 loading: "Loading locations…"
@@ -47,7 +47,7 @@ url_row:
 
 # Pause control
 pause:
-  locked: "Pause · Core"
+  locked: "Pause · Boost"
   pause: "Pause"
   resume: "Resume"
   confirm: "Pause this location for up to 60 days? Music stops; you stop being charged. You can resume anytime."

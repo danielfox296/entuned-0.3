@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ExternalLink, Copy, Check, ArrowRight } from 'lucide-react'
 import { trackUpgradeCtaClick } from '../lib/ga4.js'
 import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
 import { Card } from '../ui/Card.js'
 import { SetupChecklist } from '../ui/SetupChecklist.js'
-import { api, PLAYER_URL, primaryStore, type Tier } from '../api.js'
+import { api, PLAYER_URL, primaryStore, type Tier, type BoostTrialStatus } from '../api.js'
 import { useTier } from '../lib/tier.jsx'
 import content from '../content/home.yaml'
 
@@ -16,10 +16,30 @@ export function Home() {
   const headlineStore = primaryStore(stores)
   const playerUrl = headlineStore ? `${PLAYER_URL}/${headlineStore.slug}` : null
 
+  const [trialStatus, setTrialStatus] = useState<BoostTrialStatus | null>(null)
+  const [trialDaysRemaining, setTrialDaysRemaining] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (loading) return
+    // Poll trial status for free-tier users (active Boost Trials are comp'd to 'core').
+    api.boostTrialStatus().then((r) => {
+      setTrialStatus(r.trialStatus)
+      setTrialDaysRemaining(r.daysRemaining)
+    }).catch(() => { /* non-critical */ })
+  }, [loading])
+
   return (
     <Layout>
       <div style={{ display: 'grid', gap: 16, maxWidth: 720 }}>
         <SetupChecklist tier={tier} hasLocation={stores.length > 0} />
+
+        {trialStatus === 'generating' && <TrialGeneratingBanner />}
+        {trialStatus === 'active' && trialDaysRemaining !== null && (
+          <TrialActiveBanner
+            daysRemaining={trialDaysRemaining}
+            storeId={headlineStore?.id}
+          />
+        )}
 
         {loading ? (
           <Card>
@@ -35,7 +55,7 @@ export function Home() {
           </Card>
         )}
 
-        <UpgradeCard tier={tier} />
+        <UpgradeCard tier={tier} trialStatus={trialStatus} storeId={headlineStore?.id} />
       </div>
     </Layout>
   )
@@ -149,7 +169,95 @@ const ctaStyle: React.CSSProperties = {
   textDecoration: 'none',
 }
 
-function UpgradeCard({ tier }: { tier: Tier }) {
+function TrialGeneratingBanner() {
+  return (
+    <div style={{
+      background: 'rgba(80, 146, 156, 0.08)',
+      border: `1px solid ${T.borderActive}`,
+      borderRadius: 10, padding: '14px 18px',
+      display: 'flex', alignItems: 'center', gap: 12,
+    }}>
+      <div style={{
+        width: 8, height: 8, borderRadius: '50%',
+        background: T.accent, flexShrink: 0,
+        animation: 'pulse 1.4s ease-in-out infinite',
+      }} />
+      <div style={{ color: T.textMuted, fontSize: 14, fontFamily: T.sans, lineHeight: 1.5 }}>
+        <strong style={{ color: T.text }}>Your Boost library is generating.</strong>
+        {' '}You'll get an email when your first tracks are ready to play.
+      </div>
+    </div>
+  )
+}
+
+function TrialActiveBanner({ daysRemaining, storeId }: { daysRemaining: number; storeId?: string }) {
+  const urgent = daysRemaining <= 7
+  return (
+    <div style={{
+      background: urgent ? 'rgba(215, 175, 116, 0.08)' : 'rgba(80, 146, 156, 0.06)',
+      border: `1px solid ${urgent ? T.warn : T.borderActive}`,
+      borderRadius: 10, padding: '14px 18px',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+    }}>
+      <div style={{ color: T.textMuted, fontSize: 14, fontFamily: T.sans }}>
+        <strong style={{ color: urgent ? T.warn : T.text }}>
+          Boost trial · {daysRemaining} day{daysRemaining === 1 ? '' : 's'} left
+        </strong>
+      </div>
+      {storeId && (
+        <a
+          href={api.upgradeFromCompUrl(storeId)}
+          onClick={() => trackUpgradeCtaClick('trial_banner', 'core')}
+          style={{
+            ...ctaStyle,
+            padding: '8px 14px', fontSize: 13, flexShrink: 0,
+          }}
+        >
+          Keep Boost <ArrowRight size={13} strokeWidth={2} />
+        </a>
+      )}
+    </div>
+  )
+}
+
+function UpgradeCard({
+  tier, trialStatus, storeId,
+}: {
+  tier: Tier
+  trialStatus: BoostTrialStatus | null
+  storeId?: string
+}) {
+  // Active trial: show upgrade-from-comp CTA instead of checkout.
+  if (trialStatus === 'active' && storeId) {
+    return (
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(80,146,156,0.10) 0%, rgba(80,146,156,0.03) 100%)',
+        border: `1px solid ${T.border}`,
+        borderRadius: 12, padding: 24,
+      }}>
+        <div style={{
+          fontFamily: T.heading, fontSize: 18, fontWeight: 500,
+          color: T.text, marginBottom: 6, letterSpacing: '-0.01em',
+        }}>
+          Keep this library after your trial.
+        </div>
+        <div style={{
+          color: T.textMuted, fontSize: 14, fontFamily: T.sans,
+          lineHeight: 1.55, marginBottom: 16,
+        }}>
+          $99 per location, per month. No contracts, cancel any time.
+        </div>
+        <a
+          href={api.upgradeFromCompUrl(storeId)}
+          onClick={() => trackUpgradeCtaClick('home_card', 'core')}
+          style={ctaStyle}
+        >
+          Keep Boost — $99/mo <ArrowRight size={14} strokeWidth={2} />
+        </a>
+      </div>
+    )
+  }
+
   const copy = upgradeCopyFor(tier)
   if (!copy) return null
 

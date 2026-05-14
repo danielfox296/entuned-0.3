@@ -154,6 +154,31 @@ export interface MeIcpResponse {
   store: { id: string } | null
 }
 
+export interface OnboardProfileInput {
+  industry: string
+  zip?: string
+  annualRevenueRange?: string
+  employeeCountRange?: string
+  storeLocationCount?: number
+}
+
+export type BoostTrialStatus = 'none' | 'generating' | 'active' | 'expired'
+
+export interface BoostTrialStatusResponse {
+  trialStatus: BoostTrialStatus
+  daysRemaining: number | null
+}
+
+export interface BoostTrialInput {
+  icpAgeCenter: string
+  icpAgeRangeWide: boolean
+  icpGenderSkew: string
+  icpShoppingMode: string
+  icpStorePersonality: string
+  icpCurrentMusic: string
+  icpCurrentMusicOther?: string
+}
+
 // ── Tier helpers ──────────────────────────────────────────────────
 
 export const TIER_RANK: Record<Tier, number> = {
@@ -165,7 +190,7 @@ export const TIER_RANK: Record<Tier, number> = {
 
 export const TIER_LABEL: Record<Tier, string> = {
   free: 'Entuned Free',
-  core: 'Core',
+  core: 'Boost',
   pro: 'Pro',
   enterprise: 'Enterprise',
 }
@@ -314,4 +339,24 @@ export const api = {
   deleteScheduleSlot: (id: string) =>
     req<{ ok: true }>(`/me/schedule-rows/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   meOutcomes: () => req<OutcomeOption[]>('/me/outcomes'),
+
+  // ── Onboarding ──
+  saveOnboardProfile: (body: OnboardProfileInput) =>
+    req<{ ok: true }>('/me/profile', { method: 'PATCH', body: JSON.stringify(body) }),
+
+  // ── Boost Trial ──
+  startBoostTrial: (body: BoostTrialInput) =>
+    req<{ ok: true; trialStatus: 'generating' }>('/me/boost-trial', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  boostTrialStatus: () => req<BoostTrialStatusResponse>('/me/boost-trial/status'),
+
+  // ── Referral ──
+  getReferralCode: () =>
+    req<{ referralCode: string }>('/me/referral-code', { method: 'POST' }),
+
+  // ── Upgrade (from comp trial) ──
+  upgradeFromCompUrl: (storeId: string) =>
+    `${API_URL}/billing/upgrade-from-comp?store=${encodeURIComponent(storeId)}`,
 }

@@ -22,9 +22,9 @@ hero:
 # free → has stat; core → no stat; pro/enterprise → no card.
 upgrade:
   free:
-    headline: "Core: tune the music to your customer."
+    headline: "Boost: tune the music to your customer."
     body: "$99 per location, per month."
-    cta_label: "Unlock Core"
+    cta_label: "Unlock Boost"
   core:
     headline: "Tie what you play to what you sell."
     body: "$399 per location, per month."

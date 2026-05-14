@@ -5,15 +5,15 @@
 
 eyebrow: "Upgrade"
 heading: "More music. Made for your customer."
-subhead: "Step into Core. All nine research-backed outcomes, music engineered for your specific Ideal Customer Profile, and a 300-song library that grows every month."
+subhead: "Step into Boost. All nine research-backed outcomes, music engineered for your specific Ideal Customer Profile, and a 300-song library that grows every month."
 price_line: "$99 / location / month — monthly billing, cancel anytime."
-cta_primary: "Upgrade to Core — $99/loc/mo"
+cta_primary: "Upgrade to Boost — $99/loc/mo"
 cta_secondary_lead: "Need multi-fleet pricing?"
 cta_secondary_link_label: "Talk to Enterprise"
 cta_secondary_link_url: "https://entuned.co/contact.html?topic=enterprise"
 
 # Sticky bar that follows the user as they scroll the benefit sections.
-sticky_bar_label: "Ready to step into Core?"
+sticky_bar_label: "Ready to step into Boost?"
 sticky_bar_cta: "Upgrade — $99/mo"
 
 # State banners (driven by ?canceled=1 / ?error= query params)
@@ -22,7 +22,7 @@ error_banner_prefix: "Something went wrong starting checkout: "
 error_banner_generic: "Please try again or reach out to us."
 already_subscribed_banner: "You already have a paid subscription. Manage your plan from the billing portal in Account."
 
-# Six benefit sections — one per Core unlock. Section id is the deep-link
+# Six benefit sections — one per Boost unlock. Section id is the deep-link
 # anchor the player's locked-tile footer uses (e.g. #outcomes for a tap on
 # locked Calm). Keep each section scannable: icon, eyebrow, headline, body,
 # proof point.
@@ -30,20 +30,20 @@ sections:
   outcomes:
     eyebrow: "Outcomes"
     headline: "All nine research-backed outcomes"
-    body: "Free gives you Linger and Lift Energy. Core unlocks the full set — every outcome the research catalogue supports, ready to deploy on any floor moment."
+    body: "Free gives you Linger and Lift Energy. Boost unlocks the full set — every outcome the research catalogue supports, ready to deploy on any floor moment."
     proof: "Calm · Linger · Lift Energy · Move Through · Reinforce Brand · Convert Browsers · Impulse Buy · Increase Order Value · Add More Items"
 
   icp:
     eyebrow: "Customer Profile"
     headline: "Music tailored to YOUR customer"
-    body: "Free plays a general retail catalogue. Core builds the music around the specific Ideal Customer Profile you describe — taste preferences, era, sonic adjacencies, the cultural context they walk in with."
+    body: "Free plays a general retail catalogue. Boost builds the music around the specific Ideal Customer Profile you describe — taste preferences, era, sonic adjacencies, the cultural context they walk in with."
     proof: "Tell us about your customer once. Every song after that is tuned to who walks in."
 
   library:
     eyebrow: "Library"
     headline: "300 songs at launch · 120 added monthly"
-    body: "Core ships a 300-song library tuned to your ICP on day one, with about 120 new tracks added every month. Most stores reach 420+ tracks in their first paid month."
-    proof: "Free is 100 songs of general-catalogue music. Core is 300+ engineered songs, growing weekly."
+    body: "Boost ships a 300-song library tuned to your ICP on day one, with about 120 new tracks added every month. Most stores reach 420+ tracks in their first paid month."
+    proof: "Free is 100 songs of general-catalogue music. Boost is 300+ engineered songs, growing weekly."
 
   refresh:
     eyebrow: "Refresh"
@@ -63,16 +63,16 @@ sections:
     body: "Every Entuned subscription — Free included — ships with full PRO indemnification. No ASCAP, BMI, SESAC, or SoundExchange fees. The licensing protection isn't a paid upsell."
     proof: "Indemnification certificate available in your account."
 
-# FAQ — pulled from pricing page, scoped to free→Core decision points.
+# FAQ — pulled from pricing page, scoped to free→Boost decision points.
 faq:
   heading: "Common questions"
   items:
     - q: "Can I cancel?"
       a: "Yes, monthly. No long-term contract. Cancel from the billing portal in Account, anytime."
     - q: "What happens to my settings if I upgrade?"
-      a: "Your store name, login, and any custom configuration carry over. The free plan becomes Core; you'll be prompted to fill out the Customer Profile (ICP) so the new music can be tuned to your floor."
-    - q: "Is the music actually different on Core?"
-      a: "Yes. Free music is engineered to general retail outcomes — it works for any store. Core music is engineered to your specific customer's taste, era, and cultural context. Different libraries, different sonic decisions, same outcome science underneath."
+      a: "Your store name, login, and any custom configuration carry over. The free plan becomes Boost; you'll be prompted to fill out the Customer Profile (ICP) so the new music can be tuned to your floor."
+    - q: "Is the music actually different on Boost?"
+      a: "Yes. Free music is engineered to general retail outcomes — it works for any store. Boost music is engineered to your specific customer's taste, era, and cultural context. Different libraries, different sonic decisions, same outcome science underneath."
 
 # Final block — single primary CTA + soft enterprise out
 final:

@@ -1,16 +1,15 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, Plus, Pencil, Archive, MapPin } from 'lucide-react'
 import { T } from '../tokens.js'
 import { Layout } from '../ui/Layout.js'
-import { LockScreen } from '../ui/LockScreen.js'
 import { Button, Eyebrow, Input } from '../ui/index.js'
 import {
   api, primaryStore, TIER_RANK,
   type IcpInput, type IcpListRow, type IcpRow, type StoreRow,
 } from '../api.js'
 import { useTier } from '../lib/tier.jsx'
-import { trackFeaturePageView, trackUpgradeCtaClick } from '../lib/ga4.js'
+import { trackFeaturePageView } from '../lib/ga4.js'
 import content from '../content/icp-intake.yaml'
 
 // /intake — Brand intake.
@@ -82,6 +81,7 @@ function hasExtendedFilled(a: Answers): boolean {
 
 export function IcpIntake() {
   const { stores, tier, loading } = useTier()
+  const navigate = useNavigate()
   const tracked = useRef(false)
   useEffect(() => {
     if (loading || tracked.current) return
@@ -89,21 +89,16 @@ export function IcpIntake() {
     trackFeaturePageView('customer_profile', TIER_RANK[tier] < TIER_RANK.core)
   }, [loading, tier])
 
+  // Free-tier users go to /boost-trial to unlock via the self-serve flow.
+  useEffect(() => {
+    if (!loading && TIER_RANK[tier] < TIER_RANK.core) {
+      navigate('/boost-trial', { replace: true })
+    }
+  }, [loading, tier, navigate])
+
   if (TIER_RANK[tier] < TIER_RANK.core) {
-    return (
-      <Layout>
-        <LockScreen
-          tabName={content.lock.tab_name}
-          valueLine={content.lock.value_line}
-          requiredTier="core"
-          currentTier={tier}
-          timeToValue={content.lock.time_to_value}
-          bullets={content.lock.bullets}
-          detail={content.lock.detail}
-          onCtaClick={() => trackUpgradeCtaClick('feature_page_customer_profile', 'core')}
-        />
-      </Layout>
-    )
+    // Redirect in progress — render nothing to avoid lock screen flash.
+    return null
   }
 
   if (TIER_RANK[tier] >= TIER_RANK.pro) {
