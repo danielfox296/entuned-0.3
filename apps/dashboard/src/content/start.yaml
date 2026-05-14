@@ -32,12 +32,16 @@ auth:
   sent_post_email: ". Click it and you're in."
   sent_spam_note: "Didn't land? Check spam — sometimes new domains get filtered."
   sent_try_different: "Try a different email →"
-  # Default state
+  # Default state (new visitor)
   headline: "Get started."
   sub: "We'll email you a sign-in link. Click it and you're in."
   email_label: "Your email"
   email_placeholder: "you@yourstore.com"
   submit: "Get my sign-in link"
   submit_busy: "Sending…"
+  # Returning-user state (redirected in from a protected route)
+  returning_headline: "Welcome back."
+  returning_sub: "Enter your email and we'll send you a sign-in link."
+  returning_submit: "Send sign-in link"
   divider: "or"
   google: "Continue with Google"

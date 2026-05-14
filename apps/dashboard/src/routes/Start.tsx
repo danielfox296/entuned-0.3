@@ -32,6 +32,8 @@ export function Start() {
     return map[errorParam] ?? map.default
   })()
 
+  const returning = !!next
+
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [sent, setSent] = useState(false)
@@ -170,12 +172,12 @@ export function Start() {
             </>
           ) : (
             <>
-              <AuthHeadline>{content.auth.headline}</AuthHeadline>
+              <AuthHeadline>{returning ? content.auth.returning_headline : content.auth.headline}</AuthHeadline>
               <p style={{
                 fontSize: 14, lineHeight: 1.55,
                 color: T.textFaint, margin: '0 0 6px',
               }}>
-                {content.auth.sub}
+                {returning ? content.auth.returning_sub : content.auth.sub}
               </p>
 
               {linkErrorCopy && (
@@ -213,7 +215,7 @@ export function Start() {
 
                 <div style={{ marginTop: 4 }}>
                   <Button type="submit" busy={busy}>
-                    {busy ? content.auth.submit_busy : content.auth.submit}
+                    {busy ? content.auth.submit_busy : returning ? content.auth.returning_submit : content.auth.submit}
                   </Button>
                 </div>
               </form>
