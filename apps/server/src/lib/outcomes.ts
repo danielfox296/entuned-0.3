@@ -26,7 +26,7 @@
 
 import { prisma } from '../db.js'
 
-const FREE_TIER_PREFERENCE = ['all outcomes', 'add energy', 'lift energy']
+const FREE_TIER_PREFERENCE = ['chill', 'steady', 'upbeat']
 
 /**
  * Resolve the set of Outcome IDs currently allowed for free-tier stores by
