@@ -12,13 +12,9 @@ import content from '../content/home.yaml'
 // /  — authenticated home. Tier label + setup status + (free/core only) an
 // upgrade card + a quick link to the player URL. No now-playing widget. Ever.
 export function Home() {
-  const { stores, tier, loading, onboardingGateTripped } = useTier()
+  const { stores, tier, loading } = useTier()
   const headlineStore = primaryStore(stores)
   const playerUrl = headlineStore ? `${PLAYER_URL}/${headlineStore.slug}` : null
-  // Pre-gate: free user hasn't crossed the usage threshold yet. Suppress the
-  // upsell card and show a simple onboarding nudge instead. Paid tiers always
-  // skip the gate.
-  const preGate = tier === 'free' && !onboardingGateTripped
 
   return (
     <Layout>
@@ -39,17 +35,7 @@ export function Home() {
           </Card>
         )}
 
-        {preGate ? (
-          <div style={{
-            color: T.textMuted, fontSize: 14, fontFamily: T.sans,
-            lineHeight: 1.55, padding: '4px 4px',
-          }}>
-            {content.preGateNote}
-          </div>
-        ) : (
-          /* PLG card — placed BELOW player block per SSOT (Daniel decision 2026-05-04) */
-          <UpgradeCard tier={tier} />
-        )}
+        <UpgradeCard tier={tier} />
       </div>
     </Layout>
   )

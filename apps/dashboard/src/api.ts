@@ -225,7 +225,7 @@ export const api = {
     }),
 
   // ── /me/* (customer-facing, scoped to the authed Client) ──
-  meStores: () => req<{ stores: StoreRow[]; onboardingGateTripped: boolean }>('/me/stores'),
+  meStores: () => req<{ stores: StoreRow[] }>('/me/stores'),
   meIcp: () => req<MeIcpResponse>('/me/icp'),
   saveMeIcp: (input: IcpInput) =>
     req<{ icp: IcpRow }>('/me/icp', {
