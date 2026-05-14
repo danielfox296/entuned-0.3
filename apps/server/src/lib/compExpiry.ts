@@ -25,6 +25,8 @@ const API_URL = process.env.API_URL ?? 'https://api.entuned.co'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const COMP_WARNING_DAYS = 7
+const BOOST_TRIAL_WARNING_DAYS = 5
+const BOOST_TRIAL_GRACE_DAYS = 3
 
 interface CompCronStats {
   endingConsidered: number
@@ -44,8 +46,11 @@ export async function runCompExpiryCron(): Promise<CompCronStats> {
   }
   const now = new Date()
   const warnCutoff = new Date(now.getTime() + COMP_WARNING_DAYS * DAY_MS)
+  const boostWarnCutoff = new Date(now.getTime() + BOOST_TRIAL_WARNING_DAYS * DAY_MS)
 
   // ── Pass 1: comps expiring within the warning window ──────────────────
+  // Boost Trial stores use a tighter 5-day window and a different email template.
+  // Standard admin comps use the 7-day window and the existing compEnding template.
   const ending = await prisma.store.findMany({
     where: {
       archivedAt: null,
@@ -57,6 +62,7 @@ export async function runCompExpiryCron(): Promise<CompCronStats> {
       tier: true,
       compTier: true,
       compExpiresAt: true,
+      compReason: true,
       client: {
         select: {
           memberships: {
@@ -75,13 +81,20 @@ export async function runCompExpiryCron(): Promise<CompCronStats> {
     const user = s.client.memberships[0]?.account
     if (!user) { stats.endingSkipped++; continue }
 
+    const isBoostTrial = s.compReason === 'boost_trial_icp'
+
+    // Boost Trial warning fires at 5 days; standard comp warning at 7 days.
+    // Skip Boost Trial stores that are outside their tighter window.
+    if (isBoostTrial && s.compExpiresAt!.getTime() - now.getTime() > boostWarnCutoff.getTime() - now.getTime()) {
+      stats.endingSkipped++; continue
+    }
+
+    const templateName = isBoostTrial ? 'boostTrialEnding' : 'compEnding'
     // contextKey = storeId so the same Store doesn't get two warnings if
     // the operator extends the comp and we re-enter the window.
     const contextKey = s.id
     const already = await prisma.lifecycleEmailLog.findUnique({
-      where: { accountId_templateName_contextKey: {
-        accountId: user.id, templateName: 'compEnding', contextKey,
-      } },
+      where: { accountId_templateName_contextKey: { accountId: user.id, templateName, contextKey } },
     })
     if (already) { stats.endingSkipped++; continue }
 
@@ -90,18 +103,24 @@ export async function runCompExpiryCron(): Promise<CompCronStats> {
     const upgradeUrl = `${API_URL}/billing/upgrade-from-comp?store=${s.id}`
 
     try {
-      const res = await sendLifecycle('compEnding', { accountId: user.id, email: user.email }, {
-        effectiveTier: s.compTier!,
-        paidTier: s.tier,
-        daysRemaining,
-        endsOn,
-        upgradeUrl,
-        dashboardUrl: APP_URL,
-      })
+      const res = isBoostTrial
+        ? await sendLifecycle('boostTrialEnding', { accountId: user.id, email: user.email }, {
+            daysRemaining,
+            upgradeUrl,
+            dashboardUrl: APP_URL,
+          })
+        : await sendLifecycle('compEnding', { accountId: user.id, email: user.email }, {
+            effectiveTier: s.compTier!,
+            paidTier: s.tier,
+            daysRemaining,
+            endsOn,
+            upgradeUrl,
+            dashboardUrl: APP_URL,
+          })
       if (res.skipped) { stats.endingSkipped++; continue }
       if (!res.ok) { stats.endingErrors++; continue }
       await prisma.lifecycleEmailLog.create({
-        data: { accountId: user.id, templateName: 'compEnding', contextKey },
+        data: { accountId: user.id, templateName, contextKey },
       })
       stats.endingSent++
     } catch {
@@ -109,7 +128,11 @@ export async function runCompExpiryCron(): Promise<CompCronStats> {
     }
   }
 
-  // ── Pass 2: comps that have already expired ─────────────────────────────
+  // ── Pass 2: comps that have expired (past grace period) ────────────────
+  // Boost Trial gets a 3-day grace period before the comp is cleared.
+  // Standard admin comps are cleared immediately on expiry (no grace).
+  const graceCutoff = new Date(now.getTime() - BOOST_TRIAL_GRACE_DAYS * DAY_MS)
+
   const ended = await prisma.store.findMany({
     where: {
       archivedAt: null,
@@ -121,6 +144,7 @@ export async function runCompExpiryCron(): Promise<CompCronStats> {
       tier: true,
       compTier: true,
       compExpiresAt: true,
+      compReason: true,
       client: {
         select: {
           memberships: {
@@ -138,32 +162,34 @@ export async function runCompExpiryCron(): Promise<CompCronStats> {
     stats.endedConsidered++
     const user = s.client.memberships[0]?.account
     const formerCompTier = s.compTier!
-    const fromTier = effectiveTier(s, now) // computes pre-clear effective; comp is expired so this == paid tier already
-    // Actually: effectiveTier respects expiry, so fromTier here is paid tier.
-    // We want the "from" in the audit row to reflect what the user *thought*
-    // they had — i.e. the comp tier — so they can read the log as a real
-    // entitlement transition. Override it explicitly.
+    const fromTier = effectiveTier(s, now)
     const auditFromTier = formerCompTier
+    const isBoostTrial = s.compReason === 'boost_trial_icp'
+
+    // Boost Trial: apply 3-day grace — don't clear until compExpiresAt + 3d <= now.
+    if (isBoostTrial && s.compExpiresAt! > graceCutoff) {
+      stats.endedClearedOnly++ // counted but skipped
+      continue
+    }
 
     try {
-      // Send the email first. Don't gate on idempotency here — every expiry
-      // is a one-shot transition, and once the comp is cleared below the
-      // store will never re-match this query.
       if (user) {
         const upgradeUrl = `${API_URL}/billing/upgrade-from-comp?store=${s.id}`
-        await sendLifecycle('compEnded', { accountId: user.id, email: user.email }, {
-          formerCompTier,
-          paidTier: s.tier,
-          upgradeUrl,
-          dashboardUrl: APP_URL,
-        }).catch(() => undefined)
+        if (isBoostTrial) {
+          await sendLifecycle('boostTrialExpired', { accountId: user.id, email: user.email }, {
+            upgradeUrl,
+            dashboardUrl: APP_URL,
+          }).catch(() => undefined)
+        } else {
+          await sendLifecycle('compEnded', { accountId: user.id, email: user.email }, {
+            formerCompTier,
+            paidTier: s.tier,
+            upgradeUrl,
+            dashboardUrl: APP_URL,
+          }).catch(() => undefined)
+        }
       }
 
-      // Clear the comp + write `comp_expired` row. Done *outside* applyTierChange's
-      // diff-skip (the effective tier comparison would treat this as a no-op
-      // since the comp had already expired, so the standard helper would skip
-      // the log row). Write the comp-cleared mutation manually plus an explicit
-      // log row so the timeline shows the transition.
       await prisma.$transaction([
         prisma.store.update({
           where: { id: s.id },
@@ -179,7 +205,7 @@ export async function runCompExpiryCron(): Promise<CompCronStats> {
           data: {
             storeId: s.id,
             fromTier: auditFromTier,
-            toTier: fromTier, // paid tier
+            toTier: fromTier,
             source: 'comp_expired',
             reason: `comp ${formerCompTier} expired on ${s.compExpiresAt!.toISOString()}`,
           },

@@ -20,6 +20,7 @@ import { seedEmailTemplates } from './lib/email.js'
 import { runLifecycleEmails } from './lib/lifecycleEmails.js'
 import { runPauseAutoResume } from './lib/pauseAutoResume.js'
 import { runCompExpiryCron } from './lib/compExpiry.js'
+import { runBoostTrialClockActivation } from './lib/boostTrialClock.js'
 
 const app = Fastify({
   logger: {
@@ -97,6 +98,15 @@ if (process.env.LIFECYCLE_DRIPS_DISABLED !== '1') {
     } catch (err) {
       app.log.error({ err }, 'pause_auto_resume_tick_failed')
     }
+    // Activate Boost Trial clocks for stores whose first generation just landed.
+    // Runs before lifecycle drips so newly-activated trials reach the correct
+    // drip bucket (day-1, day-3 stream-ready, etc.) on the same tick.
+    try {
+      const stats = await runBoostTrialClockActivation()
+      app.log.info({ stats }, 'boost_trial_clock_activation_tick_complete')
+    } catch (err) {
+      app.log.error({ err }, 'boost_trial_clock_activation_tick_failed')
+    }
     try {
       const stats = await runLifecycleEmails()
       app.log.info({ stats }, 'lifecycle_drip_tick_complete')
@@ -115,7 +125,7 @@ if (process.env.LIFECYCLE_DRIPS_DISABLED !== '1') {
       app.log.error({ err }, 'comp_expiry_tick_failed')
     }
   }, { timezone: 'America/Denver' })
-  app.log.info('daily_cron_registered (9am America/Denver — auto-resume + lifecycle drips + comp expiry)')
+  app.log.info('daily_cron_registered (9am America/Denver — auto-resume + boost-trial clock + lifecycle drips + comp expiry)')
 }
 
 const port = Number(process.env.PORT ?? 3000)

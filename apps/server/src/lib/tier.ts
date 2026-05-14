@@ -72,6 +72,8 @@ export type TierLogSource =
   | 'resume'
   | 'comp_expired'
   | 'auto_cleared'
+  | 'boost_trial_icp'
+  | 'boost_trial_activated'
 
 interface ApplyChangeArgs {
   storeId: string

@@ -3,14 +3,21 @@
 // from Operator/admin routes; everything here is gated by requireAuth and
 // scoped to a single Client.
 
+import { randomBytes } from 'node:crypto'
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../db.js'
 import { requireAuth } from '../lib/session.js'
-import { effectiveTier, compIsActive, tierRank } from '../lib/tier.js'
+import { effectiveTier, compIsActive, tierRank, applyTierChange } from '../lib/tier.js'
 import { uniqueStoreSlug } from '../lib/account.js'
 import { FREE_TIER_ICP_ID } from '../lib/freeTier.js'
 import { pickSystemDefaultOutcomeId } from '../lib/outcomes.js'
+
+const APPAREL_INDUSTRIES = new Set(['footwear', 'mens_apparel', 'womens_apparel', 'general_apparel'])
+
+function generateReferralCode(): string {
+  return randomBytes(6).toString('base64url').slice(0, 8).toUpperCase()
+}
 
 interface AuthedClient {
   clientId: string
@@ -89,12 +96,24 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
   // Email is intentionally NOT editable here — it's the auth identity, and
   // changing it requires re-verification (separate flow). Everything else
   // the customer can self-serve from the /account page.
+  const INDUSTRY_VALUES = [
+    'footwear', 'mens_apparel', 'womens_apparel', 'general_apparel',
+    'home_goods', 'gift_specialty', 'jewelry_accessories', 'sporting_goods', 'other',
+  ] as const
+
   const ProfilePatch = z.object({
-    companyName:  z.string().trim().min(1).max(120).optional(),
-    contactName:  z.string().trim().max(120).nullable().optional(),
-    contactEmail: z.string().trim().email().max(240).nullable().optional()
-                    .or(z.literal('').transform(() => null)),
-    contactPhone: z.string().trim().max(40).nullable().optional(),
+    companyName:         z.string().trim().min(1).max(120).optional(),
+    contactName:         z.string().trim().max(120).nullable().optional(),
+    contactEmail:        z.string().trim().email().max(240).nullable().optional()
+                           .or(z.literal('').transform(() => null)),
+    contactPhone:        z.string().trim().max(40).nullable().optional(),
+    // Onboarding profile
+    industry:            z.enum(INDUSTRY_VALUES).optional(),
+    zip:                 z.string().trim().regex(/^\d{5}$/, 'Must be a 5-digit zip').optional(),
+    // Post-conversion benchmarking
+    annualRevenueRange:  z.enum(['under_250k', '250k_500k', '500k_1m', '1m_3m', '3m_plus']).optional(),
+    employeeCountRange:  z.enum(['solo', '2_5', '6_15', '16_50', '50_plus']).optional(),
+    storeLocationCount:  z.number().int().min(1).max(9999).optional(),
   })
   app.patch('/profile', { preHandler: requireAuth }, async (req, reply) => {
     const ctx = getClient(req, reply); if (!ctx) return
@@ -115,6 +134,8 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       select: {
         id: true, companyName: true,
         contactName: true, contactEmail: true, contactPhone: true,
+        industry: true, zip: true,
+        annualRevenueRange: true, employeeCountRange: true, storeLocationCount: true,
       },
     })
     return updated
@@ -624,5 +645,167 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       select: { id: true, title: true, displayTitle: true },
     })
     return reply.send(rows)
+  })
+
+  // POST /me/boost-trial — submit the onboarding ICP form and activate the
+  // Boost Trial comp. Creates an ICP with source='onboarding', links it to the
+  // free Store, and sets compTier='core' (clock starts when first song is live).
+  const BoostTrialBody = z.object({
+    icpAgeCenter:        z.enum(['under_25', '25_34', '35_44', '45_54', '55_plus']),
+    icpAgeRangeWide:     z.boolean().optional(),
+    icpGenderSkew:       z.enum(['mostly_women', 'mostly_men', 'even_mix']),
+    icpShoppingMode:     z.enum(['browsing', 'mission', 'mixed']),
+    icpStorePersonality: z.enum(['curated', 'energetic', 'warm', 'clean', 'eclectic']),
+    icpCurrentMusic:     z.enum(['spotify', 'pandora', 'satellite', 'silence', 'other']),
+    icpCurrentMusicOther: z.string().trim().max(120).optional(),
+    icpPlaylistRef:      z.string().trim().url().max(500).optional(),
+    icpPricePoint:       z.enum(['value', 'mid', 'premium']).optional(),
+  })
+  app.post('/boost-trial', { preHandler: requireAuth }, async (req, reply) => {
+    const ctx = getClient(req, reply); if (!ctx) return
+    const parsed = BoostTrialBody.safeParse(req.body)
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    }
+
+    const client = await prisma.client.findUnique({
+      where: { id: ctx.clientId },
+      select: { id: true, companyName: true, industry: true },
+    })
+    if (!client) return reply.code(404).send({ error: 'client_not_found' })
+
+    const store = await findPrimaryStore(ctx.clientId)
+    if (!store) return reply.code(409).send({ error: 'no_active_store' })
+
+    const fullStore = await prisma.store.findUnique({
+      where: { id: store.id },
+      select: { id: true, tier: true, compTier: true, compExpiresAt: true },
+    })
+    if (!fullStore) return reply.code(409).send({ error: 'no_active_store' })
+
+    if (fullStore.tier !== 'free') {
+      return reply.code(409).send({ error: 'already_paid', message: 'Store is already on a paid tier.' })
+    }
+    if (fullStore.compTier) {
+      return reply.code(409).send({ error: 'trial_already_active', message: 'A comp is already active on this store.' })
+    }
+
+    // icpPricePoint is only meaningful for apparel/footwear; strip it otherwise.
+    const pricePoint = client.industry && APPAREL_INDUSTRIES.has(client.industry)
+      ? parsed.data.icpPricePoint ?? null
+      : null
+
+    const now = new Date()
+    const icpName = `${client.companyName} Customers`
+
+    await prisma.$transaction(async (tx) => {
+      const icp = await tx.iCP.create({
+        data: {
+          clientId: ctx.clientId,
+          name: icpName,
+          source: 'onboarding',
+          icpAgeCenter: parsed.data.icpAgeCenter,
+          icpAgeRangeWide: parsed.data.icpAgeRangeWide ?? null,
+          icpGenderSkew: parsed.data.icpGenderSkew,
+          icpShoppingMode: parsed.data.icpShoppingMode,
+          icpStorePersonality: parsed.data.icpStorePersonality,
+          icpCurrentMusic: parsed.data.icpCurrentMusic,
+          icpCurrentMusicOther: parsed.data.icpCurrentMusicOther ?? null,
+          icpPlaylistRef: parsed.data.icpPlaylistRef ?? null,
+          icpPricePoint: pricePoint,
+        },
+      })
+      await tx.storeICP.create({ data: { storeId: store.id, icpId: icp.id } })
+      await tx.store.update({
+        where: { id: store.id },
+        data: {
+          compTier: 'core',
+          compExpiresAt: null, // clock starts when first song is live
+          compReason: 'boost_trial_icp',
+          compGrantedAt: now,
+          compGrantedById: null,
+        },
+      })
+      await tx.tierChangeLog.create({
+        data: {
+          storeId: store.id,
+          fromTier: 'free',
+          toTier: 'core',
+          source: 'boost_trial_icp',
+          reason: `Boost Trial ICP submitted: ${icpName}`,
+        },
+      })
+    })
+
+    return reply.send({ ok: true, trialStatus: 'generating' })
+  })
+
+  // GET /me/boost-trial/status — current Boost Trial state for the primary Store.
+  // States: 'none' | 'generating' | 'active' | 'expired'
+  app.get('/boost-trial/status', { preHandler: requireAuth }, async (req, reply) => {
+    const ctx = getClient(req, reply); if (!ctx) return
+
+    const store = await findPrimaryStore(ctx.clientId)
+    if (!store) return reply.send({ trialStatus: 'none', daysRemaining: null })
+
+    const fullStore = await prisma.store.findUnique({
+      where: { id: store.id },
+      select: { tier: true, compTier: true, compExpiresAt: true, compReason: true },
+    })
+    if (!fullStore) return reply.send({ trialStatus: 'none', daysRemaining: null })
+
+    const isBoostTrial = fullStore.compReason === 'boost_trial_icp'
+
+    if (isBoostTrial && fullStore.compTier === 'core') {
+      if (!fullStore.compExpiresAt) {
+        return reply.send({ trialStatus: 'generating', daysRemaining: null })
+      }
+      const now = new Date()
+      if (fullStore.compExpiresAt > now) {
+        const daysRemaining = Math.max(1, Math.ceil((fullStore.compExpiresAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)))
+        return reply.send({ trialStatus: 'active', daysRemaining })
+      }
+    }
+
+    // Check TierChangeLog to distinguish 'expired' from 'none'
+    const trialLog = await prisma.tierChangeLog.findFirst({
+      where: { storeId: store.id, source: 'boost_trial_icp' },
+      select: { id: true },
+    })
+    if (trialLog) return reply.send({ trialStatus: 'expired', daysRemaining: null })
+
+    return reply.send({ trialStatus: 'none', daysRemaining: null })
+  })
+
+  // POST /me/referral-code — lazy-generate the Client's referral code.
+  // Returns the code whether it was just created or already existed.
+  app.post('/referral-code', { preHandler: requireAuth }, async (req, reply) => {
+    const ctx = getClient(req, reply); if (!ctx) return
+
+    const client = await prisma.client.findUnique({
+      where: { id: ctx.clientId },
+      select: { id: true, referralCode: true },
+    })
+    if (!client) return reply.code(404).send({ error: 'client_not_found' })
+
+    if (client.referralCode) {
+      return reply.send({ referralCode: client.referralCode })
+    }
+
+    // Generate a unique 8-char code, retry on collision.
+    let code: string | null = null
+    for (let i = 0; i < 5; i++) {
+      const candidate = generateReferralCode()
+      const existing = await prisma.client.findUnique({ where: { referralCode: candidate }, select: { id: true } })
+      if (!existing) { code = candidate; break }
+    }
+    if (!code) return reply.code(500).send({ error: 'code_generation_failed' })
+
+    const updated = await prisma.client.update({
+      where: { id: ctx.clientId },
+      data: { referralCode: code },
+      select: { referralCode: true },
+    })
+    return reply.send({ referralCode: updated.referralCode })
   })
 }

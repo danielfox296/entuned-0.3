@@ -127,6 +127,17 @@ model Client {
   // Null for operator-managed Clients (Untuckit, Lululemon, Friends-Demo) that
   // never went through Stripe Checkout.
   stripeCustomerId     String?    @unique @map("stripe_customer_id")
+  // Onboarding profile — collected at /onboard (post-auth, pre-dashboard gate).
+  // `industry` null = onboarding not yet complete; server redirects to /onboard on login.
+  industry             String?    @map("industry")
+  zip                  String?    @map("zip")
+  // Post-conversion benchmarking — collected 7 days after paid conversion.
+  annualRevenueRange   String?    @map("annual_revenue_range")
+  employeeCountRange   String?    @map("employee_count_range")
+  storeLocationCount   Int?       @map("store_location_count")
+  // Referral tracking — lazy-generated on first referral prompt access.
+  referralCode         String?    @unique @map("referral_code")
+  referredByCode       String?    @map("referred_by_code")
   createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -230,6 +241,20 @@ model ICP {
   desires            String?
   unexpressedDesires String?   @map("unexpressed_desires")
   turnOffs           String?   @map("turn_offs")
+  // Source flag: 'operator' (default) = created via Dash or /intake form;
+  // 'onboarding' = created by POST /me/boost-trial self-serve flow.
+  source             String    @default("operator")
+  // Onboarding ICP — forced-choice fields from the /boost-trial form.
+  // Null on all operator-created ICPs.
+  icpAgeCenter        String?   @map("icp_age_center")
+  icpAgeRangeWide     Boolean?  @map("icp_age_range_wide")
+  icpGenderSkew       String?   @map("icp_gender_skew")
+  icpShoppingMode     String?   @map("icp_shopping_mode")
+  icpStorePersonality String?   @map("icp_store_personality")
+  icpCurrentMusic     String?   @map("icp_current_music")
+  icpCurrentMusicOther String?  @map("icp_current_music_other")
+  icpPlaylistRef      String?   @map("icp_playlist_ref")
+  icpPricePoint       String?   @map("icp_price_point")
   // Customer-dashboard "Retire" — soft-delete. Retired ICPs are hidden from the
   // dashboard and from generation (Hendrix queries filter `archivedAt: null`),
   // and their LineageRows are flipped to `active=false`. Rows are preserved so

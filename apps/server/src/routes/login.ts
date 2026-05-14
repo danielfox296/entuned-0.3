@@ -138,6 +138,21 @@ interface GoogleUserinfo {
   name?: string
 }
 
+/**
+ * True iff the Client linked to this Account has not yet completed onboarding
+ * (industry === null). Redirects to /onboard on both magic-link and Google
+ * auth flows so the gate is enforced server-side, not in the SPA.
+ */
+async function needsOnboarding(accountId: string): Promise<boolean> {
+  const membership = await prisma.clientMembership.findFirst({
+    where: { accountId },
+    select: { client: { select: { industry: true } } },
+  })
+  // No client yet (provisioning in flight or edge-case) — let them through.
+  if (!membership) return false
+  return membership.client.industry === null
+}
+
 async function findOrCreateUserByEmail(email: string, name?: string | null): Promise<{ id: string; email: string; name: string | null; disabledAt: Date | null; tokenVersion: number }> {
   const normalized = email.trim().toLowerCase()
   const existing = await prisma.account.findUnique({ where: { email: normalized } })
@@ -278,6 +293,10 @@ async function googleCallbackHandler(req: FastifyRequest, reply: FastifyReply) {
   await ensureFreeClientForUser(acc.id, normalizedEmail)
 
   setSessionCookie(reply, acc.id, acc.tokenVersion)
+  // Onboarding gate: takes precedence over ?next=.
+  if (await needsOnboarding(acc.id)) {
+    return reply.redirect(`${appUrl()}/onboard`, 302)
+  }
   return reply.redirect(nextDest ?? `${appUrl()}/`, 302)
 }
 
@@ -368,6 +387,11 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
       return reply.redirect(`${appUrl()}/start?error=account_disabled`, 302)
     }
     setSessionCookie(reply, acc.id, acc.tokenVersion)
+    // Onboarding gate: new accounts must complete the profile before landing
+    // anywhere else. Takes precedence over ?next= and player sentinel.
+    if (await needsOnboarding(acc.id)) {
+      return reply.redirect(`${appUrl()}/onboard`, 302)
+    }
     // `next=player` is a sentinel: resolve to the account's primary store's
     // player URL. Cross-origin (music.entuned.co), so safeNext can't be used —
     // the destination is server-derived from authed account state, not user input.

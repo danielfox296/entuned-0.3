@@ -21,6 +21,11 @@ import * as scalingCoreToPro from './scalingCoreToPro.js'
 import * as establishedCoreToPro from './establishedCoreToPro.js'
 import * as compEnding from './compEnding.js'
 import * as compEnded from './compEnded.js'
+import * as boostTrialStreamReady from './boostTrialStreamReady.js'
+import * as boostTrialEngagement from './boostTrialEngagement.js'
+import * as boostTrialEnding from './boostTrialEnding.js'
+import * as boostTrialExpired from './boostTrialExpired.js'
+import * as postConversionBenchmark from './postConversionBenchmark.js'
 
 export interface TemplateModule<P = any> {
   subject: (props: P) => string
@@ -46,6 +51,11 @@ export const TEMPLATES = {
   establishedCoreToPro,
   compEnding,
   compEnded,
+  boostTrialStreamReady,
+  boostTrialEngagement,
+  boostTrialEnding,
+  boostTrialExpired,
+  postConversionBenchmark,
 } satisfies Record<string, TemplateModule>
 
 export type TemplateName = keyof typeof TEMPLATES
@@ -61,6 +71,11 @@ export const LIFECYCLE_TEMPLATES = new Set<TemplateName>([
   'establishedCoreToPro',
   'compEnding',
   'compEnded',
+  'boostTrialStreamReady',
+  'boostTrialEngagement',
+  'boostTrialEnding',
+  'boostTrialExpired',
+  'postConversionBenchmark',
 ])
 
 // Sample props the admin "preview" pane uses when the operator hasn't supplied
@@ -117,6 +132,29 @@ export const TEMPLATE_PROPS_EXAMPLES: Record<TemplateName, Record<string, unknow
     formerCompTier: 'pro',
     paidTier: 'core',
     upgradeUrl: 'https://api.entuned.co/billing/upgrade-from-comp?store=sample',
+    dashboardUrl: 'https://app.entuned.co',
+  },
+  boostTrialStreamReady: {
+    playerUrl: 'https://music.entuned.co/sample-store-1234',
+    dashboardUrl: 'https://app.entuned.co',
+    daysRemaining: 29,
+  },
+  boostTrialEngagement: {
+    daysRemaining: 16,
+    upgradeUrl: 'https://api.entuned.co/billing/upgrade-from-comp?store=sample',
+    dashboardUrl: 'https://app.entuned.co',
+  },
+  boostTrialEnding: {
+    daysRemaining: 5,
+    upgradeUrl: 'https://api.entuned.co/billing/upgrade-from-comp?store=sample',
+    dashboardUrl: 'https://app.entuned.co',
+  },
+  boostTrialExpired: {
+    upgradeUrl: 'https://api.entuned.co/billing/upgrade-from-comp?store=sample',
+    dashboardUrl: 'https://app.entuned.co',
+  },
+  postConversionBenchmark: {
+    benchmarkUrl: 'https://app.entuned.co/benchmark',
     dashboardUrl: 'https://app.entuned.co',
   },
 }

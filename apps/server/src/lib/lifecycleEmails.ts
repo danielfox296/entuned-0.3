@@ -43,12 +43,16 @@ export type LifecycleDripName =
   | 'engagedFreeToCore'
   | 'scalingCoreToPro'
   | 'establishedCoreToPro'
+  | 'boostTrialStreamReady'
+  | 'boostTrialEngagement'
+  | 'postConversionBenchmark'
 
 /** Run every drip the cron knows about. */
 export async function runLifecycleEmails(): Promise<Record<LifecycleDripName, DripStats>> {
   const [
     icpUnfilled, pauseEnding, freeToCoreNudge,
     engagedFreeToCore, scalingCoreToPro, establishedCoreToPro,
+    boostTrialStreamReady, boostTrialEngagement, postConversionBenchmark,
   ] = await Promise.all([
     runIcpUnfilled(),
     runPauseEnding(),
@@ -56,10 +60,14 @@ export async function runLifecycleEmails(): Promise<Record<LifecycleDripName, Dr
     runEngagedFreeToCore(),
     runScalingCoreToPro(),
     runEstablishedCoreToPro(),
+    runBoostTrialStreamReady(),
+    runBoostTrialEngagement(),
+    runPostConversionBenchmark(),
   ])
   return {
     icpUnfilled, pauseEnding, freeToCoreNudge,
     engagedFreeToCore, scalingCoreToPro, establishedCoreToPro,
+    boostTrialStreamReady, boostTrialEngagement, postConversionBenchmark,
   }
 }
 
@@ -73,6 +81,9 @@ export async function runOneLifecycleDrip(name: LifecycleDripName): Promise<Drip
     case 'engagedFreeToCore': return runEngagedFreeToCore()
     case 'scalingCoreToPro': return runScalingCoreToPro()
     case 'establishedCoreToPro': return runEstablishedCoreToPro()
+    case 'boostTrialStreamReady': return runBoostTrialStreamReady()
+    case 'boostTrialEngagement': return runBoostTrialEngagement()
+    case 'postConversionBenchmark': return runPostConversionBenchmark()
   }
 }
 
@@ -215,14 +226,20 @@ async function runFreeToCoreNudge(): Promise<DripStats> {
   const stats: DripStats = { considered: 0, sent: 0, skipped: 0, errors: 0 }
   const cutoff = new Date(Date.now() - 72 * HOUR_MS)
 
-  // Eligible Clients: at least one Store, none with a Subscription.
+  // Eligible Clients: at least one Store, none with a Subscription, none with an active comp
+  // (comped stores are on a Boost Trial — nudging them to pay would be confusing).
+  const now72 = new Date()
   const clients = await prisma.client.findMany({
     where: {
       createdAt: { lte: cutoff },
-      stores: {
-        some: { archivedAt: null },
-        none: { subscription: { isNot: null }, archivedAt: null },
-      },
+      AND: [
+        { stores: { some: { archivedAt: null } } },
+        { stores: { none: { subscription: { isNot: null }, archivedAt: null } } },
+        { stores: { none: {
+          compTier: { not: null },
+          OR: [{ compExpiresAt: null }, { compExpiresAt: { gt: now72 } }],
+        } } },
+      ],
     },
     select: {
       id: true,
@@ -284,13 +301,18 @@ async function runEngagedFreeToCore(): Promise<DripStats> {
   const stats: DripStats = { considered: 0, sent: 0, skipped: 0, errors: 0 }
   const since = new Date(Date.now() - ENGAGED_WINDOW_DAYS * 24 * HOUR_MS)
 
-  // Eligible Clients: at least one active Store, none with a Subscription.
+  // Eligible Clients: at least one active Store, none with a Subscription, none with an active comp.
+  const nowEngaged = new Date()
   const clients = await prisma.client.findMany({
     where: {
-      stores: {
-        some: { archivedAt: null },
-        none: { subscription: { isNot: null }, archivedAt: null },
-      },
+      AND: [
+        { stores: { some: { archivedAt: null } } },
+        { stores: { none: { subscription: { isNot: null }, archivedAt: null } } },
+        { stores: { none: {
+          compTier: { not: null },
+          OR: [{ compExpiresAt: null }, { compExpiresAt: { gt: nowEngaged } }],
+        } } },
+      ],
     },
     select: {
       id: true,
@@ -479,6 +501,225 @@ async function runEstablishedCoreToPro(): Promise<DripStats> {
       if (!res.ok) { stats.errors++; continue }
       await prisma.lifecycleEmailLog.create({
         data: { accountId: user.id, templateName: 'establishedCoreToPro' },
+      })
+      stats.sent++
+    } catch {
+      stats.errors++
+    }
+  }
+  return stats
+}
+
+// ── Boost Trial stream ready ─────────────────────────────────────────────
+//
+// Fires Day 0-3 after the Boost Trial clock activates. The clock starts when
+// the first LineageRow is generated (see boostTrialClock.ts), recorded as
+// `compExpiresAt = now + 30 days`. We detect "just activated" by checking
+// whether compExpiresAt is 27-30 days away (clock start ≤ now ≤ clock start+3d).
+// contextKey = storeId; one email per trial activation.
+
+const DAY_MS = 24 * HOUR_MS
+const TRIAL_DAYS = 30
+
+async function runBoostTrialStreamReady(): Promise<DripStats> {
+  const stats: DripStats = { considered: 0, sent: 0, skipped: 0, errors: 0 }
+  const now = new Date()
+  // compExpiresAt in [now+27d, now+30d] ↔ clock started in last 3 days
+  const windowLow = new Date(now.getTime() + (TRIAL_DAYS - 3) * DAY_MS)
+  const windowHigh = new Date(now.getTime() + TRIAL_DAYS * DAY_MS)
+
+  const stores = await prisma.store.findMany({
+    where: {
+      archivedAt: null,
+      compTier: 'core',
+      compReason: 'boost_trial_icp',
+      compExpiresAt: { gte: windowLow, lte: windowHigh },
+    },
+    select: {
+      id: true,
+      compExpiresAt: true,
+      slug: true,
+      client: {
+        select: {
+          memberships: {
+            where: { role: { in: ['owner', 'manager'] } },
+            orderBy: { createdAt: 'asc' },
+            take: 1,
+            select: { account: { select: { id: true, email: true } } },
+          },
+        },
+      },
+    },
+  })
+
+  for (const s of stores) {
+    const user = s.client.memberships[0]?.account
+    if (!user) continue
+    stats.considered++
+    const already = await prisma.lifecycleEmailLog.findUnique({
+      where: { accountId_templateName_contextKey: {
+        accountId: user.id, templateName: 'boostTrialStreamReady', contextKey: s.id,
+      } },
+    })
+    if (already) { stats.skipped++; continue }
+    const daysRemaining = Math.max(1, Math.ceil((s.compExpiresAt!.getTime() - now.getTime()) / DAY_MS))
+    try {
+      const res = await sendLifecycle('boostTrialStreamReady', { accountId: user.id, email: user.email }, {
+        playerUrl: `${PLAYER_URL}/${s.slug}`,
+        dashboardUrl: APP_URL,
+        daysRemaining,
+      })
+      if (res.skipped) { stats.skipped++; continue }
+      if (!res.ok) { stats.errors++; continue }
+      await prisma.lifecycleEmailLog.create({
+        data: { accountId: user.id, templateName: 'boostTrialStreamReady', contextKey: s.id },
+      })
+      stats.sent++
+    } catch {
+      stats.errors++
+    }
+  }
+  return stats
+}
+
+// ── Boost Trial mid-trial engagement ────────────────────────────────────
+//
+// Fires Day 12-16 of the active trial (compExpiresAt in [now+14d, now+18d]).
+// Acknowledges two weeks of usage and surfaces the upgrade CTA.
+// contextKey = storeId; one email per trial.
+
+async function runBoostTrialEngagement(): Promise<DripStats> {
+  const stats: DripStats = { considered: 0, sent: 0, skipped: 0, errors: 0 }
+  const now = new Date()
+  // Day 12-16 → compExpiresAt in [now+14d, now+18d] (30-16=14, 30-12=18)
+  const windowLow = new Date(now.getTime() + 14 * DAY_MS)
+  const windowHigh = new Date(now.getTime() + 18 * DAY_MS)
+
+  const stores = await prisma.store.findMany({
+    where: {
+      archivedAt: null,
+      compTier: 'core',
+      compReason: 'boost_trial_icp',
+      compExpiresAt: { gte: windowLow, lte: windowHigh },
+    },
+    select: {
+      id: true,
+      compExpiresAt: true,
+      client: {
+        select: {
+          memberships: {
+            where: { role: { in: ['owner', 'manager'] } },
+            orderBy: { createdAt: 'asc' },
+            take: 1,
+            select: { account: { select: { id: true, email: true } } },
+          },
+        },
+      },
+    },
+  })
+
+  for (const s of stores) {
+    const user = s.client.memberships[0]?.account
+    if (!user) continue
+    stats.considered++
+    const already = await prisma.lifecycleEmailLog.findUnique({
+      where: { accountId_templateName_contextKey: {
+        accountId: user.id, templateName: 'boostTrialEngagement', contextKey: s.id,
+      } },
+    })
+    if (already) { stats.skipped++; continue }
+    const daysRemaining = Math.max(1, Math.ceil((s.compExpiresAt!.getTime() - now.getTime()) / DAY_MS))
+    try {
+      const res = await sendLifecycle('boostTrialEngagement', { accountId: user.id, email: user.email }, {
+        daysRemaining,
+        upgradeUrl: `${API_URL}/billing/upgrade-from-comp?store=${s.id}`,
+        dashboardUrl: APP_URL,
+      })
+      if (res.skipped) { stats.skipped++; continue }
+      if (!res.ok) { stats.errors++; continue }
+      await prisma.lifecycleEmailLog.create({
+        data: { accountId: user.id, templateName: 'boostTrialEngagement', contextKey: s.id },
+      })
+      stats.sent++
+    } catch {
+      stats.errors++
+    }
+  }
+  return stats
+}
+
+// ── Post-conversion benchmarking ─────────────────────────────────────────
+//
+// Fires 7-10 days after a Boost Trial customer converts to a paid Core
+// subscription. "Conversion" = a `stripe_webhook` TierChangeLog with
+// toTier='core' on a Store that previously had a `boost_trial_activated` log.
+// contextKey = the stripe_webhook log ID, making it idempotent per conversion.
+
+async function runPostConversionBenchmark(): Promise<DripStats> {
+  const stats: DripStats = { considered: 0, sent: 0, skipped: 0, errors: 0 }
+  const now = Date.now()
+  const windowStart = new Date(now - 10 * DAY_MS)
+  const windowEnd = new Date(now - 7 * DAY_MS)
+
+  const recentConversions = await prisma.tierChangeLog.findMany({
+    where: {
+      source: 'stripe_webhook',
+      toTier: 'core',
+      createdAt: { gte: windowStart, lte: windowEnd },
+    },
+    select: {
+      id: true,
+      store: {
+        select: {
+          id: true,
+          archivedAt: true,
+          tier: true,
+          subscription: { select: { id: true } },
+          // Check if this store ever had a Boost Trial activated
+          tierChangeLogs: {
+            where: { source: 'boost_trial_activated' },
+            take: 1,
+            select: { id: true },
+          },
+          client: {
+            select: {
+              memberships: {
+                where: { role: { in: ['owner', 'manager'] } },
+                orderBy: { createdAt: 'asc' },
+                take: 1,
+                select: { account: { select: { id: true, email: true } } },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+
+  for (const log of recentConversions) {
+    const s = log.store
+    if (s.archivedAt || s.tier !== 'core' || !s.subscription) continue
+    if (s.tierChangeLogs.length === 0) continue // not a trial conversion
+    const user = s.client.memberships[0]?.account
+    if (!user) continue
+
+    stats.considered++
+    const contextKey = log.id
+    const already = await prisma.lifecycleEmailLog.findUnique({
+      where: { accountId_templateName_contextKey: {
+        accountId: user.id, templateName: 'postConversionBenchmark', contextKey,
+      } },
+    })
+    if (already) { stats.skipped++; continue }
+    try {
+      const res = await sendLifecycle('postConversionBenchmark', { accountId: user.id, email: user.email }, {
+        benchmarkUrl: `${APP_URL}/benchmark`,
+        dashboardUrl: APP_URL,
+      })
+      if (res.skipped) { stats.skipped++; continue }
+      if (!res.ok) { stats.errors++; continue }
+      await prisma.lifecycleEmailLog.create({
+        data: { accountId: user.id, templateName: 'postConversionBenchmark', contextKey },
       })
       stats.sent++
     } catch {

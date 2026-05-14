@@ -271,6 +271,94 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
       dashboardUrl: 'https://app.entuned.co',
     },
   },
+  boostTrialStreamReady: {
+    subject: 'Your Boost library is generating',
+    preheader: 'Your personalized library is being built. Open the player to hear it.',
+    body: `
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">Your Boost library is generating.</p>
+    <p style="margin:0 0 14px 0;">We took your answers and started building. The first tracks built around your specific customer are on their way &mdash; you&rsquo;ll hear the difference in the first hour of playback.</p>
+    <p style="margin:0 0 14px 0;">Open the player on whatever device drives your shop&rsquo;s speakers. Pick an outcome. The library plays.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{playerUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Open player</a></td></tr></table>
+    <p style="margin:18px 0 6px 0;font-size:13px;color:#8a929a;">Your trial: <strong style="color:#d4e1e5;">{{daysRemaining}} days</strong> of Boost, on us.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Open dashboard</a></td></tr></table>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">Questions? Reply here &mdash; it goes to a real person.</p>
+    `.trim(),
+    propsExample: {
+      playerUrl: 'https://music.entuned.co/sample-store-1234',
+      dashboardUrl: 'https://app.entuned.co',
+      daysRemaining: 29,
+    },
+  },
+  boostTrialEngagement: {
+    subject: '{{daysRemaining}} days left on your Boost trial',
+    preheader: '{{daysRemaining}} days left in your trial. Keep Boost for $99 / mo.',
+    body: `
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">Two weeks in on Boost.</p>
+    <p style="margin:0 0 14px 0;">The library built around your customer has been running for two weeks. You&rsquo;ve got <strong style="color:#d4e1e5;">{{daysRemaining}} days</strong> left in the trial.</p>
+    <p style="margin:0 0 14px 0;">If it&rsquo;s been doing its job, locking it in is $99 per location per month &mdash; no setup fee, cancel any time.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Keep Boost &mdash; $99 / mo</a></td></tr></table>
+    <p style="margin:18px 0 6px 0;font-size:13px;color:#8a929a;">Not ready yet? Your trial keeps running.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Open dashboard</a></td></tr></table>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">Questions? Just reply.</p>
+    `.trim(),
+    propsExample: {
+      daysRemaining: 16,
+      upgradeUrl: 'https://api.entuned.co/billing/upgrade-from-comp?store=sample',
+      dashboardUrl: 'https://app.entuned.co',
+    },
+  },
+  boostTrialEnding: {
+    subject: 'Your Boost trial ends in {{daysRemaining}} days',
+    preheader: '{{daysRemaining}} days left in your trial. Keep Boost for $99 / mo.',
+    body: `
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">Your Boost trial ends in {{daysRemaining}} days.</p>
+    <p style="margin:0 0 14px 0;">After that, the personalized library stops and you&rsquo;re back on Entuned Free. Your customer profile stays saved.</p>
+    <p style="margin:0 0 14px 0;">Lock in Boost for $99 per location per month &mdash; no contracts, cancel any time.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Keep Boost &mdash; $99 / mo</a></td></tr></table>
+    <p style="margin:18px 0 6px 0;font-size:13px;color:#8a929a;">If you&rsquo;re not ready, no action needed &mdash; you&rsquo;ll drop back to Free when the trial ends.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Open dashboard</a></td></tr></table>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">Questions? Just reply.</p>
+    `.trim(),
+    propsExample: {
+      daysRemaining: 5,
+      upgradeUrl: 'https://api.entuned.co/billing/upgrade-from-comp?store=sample',
+      dashboardUrl: 'https://app.entuned.co',
+    },
+  },
+  boostTrialExpired: {
+    subject: 'Your Boost trial ended — keep it for $99 / mo',
+    preheader: 'Your Boost trial ended. Upgrade to keep the personalized library running.',
+    body: `
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">Your Boost trial ended.</p>
+    <p style="margin:0 0 14px 0;">You&rsquo;re back on Entuned Free. The personalized library is paused &mdash; your customer profile and all your settings are still saved.</p>
+    <p style="margin:0 0 14px 0;">Upgrade to keep the library running. $99 per location per month, no contracts, cancel any time.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Upgrade to Boost</a></td></tr></table>
+    <p style="margin:18px 0 6px 0;font-size:13px;color:#8a929a;">Or stay on Free &mdash; no further action needed. If you upgrade later, we pick up where you left off.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Open dashboard</a></td></tr></table>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">Questions? Just reply.</p>
+    `.trim(),
+    propsExample: {
+      upgradeUrl: 'https://api.entuned.co/billing/upgrade-from-comp?store=sample',
+      dashboardUrl: 'https://app.entuned.co',
+    },
+  },
+  postConversionBenchmark: {
+    subject: 'A week on Boost — want to track your lift?',
+    preheader: 'Set a baseline. Track the lift. Two minutes.',
+    body: `
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">A week on Boost.</p>
+    <p style="margin:0 0 14px 0;">The library has been running for a week. This is a good moment to set a baseline &mdash; if you tell us what your current numbers look like (dwell time, average transaction, conversion), we can surface any lift as it compounds.</p>
+    <p style="margin:0 0 14px 0;">Takes about two minutes. Totally optional, but the operators who track it tend to keep Boost.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{benchmarkUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Set my baseline</a></td></tr></table>
+    <p style="margin:18px 0 6px 0;font-size:13px;color:#8a929a;">You can also do this any time from the dashboard.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{dashboardUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Open dashboard</a></td></tr></table>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">Questions? Just reply.</p>
+    `.trim(),
+    propsExample: {
+      benchmarkUrl: 'https://app.entuned.co/benchmark',
+      dashboardUrl: 'https://app.entuned.co',
+    },
+  },
 }
 
 export const EDITABLE_TEMPLATE_NAMES = Object.keys(EDITABLE_TEMPLATES) as TemplateName[]

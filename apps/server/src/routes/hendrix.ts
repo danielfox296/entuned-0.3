@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 import { isFreeTierAllowedOutcome } from '../lib/outcomes.js'
+import { effectiveTier } from '../lib/tier.js'
 import { verify, isAccountAuthorizedForStore } from '../lib/auth.js'
 import { prisma } from '../db.js'
 
@@ -150,15 +151,26 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
     // Free-tier guard: a free-tier Store can only select outcomes in the
     // FreeTierOutcome allowlist. The player UI locks them already, but this
     // path is reachable via the slug (anyone with the URL), so enforce here.
-    const target = await prisma.store.findUnique({ where: { id: storeId }, select: { tier: true } })
-    if (target?.tier === 'free' && !(await isFreeTierAllowedOutcome(parsed.data.outcome_id))) {
+    const target = await prisma.store.findUnique({
+      where: { id: storeId },
+      select: { tier: true, compTier: true, compExpiresAt: true },
+    })
+    if (target && effectiveTier(target) === 'free' && !(await isFreeTierAllowedOutcome(parsed.data.outcome_id))) {
       return reply.code(409).send({
         error: 'outcome_not_in_free_tier_allowlist',
         message: 'This outcome is not available on the free tier.',
       })
     }
 
-    const { outcomeId, expiresAt } = await setOverride(storeId, parsed.data.outcome_id)
+    let outcomeId: string
+    let expiresAt: Date
+    try {
+      const result = await setOverride(storeId, parsed.data.outcome_id)
+      outcomeId = result.outcomeId
+      expiresAt = result.expiresAt
+    } catch (e: any) {
+      return reply.code(404).send({ error: e.message ?? 'failed' })
+    }
     await prisma.playbackEvent.create({
       data: {
         eventType: 'outcome_selection',
