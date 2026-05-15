@@ -131,10 +131,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
   // skips the surface. Layout is 50/50 row at ≥1024, 50/50 column below.
   const showPromo = session.tier === "free" || session.tier === "core" || session.tier === "pro";
   const twoCol = showPromo && isWide;
-  // narrowPromo: stacked promo+player (tablet portrait). Suppressed on short
-  // viewports (phones in landscape or SE portrait) so the player controls are
-  // never scrolled off — the player takes the full card height instead.
-  const narrowPromo = showPromo && !isWide && !isShort;
+  const narrowPromo = showPromo && !isWide;
 
   useEffect(() => {
     const onResize = () => {
@@ -807,7 +804,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
       ) : null}
 
       <div style={{ flex: 1, display: "flex", flexDirection: twoCol ? "row" : "column", minHeight: 0, gap: twoCol ? 24 : 16, padding: twoCol ? "0 28px 28px" : (narrowPromo ? "0 16px 16px" : 0) }}>
-        {twoCol || narrowPromo ? (
+        {showPromo ? (
           <UpgradeRail
             rotationKey={currentItem?.songId ?? null}
             tier={session.tier}
@@ -832,7 +829,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
             WebkitBackdropFilter: "blur(12px)",
           } : {}),
         }}>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-start", alignItems: "center", padding: twoCol ? `clamp(16px, 4vh, 52px) 60px 24px 60px` : (narrowPromo ? "16px 0" : "0 0 24px"), gap: twoCol ? (isShort ? 20 : 32) : (narrowPromo ? 16 : (isShort ? 20 : 44)), minHeight: 0 }}>
+      <div className="no-scrollbar" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-start", alignItems: "center", padding: twoCol ? `clamp(16px, 4vh, 52px) 60px 24px 60px` : (narrowPromo ? "16px 0" : "0 0 24px"), gap: twoCol ? (isShort ? 20 : 32) : (narrowPromo ? 28 : 44), minHeight: 0, overflowY: "auto" }}>
         {/* Title block: outcome chip + track title + (when playing) progress bar */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 24, width: "100%" }}>
           <DarkHalo>
@@ -890,7 +887,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
         ) : null}
 
         {/* Controls block: primary play/skip, then secondary love/report tightly grouped */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: narrowPromo ? 14 : 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 24 }}>
           <DarkHalo style={{ display: "flex", gap: 56, alignItems: "center" }}>
             <IconButton onClick={togglePlayPause} ariaLabel={isPlaying ? "Pause" : "Play"}>
               {isPlaying ? (
@@ -920,7 +917,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
             const heartStroke = idle ? "rgba(212,225,229,0.4)" : "rgba(232,238,240,0.92)";
             const flagStroke = idle ? "rgba(212,225,229,0.4)" : "rgba(232,238,240,0.92)";
             return (
-              <div style={{ display: "flex", gap: narrowPromo ? 28 : 44, justifyContent: "center", alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 44, justifyContent: "center", alignItems: "center" }}>
                 <button
                   ref={loveRef}
                   type="button"
