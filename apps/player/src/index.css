@@ -149,3 +149,6 @@ input:focus-visible {
 
 a { color: var(--accent); text-decoration: none; transition: opacity var(--dur-base) ease; }
 a:hover { opacity: 0.8; }
+
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
