@@ -124,7 +124,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const [allOutcomesMode, setAllOutcomesModeState] = useState(false);
   const [playedCount, setPlayedCount] = useState(0);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.innerWidth >= 1024);
-  const [isShort, setIsShort] = useState(() => typeof window !== "undefined" && window.innerHeight < 720);
   // Promo surface shown for Free, Core, and Pro stores — content rotates
   // based on tier (upgrade pitch for Free; reminders / upsell mix for Core;
   // pure feature reminders for Pro). Enterprise has nothing to upsell to and
@@ -134,10 +133,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const narrowPromo = showPromo && !isWide;
 
   useEffect(() => {
-    const onResize = () => {
-      setIsWide(window.innerWidth >= 1024);
-      setIsShort(window.innerHeight < 720);
-    };
+    const onResize = () => setIsWide(window.innerWidth >= 1024);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
@@ -829,7 +825,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
             WebkitBackdropFilter: "blur(12px)",
           } : {}),
         }}>
-      <div className="no-scrollbar" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-start", alignItems: "center", padding: twoCol ? `clamp(16px, 4vh, 52px) 60px 24px 60px` : (narrowPromo ? "16px 0" : "0 0 24px"), gap: twoCol ? (isShort ? 20 : 32) : (narrowPromo ? 28 : 44), minHeight: 0, overflowY: "auto" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: twoCol ? "0 60px 24px 60px" : (narrowPromo ? "16px 0" : "0 0 24px"), gap: narrowPromo ? 28 : 44, minHeight: 0 }}>
         {/* Title block: outcome chip + track title + (when playing) progress bar */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 24, width: "100%" }}>
           <DarkHalo>
@@ -844,7 +840,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
             <div
               style={{
                 fontFamily: "'Manrope', sans-serif",
-                fontSize: twoCol ? "clamp(1.5rem, 2.8vw, 2rem)" : "clamp(2rem, 5vw, 3rem)",
+                fontSize: twoCol ? "clamp(1.75rem, 3.4vw, 2.4rem)" : "clamp(2rem, 5vw, 3rem)",
                 fontWeight: 700,
                 color: "#D4E1E5",
                 letterSpacing: "-0.02em",
@@ -953,7 +949,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
           })()}
         </div>
 
-        {twoCol && !isShort ? (
+        {twoCol ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
             <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "0.18em", color: "#6AB0BB", textTransform: "uppercase" }}>
               This session
