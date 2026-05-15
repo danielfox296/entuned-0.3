@@ -816,7 +816,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
         ) : null}
         <div style={{
           order: 1,
-          flex: "1 1 auto",
+          flex: 1,
           display: "flex",
           flexDirection: "column",
           minWidth: 0,
@@ -831,7 +831,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
             WebkitBackdropFilter: "blur(12px)",
           } : {}),
         }}>
-      <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", justifyContent: "space-evenly", alignItems: "center", padding: twoCol ? "28px 60px 16px" : (narrowPromo ? "18px 14px 10px" : "24px 0"), gap: narrowPromo ? 18 : 36, minHeight: 0, overflow: "hidden" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: narrowPromo ? "space-evenly" : "center", alignItems: "center", padding: twoCol ? "0 60px 24px 60px" : (narrowPromo ? "18px 14px 10px" : "0 0 24px"), gap: narrowPromo ? 18 : 44, minHeight: 0, ...(narrowPromo ? { overflow: "hidden" } : {}) }}>
         {/* Title block: outcome chip + track title + (when playing) progress bar */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 24, width: "100%" }}>
           <DarkHalo>
@@ -969,7 +969,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
         ) : null}
       </div>
 
-      <div style={{ flexShrink: 0, display: "flex", justifyContent: "center", padding: twoCol ? "12px 60px 32px" : (narrowPromo ? "14px 14px 18px" : "20px 24px 32px") }}>
+      <div style={{ flexShrink: 0, display: "flex", justifyContent: "center", padding: twoCol ? "0 60px 36px 60px" : (narrowPromo ? "14px 14px 18px" : "20px 24px 32px") }}>
         <div
           ref={outcomeRef}
           onClick={() => setShowOutcomeModal(true)}
