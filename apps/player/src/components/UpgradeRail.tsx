@@ -34,11 +34,11 @@ const SLOTS: Slot[] = [
     photo: "/promo/retail-store.jpg",
   },
   {
-    anchor: "More outcomes than Linger and Lift.",
+    anchor: "More outcomes than Chill, Steady, and Upbeat.",
     points: [
       "Every research-backed outcome unlocked",
       "Switch the floor's mood any moment",
-      "Not just two free modes",
+      "Not just the three free modes",
     ],
     kind: "core_upsell",
     photo: "/promo/shopping.jpg",
@@ -107,11 +107,11 @@ const SLOTS: Slot[] = [
     customizeCta: { label: "Customize this →", href: "https://app.entuned.co/intake" },
   },
   {
-    anchor: "Two outcomes ready.",
+    anchor: "Three free modes ready.",
     points: [
-      "Linger",
-      "Lift Energy",
-      "Switch any time below",
+      "Chill",
+      "Steady",
+      "Upbeat",
     ],
     kind: "core_reminder",
     photo: "/promo/alcott-store.jpg",
@@ -172,7 +172,7 @@ const SLOTS: Slot[] = [
   {
     anchor: "Every outcome unlocked.",
     points: [
-      "Linger, Lift Energy, and the rest",
+      "Chill, Steady, Upbeat, and more",
       "Switch any time below",
       "Match the moment, not just the day",
     ],

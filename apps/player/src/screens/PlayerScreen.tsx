@@ -1050,7 +1050,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
           steps={[
             {
               target: outcomeRef.current,
-              body: "Pick what the music should do — Linger or Lift Energy. Or play All Outcomes. Unlock more with Boost.",
+              body: "Pick what the music should do — Chill, Steady, or Upbeat. Or play All Outcomes. Unlock more with Boost.",
               placement: "above",
             },
             {
