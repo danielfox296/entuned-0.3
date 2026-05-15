@@ -799,18 +799,24 @@ export function PlayerScreen({ session, onLogout }: Props) {
         </div>
       ) : null}
 
-      <div style={{ flex: 1, display: "flex", flexDirection: twoCol ? "row" : "column", minHeight: 0, gap: twoCol ? 24 : 16, padding: twoCol ? "0 28px 28px" : (narrowPromo ? "0 16px 16px" : 0) }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: twoCol ? "row" : "column", minHeight: 0, gap: twoCol ? 24 : 12, padding: twoCol ? "0 28px 28px" : (narrowPromo ? "0 14px 14px" : 0) }}>
         {showPromo ? (
           <UpgradeRail
             rotationKey={currentItem?.songId ?? null}
             tier={session.tier}
             compact={!isWide}
             withPhoto={narrowPromo}
-            style={{ flex: 1, minHeight: 0 }}
+            style={{
+              order: narrowPromo ? 2 : 0,
+              flex: twoCol ? "1 1 0" : "0 0 auto",
+              minHeight: 0,
+              maxHeight: narrowPromo ? "min(36vh, 300px)" : undefined,
+            }}
           />
         ) : null}
         <div style={{
-          flex: 1,
+          order: 1,
+          flex: "1 1 auto",
           display: "flex",
           flexDirection: "column",
           minWidth: 0,
@@ -825,7 +831,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
             WebkitBackdropFilter: "blur(12px)",
           } : {}),
         }}>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: twoCol ? "0 60px 24px 60px" : (narrowPromo ? "16px 0" : "0 0 24px"), gap: narrowPromo ? 28 : 44, minHeight: 0 }}>
+      <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", justifyContent: "space-evenly", alignItems: "center", padding: twoCol ? "28px 60px 16px" : (narrowPromo ? "18px 14px 10px" : "24px 0"), gap: narrowPromo ? 18 : 36, minHeight: 0, overflow: "hidden" }}>
         {/* Title block: outcome chip + track title + (when playing) progress bar */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 24, width: "100%" }}>
           <DarkHalo>
@@ -840,13 +846,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
             <div
               style={{
                 fontFamily: "'Manrope', sans-serif",
-                fontSize: twoCol ? "clamp(1.75rem, 3.4vw, 2.4rem)" : "clamp(2rem, 5vw, 3rem)",
+                fontSize: twoCol ? "clamp(1.75rem, 3.4vw, 2.4rem)" : (narrowPromo ? "clamp(1.4rem, 5.2vw, 1.9rem)" : "clamp(2rem, 5vw, 3rem)"),
                 fontWeight: 700,
                 color: "#D4E1E5",
                 letterSpacing: "-0.02em",
                 lineHeight: 1.15,
                 textAlign: "center",
-                padding: twoCol ? 0 : "0 40px",
+                padding: twoCol ? 0 : (narrowPromo ? "0 12px" : "0 40px"),
                 minHeight: "1em",
                 maxWidth: twoCol ? 640 : 820,
                 wordBreak: "break-word",
@@ -963,7 +969,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
         ) : null}
       </div>
 
-      <div style={{ display: "flex", justifyContent: "center", padding: twoCol ? "0 60px 36px 60px" : "0 24px 36px" }}>
+      <div style={{ flexShrink: 0, display: "flex", justifyContent: "center", padding: twoCol ? "12px 60px 32px" : (narrowPromo ? "14px 14px 18px" : "20px 24px 32px") }}>
         <div
           ref={outcomeRef}
           onClick={() => setShowOutcomeModal(true)}
