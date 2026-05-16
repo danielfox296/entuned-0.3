@@ -10,6 +10,7 @@ import { OutcomeModal } from "../components/OutcomeModal.js";
 import { ReportModal, type ReportReason } from "../components/ReportModal.js";
 import { TooltipTour, tourSeen, type TourStep } from "../components/TooltipTour.js";
 import { UpgradeRail } from "../components/UpgradeRail.js";
+import { PWAInstallTip } from "../components/PWAInstallTip.js";
 import { saveSession, type Session } from "../lib/storage.js";
 import { trackPlayerLanding, trackFirstPlay, trackTrackComplete } from "../lib/ga4.js";
 import logoUrl from "/entuned_logo.png";
@@ -181,6 +182,9 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const allOutcomesModeRef = useRef(false);
   const stallRef = useRef<{ elapsed: number; since: number }>({ elapsed: -1, since: 0 });
   const bufferingRef = useRef(false);
+  // Wall-clock timestamp when playback_stalled was emitted; cleared once we
+  // emit playback_resumed_after_stall so a follow-on stall can re-emit cleanly.
+  const stallEmittedAtRef = useRef<number>(0);
 
   const setAllOutcomesMode = useCallback((v: boolean) => {
     allOutcomesModeRef.current = v;
@@ -196,8 +200,17 @@ export function PlayerScreen({ session, onLogout }: Props) {
       : api.next(session.storeId, session.token, allOutcomes)
   ), [session.mode, session.slug, session.storeId, session.token]);
 
-  const emit = useCallback((event_type: AudioEventType, item?: QueueItem | null, extra?: { report_reason?: string; outcome_id?: string }) => {
+  const emit = useCallback((
+    event_type: AudioEventType,
+    item?: QueueItem | null,
+    meta?: { report_reason?: string; outcome_id?: string },
+    wireExtra?: Record<string, unknown>,
+  ) => {
     const isAd = item?.type === "ad";
+    const adExtra = isAd ? { assetId: item.assetId, campaignId: item.campaignId } : null;
+    const merged = adExtra || wireExtra
+      ? { ...(adExtra ?? {}), ...(wireExtra ?? {}) }
+      : undefined;
     const event = {
       event_type,
       store_id: session.storeId,
@@ -207,9 +220,9 @@ export function PlayerScreen({ session, onLogout }: Props) {
       operator_id: session.operatorId || null,
       song_id: isAd ? null : (item?.songId ?? null),
       hook_id: isAd ? null : (item?.hookId ?? null),
-      report_reason: extra?.report_reason ?? null,
-      outcome_id: extra?.outcome_id ?? (isAd ? null : item?.outcomeId ?? null),
-      extra: isAd ? { assetId: item.assetId, campaignId: item.campaignId } : undefined,
+      report_reason: meta?.report_reason ?? null,
+      outcome_id: meta?.outcome_id ?? (isAd ? null : item?.outcomeId ?? null),
+      extra: merged,
     };
     // Session-boundary events flush immediately; everything else batches.
     if (event_type === 'operator_login' || event_type === 'operator_logout') {
@@ -218,6 +231,19 @@ export function PlayerScreen({ session, onLogout }: Props) {
       bufferEvent(event);
     }
   }, [session.storeId, session.operatorId]);
+
+  // Fire once on player mount so Dash can measure standalone (PWA) adoption.
+  // is_standalone=true means the player launched from the home-screen icon
+  // (more durable across iOS Safari memory pressure / lockscreen suspends).
+  useEffect(() => {
+    const isStandalone =
+      (typeof window !== "undefined" && window.matchMedia?.("(display-mode: standalone)").matches) ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+    emit("pwa_standalone_launch", null, undefined, {
+      is_standalone: !!isStandalone,
+      user_agent: navigator.userAgent.slice(0, 200),
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Returns the raw server queue so callers can use it immediately without
   // waiting for React to flush the setQueue state update.
@@ -555,7 +581,17 @@ export function PlayerScreen({ session, onLogout }: Props) {
       if (stall.elapsed < 0 || Math.abs(p.elapsed - stall.elapsed) > 0.1) {
         // Progress is moving — healthy.
         stallRef.current = { elapsed: p.elapsed, since: now };
-        if (bufferingRef.current) { bufferingRef.current = false; setBuffering(false); }
+        if (bufferingRef.current) {
+          bufferingRef.current = false;
+          setBuffering(false);
+          if (stallEmittedAtRef.current > 0) {
+            emit("playback_resumed_after_stall", currentRef.current, undefined, {
+              stall_duration_ms: now - stallEmittedAtRef.current,
+              elapsed: p.elapsed,
+            });
+            stallEmittedAtRef.current = 0;
+          }
+        }
         return;
       }
 
@@ -564,19 +600,25 @@ export function PlayerScreen({ session, onLogout }: Props) {
         console.warn(`[player] audio stalled at ${p.elapsed.toFixed(1)}s / ${p.duration.toFixed(1)}s`);
         bufferingRef.current = true;
         setBuffering(true);
+        stallEmittedAtRef.current = now;
+        emit("playback_stalled", currentRef.current, undefined, {
+          elapsed: p.elapsed,
+          duration: p.duration,
+        });
       }
       if (stalledMs >= SKIP_MS) {
         console.warn("[player] stall timeout — skipping track");
         stallRef.current = { elapsed: -1, since: now };
         bufferingRef.current = false;
         setBuffering(false);
+        stallEmittedAtRef.current = 0;
         void skip();
       }
     };
 
     const iv = window.setInterval(check, 2_000);
     return () => clearInterval(iv);
-  }, [skip]);
+  }, [skip, emit]);
 
   // Reset stall clock whenever the playing track changes.
   useEffect(() => {
@@ -584,7 +626,51 @@ export function PlayerScreen({ session, onLogout }: Props) {
     if (bufferingRef.current) { bufferingRef.current = false; setBuffering(false); }
   }, [currentItem]);
 
-  // ── Resume after tab refocus / screen wake ────────────────────────────────
+  // ── Screen Wake Lock: keep iPad/iPhone screens awake while playing ────────
+  // iOS 16.4+ supports navigator.wakeLock. iOS releases it automatically when
+  // the tab is backgrounded; the visibility handler below re-acquires on
+  // foreground. Older OSes silently no-op via the feature-detect.
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const acquireWakeLock = useCallback(async () => {
+    if (!("wakeLock" in navigator)) return;
+    if (wakeLockRef.current) return;
+    try {
+      const sentinel = await navigator.wakeLock.request("screen");
+      wakeLockRef.current = sentinel;
+      emit("wake_lock_acquired", null);
+      sentinel.addEventListener("release", () => {
+        // Fires on tab-background (iOS) and on explicit release. We only emit;
+        // the play-driven effect below re-acquires when appropriate.
+        if (wakeLockRef.current === sentinel) {
+          wakeLockRef.current = null;
+          emit("wake_lock_released", null);
+        }
+      });
+    } catch (e) {
+      emit("wake_lock_failed", null, undefined, {
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }, [emit]);
+  const releaseWakeLock = useCallback(async () => {
+    const sentinel = wakeLockRef.current;
+    if (!sentinel) return;
+    wakeLockRef.current = null;
+    try { await sentinel.release(); } catch {}
+  }, []);
+  useEffect(() => {
+    if (isPlaying) void acquireWakeLock();
+    else void releaseWakeLock();
+  }, [isPlaying, acquireWakeLock, releaseWakeLock]);
+  useEffect(() => () => { void releaseWakeLock(); }, [releaseWakeLock]);
+
+  // ── Resume after tab refocus / screen wake + visibility telemetry ─────────
+  // Emits visibility_hidden/visible with duration delta. Also flags
+  // interruption_suspected when audio was playing on hide, isn't playing on
+  // show, and the operator didn't pause — the canonical "the OS killed our
+  // stream" signature (alarm/call/lock-screen suspend).
+  const hiddenAtRef = useRef<number>(0);
+  const playingOnHideRef = useRef<boolean>(false);
   useEffect(() => {
     const resume = () => {
       if (userPausedRef.current) return;
@@ -598,39 +684,92 @@ export function PlayerScreen({ session, onLogout }: Props) {
       if (!player || player.isPlaying()) return;
       player.resume();
       setIsPlaying(true);
+      // iOS releases wakeLock on background; re-acquire on foreground.
+      void acquireWakeLock();
     };
-    const onVisibility = () => { if (document.visibilityState === "visible") resume(); };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAtRef.current = Date.now();
+        playingOnHideRef.current = playerRef.current?.isPlaying() ?? false;
+        emit("visibility_hidden", currentRef.current, undefined, {
+          was_playing: playingOnHideRef.current,
+        });
+        return;
+      }
+      const hiddenAt = hiddenAtRef.current;
+      const hiddenMs = hiddenAt > 0 ? Date.now() - hiddenAt : 0;
+      hiddenAtRef.current = 0;
+      const wasPlayingOnHide = playingOnHideRef.current;
+      const isPlayingNow = playerRef.current?.isPlaying() ?? false;
+      emit("visibility_visible", currentRef.current, undefined, {
+        hidden_duration_ms: hiddenMs,
+        was_playing_on_hide: wasPlayingOnHide,
+        is_playing_on_show: isPlayingNow,
+      });
+      // Interruption signature: was playing, stopped while hidden, operator
+      // didn't pause. Catches alarms / phone calls / OS-driven tab suspends.
+      if (wasPlayingOnHide && !isPlayingNow && !userPausedRef.current) {
+        emit("interruption_suspected", currentRef.current, undefined, {
+          hidden_duration_ms: hiddenMs,
+        });
+      }
+      resume();
+    };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", resume);
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", resume);
     };
-  }, []);
+  }, [emit, acquireWakeLock]);
 
   // ── MediaSession: lock-screen controls + keep-alive on iOS ───────────────
+  // mediasession_action telemetry tells Dash when the OS / lockscreen drove a
+  // playback change (vs the in-app controls). Distinguishes operator action
+  // from OS-mediated action without depending on a separate UI counter.
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
-    navigator.mediaSession.setActionHandler("play", () => {
+    const safeSet = (action: MediaSessionAction, handler: MediaSessionActionHandler | null) => {
+      try { navigator.mediaSession.setActionHandler(action, handler); } catch {}
+    };
+    safeSet("play", () => {
+      emit("mediasession_action", currentRef.current, undefined, { action: "play" });
       userPausedRef.current = false;
       playerRef.current?.resume();
       wasPlayingRef.current = true;
       setIsPlaying(true);
     });
-    navigator.mediaSession.setActionHandler("pause", () => {
+    safeSet("pause", () => {
+      emit("mediasession_action", currentRef.current, undefined, { action: "pause" });
       userPausedRef.current = true;
       wasPlayingRef.current = false;
       playerRef.current?.pause();
       setIsPlaying(false);
     });
-    navigator.mediaSession.setActionHandler("nexttrack", () => skip());
-    navigator.mediaSession.setActionHandler("previoustrack", null);
+    safeSet("nexttrack", () => {
+      emit("mediasession_action", currentRef.current, undefined, { action: "nexttrack" });
+      skip();
+    });
+    // Lockscreen scrub bar. Howler exposes seek via getProgress + an internal
+    // _howl ref; CrossfadePlayer doesn't expose a seek method today. Until it
+    // does, the bare-minimum useful behavior is just emitting the action so
+    // Dash sees OS scrub attempts. Wire to actual seek when CrossfadePlayer
+    // grows a seek() method.
+    safeSet("seekto", (details) => {
+      emit("mediasession_action", currentRef.current, undefined, {
+        action: "seekto",
+        seekTime: details?.seekTime ?? null,
+      });
+    });
+    // No `previoustrack` — the player has no song history (queue is generated
+    // forward-only). Leaving it unset is the correct hint to the OS.
     return () => {
-      navigator.mediaSession.setActionHandler("play", null);
-      navigator.mediaSession.setActionHandler("pause", null);
-      navigator.mediaSession.setActionHandler("nexttrack", null);
+      safeSet("play", null);
+      safeSet("pause", null);
+      safeSet("nexttrack", null);
+      safeSet("seekto", null);
     };
-  }, [skip]);
+  }, [skip, emit]);
 
   useEffect(() => {
     if (!("mediaSession" in navigator) || !currentItem) return;
@@ -1046,6 +1185,8 @@ export function PlayerScreen({ session, onLogout }: Props) {
           Music is ready
         </div>
       ) : null}
+
+      <PWAInstallTip />
 
       {tourActive ? (
         <TooltipTour

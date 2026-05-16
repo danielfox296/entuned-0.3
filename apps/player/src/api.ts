@@ -75,6 +75,13 @@ export type AudioEventType =
   | 'outcome_selection' | 'outcome_selection_cleared' | 'playback_starved'
   | 'operator_login' | 'operator_logout' | 'ad_play'
   | 'room_loudness_sample'
+  // Phase-1 reliability telemetry (2026-05-16).
+  | 'mediasession_action'
+  | 'wake_lock_acquired' | 'wake_lock_failed' | 'wake_lock_released'
+  | 'playback_stalled' | 'playback_resumed_after_stall'
+  | 'visibility_hidden' | 'visibility_visible'
+  | 'interruption_suspected'
+  | 'pwa_standalone_launch'
 
 export interface OutgoingEvent {
   event_type: AudioEventType

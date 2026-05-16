@@ -22,20 +22,10 @@ enum TasteCategory {
   Adjacent
 }
 
-enum PlaybackEventType {
-  song_start
-  song_complete
-  song_skip
-  song_report
-  song_love
-  outcome_selection
-  outcome_selection_cleared
-  playback_starved
-  operator_login
-  operator_logout
-  ad_play
-  room_loudness_sample
-}
+// PlaybackEventType was demoted from a Postgres enum to TEXT on 2026-05-16 so
+// new telemetry event types (lockscreen/wake/visibility/stall/PWA) ship as
+// code-only deploys. The allow-list is enforced at the Zod boundary in
+// apps/server/src/routes/events.ts. Same pattern as Store.tier.
 
 enum ReportReason {
   NotOurVibe      @map("Not our Vibe")
@@ -812,7 +802,7 @@ model PlaybackRules {
 
 model PlaybackEvent {
   id           String            @id @default(uuid()) @db.Uuid
-  eventType    PlaybackEventType @map("event_type")
+  eventType    String            @map("event_type")
   storeId      String            @map("store_id") @db.Uuid
   occurredAt   DateTime          @map("occurred_at") @db.Timestamptz(6)
   receivedAt   DateTime          @default(now()) @map("received_at") @db.Timestamptz(6)

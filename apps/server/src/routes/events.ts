@@ -4,8 +4,13 @@ import { prisma } from '../db.js'
 import { verify, isAccountAuthorizedForStore } from '../lib/auth.js'
 
 // Card 20 contract — Oscar emits these directly. Server is append-only and accepts out-of-order.
+//
+// event_type is the canonical allow-list. The Prisma column is TEXT (demoted
+// from enum on 2026-05-16); validation is enforced here so new types ship
+// without a migration. Append, don't reorder.
 const EventSchema = z.object({
   event_type: z.enum([
+    // Card 19 originals.
     'song_start',
     'song_complete',
     'song_skip',
@@ -18,6 +23,18 @@ const EventSchema = z.object({
     'operator_logout',
     'ad_play',
     'room_loudness_sample',
+    // Phase-1 reliability telemetry (2026-05-16): lockscreen / wake-lock /
+    // visibility / stall / PWA-install. Carry context in `extra`.
+    'mediasession_action',
+    'wake_lock_acquired',
+    'wake_lock_failed',
+    'wake_lock_released',
+    'playback_stalled',
+    'playback_resumed_after_stall',
+    'visibility_hidden',
+    'visibility_visible',
+    'interruption_suspected',
+    'pwa_standalone_launch',
   ]),
   store_id: z.string().uuid(),
   occurred_at: z.string().datetime(),
