@@ -3,6 +3,8 @@ import { api, type QueueItem, type ActiveOutcome, type OutcomeOption, type Audio
 import { CrossfadePlayer } from "../audio/crossfade-player.js";
 import { LoudnessSampler } from "../audio/loudness-sampler.js";
 import { bufferEvent, flushNow } from "../lib/event-buffer.js";
+import { prefetch as prefetchAudio, getCachedUrl, revokeCachedUrl } from "../lib/audio-cache.js";
+import { subscribePush, unsubscribePush } from "../lib/push-client.js";
 import { IconButton } from "../components/IconButton.js";
 import { DarkHalo } from "../components/DarkHalo.js";
 import { ProgressBar } from "../components/ProgressBar.js";
@@ -245,6 +247,46 @@ export function PlayerScreen({ session, onLogout }: Props) {
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Web Push enrollment — prompts once after the operator has actually listened
+  // (playedCount ≥ 1) so casual visitors don't get hit with a notification
+  // permission dialog on landing. iOS gates push to installed PWAs; Android
+  // and desktop work in either tab or standalone mode. If permission was
+  // previously granted (returning operator), re-subscribe silently so the
+  // server has a current endpoint.
+  const pushPromptedRef = useRef(false);
+  useEffect(() => {
+    if (pushPromptedRef.current) return;
+    if (typeof window === "undefined") return;
+    if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
+
+    const ua = navigator.userAgent;
+    const isIOS = /iPad|iPhone|iPod/.test(ua) || (ua.includes("Macintosh") && "ontouchend" in document);
+    const isStandalone =
+      window.matchMedia?.("(display-mode: standalone)").matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+    if (isIOS && !isStandalone) return; // iOS push requires installed PWA.
+
+    const enroll = async () => {
+      pushPromptedRef.current = true;
+      try {
+        if (Notification.permission === "default" && playedCount >= 1) {
+          await Notification.requestPermission();
+        }
+        if (Notification.permission !== "granted") return;
+        const endpoint = await subscribePush({
+          storeId: session.storeId,
+          token: session.token,
+          slug: session.mode === "slug" ? session.slug : undefined,
+        });
+        if (endpoint) emit("push_subscribed", null);
+      } catch (e) {
+        console.warn("[push] enrollment failed", e);
+      }
+    };
+
+    if (Notification.permission === "granted" || playedCount >= 1) void enroll();
+  }, [playedCount, session.storeId, session.token, session.mode, session.slug, emit]);
+
   // Returns the raw server queue so callers can use it immediately without
   // waiting for React to flush the setQueue state update.
   const refill = useCallback(async (): Promise<QueueItem[]> => {
@@ -267,6 +309,12 @@ export function PlayerScreen({ session, onLogout }: Props) {
         const additions = r.queue.filter((q) => q.type === "ad" || !have.has(q.songId));
         return [...prev, ...additions].slice(0, 6);
       });
+      // Pre-buffer the next 2 song tracks into IndexedDB so playback survives
+      // 60+ second wifi/CDN blips. Ads aren't worth caching (high churn, foreign CDN).
+      r.queue
+        .filter((q) => q.type !== "ad" && q.songId)
+        .slice(0, 2)
+        .forEach((q) => { void prefetchAudio(q.songId, q.audioUrl); });
       if (r.reason === "no_pool" && !currentRef.current) emit("playback_starved");
       return r.queue;
     } catch (e) {
@@ -285,6 +333,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
     } catch (e) { console.warn("[player] outcomes failed", e); }
   }, [session.mode, session.slug, session.storeId, session.token]);
 
+  const currentBlobUrlRef = useRef<string | null>(null);
   const playFromQueue = useCallback(async () => {
     let head = queueRef.current[0];
     if (!head) {
@@ -305,7 +354,26 @@ export function PlayerScreen({ session, onLogout }: Props) {
     currentRef.current = head;
     trackStartedAtRef.current = new Date().toISOString();
     wasPlayingRef.current = true;
-    playerRef.current?.createAndPlay(head.audioUrl, head.type === "ad" ? { volume: AD_VOLUME } : undefined);
+    // Resolve cached blob URL when available — survives network blips, faster
+    // start. Falls back to network URL on miss. Ads bypass cache (foreign CDN).
+    let playUrl = head.audioUrl;
+    if (head.type !== "ad" && head.songId) {
+      const cached = await getCachedUrl(head.songId);
+      if (cached) {
+        playUrl = cached;
+        emit("audio_cache_hit", head);
+      } else {
+        emit("audio_cache_miss", head);
+      }
+    }
+    // Revoke any prior blob URL before replacing — Howler's unload happens
+    // inside createAndPlay but the URL.createObjectURL handle is ours to manage.
+    if (currentBlobUrlRef.current) {
+      revokeCachedUrl(currentBlobUrlRef.current);
+      currentBlobUrlRef.current = null;
+    }
+    if (playUrl.startsWith("blob:")) currentBlobUrlRef.current = playUrl;
+    playerRef.current?.createAndPlay(playUrl, head.type === "ad" ? { volume: AD_VOLUME } : undefined);
     setIsPlaying(true);
     emit(head.type === "ad" ? "ad_play" : "song_start", head);
     if (head.type !== "ad") trackFirstPlay(head.title);
@@ -358,13 +426,18 @@ export function PlayerScreen({ session, onLogout }: Props) {
       wasPlayingRef.current = false;
       player.pause();
       setIsPlaying(false);
+      // Heartbeat cron uses operator_pause as the false-positive guard so it
+      // doesn't push "music paused — tap to resume" to operators who intentionally
+      // paused.
+      emit("operator_pause", currentRef.current);
     } else {
       userPausedRef.current = false;
       wasPlayingRef.current = true;
       player.resume();
       setIsPlaying(true);
+      emit("operator_resume", currentRef.current);
     }
-  }, [isPlaying, playFromQueue]);
+  }, [isPlaying, playFromQueue, emit]);
 
   const handleSelectOutcome = useCallback(async (outcomeId: string) => {
     try {
@@ -920,7 +993,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
           ))}
           <button
             type="button"
-            onClick={() => { emit("operator_logout"); onLogout(); }}
+            onClick={() => { emit("operator_logout"); void unsubscribePush(); onLogout(); }}
             style={{
               fontSize: 10,
               fontWeight: 400,

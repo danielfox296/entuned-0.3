@@ -12,15 +12,19 @@ import { authRoutes } from './routes/auth.js'
 import { loginRoutes } from './routes/login.js'
 import { adminRoutes } from './routes/admin.js'
 import { adminRetentionRoutes } from './routes/admin-retention.js'
+import { adminReliabilityRoutes } from './routes/admin-reliability.js'
 import { billingRoutes } from './routes/billing.js'
 import { meRoutes } from './routes/me.js'
 import { emailRoutes } from './routes/email.js'
+import { pushRoutes } from './routes/push.js'
 import { sessionPlugin } from './lib/session.js'
 import { seedEmailTemplates } from './lib/email.js'
 import { runLifecycleEmails } from './lib/lifecycleEmails.js'
 import { runPauseAutoResume } from './lib/pauseAutoResume.js'
 import { runCompExpiryCron } from './lib/compExpiry.js'
 import { runBoostTrialClockActivation } from './lib/boostTrialClock.js'
+import { runPlaybackHeartbeat } from './lib/playbackHeartbeat.js'
+import { isPushConfigured } from './lib/push.js'
 
 const app = Fastify({
   logger: {
@@ -65,6 +69,7 @@ await app.register(authRoutes, { prefix: '/auth' })
 await app.register(loginRoutes, { prefix: '/login' })
 await app.register(adminRoutes, { prefix: '/admin' })
 await app.register(adminRetentionRoutes, { prefix: '/admin' })
+await app.register(adminReliabilityRoutes, { prefix: '/admin' })
 // Billing — registered with NO prefix because the routes themselves carry
 // their full paths (`/billing/*` and `/webhooks/stripe`). The plugin
 // installs its own content-type parser inside its encapsulated scope so the
@@ -72,6 +77,7 @@ await app.register(adminRetentionRoutes, { prefix: '/admin' })
 await app.register(billingRoutes)
 await app.register(meRoutes, { prefix: '/me' })
 await app.register(emailRoutes, { prefix: '/email' })
+await app.register(pushRoutes, { prefix: '/push' })
 
 // Boot-time seed: ensure each DB-editable email template has a row. Idempotent —
 // never overwrites existing rows so operator edits survive deploys.
@@ -126,6 +132,24 @@ if (process.env.LIFECYCLE_DRIPS_DISABLED !== '1') {
     }
   }, { timezone: 'America/Denver' })
   app.log.info('daily_cron_registered (9am America/Denver — auto-resume + boost-trial clock + lifecycle drips + comp expiry)')
+}
+
+// Playback heartbeat — every 5 min, find active stores that went silent
+// without explicit operator pause and fire a "music paused — tap to resume"
+// web push. Skipped entirely when VAPID isn't configured so dev / CI don't
+// hammer the DB looking for subscriptions that can't be reached anyway.
+if (process.env.PLAYBACK_HEARTBEAT_DISABLED !== '1' && isPushConfigured()) {
+  cron.schedule('*/5 * * * *', async () => {
+    try {
+      const stats = await runPlaybackHeartbeat()
+      if (stats.nudged > 0 || stats.expired > 0) {
+        app.log.info({ stats }, 'playback_heartbeat_tick_complete')
+      }
+    } catch (err) {
+      app.log.error({ err }, 'playback_heartbeat_tick_failed')
+    }
+  })
+  app.log.info('playback_heartbeat_cron_registered (every 5min)')
 }
 
 const port = Number(process.env.PORT ?? 3000)

@@ -1,51 +1,78 @@
-# Handoff — Dash surface for player reliability telemetry
+# Handoff — Player reliability work
 
-**Status:** Open. Phase 1 (player + server changes) shipped 2026-05-16. This document captures the deferred Dash work.
+**Status:** Phase 1 + Phase 2 shipped 2026-05-16. This doc now tracks only the deferred native-app decision.
 
-## What shipped on 2026-05-16
+---
 
-Phase-1 player reliability adds 10 new `event_type` values that flow through the existing `POST /events` ingest at [apps/server/src/routes/events.ts](apps/server/src/routes/events.ts):
+## What's live (2026-05-16)
 
-| Event type | Emitted when | `extra` payload |
-|---|---|---|
-| `mediasession_action` | OS / lockscreen drives play/pause/next/seek | `{ action: 'play' \| 'pause' \| 'nexttrack' \| 'seekto', seekTime? }` |
-| `wake_lock_acquired` | Screen Wake Lock granted | — |
-| `wake_lock_failed` | Screen Wake Lock request rejected | `{ error }` |
-| `wake_lock_released` | Wake Lock released (auto on iOS background, or explicit) | — |
-| `playback_stalled` | Audio hasn't advanced for ≥6s while Howler thinks it's playing | `{ elapsed, duration }` |
-| `playback_resumed_after_stall` | Progress moves again after a stall emit | `{ stall_duration_ms, elapsed }` |
-| `visibility_hidden` | Tab/PWA backgrounded | `{ was_playing }` |
-| `visibility_visible` | Tab/PWA foregrounded | `{ hidden_duration_ms, was_playing_on_hide, is_playing_on_show }` |
-| `interruption_suspected` | Visibility back + was-playing + not-playing-now + operator didn't pause | `{ hidden_duration_ms }` |
-| `pwa_standalone_launch` | Player mount; fires for every launch regardless of mode | `{ is_standalone, user_agent }` |
+### Phase 1 — telemetry foundation
 
-DB schema change: `playback_events.event_type` was demoted from a Postgres enum (`PlaybackEventType`) to plain `TEXT`. The allow-list lives at the Zod boundary in [apps/server/src/routes/events.ts](apps/server/src/routes/events.ts). Future event types ship as code-only deploys. Migration: [apps/server/prisma/migrations/20260516120000_demote_playback_event_type/](apps/server/prisma/migrations/20260516120000_demote_playback_event_type/).
+- **Screen Wake Lock** lifecycle tied to `isPlaying`; re-acquires on visibility-visible (iOS auto-releases on background).
+- **MediaSession** handlers emit `mediasession_action` so Dash sees OS-mediated control share; `seekto` wired.
+- **Stall detector** at [PlayerScreen.tsx](apps/player/src/screens/PlayerScreen.tsx) now emits `playback_stalled` + `playback_resumed_after_stall` instead of console-warning into the void.
+- **Visibility telemetry** + `interruption_suspected` heuristic (audio was playing on hide, not playing on show, operator didn't pause).
+- **PWA install coach** ([PWAInstallTip.tsx](apps/player/src/components/PWAInstallTip.tsx)) for iOS Safari / Android Chrome; emits `pwa_standalone_launch` on every mount.
+- **DB schema** demoted `playback_events.event_type` from Postgres enum to TEXT; allow-list at Zod boundary in [routes/events.ts](apps/server/src/routes/events.ts).
+- Migration: [20260516120000_demote_playback_event_type](apps/server/prisma/migrations/20260516120000_demote_playback_event_type/migration.sql).
 
-## What Dash should build (when ready)
+### Phase 2 — service worker, audio cache, web push, Dash
 
-Daniel's directive 2026-05-16: defer Dash UI until phase-1 telemetry has accumulated a week of real data. Goals when we revisit:
+- **Service worker** via `vite-plugin-pwa` ([sw.ts](apps/player/src/sw.ts), [sw-register.ts](apps/player/src/lib/sw-register.ts)). App-shell precaching + push handlers.
+- **IndexedDB audio cache** ([audio-cache.ts](apps/player/src/lib/audio-cache.ts)). Pre-fetches next 2 tracks on every queue refill; LRU eviction at ~100MB. Survives 60+ second wifi/CDN blips. Emits `audio_cache_hit` / `audio_cache_miss`.
+- **Web Push resume nudge.** Server: [push.ts](apps/server/src/lib/push.ts), [routes/push.ts](apps/server/src/routes/push.ts), heartbeat cron [playbackHeartbeat.ts](apps/server/src/lib/playbackHeartbeat.ts) (runs every 5 min). Player: [push-client.ts](apps/player/src/lib/push-client.ts) auto-enrolls once permission is granted and the operator has listened to ≥1 song. iOS gates push to installed PWAs; Android works in either mode.
+- **Dash Player Reliability panel** at Monitoring → Player Reliability ([PlayerReliability.tsx](apps/admin/src/panels/monitoring/PlayerReliability.tsx)). Per-store rollup: interruptions/session, stalls, wake-lock failures, install adoption, OS-mediated control share, audio cache hit-rate, net push subscriptions.
+- Migration: [20260516130000_push_subscriptions](apps/server/prisma/migrations/20260516130000_push_subscriptions/migration.sql).
 
-1. **Interruption-rate panel per store.** Daily/weekly count of `interruption_suspected` events, normalized by listening hours. Drilldown by hour-of-day and weekday. Surfaces which stores have flaky wifi vs which have OS-driven kills.
+### Event-type allow-list (current)
 
-2. **PWA install-adoption metric.** Ratio of `pwa_standalone_launch` events with `is_standalone=true` vs `false`, per store. Phase-2 decision input: if iOS standalone adoption is high but interruption rate is still bad, that's the signal to invest in native (Capacitor). If standalone adoption is low, the lever is operator coaching, not engineering.
+```
+// Card 19 originals (12):
+song_start, song_complete, song_skip, song_report, song_love,
+outcome_selection, outcome_selection_cleared, playback_starved,
+operator_login, operator_logout, ad_play, room_loudness_sample
 
-3. **Stall heatmap.** `playback_stalled` count per store, faceted by hour-of-day. Distinguishes CDN/wifi blips from OS-driven kills.
+// Phase-1 reliability (10):
+mediasession_action, wake_lock_acquired, wake_lock_failed, wake_lock_released,
+playback_stalled, playback_resumed_after_stall,
+visibility_hidden, visibility_visible,
+interruption_suspected, pwa_standalone_launch
 
-4. **Wake-lock support panel.** Count of `wake_lock_failed` per store/UA — surfaces fleets stuck on old iOS where Wake Lock is unavailable.
+// Phase-2 reliability (6):
+audio_cache_hit, audio_cache_miss,
+operator_pause, operator_resume,
+push_subscribed, push_unsubscribed
+```
 
-5. **OS-mediated control share.** % of play/pause/skip events that came in via `mediasession_action` vs the in-app controls. Sanity-checks how often operators actually use the lock-screen surface.
+### Required Railway env vars
 
-All queries should filter on `event_type` and `store_id` — the existing partial index `idx_event_store_type_occurred` (Card 20) supports this.
+For Web Push to function, the server needs:
 
-## Phase-2 decision gates (informed by this telemetry)
+| Var | Value |
+|---|---|
+| `PUSH_VAPID_PUBLIC_KEY` | from `pnpm exec web-push generate-vapid-keys` |
+| `PUSH_VAPID_PRIVATE_KEY` | from same command |
+| `PUSH_VAPID_SUBJECT` | optional; defaults to `mailto:hi@entuned.co` |
 
-- **If interruption_suspected rate < 5% of sessions:** the web reliability work was enough. Don't build Capacitor.
-- **If interruption_suspected rate is 5-15% AND stalls dominate:** prioritize IndexedDB pre-buffer (item 4 in original strategy).
-- **If interruption_suspected rate is 5-15% AND OS-mediated kills dominate (visibility-driven):** prioritize iOS 16.4+ Web Push resume nudges (item 6).
-- **If interruption_suspected rate is >15% and persistent:** justify the $99/yr Apple Developer account and ship the Capacitor wrapper.
+The heartbeat cron + the `/push/vapid-public-key` endpoint both feature-detect on `PUSH_VAPID_PUBLIC_KEY` presence — if it's unset, push is silently skipped and the rest of the server runs normally.
 
-## Open questions for Dash build
+To disable the heartbeat cron without removing VAPID keys, set `PLAYBACK_HEARTBEAT_DISABLED=1`.
 
-- Should `interruption_suspected` be its own counter, or rolled into a broader "reliability score" composite (penalize stalls + interruptions + skip rate)?
-- Time-window for normalization: per-day, per-hour, or per-session?
-- Operator-visible vs internal-only? The honest answer might be "this is internal until we have enough data to talk about it without sounding defensive."
+---
+
+## What's deferred — native Capacitor wrapper
+
+This is the only remaining piece from the original strategy. The decision gates depend on data the new telemetry will surface:
+
+- **Interruption rate < 5% of sessions:** the web work was enough. Don't build Capacitor.
+- **Interruption rate 5–15%, stalls dominate:** the IndexedDB cache should be catching these. If not, debug the cache before building native.
+- **Interruption rate 5–15%, OS-mediated kills dominate:** Web Push is now catching the recovery. If push delivery rate is high but operators aren't returning to the tab, that's the trigger for Capacitor.
+- **Interruption rate > 15% persistent:** justify the $99/yr Apple Developer account, ship Capacitor.
+
+Worth watching alongside: **PWA install adoption ratio**. If it's stuck below ~30% after a month of the in-app coach, the conversion friction of "Add to Home Screen" is itself the bottleneck, and Capacitor (with a real App Store listing) bypasses it. That's a different argument for native than reliability gaps.
+
+## Open questions
+
+- Should the reliability panel let operators drill into a single store's event-stream timeline? Today it's roll-ups only.
+- Operator-visible vs internal-only for the reliability data? Currently admin-only.
+- Push delivery telemetry — we emit `push_subscribed` from the client but don't log actual push send/deliver events server-side. Worth adding a `PushDelivery` table if we want delivery-rate stats by user-agent.

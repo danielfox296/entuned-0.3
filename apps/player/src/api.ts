@@ -82,6 +82,11 @@ export type AudioEventType =
   | 'visibility_hidden' | 'visibility_visible'
   | 'interruption_suspected'
   | 'pwa_standalone_launch'
+  // Phase-2 (2026-05-16): IndexedDB audio cache, explicit pause/resume,
+  // Web Push subscription lifecycle.
+  | 'audio_cache_hit' | 'audio_cache_miss'
+  | 'operator_pause' | 'operator_resume'
+  | 'push_subscribed' | 'push_unsubscribed'
 
 export interface OutgoingEvent {
   event_type: AudioEventType
@@ -149,4 +154,14 @@ export const api = {
   },
   loved: (storeId: string, token: string) =>
     req<{ songIds: string[] }>(`/events/loved?store_id=${encodeURIComponent(storeId)}`, {}, token),
+  vapidPublicKey: () =>
+    req<{ publicKey: string; configured: boolean }>(`/push/vapid-public-key`),
+  pushSubscribe: (body: { store_id: string; endpoint: string; p256dh_key: string; auth_key: string; user_agent?: string; slug?: string }, token?: string) =>
+    req<{ id: string }>(`/push/subscribe`, { method: 'POST', body: JSON.stringify(body) }, token),
+  pushUnsubscribe: (endpoint: string) =>
+    fetch(`${API_URL}/push/unsubscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint }),
+    }).catch(() => {}),
 }

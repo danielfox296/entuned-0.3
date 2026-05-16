@@ -888,6 +888,36 @@ export interface RetentionResponse {
   cohorts: CohortRow[]
 }
 
+// --- Player Reliability ---
+export interface ReliabilityStoreRow {
+  storeId: string
+  storeName: string
+  clientName: string | null
+  tier: string | null
+  songStarts: number
+  songCompletes: number
+  interruptions: number
+  interruptionsPerSession: number
+  stalls: number
+  stallResumes: number
+  wakeLockFailures: number
+  standaloneInstalled: number
+  standaloneTab: number
+  standaloneAdoption: number
+  osMediatedControlShare: number
+  cacheHits: number
+  cacheMisses: number
+  cacheHitRate: number
+  pushSubscribed: number
+  pushUnsubscribed: number
+}
+
+export interface ReliabilitySummaryResponse {
+  days: number
+  since: string
+  stores: ReliabilityStoreRow[]
+}
+
 // --- API methods ---
 
 export const api = {
@@ -1349,6 +1379,10 @@ export const api = {
     const qs = windowDays ? `?windowDays=${windowDays}` : ''
     return req<RetentionResponse>(`/admin/retention${qs}`, {}, token)
   },
+
+  // --- Player Reliability (phase-1/2 telemetry rollup) ---
+  reliabilitySummary: (days: number, token: string) =>
+    req<ReliabilitySummaryResponse>(`/admin/reliability/summary?days=${days}`, {}, token),
 
   // --- Operator management ---
   operators: (token: string) =>

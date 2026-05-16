@@ -34,6 +34,7 @@ import { FlaggedReview } from './panels/catalogue/FlaggedReview.js'
 import { FreeTierOutcomes } from './panels/catalogue/FreeTierOutcomes.js'
 import { WorkflowRouter } from './panels/workflow/WorkflowRouter.js'
 import { RetentionDashboard } from './panels/monitoring/RetentionDashboard.js'
+import { PlayerReliability } from './panels/monitoring/PlayerReliability.js'
 import { SalesDataIngest } from './panels/salesdata/SalesDataIngest.js'
 import { EmailTemplates } from './panels/email/EmailTemplates.js'
 import { useNavGroup, useNavSub } from './nav.js'
@@ -76,7 +77,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Hypothesis Queue', 'Hypothesis Detail', 'Promotion History'],
     description: '', deferred: true },
   { key: 'monitoring', label: 'Monitoring & Alerts', short: 'Monitoring', icon: Activity,
-    cards: ['Retention Dashboard'],
+    cards: ['Retention Dashboard', 'Player Reliability'],
     description: '' },
 ]
 
@@ -235,7 +236,7 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
          group.key === 'catalogue' ? <CatalogueRouter cards={group.cards} /> :
          group.key === 'salesdata' ? <SalesDataIngest /> :
          group.key === 'email' ? <EmailTemplates /> :
-         group.key === 'monitoring' ? <RetentionDashboard /> : (
+         group.key === 'monitoring' ? <MonitoringRouter cards={group.cards} /> : (
         <>
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12,
@@ -500,6 +501,24 @@ function CatalogueRouter({ cards }: { cards: string[] }) {
       {active === 'Song Browser' && <SongBrowser />}
       {active === 'Flagged Review' && <FlaggedReview />}
       {active === 'Free Tier Outcomes' && <FreeTierOutcomes />}
+    </div>
+  )
+}
+
+function MonitoringRouter({ cards }: { cards: string[] }) {
+  const [active, setActive] = useNavSub<string>('Retention Dashboard')
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={subTabRowStyle}>
+        {cards.map((c) => {
+          const on = active === c
+          return (
+            <button key={c} onClick={() => setActive(c)} style={subTabBtnStyle(on)}>{c}</button>
+          )
+        })}
+      </div>
+      {active === 'Retention Dashboard' && <RetentionDashboard />}
+      {active === 'Player Reliability' && <PlayerReliability />}
     </div>
   )
 }

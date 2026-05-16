@@ -82,6 +82,7 @@ model Account {
   passwordResetTokens PasswordResetToken[]
   memberships         ClientMembership[]
   lifecycleEmails     LifecycleEmailLog[]
+  pushSubscriptions   PushSubscription[]
 
   @@map("accounts")
 }
@@ -187,6 +188,7 @@ model Store {
   binding                   PlayerBinding?
   tierChangeLogs            TierChangeLog[]
   retiredSongs              StoreRetiredSong[]
+  pushSubscriptions         PushSubscription[]
 
   @@index([clientId])
   @@map("stores")
@@ -826,6 +828,31 @@ model PlaybackEvent {
   @@index([storeId, occurredAt(sort: Desc)])
   @@index([storeId, eventType, occurredAt(sort: Desc)])
   @@map("playback_events")
+}
+
+// ---------- Web Push subscriptions (iOS 16.4+ + Android) ----------
+// One row per (device, store) — endpoint is the device-specific URL the user
+// agent generates from VAPID. Used by the playback-heartbeat cron to send
+// "music paused — tap to resume" nudges when an active session goes silent
+// without an explicit operator pause. iOS requires the player to be installed
+// as a PWA before push registration succeeds; Android works in either mode.
+
+model PushSubscription {
+  id           String    @id @default(uuid()) @db.Uuid
+  storeId      String    @map("store_id") @db.Uuid
+  accountId    String?   @map("account_id") @db.Uuid
+  endpoint     String    @unique
+  p256dhKey    String    @map("p256dh_key")
+  authKey      String    @map("auth_key")
+  userAgent    String?   @map("user_agent")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastNudgedAt DateTime? @map("last_nudged_at") @db.Timestamptz(6)
+
+  store   Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  account Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@index([storeId])
+  @@map("push_subscriptions")
 }
 
 // ---------- Card 21 POS Ingestion ----------
