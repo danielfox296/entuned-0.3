@@ -44,6 +44,10 @@ const EventSchema = z.object({
     'operator_resume',
     'push_subscribed',
     'push_unsubscribed',
+    // Phase-3 reliability (2026-05-17): the audio element refused the URL.
+    // `extra` carries { reason, audio_url, media_error_code } — admin uses
+    // these to find dead R2 objects.
+    'song_load_failed',
   ]),
   store_id: z.string().uuid(),
   occurred_at: z.string().datetime(),

@@ -4399,4 +4399,72 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(500).send({ error: 'comp_expiry_failed', message: e?.message ?? 'unknown' })
     }
   })
+
+  // GET /admin/song-load-failures?days=7 — songs whose audio URL the player
+  // could not load, aggregated. Surfaces dead R2 objects, CORS regressions,
+  // and expired share links that would otherwise only show up as cryptic
+  // skipped tracks. Default window is 7 days.
+  app.get('/song-load-failures', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const q = z.object({ days: z.coerce.number().int().min(1).max(90).default(7) }).safeParse(req.query)
+    if (!q.success) return reply.code(400).send({ error: 'bad_query' })
+    const since = new Date(Date.now() - q.data.days * 24 * 60 * 60 * 1000)
+
+    const events = await prisma.playbackEvent.findMany({
+      where: { eventType: 'song_load_failed' as any, songId: { not: null }, occurredAt: { gte: since } },
+      select: { songId: true, storeId: true, occurredAt: true, extra: true },
+      orderBy: { occurredAt: 'desc' },
+    })
+    if (events.length === 0) return { sinceDays: q.data.days, songs: [] }
+
+    type Bucket = {
+      songId: string
+      failCount: number
+      lastFailedAt: Date
+      reasons: Record<string, number>
+      storeIds: Set<string>
+      lastAudioUrl: string | null
+    }
+    const bySong = new Map<string, Bucket>()
+    for (const e of events) {
+      if (!e.songId) continue
+      let b = bySong.get(e.songId)
+      if (!b) {
+        b = { songId: e.songId, failCount: 0, lastFailedAt: e.occurredAt, reasons: {}, storeIds: new Set(), lastAudioUrl: null }
+        bySong.set(e.songId, b)
+      }
+      b.failCount++
+      const reason = (e.extra as any)?.reason as string | undefined
+      if (reason) b.reasons[reason] = (b.reasons[reason] ?? 0) + 1
+      if (e.occurredAt > b.lastFailedAt) {
+        b.lastFailedAt = e.occurredAt
+        const url = (e.extra as any)?.audio_url as string | undefined
+        if (url) b.lastAudioUrl = url
+      }
+      b.storeIds.add(e.storeId)
+    }
+
+    const songIds = [...bySong.keys()]
+    const songs = await prisma.song.findMany({
+      where: { id: { in: songIds } },
+      select: { id: true, r2Url: true, r2ObjectKey: true },
+    })
+    const songIndex = new Map(songs.map((s) => [s.id, s]))
+
+    return {
+      sinceDays: q.data.days,
+      songs: [...bySong.values()]
+        .sort((a, b) => b.failCount - a.failCount)
+        .map((b) => ({
+          songId: b.songId,
+          failCount: b.failCount,
+          lastFailedAt: b.lastFailedAt,
+          reasons: b.reasons,
+          storeCount: b.storeIds.size,
+          r2Url: songIndex.get(b.songId)?.r2Url ?? null,
+          r2ObjectKey: songIndex.get(b.songId)?.r2ObjectKey ?? null,
+          lastAudioUrl: b.lastAudioUrl,
+        })),
+    }
+  })
 }
