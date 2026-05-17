@@ -87,6 +87,10 @@ export type AudioEventType =
   | 'audio_cache_hit' | 'audio_cache_miss'
   | 'operator_pause' | 'operator_resume'
   | 'push_subscribed' | 'push_unsubscribed'
+  // Phase-3 reliability (2026-05-17): the audio element refused to load
+  // a track URL (404, CORS, decode failure, unsupported source). Extra
+  // carries { reason, audio_url } so admin can hunt dead R2 objects.
+  | 'song_load_failed'
 
 export interface OutgoingEvent {
   event_type: AudioEventType

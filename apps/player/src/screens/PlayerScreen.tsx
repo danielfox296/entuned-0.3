@@ -91,6 +91,20 @@ function TierEyebrow({ tier }: { tier: string }) {
   return <span style={sharedStyle}>{label}</span>;
 }
 
+// HTMLAudioElement MediaError codes. Howler's onloaderror forwards the code
+// directly when html5: true; we map to a string for telemetry + logs. Code 4
+// (src_unsupported) almost always means the R2 object is missing or the URL
+// returned a non-audio response (404, CORS, expired share link).
+type AudioLoadFailReason = "aborted" | "network" | "decode" | "src_unsupported" | "unknown";
+function classifyLoadError(err: unknown): AudioLoadFailReason {
+  const code = typeof err === "number" ? err : Number(err);
+  if (code === 1) return "aborted";
+  if (code === 2) return "network";
+  if (code === 3) return "decode";
+  if (code === 4) return "src_unsupported";
+  return "unknown";
+}
+
 function trackLabel(item: QueueItem | null): string {
   if (!item) return "";
   if (item.type === "ad") return item.title ?? "Advertisement";
@@ -187,6 +201,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
   // Wall-clock timestamp when playback_stalled was emitted; cleared once we
   // emit playback_resumed_after_stall so a follow-on stall can re-emit cleanly.
   const stallEmittedAtRef = useRef<number>(0);
+  // Songs whose audio URL refused to load this session — refill drops them so
+  // we don't loop on a bad R2 object. Cleared on session restart only.
+  const failedSongIdsRef = useRef<Set<string>>(new Set());
+  // Consecutive load failures without an intervening completed song. A single
+  // failure is silently skipped; 3+ in a row surfaces a banner because the
+  // problem is likely network-wide, not one bad file.
+  const consecutiveLoadFailsRef = useRef<number>(0);
 
   const setAllOutcomesMode = useCallback((v: boolean) => {
     allOutcomesModeRef.current = v;
@@ -305,8 +326,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
         const have = new Set(prev.filter((q) => q.type !== "ad").map((q) => q.songId));
         if (currentRef.current?.type !== "ad") have.add(currentRef.current?.songId ?? "");
         have.delete("");
-        // Always allow ad items through; dedup songs only.
-        const additions = r.queue.filter((q) => q.type === "ad" || !have.has(q.songId));
+        // Always allow ad items through; dedup songs only. Songs whose
+        // audio URL failed to load earlier in this session are excluded
+        // here so the queue never re-serves a known-broken track.
+        const failed = failedSongIdsRef.current;
+        const additions = r.queue.filter(
+          (q) => q.type === "ad" || (!have.has(q.songId) && !failed.has(q.songId)),
+        );
         return [...prev, ...additions].slice(0, 6);
       });
       // Pre-buffer the next 2 song tracks into IndexedDB so playback survives
@@ -386,6 +412,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
       trackTrackComplete(completed.title);
       setPlayedCount((c) => c + 1);
     }
+    // A real onend (driving this call from CrossfadePlayer.onTrackEnded) means
+    // the previous track played through, so the load-failure streak is broken
+    // and any banner we showed should clear.
+    consecutiveLoadFailsRef.current = 0;
+    setError((e) => (e && e.startsWith("Trouble loading") ? null : e));
     await playFromQueue();
   }, [emit, playFromQueue]);
 
@@ -529,8 +560,28 @@ export function PlayerScreen({ session, onLogout }: Props) {
       // Native 'ended' event drives advance. Reliable even when iOS throttles JS timers.
       onTrackEnded: () => { void advanceToNext(); },
       onError: (err) => {
-        console.error("[player] audio error", err);
-        setError(`Audio error: ${String(err)}`);
+        // Audio failed to load (Howler onloaderror). With html5:true, err is
+        // the HTMLAudioElement MediaError code — see classifyLoadError. A
+        // single failure is treated as one bad track: skip silently, log
+        // telemetry, suppress the songId for the rest of the session. Only
+        // a sustained streak surfaces a user-visible banner.
+        const reason = classifyLoadError(err);
+        const cur = currentRef.current;
+        const songId = cur && cur.type !== "ad" ? cur.songId : null;
+        console.warn("[player] audio load failed, advancing", { reason, code: err, songId });
+        if (cur && cur.type !== "ad") {
+          emit("song_load_failed", cur, undefined, {
+            reason,
+            audio_url: cur.audioUrl,
+            media_error_code: typeof err === "number" ? err : Number(err) || null,
+          });
+          failedSongIdsRef.current.add(cur.songId);
+        }
+        consecutiveLoadFailsRef.current += 1;
+        if (consecutiveLoadFailsRef.current >= 3) {
+          setError("Trouble loading songs. Check your connection.");
+        }
+        void playFromQueue();
       },
       // play() was rejected (autoplay policy, Chrome/iOS). Don't show a UI error —
       // the track isn't broken, the browser just refused the play() call. Try to
