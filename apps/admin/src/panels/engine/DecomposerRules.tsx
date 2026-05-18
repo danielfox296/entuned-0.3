@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { api, getToken } from '../../api.js'
 import { VersionedPromptEditor, History as SharedHistory, Button, LlmProgress, useToast } from '../../ui/index.js'
 import type { PromptVersion } from '../../ui/index.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 
 export function DecomposerRules() {
   const toast = useToast()

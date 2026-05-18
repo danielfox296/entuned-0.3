@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ExternalLink, Copy, Check, ArrowRight } from 'lucide-react'
 import { trackUpgradeCtaClick } from '../lib/ga4.js'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { Layout } from '../ui/Layout.js'
 import { Card } from '../ui/Card.js'
 import { SetupChecklist } from '../ui/SetupChecklist.js'

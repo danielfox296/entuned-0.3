@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { StoreSummary } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { S } from '../../ui/sizes.js'
 import { Button, StorePicker } from '../../ui/index.js'
 import { Tabs } from '../../ui/Tabs.js'

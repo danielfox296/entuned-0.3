@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 
 // Small uppercase label used above section headlines. Pattern lifted from the
 // PLG onboarding design — pairs with a Manrope display headline below.

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 
 export type PillTone = 'success' | 'warn' | 'danger' | 'accent' | 'muted' | 'dim'
 export type PillVariant = 'outline' | 'soft'

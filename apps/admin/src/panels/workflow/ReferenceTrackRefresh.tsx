@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { ReferenceTrackRow, StoreDetail, TasteCategory, RefTrackUpdate, StyleAnalysisRow, StyleAnalysisUpdate } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { Button, S, useToast, LlmProgress, Modal } from '../../ui/index.js'
 import type { WorkflowContext } from './WorkflowRouter.js'
 

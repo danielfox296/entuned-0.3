@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { Logo } from '../ui/index.js'
 import { CardChoice } from '../ui/CardChoice.js'
 import { api, type BoostTrialInput } from '../api.js'

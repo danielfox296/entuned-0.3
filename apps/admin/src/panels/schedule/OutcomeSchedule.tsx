@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { StoreSummary, ScheduleSlot, ScheduleSlotInput, OutcomeRowFull } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { Button, Input, Select, PanelHeader, StorePicker, S, useStoreSelection } from '../../ui/index.js'
 
 const DAYS: { dow: number; label: string; short: string }[] = [

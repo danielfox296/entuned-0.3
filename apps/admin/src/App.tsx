@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { api, getToken, setToken, clearToken } from './api.js'
 import type { MeResponse, ClientListRow, StoreSummary, StoreDetail } from './api.js'
-import { T } from './tokens.js'
+import { T } from '@entuned/tokens'
 import { ToastProvider, useClientSelection, useStoreSelection, useIcpSelection, HeaderSelect } from './ui/index.js'
 import { useClientLogo } from './ui/clientLogo.js'
 import { DecomposerRules } from './panels/engine/DecomposerRules.js'

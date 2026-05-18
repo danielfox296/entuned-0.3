@@ -4,7 +4,7 @@ import {
   Sparkles, Users, Music, RefreshCw, SlidersHorizontal, Shield,
   Check, Lock, ArrowRight, type LucideIcon,
 } from 'lucide-react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { Layout } from '../ui/Layout.js'
 import { Card } from '../ui/Card.js'
 import { api, TIER_RANK } from '../api.js'

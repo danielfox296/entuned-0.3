@@ -7,7 +7,7 @@ import type {
   SongCreationQueueInventory,
   SongCreationQueueOutcomeRow,
 } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { Modal, S } from '../../ui/index.js'
 import { SongSeed } from './SongSeed.js'
 import type { WorkflowContext } from '../workflow/WorkflowRouter.js'

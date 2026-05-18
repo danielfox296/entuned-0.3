@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { FormArchetypeRow, FormArchetypeWriteBody, FormArchetypeEraRange } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { Button, Input, Textarea, Section, S, useToast } from '../../ui/index.js'
 
 type OutcomeStub = { outcomeKey: string; title: string }

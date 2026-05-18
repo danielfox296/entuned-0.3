@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { RetentionResponse, StoreRetentionRow, CohortRow } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { Button } from '../../ui/index.js'
 import { useNavSub } from '../../nav.js'
 

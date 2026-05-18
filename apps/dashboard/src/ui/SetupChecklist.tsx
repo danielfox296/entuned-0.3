@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, ArrowRight } from 'lucide-react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { api, TIER_RANK, type Tier } from '../api.js'
 
 // SetupChecklist — visible progress against onboarding's load-bearing steps.

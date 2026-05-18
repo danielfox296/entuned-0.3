@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { Eyebrow, Logo } from '../ui/index.js'
 import { api } from '../api.js'
 import { trackOnboardingComplete } from '../lib/ga4.js'

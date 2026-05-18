@@ -1,5 +1,5 @@
 import { forwardRef, type CSSProperties, type InputHTMLAttributes } from 'react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 
 const baseField: CSSProperties = {
   background: T.surfaceRaised,

@@ -1,6 +1,11 @@
-// Design tokens — Entuned unified design system
-// Matches the brand site (entuned.co / "Bowie"). Single source of truth
-// for all inline styles across the admin shell and panels.
+// Design tokens — Entuned unified design system.
+// Single source of truth for all inline styles across the admin shell, the
+// customer dashboard, and any future surface that needs the brand palette.
+// Matches the brand site (entuned.co / "Bowie").
+//
+// Extracted from duplicate copies in apps/admin/src/tokens.ts and
+// apps/dashboard/src/tokens.ts. The dashboard had one extra token (`slate`)
+// — the union is included here so both apps' usage stays valid.
 
 export const T = {
   // ── Surfaces ──────────────────────────────────────────────────
@@ -29,6 +34,7 @@ export const T = {
 
   // ── Secondary accents ─────────────────────────────────────────
   gold:          '#d7af74',
+  slate:         '#829eac',
 
   // ── Status ────────────────────────────────────────────────────
   danger:        '#E24B4A',

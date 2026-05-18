@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { ScheduleDryRun, DryRunPeriod, StoreSummary } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { PanelHeader, StorePicker, S, useStoreSelection } from '../../ui/index.js'
 
 const DAY_MINUTES = 24 * 60

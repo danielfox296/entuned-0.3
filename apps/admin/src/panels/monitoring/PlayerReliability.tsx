@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { ReliabilitySummaryResponse } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { Button } from '../../ui/index.js'
 
 type WindowDays = 1 | 7 | 28 | 90

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { LineageRowList, LineageRowFull, OutcomeRowFull } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { Button, PanelHeader, S } from '../../ui/index.js'
 
 type ActiveFilter = 'all' | 'true' | 'false'

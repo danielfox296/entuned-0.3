@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Plus, ExternalLink, Copy, Check, Pause, Play, Lock, Pencil, X } from 'lucide-react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { Layout } from '../ui/Layout.js'
 import { Card, EmptyState } from '../ui/Card.js'
 import { Button, Input } from '../ui/index.js'

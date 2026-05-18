@@ -15,6 +15,9 @@ importers:
 
   apps/admin:
     dependencies:
+      '@entuned/tokens':
+        specifier: workspace:*
+        version: link:../../packages/tokens
       lucide-react:
         specifier: ^1.11.0
         version: 1.11.0(react@18.3.1)
@@ -43,6 +46,9 @@ importers:
 
   apps/dashboard:
     dependencies:
+      '@entuned/tokens':
+        specifier: workspace:*
+        version: link:../../packages/tokens
       lucide-react:
         specifier: ^1.11.0
         version: 1.11.0(react@18.3.1)
@@ -208,6 +214,8 @@ importers:
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
+
+  packages/tokens: {}
 
 packages:
 

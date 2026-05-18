@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, Plus, Pencil, Archive, MapPin } from 'lucide-react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { Layout } from '../ui/Layout.js'
 import { Button, Eyebrow, Input } from '../ui/index.js'
 import {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { Layout } from '../ui/Layout.js'
 import { LockScreen } from '../ui/LockScreen.js'
 import { Button, Input } from '../ui/index.js'

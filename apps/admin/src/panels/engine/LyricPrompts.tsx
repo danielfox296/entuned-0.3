@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { LyricPromptRow } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { VersionedPromptEditor, S } from '../../ui/index.js'
 
 type Kind = 'draft' | 'edit'

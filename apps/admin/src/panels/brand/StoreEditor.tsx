@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { ClientListRow, OutcomeRowFull, StoreCreateBody, StoreUpdateBody } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import {
   Button, Input, Select, Section, Field, KV,
   S, useToast, useStoreSelection,

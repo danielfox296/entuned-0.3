@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { S } from '../../ui/index.js'
 import type { WorkflowContext } from './WorkflowRouter.js'
 

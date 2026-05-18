@@ -1,4 +1,4 @@
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { Layout } from '../ui/Layout.js'
 import { LockScreen } from '../ui/LockScreen.js'
 import content from '../content/reports.yaml'

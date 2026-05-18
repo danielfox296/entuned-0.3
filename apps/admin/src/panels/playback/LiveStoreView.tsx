@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { api, getToken } from '../../api.js'
 import type { LiveStoreView as LiveStoreData, OutcomeWithPool, QueueEntry, PlaybackEventRow, PlayerHealthSummary } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import {
   Button, Section, Pill, S, useStoreSelection,
 } from '../../ui/index.js'

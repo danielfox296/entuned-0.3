@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { StyleExclusionRuleRow } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { Button, Input, PanelHeader, S } from '../../ui/index.js'
 
 type Draft = Omit<StyleExclusionRuleRow, 'id'>

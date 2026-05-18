@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { ClientListRow, ClientFull, ClientUpdate } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { Button, Input, Textarea, Section, Field, S, useToast, useClientSelection } from '../../ui/index.js'
 import { useClientLogo, setClientLogo, fileToThumbnailDataUrl } from '../../ui/clientLogo.js'
 

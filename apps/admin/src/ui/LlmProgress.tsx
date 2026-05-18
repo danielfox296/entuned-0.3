@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 
 /**
  * Reusable progress indicator for LLM calls. Animates to 95% over the

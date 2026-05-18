@@ -1,4 +1,4 @@
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { S } from './sizes.js'
 
 // Subtitles are intentionally suppressed app-wide. Callers may keep passing

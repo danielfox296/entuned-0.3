@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 
 // Square card-grid for single- or multi-select choices. Lifted from the PLG
 // onboarding design (left teal accent bar, hairline border, hover lift).
