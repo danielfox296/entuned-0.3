@@ -40,6 +40,13 @@ import { runOneLifecycleDrip, runLifecycleEmails, type LifecycleDripName } from 
 import { runPauseAutoResume } from '../lib/pauseAutoResume.js'
 import { runCompExpiryCron } from '../lib/compExpiry.js'
 import { effectiveTier, compIsActive, tierRank, applyTierChange, type Tier } from '../lib/tier.js'
+import {
+  timeToHHMM,
+  hhmmToTime,
+  hhmmToSec,
+  ScheduleSlotBody,
+  findOverlappingSlot,
+} from '../lib/scheduleSlots.js'
 
 interface AuthedOp {
   accountId: string
@@ -76,22 +83,8 @@ async function requireAdmin(req: FastifyRequest, reply: FastifyReply): Promise<A
   return { accountId: op.id, email: op.email, isAdmin: op.isAdmin }
 }
 
-// Time helpers — Prisma @db.Time(6) round-trips as Date with UTC time portion.
-function timeToHHMM(d: Date): string {
-  const h = String(d.getUTCHours()).padStart(2, '0')
-  const m = String(d.getUTCMinutes()).padStart(2, '0')
-  return `${h}:${m}`
-}
-
-function hhmmToTime(s: string): Date {
-  const padded = s.length === 5 ? `${s}:00` : s
-  return new Date(`1970-01-01T${padded}.000Z`)
-}
-
-function hhmmToSec(s: string): number {
-  const [h, m, sec] = s.split(':').map((x) => parseInt(x, 10))
-  return (h ?? 0) * 3600 + (m ?? 0) * 60 + (sec ?? 0)
-}
+// Time helpers + ScheduleSlotBody schema live in ../lib/scheduleSlots.js
+// (shared with /me/* routes — see ASSESSMENT.md §2.2).
 
 // Schemas
 const RulesPostBody = z.object({ rulesText: z.string().min(1), notes: z.string().optional() })
@@ -2559,17 +2552,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }))
   })
 
-  const ScheduleBody = z.object({
-    dayOfWeek: z.number().int().min(1).max(7),
-    startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
-    endTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
-    outcomeId: z.string().uuid(),
-  })
-
   app.post('/stores/:id/schedule', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
-    const parsed = ScheduleBody.safeParse(req.body)
+    const parsed = ScheduleSlotBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     if (hhmmToSec(parsed.data.startTime) >= hhmmToSec(parsed.data.endTime)) {
       return reply.code(400).send({ error: 'start_must_precede_end' })
@@ -2583,10 +2569,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         message: 'This outcome is not available on the free tier.',
       })
     }
-    const newStart = hhmmToSec(parsed.data.startTime)
-    const newEnd = hhmmToSec(parsed.data.endTime)
     const existing = await prisma.scheduleSlot.findMany({ where: { storeId: id, dayOfWeek: parsed.data.dayOfWeek } })
-    const clash = existing.find((s) => newStart < hhmmToSec(timeToHHMM(s.endTime)) && hhmmToSec(timeToHHMM(s.startTime)) < newEnd)
+    const clash = findOverlappingSlot(parsed.data, existing)
     if (clash) {
       return reply.code(409).send({ error: 'schedule_overlap', message: `Overlaps with existing slot ${timeToHHMM(clash.startTime)}–${timeToHHMM(clash.endTime)}` })
     }
@@ -2617,7 +2601,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   app.put('/schedule-rows/:id', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
-    const parsed = ScheduleBody.safeParse(req.body)
+    const parsed = ScheduleSlotBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     if (hhmmToSec(parsed.data.startTime) >= hhmmToSec(parsed.data.endTime)) {
       return reply.code(400).send({ error: 'start_must_precede_end' })
@@ -2633,12 +2617,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         message: 'This outcome is not available on the free tier.',
       })
     }
-    const updStart = hhmmToSec(parsed.data.startTime)
-    const updEnd = hhmmToSec(parsed.data.endTime)
     const siblings = await prisma.scheduleSlot.findMany({
       where: { storeId: current.storeId, dayOfWeek: parsed.data.dayOfWeek, id: { not: id } },
     })
-    const clash = siblings.find((s) => updStart < hhmmToSec(timeToHHMM(s.endTime)) && hhmmToSec(timeToHHMM(s.startTime)) < updEnd)
+    const clash = findOverlappingSlot(parsed.data, siblings)
     if (clash) {
       return reply.code(409).send({ error: 'schedule_overlap', message: `Overlaps with existing slot ${timeToHHMM(clash.startTime)}–${timeToHHMM(clash.endTime)}` })
     }

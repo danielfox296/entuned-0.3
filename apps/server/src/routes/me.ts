@@ -12,6 +12,13 @@ import { effectiveTier, compIsActive, tierRank, applyTierChange } from '../lib/t
 import { uniqueStoreSlug } from '../lib/account.js'
 import { FREE_TIER_ICP_ID } from '../lib/freeTier.js'
 import { pickSystemDefaultOutcomeId } from '../lib/outcomes.js'
+import {
+  timeToHHMM,
+  hhmmToTime,
+  hhmmToSec,
+  ScheduleSlotBody,
+  findOverlappingSlot,
+} from '../lib/scheduleSlots.js'
 
 const APPAREL_INDUSTRIES = new Set(['apparel', 'footwear', 'accessories'])
 
@@ -540,24 +547,8 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
   )
 
   // ----- Schedule (customer-facing, scoped to client's stores) -----
-
-  function timeToHHMM(d: Date): string {
-    return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
-  }
-  function hhmmToTime(s: string): Date {
-    const [h, m] = s.split(':').map(Number)
-    const d = new Date(0); d.setUTCHours(h!, m!, 0, 0); return d
-  }
-  function hhmmToSec(s: string): number {
-    const [h, m] = s.split(':').map(Number); return (h! * 60 + m!) * 60
-  }
-
-  const ScheduleBody = z.object({
-    dayOfWeek: z.number().int().min(1).max(7),
-    startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
-    endTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
-    outcomeId: z.string().uuid(),
-  })
+  // Time helpers + ScheduleSlotBody schema live in ../lib/scheduleSlots.js
+  // (shared with /admin/* routes — see ASSESSMENT.md §2.2).
 
   function fmtSlot(r: { id: string; storeId: string; dayOfWeek: number; startTime: Date; endTime: Date; outcomeId: string; outcome: { title: string; displayTitle: string | null } }) {
     return {
@@ -585,14 +576,13 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     const storeId = (req.params as any).storeId as string
     const store = await prisma.store.findFirst({ where: { id: storeId, clientId: ctx.clientId, archivedAt: null }, select: { id: true } })
     if (!store) return reply.code(404).send({ error: 'store_not_found' })
-    const parsed = ScheduleBody.safeParse(req.body)
+    const parsed = ScheduleSlotBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
     if (hhmmToSec(parsed.data.startTime) >= hhmmToSec(parsed.data.endTime)) {
       return reply.code(400).send({ error: 'start_must_precede_end' })
     }
-    const newStart = hhmmToSec(parsed.data.startTime), newEnd = hhmmToSec(parsed.data.endTime)
     const existing = await prisma.scheduleSlot.findMany({ where: { storeId, dayOfWeek: parsed.data.dayOfWeek } })
-    const clash = existing.find((s) => newStart < hhmmToSec(timeToHHMM(s.endTime)) && hhmmToSec(timeToHHMM(s.startTime)) < newEnd)
+    const clash = findOverlappingSlot(parsed.data, existing)
     if (clash) return reply.code(409).send({ error: 'schedule_overlap', message: `Overlaps with ${timeToHHMM(clash.startTime)}–${timeToHHMM(clash.endTime)}` })
     const row = await prisma.scheduleSlot.create({
       data: { storeId, dayOfWeek: parsed.data.dayOfWeek, startTime: hhmmToTime(parsed.data.startTime), endTime: hhmmToTime(parsed.data.endTime), outcomeId: parsed.data.outcomeId },
@@ -604,7 +594,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
   app.put('/schedule-rows/:id', { preHandler: requireAuth }, async (req, reply) => {
     const ctx = getClient(req, reply); if (!ctx) return
     const id = (req.params as any).id as string
-    const parsed = ScheduleBody.safeParse(req.body)
+    const parsed = ScheduleSlotBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
     const current = await prisma.scheduleSlot.findUnique({
       where: { id },
@@ -614,9 +604,8 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     if (hhmmToSec(parsed.data.startTime) >= hhmmToSec(parsed.data.endTime)) {
       return reply.code(400).send({ error: 'start_must_precede_end' })
     }
-    const updStart = hhmmToSec(parsed.data.startTime), updEnd = hhmmToSec(parsed.data.endTime)
     const siblings = await prisma.scheduleSlot.findMany({ where: { storeId: current.storeId, dayOfWeek: parsed.data.dayOfWeek, id: { not: id } } })
-    const clash = siblings.find((s) => updStart < hhmmToSec(timeToHHMM(s.endTime)) && hhmmToSec(timeToHHMM(s.startTime)) < updEnd)
+    const clash = findOverlappingSlot(parsed.data, siblings)
     if (clash) return reply.code(409).send({ error: 'schedule_overlap', message: `Overlaps with ${timeToHHMM(clash.startTime)}–${timeToHHMM(clash.endTime)}` })
     const row = await prisma.scheduleSlot.update({
       where: { id },
