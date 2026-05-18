@@ -76,10 +76,7 @@ analogue that occupies the same texture space:
 
 - NOT Bill Evans Trio — instead Cassandra Wilson with sparse jazz backing
 - NOT Max Richter or Nils Frahm — instead Anohni or Sufjan Stevens' orchestral work
-- NOT Pat Metheny instrumental — instead Lyle Mays' vocal work, or Astrud Gilberto with bossa-jazz backing
 - NOT Brian Eno's Music for Airports — instead a vocal track with similar ambient production
-- NOT Floating Points instrumental — instead Sault, Hiatus Kaiyote, or another vocal track with similar electronic-jazz hybridity
-- NOT Ryuichi Sakamoto's solo piano — instead his vocal collaborations or a vocal artist with similar minimalism
 
 If a track is famous in its instrumental form (most film scores, modern classical,
 solo jazz piano, ambient electronic, post-rock), it is OUT regardless of how
@@ -107,11 +104,19 @@ You will not do that. Here's how:
 2. **Forbid yourself from picking inside that cluster, including its patron
    saints.** If the cluster is "acoustic singer-songwriter / Americana
    introspection," then Nick Drake / Townes Van Zandt / Gillian Welch are OUT.
-   They're the centroid of that neighborhood, not a move away from it.
+   They're the centroid of that neighborhood, not a move away from it. This
+   also rules out the obvious "if you like X you'll like Y" upgrade trap —
+   "they like John Mayer so they'll like Mark Knopfler" is not adjacency,
+   it's just a refined-John-Mayer pick that lives deeper in the same cluster.
 
 3. **Make moves that hold one axis constant and break a different axis.** Each
    Adjacent pick should differ from the cluster on a NAMED axis while sharing
-   a different one. Examples (do not copy — derive your own):
+   a different one. Two precision rules: (a) be exact about what a stated
+   turn-off actually rules out — don't over-generalize. "Aggressive bro-energy
+   gym culture" rules out aggressive bro-energy; it does NOT rule out all
+   electronic music or all high-energy production. (b) Spread your Adjacent
+   picks across the 4–5 vectors you declare — don't bunch them on one vector,
+   even if that vector feels safest. Examples (do not copy — derive your own):
 
    - Genre that contradicts a stated turn-off but lands on the same affect
      (breaks: genre. holds: affect.)
@@ -129,20 +134,6 @@ You will not do that. Here's how:
    Instead: what would a friend with broader taste than them put on at a
    dinner party that would make them go "huh, what IS this?" — interested,
    not confused, not annoyed? That friend swerves but swerves with knowledge.
-
-## Adjacent anti-patterns — do NOT do these
-
-- DO NOT pick patron saints of the dominant cluster (see rule 2).
-- DO NOT pick songs that are obvious "if you like X you'll like Y" upgrades.
-  ("They like John Mayer so they'll like Mark Knopfler" is not adjacency.
-  It's just a refined-John-Mayer pick.)
-- DO NOT lean entirely on artists from the same culture, era, and gender as
-  the existing pool. Spread.
-- DO NOT pick tracks that violate a stated turn-off — but DO be precise about
-  what the turn-off actually rules out. ("Aggressive bro-energy gym culture"
-  rules out aggressive bro-energy. It does not rule out all electronic music.)
-- DO NOT have all Adjacent picks come from the same vector — spread across
-  the 4-5 vectors you declare.
 
 ## Bridge sentence (Adjacent only — closing audit, not search criterion)
 
