@@ -543,6 +543,104 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     })
   })
 
+  // POST /admin/clients/:id/owner — attach an Account to a Client as owner.
+  //
+  // Closes the "operator-managed Client" gap: a Client with zero memberships
+  // is unreachable from self-serve sign-in (ensureFreeClientForUser auto-
+  // provisions a fresh free-tier Client for every account that has no
+  // membership yet). To merge a legacy operator-managed Client into the PLG
+  // shape we have to attach an owner explicitly — that's this endpoint.
+  //
+  // Behavior:
+  //   - Body: { email } — case-insensitive (Account.email is CITEXT).
+  //   - Finds-or-creates the Account by normalized email. New Accounts have
+  //     no passwordHash / no googleSub — first magic-link sign-in attaches
+  //     auth.
+  //   - Idempotent: if a ClientMembership already exists for this
+  //     (clientId, accountId), returns it with `created: false`.
+  //   - Refuses (409) if the Account already has a membership for any OTHER
+  //     Client — we don't silently entangle accounts. Admin must clear the
+  //     existing membership first.
+  //   - Returns the membership + the (possibly new) Account.
+  const OwnerAttachBody = z.object({ email: z.string().email() })
+
+  app.post('/clients/:id/owner', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = OwnerAttachBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+
+    const client = await prisma.client.findUnique({ where: { id }, select: { id: true, companyName: true } })
+    if (!client) return reply.code(404).send({ error: 'client_not_found' })
+
+    const normalizedEmail = parsed.data.email.trim().toLowerCase()
+
+    const result = await prisma.$transaction(async (tx) => {
+      let account = await tx.account.findUnique({
+        where: { email: normalizedEmail },
+        select: { id: true, email: true, name: true, isAdmin: true, disabledAt: true, memberships: { select: { clientId: true, role: true } } },
+      })
+      let accountCreated = false
+      if (!account) {
+        const created = await tx.account.create({
+          data: { email: normalizedEmail },
+          select: { id: true, email: true, name: true, isAdmin: true, disabledAt: true },
+        })
+        account = { ...created, memberships: [] }
+        accountCreated = true
+      }
+      if (account.disabledAt) {
+        return { kind: 'account_disabled' as const }
+      }
+
+      const sameClient = account.memberships.find((m) => m.clientId === id)
+      if (sameClient) {
+        return { kind: 'idempotent' as const, account, role: sameClient.role, accountCreated }
+      }
+
+      const otherClient = account.memberships.find((m) => m.clientId !== id)
+      if (otherClient) {
+        return { kind: 'already_attached_elsewhere' as const, account, otherClientId: otherClient.clientId, accountCreated }
+      }
+
+      const membership = await tx.clientMembership.create({
+        data: { clientId: id, accountId: account.id, role: 'owner' },
+        select: { id: true, role: true, createdAt: true },
+      })
+      return { kind: 'created' as const, account, membership, accountCreated }
+    })
+
+    if (result.kind === 'account_disabled') {
+      return reply.code(409).send({ error: 'account_disabled' })
+    }
+    if (result.kind === 'already_attached_elsewhere') {
+      return reply.code(409).send({
+        error: 'account_already_attached',
+        otherClientId: result.otherClientId,
+        message: 'Account is already a member of a different Client. Clear that membership first.',
+      })
+    }
+    if (result.kind === 'idempotent') {
+      return reply.send({
+        ok: true,
+        created: false,
+        accountCreated: result.accountCreated,
+        client: { id: client.id, companyName: client.companyName },
+        account: { id: result.account.id, email: result.account.email, name: result.account.name, isAdmin: result.account.isAdmin },
+        role: result.role,
+      })
+    }
+    return reply.code(201).send({
+      ok: true,
+      created: true,
+      accountCreated: result.accountCreated,
+      client: { id: client.id, companyName: client.companyName },
+      account: { id: result.account.id, email: result.account.email, name: result.account.name, isAdmin: result.account.isAdmin },
+      role: result.membership.role,
+      membershipId: result.membership.id,
+    })
+  })
+
   // DELETE /admin/clients/:id — cascading hard-delete in a single transaction.
   //
   // The schema has Cascade on most child relations but a handful of FKs default

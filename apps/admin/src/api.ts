@@ -1059,6 +1059,16 @@ export const api = {
     req<ClientFull>(`/admin/clients/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   createClient: (body: { companyName: string }, token: string) =>
     req<ClientListRow>('/admin/clients', { method: 'POST', body: JSON.stringify(body) }, token),
+  attachClientOwner: (id: string, email: string, token: string) =>
+    req<{
+      ok: true
+      created: boolean
+      accountCreated: boolean
+      client: { id: string; companyName: string }
+      account: { id: string; email: string; name: string | null; isAdmin: boolean }
+      role: string
+      membershipId?: string
+    }>(`/admin/clients/${id}/owner`, { method: 'POST', body: JSON.stringify({ email }) }, token),
   deleteClient: (id: string, token: string) =>
     req<{
       ok: true

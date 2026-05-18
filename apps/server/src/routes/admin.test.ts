@@ -37,10 +37,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Hoisted Prisma mock. Path is literal (relative to this test file), per
 // TESTING.md "Mocking conventions". Only the models the schedule routes
 // (and requireAdmin) touch.
-vi.mock('../db.js', () => ({
-  prisma: {
+vi.mock('../db.js', () => {
+  // $transaction callback form: invoke with the same prisma mock so the
+  // route's `tx.account.findUnique` etc. hit the same mocks as direct calls.
+  // Tests override individual model fns per-case via mockResolvedValueOnce.
+  const mock: any = {
     account: {
       findUnique: vi.fn(),
+      create: vi.fn(),
     },
     store: {
       findUnique: vi.fn(),
@@ -52,8 +56,16 @@ vi.mock('../db.js', () => ({
       update: vi.fn(),
       delete: vi.fn(),
     },
-  },
-}))
+    client: {
+      findUnique: vi.fn(),
+    },
+    clientMembership: {
+      create: vi.fn(),
+    },
+    $transaction: vi.fn(async (cb: (tx: any) => unknown) => cb(mock)),
+  }
+  return { prisma: mock }
+})
 
 // Bypass JWT signing by stubbing `verify` to return a known admin payload
 // for the magic test token. requireAdmin still re-fetches the account row
@@ -628,5 +640,249 @@ describe('admin routes — schedule slots', () => {
       expect(res.statusCode).toBe(401)
       expect(slotDelete).not.toHaveBeenCalled()
     })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────
+// POST /admin/clients/:id/owner — attach an Account as Client owner.
+// Closes the "operator-managed Client" gap (Client with zero memberships).
+// ─────────────────────────────────────────────────────────────────────────
+
+const clientFindUnique = prisma.client.findUnique as ReturnType<typeof vi.fn>
+const membershipCreate = prisma.clientMembership.create as ReturnType<typeof vi.fn>
+const accountCreate = prisma.account.create as ReturnType<typeof vi.fn>
+
+const CLIENT_ID = 'client-dddddddd-dddd-dddd-dddd-dddddddddddd'
+const ACCOUNT_ID = 'acct-eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
+const OTHER_CLIENT_ID = 'client-ffffffff-ffff-ffff-ffff-ffffffffffff'
+
+describe('admin routes — attach owner', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    seedAdminAccount()
+  })
+
+  it('creates a new Account + ClientMembership when neither exists', async () => {
+    // findUnique is called twice: first by requireAdmin (admin row), then by
+    // the route to look up the target email (returns null → triggers create).
+    // Override both with explicit Once mocks; the default seedAdminAccount
+    // value would be consumed by requireAdmin and leave the route call also
+    // hitting the admin row, which doesn't match the email lookup shape.
+    accountFindUnique.mockReset()
+    accountFindUnique.mockResolvedValueOnce({
+      id: 'op-admin-001', email: 'admin@example.com', isAdmin: true, disabledAt: null, tokenVersion: 7,
+    }) // requireAdmin
+    accountFindUnique.mockResolvedValueOnce(null) // route lookup by email
+    accountCreate.mockResolvedValue({
+      id: ACCOUNT_ID,
+      email: 'daniel+untuckit@entuned.co',
+      name: null,
+      isAdmin: false,
+      disabledAt: null,
+    })
+    clientFindUnique.mockResolvedValue({ id: CLIENT_ID, companyName: 'Untuckit' })
+    membershipCreate.mockResolvedValue({ id: 'mem-1', role: 'owner', createdAt: new Date('2026-05-18T00:00:00Z') })
+
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: `/clients/${CLIENT_ID}/owner`,
+      headers: AUTH,
+      payload: { email: 'Daniel+Untuckit@entuned.co' },
+    })
+
+    expect(res.statusCode).toBe(201)
+    const body = res.json()
+    expect(body.created).toBe(true)
+    expect(body.accountCreated).toBe(true)
+    expect(body.role).toBe('owner')
+    expect(body.client).toEqual({ id: CLIENT_ID, companyName: 'Untuckit' })
+    expect(body.account.email).toBe('daniel+untuckit@entuned.co')
+
+    // Email was normalized before Account.create
+    expect(accountCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: { email: 'daniel+untuckit@entuned.co' },
+    }))
+    expect(membershipCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: { clientId: CLIENT_ID, accountId: ACCOUNT_ID, role: 'owner' },
+    }))
+  })
+
+  it('attaches an existing Account that has no memberships', async () => {
+    // Second findUnique call = the Account-by-email lookup. seedAdminAccount
+    // already set up .mockResolvedValue, so we use mockResolvedValueOnce to
+    // make the FIRST call return the admin and SECOND return the target.
+    // Simpler approach: chain the queue using mockResolvedValueOnce twice.
+    accountFindUnique.mockReset()
+    accountFindUnique.mockResolvedValueOnce({
+      id: 'op-admin-001', email: 'admin@example.com', isAdmin: true, disabledAt: null, tokenVersion: 7,
+    }) // requireAdmin
+    accountFindUnique.mockResolvedValueOnce({
+      id: ACCOUNT_ID,
+      email: 'daniel+untuckit@entuned.co',
+      name: null,
+      isAdmin: false,
+      disabledAt: null,
+      memberships: [],
+    })
+    clientFindUnique.mockResolvedValue({ id: CLIENT_ID, companyName: 'Untuckit' })
+    membershipCreate.mockResolvedValue({ id: 'mem-1', role: 'owner', createdAt: new Date() })
+
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: `/clients/${CLIENT_ID}/owner`,
+      headers: AUTH,
+      payload: { email: 'daniel+untuckit@entuned.co' },
+    })
+
+    expect(res.statusCode).toBe(201)
+    expect(res.json().created).toBe(true)
+    expect(res.json().accountCreated).toBe(false)
+    expect(accountCreate).not.toHaveBeenCalled()
+    expect(membershipCreate).toHaveBeenCalledOnce()
+  })
+
+  it('is idempotent when the membership already exists', async () => {
+    accountFindUnique.mockReset()
+    accountFindUnique.mockResolvedValueOnce({
+      id: 'op-admin-001', email: 'admin@example.com', isAdmin: true, disabledAt: null, tokenVersion: 7,
+    })
+    accountFindUnique.mockResolvedValueOnce({
+      id: ACCOUNT_ID,
+      email: 'daniel+untuckit@entuned.co',
+      name: null,
+      isAdmin: false,
+      disabledAt: null,
+      memberships: [{ clientId: CLIENT_ID, role: 'owner' }],
+    })
+    clientFindUnique.mockResolvedValue({ id: CLIENT_ID, companyName: 'Untuckit' })
+
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: `/clients/${CLIENT_ID}/owner`,
+      headers: AUTH,
+      payload: { email: 'daniel+untuckit@entuned.co' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json().created).toBe(false)
+    expect(membershipCreate).not.toHaveBeenCalled()
+  })
+
+  it('refuses (409) when the Account is already attached to a different Client', async () => {
+    accountFindUnique.mockReset()
+    accountFindUnique.mockResolvedValueOnce({
+      id: 'op-admin-001', email: 'admin@example.com', isAdmin: true, disabledAt: null, tokenVersion: 7,
+    })
+    accountFindUnique.mockResolvedValueOnce({
+      id: ACCOUNT_ID,
+      email: 'daniel+untuckit@entuned.co',
+      name: null,
+      isAdmin: false,
+      disabledAt: null,
+      memberships: [{ clientId: OTHER_CLIENT_ID, role: 'owner' }],
+    })
+    clientFindUnique.mockResolvedValue({ id: CLIENT_ID, companyName: 'Untuckit' })
+
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: `/clients/${CLIENT_ID}/owner`,
+      headers: AUTH,
+      payload: { email: 'daniel+untuckit@entuned.co' },
+    })
+
+    expect(res.statusCode).toBe(409)
+    expect(res.json()).toEqual({
+      error: 'account_already_attached',
+      otherClientId: OTHER_CLIENT_ID,
+      message: 'Account is already a member of a different Client. Clear that membership first.',
+    })
+    expect(membershipCreate).not.toHaveBeenCalled()
+  })
+
+  it('refuses (409) when the Account is disabled', async () => {
+    accountFindUnique.mockReset()
+    accountFindUnique.mockResolvedValueOnce({
+      id: 'op-admin-001', email: 'admin@example.com', isAdmin: true, disabledAt: null, tokenVersion: 7,
+    })
+    accountFindUnique.mockResolvedValueOnce({
+      id: ACCOUNT_ID,
+      email: 'daniel+untuckit@entuned.co',
+      name: null,
+      isAdmin: false,
+      disabledAt: new Date('2026-01-01T00:00:00Z'),
+      memberships: [],
+    })
+    clientFindUnique.mockResolvedValue({ id: CLIENT_ID, companyName: 'Untuckit' })
+
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: `/clients/${CLIENT_ID}/owner`,
+      headers: AUTH,
+      payload: { email: 'daniel+untuckit@entuned.co' },
+    })
+
+    expect(res.statusCode).toBe(409)
+    expect(res.json()).toEqual({ error: 'account_disabled' })
+    expect(membershipCreate).not.toHaveBeenCalled()
+  })
+
+  it('returns 404 when the Client does not exist', async () => {
+    clientFindUnique.mockResolvedValue(null)
+
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: `/clients/${CLIENT_ID}/owner`,
+      headers: AUTH,
+      payload: { email: 'daniel+untuckit@entuned.co' },
+    })
+
+    expect(res.statusCode).toBe(404)
+    expect(res.json()).toEqual({ error: 'client_not_found' })
+    expect(membershipCreate).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 on bad body (zod — invalid email)', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: `/clients/${CLIENT_ID}/owner`,
+      headers: AUTH,
+      payload: { email: 'not-an-email' },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toBe('bad_body')
+    expect(clientFindUnique).not.toHaveBeenCalled()
+  })
+
+  it('returns 401 when no Authorization header is sent', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: `/clients/${CLIENT_ID}/owner`,
+      payload: { email: 'daniel+untuckit@entuned.co' },
+    })
+
+    expect(res.statusCode).toBe(401)
+    expect(clientFindUnique).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 when the token is valid but the operator is not admin', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: `/clients/${CLIENT_ID}/owner`,
+      headers: { authorization: 'Bearer non-admin-test-token' },
+      payload: { email: 'daniel+untuckit@entuned.co' },
+    })
+
+    expect(res.statusCode).toBe(403)
+    expect(clientFindUnique).not.toHaveBeenCalled()
   })
 })

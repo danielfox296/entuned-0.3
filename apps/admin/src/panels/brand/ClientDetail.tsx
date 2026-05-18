@@ -21,6 +21,8 @@ export function ClientDetail({ onClientsChanged, selectedClient: _summary }: {
   const [deleteArmed, setDeleteArmed] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleteBusy, setDeleteBusy] = useState(false)
+  const [attachEmail, setAttachEmail] = useState('')
+  const [attachBusy, setAttachBusy] = useState(false)
   const toast = useToast()
 
   useEffect(() => {
@@ -78,6 +80,29 @@ export function ClientDetail({ onClientsChanged, selectedClient: _summary }: {
     }
   }
 
+  const attachOwner = async () => {
+    if (!client) return
+    const email = attachEmail.trim()
+    if (!email) return
+    const token = getToken(); if (!token) return
+    setAttachBusy(true); setErr(null)
+    try {
+      const res = await api.attachClientOwner(client.id, email, token)
+      const verb = res.created ? 'attached' : 'already attached'
+      const accountNote = res.accountCreated ? ' (new Account created)' : ''
+      toast.success(`${verb} ${res.account.email} as ${res.role}${accountNote}`)
+      // Refresh client so the PLG badge + ownerEmail update.
+      const refreshed = await api.clientDetail(client.id, token)
+      setClient(refreshed)
+      setAttachEmail('')
+      onClientsChanged?.()
+    } catch (e: any) {
+      setErr(e.message); toast.error(e.message ?? 'failed to attach owner')
+    } finally {
+      setAttachBusy(false)
+    }
+  }
+
   const save = async () => {
     if (!client || !draft || !dirty) return
     const token = getToken(); if (!token) return
@@ -120,7 +145,7 @@ export function ClientDetail({ onClientsChanged, selectedClient: _summary }: {
 
       {client && draft && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: T.sans, fontSize: S.small }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: T.sans, fontSize: S.small, flexWrap: 'wrap' }}>
             {client.isPlg && (
               <span style={{
                 background: T.accent, color: T.bg, padding: '2px 8px',
@@ -132,10 +157,24 @@ export function ClientDetail({ onClientsChanged, selectedClient: _summary }: {
                 background: T.surfaceRaised, color: T.textDim, padding: '2px 8px',
                 border: `1px solid ${T.borderSubtle}`,
                 borderRadius: 3, fontSize: 11, fontWeight: 600, letterSpacing: '0.04em',
-              }}>OPERATOR-MANAGED</span>
+              }}>NO OWNER</span>
             )}
             {client.ownerEmail && (
               <span style={{ color: T.textMuted }}>owner: {client.ownerEmail}</span>
+            )}
+            {!client.isPlg && (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 'auto' }}>
+                <Input
+                  placeholder="owner email"
+                  value={attachEmail}
+                  onChange={(e) => setAttachEmail(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void attachOwner() }}
+                  style={{ width: 240 }}
+                />
+                <Button onClick={() => void attachOwner()} disabled={!attachEmail.trim()} busy={attachBusy}>
+                  {attachBusy ? 'attaching…' : 'attach owner'}
+                </Button>
+              </div>
             )}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
