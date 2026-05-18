@@ -4,12 +4,22 @@
 // Both prompts are DB-backed; `getOrSeed*` cold-starts v1 from the seed text in
 // proto-bernie/lyrics.ts so the migration window is invisible. The Submission row
 // captures both prompt versions for full provenance.
+//
+// EXPERIMENT SURFACE — Bernie-1 / Bernie-2 pair.
+//   This file (bernie.ts) is the Bernie-1 lyric generator, called from the
+//   Eno-1 pipeline (../eno/eno.ts). Its sibling bernie-v2.ts is the genre-aware
+//   Bernie-2 variant called from the Eno-2 pipeline (../eno/eno-v2.ts).
+//   Bernie-1 is the production default — Eno-1 is default, see ../eno/README.md.
+//   The two files share helper code via ./_helpers.ts. See ../eno/README.md
+//   for the diff inventory and the rule that this pair is an opt-in
+//   experiment surface whose shape may change.
 
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../db.js'
-import { DRAFT_PROMPT_SEED, EDIT_PROMPT_SEED } from '../proto-bernie/lyrics.js'
+import { EDIT_PROMPT_SEED } from '../proto-bernie/lyrics.js'
 import type { ArrangementSections } from '../arranger/arranger.js'
 import type { FormArchetypeChoice } from '../eno/form-archetype.js'
+import { formatArrangementBrief, getOrSeedDraftPrompt, parseLyricJson } from './_helpers.js'
 
 const MODEL = process.env.LYRICIST_MODEL ?? 'claude-sonnet-4-5'
 
@@ -24,48 +34,12 @@ export interface BernieInput {
   formArchetype?: FormArchetypeChoice | null
 }
 
-const SECTION_ORDER = ['intro', 'verse', 'pre_chorus', 'chorus', 'bridge', 'outro'] as const
-
-// Serializes the decomposer's per-section instrumentation map into a brief prose
-// brief for Bernie. Bernie uses this to match lyric density, phrasing, and energy
-// to the arrangement shape — denser sections want more word weight, minimal
-// sections want breathing room. Bernie should NOT name instruments in the lyrics
-// themselves (that's the Arranger's job via [Instrument: ...] tags).
-function formatArrangementBrief(sections: ArrangementSections): string {
-  const lines: string[] = []
-  for (const key of SECTION_ORDER) {
-    const directive = sections[key]
-    if (!directive || directive.instruments.length === 0) continue
-    const density = directive.density ?? 'medium'
-    const instruments = directive.instruments.slice(0, 3).join(', ')
-    const label = key === 'pre_chorus' ? 'pre-chorus' : key
-    const extras: string[] = []
-    if (directive.dynamic) extras.push(directive.dynamic)
-    if (directive.vocal_delivery) extras.push(directive.vocal_delivery)
-    const extrasStr = extras.length > 0 ? ` (${extras.join(', ')})` : ''
-    lines.push(`- ${label}: ${density}${extrasStr} — ${instruments}`)
-  }
-  if (lines.length === 0) return ''
-  return `Arrangement (per section — match lyric density and energy to this; do NOT name instruments in the lyric lines):
-${lines.join('\n')}
-`
-}
-
 export interface BernieOutput {
   title: string
   lyrics: string
   draft: { title: string; lyrics: string }
   draftPromptVersion: number
   editPromptVersion: number
-}
-
-async function getOrSeedDraftPrompt(): Promise<{ version: number; promptText: string }> {
-  const row = await prisma.lyricDraftPrompt.findFirst({ orderBy: { version: 'desc' } })
-  if (row) return { version: row.version, promptText: row.promptText }
-  const seeded = await prisma.lyricDraftPrompt.create({
-    data: { version: 1, promptText: DRAFT_PROMPT_SEED, notes: 'Auto-seeded v1' },
-  })
-  return { version: seeded.version, promptText: seeded.promptText }
 }
 
 async function getOrSeedEditPrompt(): Promise<{ version: number; promptText: string }> {
@@ -86,15 +60,6 @@ function countOccurrences(haystack: string, needle: string): number {
     idx += needle.length
   }
   return count
-}
-
-function parseLyricJson(text: string): { title: string; lyrics: string } {
-  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-  const start = cleaned.indexOf('{')
-  if (start < 0) throw new Error('No JSON in lyricist output')
-  const parsed = JSON.parse(cleaned.slice(start)) as { title?: string; lyrics?: string }
-  if (!parsed.title || !parsed.lyrics) throw new Error('Lyricist output missing title or lyrics')
-  return { title: parsed.title, lyrics: parsed.lyrics }
 }
 
 export async function generateLyrics(input: BernieInput): Promise<BernieOutput> {
