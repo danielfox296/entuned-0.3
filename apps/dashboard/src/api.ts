@@ -6,38 +6,12 @@
 // app uses a Bearer token in localStorage; we deliberately do not duplicate
 // that pattern here.
 
+import { createRequestClient } from '@entuned/api-client'
+
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 export const PLAYER_URL = import.meta.env.VITE_PLAYER_URL ?? 'https://music.entuned.co'
 
-async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers: Record<string, string> = {
-    ...(init.headers as Record<string, string> | undefined),
-  }
-  if (init.body != null) headers['Content-Type'] = 'application/json'
-  const res = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers,
-    credentials: 'include',
-  })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    // If the server sent a structured `{error, message}` payload, surface
-    // `message` as the Error's message so UI code can display it directly.
-    let parsed: { error?: string; message?: string } | null = null
-    try { parsed = JSON.parse(body) } catch { /* not json */ }
-    if (parsed?.message) {
-      const e = new Error(parsed.message) as Error & { status?: number; code?: string }
-      e.status = res.status
-      e.code = parsed.error
-      throw e
-    }
-    throw new Error(`${res.status} ${res.statusText}: ${body}`)
-  }
-  // Some endpoints (logout etc.) return 204 — guard json parse.
-  const ct = res.headers.get('content-type') ?? ''
-  if (!ct.includes('application/json')) return undefined as unknown as T
-  return res.json() as Promise<T>
-}
+const { req } = createRequestClient({ baseUrl: API_URL, credentials: 'include' })
 
 // ── Types ─────────────────────────────────────────────────────────
 

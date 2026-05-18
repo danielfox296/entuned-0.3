@@ -15,6 +15,9 @@ importers:
 
   apps/admin:
     dependencies:
+      '@entuned/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@entuned/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens
@@ -46,6 +49,9 @@ importers:
 
   apps/dashboard:
     dependencies:
+      '@entuned/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@entuned/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens
@@ -83,6 +89,9 @@ importers:
 
   apps/player:
     dependencies:
+      '@entuned/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       howler:
         specifier: ^2.2.4
         version: 2.2.4
@@ -214,6 +223,8 @@ importers:
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
+
+  packages/api-client: {}
 
   packages/tokens: {}
 

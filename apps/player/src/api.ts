@@ -1,6 +1,8 @@
 // API client for the entuned-0.3 server.
 // Switch base URL with VITE_API_URL at build time.
 
+import { createRequestClient } from '@entuned/api-client'
+
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
 export interface QueueItem {
@@ -141,16 +143,7 @@ export interface OutgoingEvent {
   idempotency_key?: string | null
 }
 
-async function req<T>(path: string, init: RequestInit = {}, token?: string): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(init.headers as any) }
-  if (token) headers.Authorization = `Bearer ${token}`
-  const res = await fetch(`${API_URL}${path}`, { ...init, headers })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`${res.status} ${res.statusText}: ${body}`)
-  }
-  return res.json() as Promise<T>
-}
+const { req } = createRequestClient({ baseUrl: API_URL })
 
 export const api = {
   login: (email: string, password: string) =>
