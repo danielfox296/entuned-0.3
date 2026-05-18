@@ -4,19 +4,7 @@ Code/behavior items that surfaced during cleanup + test work and were deliberate
 
 When you fix something here, delete the item (don't strike-through). Keep this list short and load-bearing.
 
-Last updated: 2026-05-18 (post Sweeps A+B+C; cleared 3 trivials — lifecycleEmails doc drift, pauseAutoResume guard annotated, tsconfig cruft file). Suite at 677.
-
----
-
-## High-leverage
-
-### `apps/server/src/lib/outcomes.ts` — empty-allowlist fall-through
-
-`pickSystemDefaultOutcomeId` for a free Store falls through to the **unfiltered global default** when the `FreeTierOutcome` allowlist is empty. The "free Stores never get an outcome outside allowlist" invariant only holds when the allowlist is non-empty. If a future seed/migration ever produces an empty allowlist (e.g. an admin deletes all FreeTierOutcome rows), new free Stores get initialized with paid-only outcomes silently.
-
-**Fix**: defensive guard — when free tier AND allowlist empty, return `null` rather than falling through. Caller already handles `null` (leaves field blank).
-
-**Pinned in**: `apps/server/src/lib/outcomes.test.ts` (current behavior is locked, deliberate-change required to fix).
+Last updated: 2026-05-18 (post Sweeps A+B+C + customer-facing followups — cleared slugify first-token-only, outcomes empty-allowlist fall-through, api-client .code-on-error-only-payload). Suite at 679.
 
 ---
 
@@ -39,14 +27,6 @@ POST `/stores/:id/schedule` returns `error: 'store_or_outcome_not_found'` for tw
 The free-tier outcome allowlist guard responds with HTTP 409 `outcome_not_in_free_tier_allowlist`. 409 ("Conflict") is semantically odd here — the request is well-formed and there's no state conflict; the resource just isn't allowed. 403 ("Forbidden") or 422 ("Unprocessable") would be more conventional.
 
 **Fix**: audit the entire codebase's error-status conventions first. If the project consistently uses 409 for "policy-blocked" cases, keep this. If 403/422 are used elsewhere, normalize.
-
-### `apps/server/packages/api-client/src/index.ts` — `buildError` drops `.code` on `{error}`-only responses
-
-When the server returns `{error: 'unauthorized'}` with no `message` field, `buildError` falls through to the raw `${status} ${statusText}: ${body}` shape AND `.code` is left undefined. Callers can't reliably read `.code` on errors unless the server also sent `message`.
-
-**Fix**: always set `.code = parsed.error` if parsed JSON had an `error` field, regardless of `message` presence.
-
-**Pinned in**: `packages/api-client/src/index.test.ts` (current behavior locked).
 
 ### `apps/server/src/lib/compExpiry.ts` — inlines `$transaction` instead of calling `applyTierChange`
 
@@ -91,14 +71,6 @@ After 5 collision retries the function returns `${slugify(name)}-${randomBytes(3
 **Fix**: either tighten the retry budget contract (acknowledge the rare-throw path in JSDoc) or add a final findUnique + escalate suffix length on miss.
 
 **Pinned in**: `apps/server/src/lib/account.test.ts` (current "no uniqueness check on final" behavior locked).
-
-### `apps/server/src/lib/account.ts` — `slugify` keeps only the first whitespace token
-
-`slugify` does `name.split(/\s+/)[0]` before lowering/stripping. So `"Big Sky Outfitters"` → `big-...` (the "sky" and "outfitters" tokens vanish). Probably intentional (short slugs), but worth knowing if a customer ever asks why their slug doesn't include their full business name.
-
-**Fix (optional)**: document the contract in JSDoc, or change to join all tokens with `-` and cap length.
-
-**Pinned in**: `apps/server/src/lib/account.test.ts` (current first-token-only behavior locked).
 
 ### `apps/server/packages/api-client/src/index.ts` — `baseUrl` naive concat
 

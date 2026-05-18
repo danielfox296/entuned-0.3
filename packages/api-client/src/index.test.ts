@@ -30,7 +30,7 @@ describe('buildError', () => {
     expect(err.code).toBe('bad_input')
   })
 
-  it('falls through to raw shape when JSON has {error} but no message', async () => {
+  it('attaches .code from {error} even when message is absent (raw shape used for message)', async () => {
     const body = JSON.stringify({ error: 'oops' })
     const res = new Response(body, {
       status: 500,
@@ -38,9 +38,11 @@ describe('buildError', () => {
       headers: { 'content-type': 'application/json' },
     })
     const err = await buildError(res)
+    // No message in payload → fall back to raw shape for human-readable text.
     expect(err.message).toBe(`500 Internal Server Error: ${body}`)
     expect(err.status).toBe(500)
-    expect(err.code).toBeUndefined()
+    // But .code is set so callers can branch on the stable error code.
+    expect(err.code).toBe('oops')
   })
 
   it('uses message when JSON has message but no error field; code is undefined', async () => {

@@ -235,22 +235,20 @@ describe('pickSystemDefaultOutcomeId — free-tier path', () => {
     expect(fallbackCall?.orderBy).toEqual([{ title: 'asc' }, { version: 'desc' }])
   })
 
-  it('returns the global default (not allowlist-bounded) when allowlist is empty', async () => {
-    // Source quirk: if allowed.size === 0, the inner loop's "allowed.has" guard
-    // is bypassed (so any candidate would pass), but the candidates query
-    // itself returns nothing here, so we fall through to the global default
-    // findFirst — which is NOT constrained to the (empty) allowlist.
+  it('returns null for free tier when the FreeTierOutcome allowlist is empty', async () => {
+    // Hard invariant: free Stores never get an outcome outside the allowlist.
+    // An empty allowlist (admin deleted all rows, fresh DB without seed, etc.)
+    // returns null rather than falling through to the global default — which
+    // would silently leak paid-only outcomes into free Stores.
     outcomeFindMany.mockResolvedValueOnce([])
     freeTierFindMany.mockResolvedValueOnce([])
-    outcomeFindFirst.mockResolvedValueOnce({ id: 'id-global-default' })
 
     const result = await pickSystemDefaultOutcomeId('free')
 
-    expect(result).toBe('id-global-default')
-    // The fallback call must NOT include an outcomeKey filter — it's the
-    // global default findFirst at the bottom of the function.
-    const lastCall = outcomeFindFirst.mock.calls.at(-1)?.[0]
-    expect(lastCall?.where).toEqual({ supersededAt: null })
+    expect(result).toBeNull()
+    // Crucially: no outcome.findFirst should fire — bailing early on the
+    // empty-allowlist guard prevents the silent-leak fall-through.
+    expect(outcomeFindFirst).not.toHaveBeenCalled()
   })
 
   it('returns null when allowlist is non-empty but every referenced outcome is superseded', async () => {
@@ -269,29 +267,27 @@ describe('pickSystemDefaultOutcomeId — free-tier path', () => {
     expect(result).toBeNull()
   })
 
-  it('NEVER returns an outcome outside the allowlist (negative test: global alphabetic first is filtered out)', async () => {
+  it('NEVER returns an outcome outside the allowlist (negative test: no fall-through to global default)', async () => {
     // Preference query returns nothing matching chill/steady/upbeat names.
     outcomeFindMany.mockResolvedValueOnce([])
     // Allowlist contains only 'steady', but no live outcomes have outcomeKey 'steady'.
     freeTierFindMany.mockResolvedValueOnce([{ outcomeKey: 'steady' }])
     // Constrained fallback finds nothing inside the allowlist.
     outcomeFindFirst.mockResolvedValueOnce(null)
-    // Global findFirst would return "addict-energy" — but the caller in
-    // production must not surface this because it's not allowlisted. The
-    // function as currently written DOES fall through to global; this test
-    // documents the contract that the constrained fallback was called with
-    // an allowlist filter, and that we never returned a non-allowlist id
-    // from the constrained branch.
-    outcomeFindFirst.mockResolvedValueOnce({ id: 'id-not-allowlisted' })
 
     const result = await pickSystemDefaultOutcomeId('free')
 
     // The constrained fallback (call #0) MUST have been called with the
     // allowlist filter — this is the load-bearing guarantee that a free-tier
-    // store can never get a non-allowlisted default from THIS path.
+    // store can never get a non-allowlisted default.
     const constrainedCall = outcomeFindFirst.mock.calls[0]?.[0]
     expect(constrainedCall?.where?.outcomeKey?.in).toEqual(['steady'])
-    expect(result).toBe('id-not-allowlisted') // pinning current behavior of global fallthrough
+    // When no allowlisted outcome can be found, return null rather than
+    // falling through to the global default (which would leak paid-only
+    // outcomes into free Stores).
+    expect(result).toBeNull()
+    // No second findFirst — global fall-through must not run on the free path.
+    expect(outcomeFindFirst).toHaveBeenCalledTimes(1)
   })
 
   it('matches preference by displayTitle when title differs (case-insensitive)', async () => {

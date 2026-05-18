@@ -79,24 +79,30 @@ export async function pickSystemDefaultOutcomeId(tier?: string): Promise<string 
         .map((r) => r.outcomeKey),
     )
 
+    // Hard invariant: free-tier Stores never get an outcome outside the
+    // FreeTierOutcome allowlist. If the allowlist is empty (admin deleted
+    // all rows, fresh DB without seed, etc.), return null rather than
+    // falling through to the global default — which would silently leak
+    // paid-only outcomes into free Stores. Caller (account.ts) handles
+    // null by leaving Store.defaultOutcomeId blank.
+    if (allowed.size === 0) return null
+
     for (const pref of FREE_TIER_PREFERENCE) {
       const hit = candidates.find((o) => {
         const t = (o.displayTitle ?? o.title).toLowerCase()
-        return t === pref && (allowed.size === 0 || allowed.has(o.outcomeKey))
+        return t === pref && allowed.has(o.outcomeKey)
       })
       if (hit) return hit.id
     }
 
-    // Final fallback: first allowed outcome alphabetically. If the allowlist
-    // is empty, fall through to the global default below.
-    if (allowed.size > 0) {
-      const fallback = await prisma.outcome.findFirst({
-        where: { supersededAt: null, outcomeKey: { in: Array.from(allowed) } },
-        orderBy: [{ title: 'asc' }, { version: 'desc' }],
-        select: { id: true },
-      })
-      if (fallback) return fallback.id
-    }
+    // Final fallback: first allowed outcome alphabetically.
+    const fallback = await prisma.outcome.findFirst({
+      where: { supersededAt: null, outcomeKey: { in: Array.from(allowed) } },
+      orderBy: [{ title: 'asc' }, { version: 'desc' }],
+      select: { id: true },
+    })
+    if (fallback) return fallback.id
+    return null
   }
 
   // Default path: alphabetically-first non-superseded Outcome.

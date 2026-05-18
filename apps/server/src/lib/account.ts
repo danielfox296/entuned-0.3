@@ -17,10 +17,40 @@ import { pickSystemDefaultOutcomeId } from './outcomes.js'
 const PLAYER_URL = process.env.PLAYER_URL ?? 'https://music.entuned.co'
 const APP_URL = process.env.APP_URL ?? 'https://app.entuned.co'
 
+// Slugs end up in the customer's player URL (music.entuned.co/<slug>), so
+// they should be recognizable as the business name. Total slug length is
+// capped at 40 chars including the `-XXXX` random suffix; that leaves 35
+// chars for the name portion, which fits most real business names without
+// producing ugly URLs.
+const MAX_SLUG_LENGTH = 40
+const SUFFIX_LENGTH = 5 // dash + 4 hex chars
+const MAX_BASE_LENGTH = MAX_SLUG_LENGTH - SUFFIX_LENGTH
+
 function slugify(name: string): string {
-  const first = (name.trim().split(/\s+/)[0] ?? 'store').toLowerCase().replace(/[^a-z0-9]/g, '')
+  // Tokenize on whitespace, lowercase, strip non-[a-z0-9] within each token,
+  // drop empties. Then pack tokens joined by '-' while staying ≤ MAX_BASE_LENGTH.
+  // If the first token alone exceeds the cap, hard-truncate it.
+  const tokens = name
+    .toLowerCase()
+    .split(/\s+/)
+    .map((t) => t.replace(/[^a-z0-9]/g, ''))
+    .filter(Boolean)
+
+  let base = ''
+  for (const tok of tokens) {
+    const next = base ? `${base}-${tok}` : tok
+    if (next.length <= MAX_BASE_LENGTH) {
+      base = next
+    } else if (!base) {
+      base = tok.slice(0, MAX_BASE_LENGTH)
+      break
+    } else {
+      break
+    }
+  }
+
   const suffix = randomBytes(2).toString('hex')
-  return `${first || 'store'}-${suffix}`
+  return `${base || 'store'}-${suffix}`
 }
 
 export async function uniqueStoreSlug(name: string): Promise<string> {

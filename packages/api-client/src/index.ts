@@ -13,22 +13,19 @@ export type ApiError = Error & { status: number; code?: string }
 
 /**
  * Parse a non-OK Response into an Error. If the server sent a structured
- * `{error, message}` JSON payload, surface `message` as the Error message and
- * attach `status` + `code`. Otherwise fall back to the raw
- * `${status} ${statusText}: ${body}` shape so callers still see something.
+ * JSON payload with an `error` field, attach it as `.code` so callers can
+ * branch on stable codes regardless of whether the server also sent a
+ * `message`. If `message` is present, use it as the Error message; otherwise
+ * fall back to the raw `${status} ${statusText}: ${body}` shape.
  */
 export async function buildError(res: Response): Promise<ApiError> {
   const body = await res.text().catch(() => '')
   let parsed: { error?: string; message?: string } | null = null
   try { parsed = JSON.parse(body) } catch { /* not json */ }
-  if (parsed?.message) {
-    const e = new Error(parsed.message) as ApiError
-    e.status = res.status
-    e.code = parsed.error
-    return e
-  }
-  const e = new Error(`${res.status} ${res.statusText}: ${body}`) as ApiError
+  const message = parsed?.message ?? `${res.status} ${res.statusText}: ${body}`
+  const e = new Error(message) as ApiError
   e.status = res.status
+  if (parsed?.error) e.code = parsed.error
   return e
 }
 

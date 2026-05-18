@@ -92,27 +92,50 @@ describe('uniqueStoreSlug', () => {
     expect(storeFindUnique).toHaveBeenCalledWith({ where: { slug: 'acme-1a2b' } })
   })
 
-  it('strips non-alphanumeric characters and lowercases the first word', async () => {
+  it('strips non-alphanumeric characters and lowercases each token, joining with hyphens', async () => {
     setRandomBytesSequence(['ffff'])
     storeFindUnique.mockResolvedValueOnce(null)
 
     const slug = await uniqueStoreSlug("O'Reilly's Bookstore")
 
-    // Only the first whitespace-split token is used, punctuation stripped,
-    // lowercased: "O'Reilly's" → "oreillys".
-    expect(slug).toBe('oreillys-ffff')
+    // Both tokens survive, punctuation stripped, lowercased, joined by '-':
+    // "O'Reilly's" → "oreillys", "Bookstore" → "bookstore".
+    expect(slug).toBe('oreillys-bookstore-ffff')
   })
 
-  it('uses only the first whitespace-delimited token of the name', async () => {
+  it('joins all whitespace-delimited tokens with hyphens', async () => {
     setRandomBytesSequence(['dead'])
     storeFindUnique.mockResolvedValueOnce(null)
 
     const slug = await uniqueStoreSlug('Big Sky Outfitters')
 
-    // slugify uses split(/\s+/)[0] → only "Big" survives. "Sky Outfitters"
-    // is discarded. (Pinning current behavior; if multi-word slugs become
-    // desirable, the source needs to change.)
-    expect(slug).toBe('big-dead')
+    expect(slug).toBe('big-sky-outfitters-dead')
+  })
+
+  it('truncates at a word boundary when joined tokens would exceed the cap', async () => {
+    setRandomBytesSequence(['cafe'])
+    storeFindUnique.mockResolvedValueOnce(null)
+
+    // "big sky outfitters mountain trading company" lowercased:
+    //   'big-sky-outfitters-mountain-trading' = 35 chars (the base cap)
+    //   adding '-company' would push past 35, so 'company' is dropped.
+    // Final slug: 35 + '-cafe' = 40 chars (the slug cap).
+    const slug = await uniqueStoreSlug('Big Sky Outfitters Mountain Trading Company')
+
+    expect(slug).toBe('big-sky-outfitters-mountain-trading-cafe')
+    expect(slug.length).toBe(40)
+  })
+
+  it('hard-truncates a single very long token to fit the cap', async () => {
+    setRandomBytesSequence(['feed'])
+    storeFindUnique.mockResolvedValueOnce(null)
+
+    // No spaces; one 50-char token. With no word boundary to break at,
+    // hard-truncate the token to 35 chars before appending the suffix.
+    const slug = await uniqueStoreSlug('supercalifragilisticexpialidociousfantasticness')
+
+    expect(slug).toBe('supercalifragilisticexpialidociousf-feed')
+    expect(slug.length).toBe(40)
   })
 
   it('falls back to "store" when the cleaned first token is empty', async () => {
@@ -143,15 +166,14 @@ describe('uniqueStoreSlug', () => {
     expect(slug).toBe('store-c0de')
   })
 
-  it('strips unicode characters that are not [a-z0-9]', async () => {
+  it('strips unicode characters that are not [a-z0-9] from each token', async () => {
     setRandomBytesSequence(['1234'])
     storeFindUnique.mockResolvedValueOnce(null)
 
-    // The first token "Café" becomes "café" lowercased, then 'é' (non a-z0-9)
-    // is stripped, leaving "caf".
+    // "Café" lowercased + 'é' stripped → "caf"; "Noir" → "noir"; joined → "caf-noir".
     const slug = await uniqueStoreSlug('Café Noir')
 
-    expect(slug).toBe('caf-1234')
+    expect(slug).toBe('caf-noir-1234')
   })
 
   it('retries when the first generated slug is already taken (collision on attempt 1, free on attempt 2)', async () => {
