@@ -24,10 +24,9 @@ async function req<T>(path: string, init: RequestInit = {}, token?: string): Pro
   if (init.body != null) headers['Content-Type'] = 'application/json'
   if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(`${API_URL}${path}`, { ...init, headers })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`${res.status} ${res.statusText}: ${body}`)
-  }
+  if (!res.ok) throw await buildError(res)
+  const ct = res.headers.get('content-type') ?? ''
+  if (!ct.includes('application/json')) return undefined as unknown as T
   return res.json() as Promise<T>
 }
 
@@ -37,11 +36,26 @@ async function upload<T>(path: string, formData: FormData, token: string): Promi
     body: formData,
     headers: { Authorization: `Bearer ${token}` },
   })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`${res.status} ${res.statusText}: ${body}`)
-  }
+  if (!res.ok) throw await buildError(res)
+  const ct = res.headers.get('content-type') ?? ''
+  if (!ct.includes('application/json')) return undefined as unknown as T
   return res.json() as Promise<T>
+}
+
+// If the server sent a structured `{error, message}` payload, surface
+// `message` as the Error's message so UI code can display it directly.
+// Otherwise fall back to the raw `${status} ${statusText}: ${body}` shape.
+async function buildError(res: Response): Promise<Error> {
+  const body = await res.text().catch(() => '')
+  let parsed: { error?: string; message?: string } | null = null
+  try { parsed = JSON.parse(body) } catch { /* not json */ }
+  if (parsed?.message) {
+    const e = new Error(parsed.message) as Error & { status?: number; code?: string }
+    e.status = res.status
+    e.code = parsed.error
+    return e
+  }
+  return new Error(`${res.status} ${res.statusText}: ${body}`)
 }
 
 // --- Types matching Prisma schema ---
