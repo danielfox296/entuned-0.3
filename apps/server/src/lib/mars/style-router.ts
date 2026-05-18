@@ -122,16 +122,6 @@ function buildUserMessage(d: StyleAnalysis, ctx: RouterContext): string {
   return `${metaBlock}# Source decomposition\n\n${blocks.join('\n\n')}\n\n# Task\n\nProduce the 7 slots per the rules. Output JSON only.`
 }
 
-function extractJson(raw: string): string {
-  const trimmed = raw.trim()
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
-  if (fenced) return fenced[1].trim()
-  const start = trimmed.indexOf('{')
-  const end = trimmed.lastIndexOf('}')
-  if (start === -1 || end === -1) return trimmed
-  return trimmed.slice(start, end + 1)
-}
-
 function validate(s: any): asserts s is RouterSlots {
   const required = ['vocal', 'genre_era', 'heroes', 'harmonic_tempo', 'production', 'rhythm_feel', 'mood']
   for (const k of required) {
@@ -178,10 +168,10 @@ export async function routeStylePortion(
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 800,
-    // Extractive slot-routing — low temperature improves consistency. Stop
-    // sequence cuts any prose tail after the JSON closes.
+    // Extractive slot-routing — low temperature improves consistency.
+    // tool_choice forces structured output, so we no longer need a stop
+    // sequence to cut prose tails.
     temperature: 0.3,
-    stop_sequences: ['\n\n\n'],
     system: [
       {
         type: 'text',
@@ -190,22 +180,52 @@ export async function routeStylePortion(
       },
     ],
     messages: [{ role: 'user', content: buildUserMessage(decomposition, ctx) }],
+    tools: [
+      {
+        name: 'emit_slots',
+        description:
+          'Emit the 7 routed slot strings that compose into the Suno style field.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            vocal: { type: 'string' },
+            genre_era: { type: 'string' },
+            heroes: { type: 'string' },
+            harmonic_tempo: { type: 'string' },
+            production: { type: 'string' },
+            rhythm_feel: {
+              type: 'string',
+              description:
+                'Empty string if the source does not call out a non-obvious rhythm character.',
+            },
+            mood: { type: 'string' },
+          },
+          required: [
+            'vocal',
+            'genre_era',
+            'heroes',
+            'harmonic_tempo',
+            'production',
+            'rhythm_feel',
+            'mood',
+          ],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool', name: 'emit_slots' },
   })
 
-  const textBlocks = response.content.filter((b: any) => b.type === 'text') as any[]
-  if (textBlocks.length === 0) throw new Error('Router returned no text content')
-  const raw = textBlocks[textBlocks.length - 1].text as string
-
-  const cleaned = extractJson(raw)
-  let slots: RouterSlots
+  const toolUse = response.content.find(
+    (b: any) => b.type === 'tool_use' && (b as any).name === 'emit_slots',
+  ) as any
+  if (!toolUse) throw new Error('Router did not emit tool_use')
+  const slots = toolUse.input as RouterSlots
   try {
-    const parsed = JSON.parse(cleaned)
-    validate(parsed)
-    slots = parsed
+    validate(slots)
   } catch (e) {
-    console.error('--- router raw output (parse failed) ---')
-    console.error(raw)
-    console.error('--- end raw output ---')
+    console.error('--- router tool_use input (validation failed) ---')
+    console.error(JSON.stringify(toolUse.input))
+    console.error('--- end tool_use input ---')
     throw e
   }
 

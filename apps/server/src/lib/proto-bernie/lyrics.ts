@@ -23,6 +23,19 @@ export interface LyricOutput {
 
 const NO_GO_BLOCK = formatNoGoBlockSync()
 
+const EMIT_LYRICS_TOOL: Anthropic.Tool = {
+  name: 'emit_lyrics',
+  description: 'Emit the song title and full lyrics with Suno [Section] markers. The hook must appear verbatim wherever the form note instructs.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: 'Short title for the song.' },
+      lyrics: { type: 'string', description: 'Full lyrics with [Section] markers (e.g., [Verse 1], [Chorus], [Bridge], [Final Chorus]).' },
+    },
+    required: ['title', 'lyrics'],
+  },
+}
+
 export const DRAFT_PROMPT_SEED = `
 You write lyrics for a brand's in-store music. The hook is given to you — the rest is
 yours to write around. Match the hook's voice, mood, and rhythm. Keep verses short and
@@ -99,15 +112,13 @@ Write the lyrics now. Output the JSON only.`
     max_tokens: 2000,
     system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: userMessage }],
+    tools: [EMIT_LYRICS_TOOL],
+    tool_choice: { type: 'tool', name: 'emit_lyrics' },
   })
 
-  const text = response.content.find((b: any) => b.type === 'text') as any
-  if (!text?.text) throw new Error('Lyricist returned no text')
-
-  const cleaned = text.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-  const start = cleaned.indexOf('{')
-  if (start < 0) throw new Error('No JSON in lyricist output')
-  const parsed = JSON.parse(cleaned.slice(start)) as LyricOutput
+  const toolUse = response.content.find((b: any) => b.type === 'tool_use' && (b as any).name === 'emit_lyrics') as any
+  if (!toolUse) throw new Error('Lyricist did not emit tool_use')
+  const parsed = toolUse.input as LyricOutput
   if (!parsed.title || !parsed.lyrics) throw new Error('Lyricist output missing title or lyrics')
   return parsed
 }

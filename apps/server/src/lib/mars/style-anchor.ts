@@ -90,16 +90,6 @@ function buildUserMessage(d: StyleAnalysis, ctx: AnchorContext): string {
   return `${metaBlock}# Source decomposition\n\n${blocks.join('\n\n')}\n\n# Task\n\nPick anchor, corrections, and sub_attractors per the rules. JSON only.`
 }
 
-function extractJson(raw: string): string {
-  const trimmed = raw.trim()
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
-  if (fenced) return fenced[1].trim()
-  const start = trimmed.indexOf('{')
-  const end = trimmed.lastIndexOf('}')
-  if (start === -1 || end === -1) return trimmed
-  return trimmed.slice(start, end + 1)
-}
-
 function validate(p: any): asserts p is AnchorPick {
   if (typeof p?.anchor !== 'string' || p.anchor.trim().length === 0) {
     throw new Error('Anchor missing or empty')
@@ -151,9 +141,9 @@ export async function buildAnchorStyle(
     model: MODEL,
     max_tokens: 600,
     // Anchor picking is extractive over a small vocabulary — low temperature
-    // reduces drift across repeat calls. Stop sequence cuts prose tails.
+    // reduces drift across repeat calls. tool_choice forces structured output,
+    // so we no longer need a stop sequence to cut prose tails.
     temperature: 0.3,
-    stop_sequences: ['\n\n\n'],
     system: [
       {
         type: 'text',
@@ -162,22 +152,48 @@ export async function buildAnchorStyle(
       },
     ],
     messages: [{ role: 'user', content: buildUserMessage(decomposition, ctx) }],
+    tools: [
+      {
+        name: 'emit_anchor',
+        description:
+          'Emit the chosen Suno anchor genre tag, surgical corrections, and sub-attractors for the negative-style field.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            anchor: {
+              type: 'string',
+              description:
+                'One genre tag whose centroid points at the right family. Subgenre + decade.',
+            },
+            corrections: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '0-2 short surgical positive phrases.',
+            },
+            sub_attractors: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '4-10 specific things to exclude via negative-style.',
+            },
+          },
+          required: ['anchor', 'corrections', 'sub_attractors'],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool', name: 'emit_anchor' },
   })
 
-  const textBlocks = response.content.filter((b: any) => b.type === 'text') as any[]
-  if (textBlocks.length === 0) throw new Error('Anchor returned no text content')
-  const raw = textBlocks[textBlocks.length - 1].text as string
-
-  const cleaned = extractJson(raw)
-  let pick: AnchorPick
+  const toolUse = response.content.find(
+    (b: any) => b.type === 'tool_use' && (b as any).name === 'emit_anchor',
+  ) as any
+  if (!toolUse) throw new Error('Anchor did not emit tool_use')
+  const pick = toolUse.input as AnchorPick
   try {
-    const parsed = JSON.parse(cleaned)
-    validate(parsed)
-    pick = parsed
+    validate(pick)
   } catch (e) {
-    console.error('--- anchor raw output (parse failed) ---')
-    console.error(raw)
-    console.error('--- end raw output ---')
+    console.error('--- anchor tool_use input (validation failed) ---')
+    console.error(JSON.stringify(toolUse.input))
+    console.error('--- end tool_use input ---')
     throw e
   }
 

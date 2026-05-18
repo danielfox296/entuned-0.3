@@ -109,6 +109,28 @@ JSON only, no prose, no markdown fences:
 Do not number the hooks. Do not repeat any hook from the existing-hooks list.
 `.trim()
 
+const EMIT_HOOKS_TOOL: Anthropic.Tool = {
+  name: 'emit_hooks',
+  description: 'Emit the new candidate hooks. Each hook needs the text and an optional vocal_gender tag (omit when the hook is gender-neutral).',
+  input_schema: {
+    type: 'object',
+    properties: {
+      hooks: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            text: { type: 'string', description: 'The hook line, 4–10 words.' },
+            vocal_gender: { type: 'string', enum: ['male', 'female', 'duet'], description: 'Omit for gender-neutral hooks (the vast majority).' },
+          },
+          required: ['text'],
+        },
+      },
+    },
+    required: ['hooks'],
+  },
+}
+
 export async function getOrSeedHookWriterPrompt(icpId: string): Promise<{ id: string; icpId: string; promptText: string }> {
   const existing = await prisma.hookWriterPrompt.findUnique({ where: { icpId } })
   if (existing) return existing
@@ -305,16 +327,13 @@ async function draftHooksFromOutcomePrompt(opts: {
     max_tokens: 4000,
     system: [{ type: 'text', text: OUTCOME_PROMPT_SYSTEM, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: opts.hookPrompt }],
+    tools: [EMIT_HOOKS_TOOL],
+    tool_choice: { type: 'tool', name: 'emit_hooks' },
   })
 
-  const textBlock = response.content.find((b: any) => b.type === 'text') as any
-  if (!textBlock?.text) throw new Error('Hook drafter returned no text')
-  const raw = textBlock.text as string
-
-  const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-  const start = cleaned.indexOf('{')
-  if (start < 0) throw new Error('No JSON object found in drafter output')
-  const parsed = JSON.parse(cleaned.slice(start)) as { hooks: unknown }
+  const toolUse = response.content.find((b: any) => b.type === 'tool_use' && (b as any).name === 'emit_hooks') as any
+  if (!toolUse) throw new Error('Hook drafter did not emit tool_use')
+  const parsed = toolUse.input as { hooks: unknown }
   if (!Array.isArray(parsed.hooks)) throw new Error('Drafter output missing hooks array')
 
   const allowed: HookVocalGender[] = ['male', 'female', 'duet', null]
@@ -325,10 +344,10 @@ async function draftHooksFromOutcomePrompt(opts: {
         return t ? { text: t, vocalGender: null } : null
       }
       if (row && typeof row === 'object') {
-        const r = row as { text?: unknown; vocal_gender?: unknown; vocalGender?: unknown }
+        const r = row as { text?: unknown; vocal_gender?: unknown }
         const text = typeof r.text === 'string' ? r.text.trim() : ''
         if (!text) return null
-        const rawGender = r.vocal_gender ?? r.vocalGender
+        const rawGender = (r as any).vocal_gender
         const vocalGender =
           rawGender === 'male' || rawGender === 'female' || rawGender === 'duet' ? rawGender : null
         if (!allowed.includes(vocalGender)) return null
@@ -344,7 +363,7 @@ async function draftHooksFromOutcomePrompt(opts: {
   }
   const deduped = hooks.filter((h) => !sharesTooManyTrigrams(h.text, existingTrigrams))
 
-  return { hooks: deduped, rawText: raw, promptUsed: opts.hookPrompt }
+  return { hooks: deduped, rawText: JSON.stringify(parsed), promptUsed: opts.hookPrompt }
 }
 
 export async function draftHooks(opts: {
@@ -378,16 +397,13 @@ export async function draftHooks(opts: {
     max_tokens: 2000,
     system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: userMessage }],
+    tools: [EMIT_HOOKS_TOOL],
+    tool_choice: { type: 'tool', name: 'emit_hooks' },
   })
 
-  const textBlock = response.content.find((b: any) => b.type === 'text') as any
-  if (!textBlock?.text) throw new Error('Hook drafter returned no text')
-  const raw = textBlock.text as string
-
-  const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-  const start = cleaned.indexOf('{')
-  if (start < 0) throw new Error('No JSON object found in drafter output')
-  const parsed = JSON.parse(cleaned.slice(start)) as { hooks: unknown }
+  const toolUse = response.content.find((b: any) => b.type === 'tool_use' && (b as any).name === 'emit_hooks') as any
+  if (!toolUse) throw new Error('Hook drafter did not emit tool_use')
+  const parsed = toolUse.input as { hooks: unknown }
   if (!Array.isArray(parsed.hooks)) throw new Error('Drafter output missing hooks array')
 
   const allowed: HookVocalGender[] = ['male', 'female', 'duet', null]
@@ -398,12 +414,12 @@ export async function draftHooks(opts: {
         return t ? { text: t, vocalGender: null } : null
       }
       if (row && typeof row === 'object') {
-        const r = row as { text?: unknown; vocal_gender?: unknown; vocalGender?: unknown }
+        const r = row as { text?: unknown; vocal_gender?: unknown }
         const text = typeof r.text === 'string' ? r.text.trim() : ''
         if (!text) return null
-        const raw = r.vocal_gender ?? r.vocalGender
+        const rawGender = (r as any).vocal_gender
         const vocalGender =
-          raw === 'male' || raw === 'female' || raw === 'duet' ? raw : null
+          rawGender === 'male' || rawGender === 'female' || rawGender === 'duet' ? rawGender : null
         if (!allowed.includes(vocalGender)) return null
         return { text, vocalGender }
       }
@@ -418,5 +434,5 @@ export async function draftHooks(opts: {
 
   const deduped = hooks.filter((h) => !sharesTooManyTrigrams(h.text, existingTrigrams))
 
-  return { hooks: deduped, rawText: raw, promptUsed: systemPrompt }
+  return { hooks: deduped, rawText: JSON.stringify(parsed), promptUsed: systemPrompt }
 }

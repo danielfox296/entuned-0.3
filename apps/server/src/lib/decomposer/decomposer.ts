@@ -48,6 +48,45 @@ const RULES_BY_VERSION: Record<number, string> = {
 }
 const LATEST_RULES_VERSION = 9
 
+const SECTION_PROPS = {
+  type: 'object',
+  properties: {
+    instruments: { type: 'array', items: { type: 'string' } },
+    density: { type: 'string' },
+    dynamic: { type: 'string' },
+    vocal_delivery: { type: 'string' },
+  },
+  required: ['instruments'],
+} as const
+
+const EMIT_DECOMPOSITION_TOOL = {
+  name: 'emit_decomposition',
+  description: 'Emit the structured musicological decomposition per the rules. Call this exactly once after any web research.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      verifiable_facts: { type: 'string' },
+      confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
+      vibe_pitch: { type: 'string' },
+      era_production_signature: { type: 'string' },
+      instrumentation_palette: { type: 'string' },
+      standout_element: { type: 'string' },
+      arrangement_shape: { type: 'string', description: 'v1-v7 only. Drop in v8+ (information moves into arrangement_sections).' },
+      dynamic_curve: { type: 'string', description: 'v1-v7 only. Drop in v8+.' },
+      vocal_character: { type: 'string' },
+      vocal_arrangement: { type: 'string' },
+      harmonic_and_groove: { type: 'string' },
+      vocal_gender: { type: 'string', enum: ['male', 'female', 'duet', 'instrumental'] },
+      arrangement_sections: {
+        type: 'object',
+        description: 'Per-section instrumentation map (v6+).',
+        additionalProperties: SECTION_PROPS,
+      },
+    },
+    required: ['vibe_pitch', 'era_production_signature', 'instrumentation_palette', 'standout_element', 'vocal_character', 'vocal_arrangement', 'harmonic_and_groove', 'confidence'],
+  },
+} as const
+
 export interface DecomposeInput {
   artist: string
   title: string
@@ -200,23 +239,21 @@ ${eraContext}
 
 # Task
 
-${rulesRow.version >= 2
-  ? 'Use web search to ground yourself in this exact track before writing the decomposition. Search for distinguishing details. If multiple distinct tracks share this title, disambiguate via search or report confidence: low.'
-  : ''}
+${rulesRow.version >= 2 ? 'Use web search to ground yourself in this exact track before writing the decomposition. ' : ''}Decompose this track per the rules and emit the result via the emit_decomposition tool. Call emit_decomposition exactly once, after any web research.`
 
-Decompose this track per the rules. ${keysLine}No prose before or after the JSON. No markdown code fences.`
-
-  // v2 rules use Anthropic's hosted web search tool.
-  const tools = rulesRow.version >= 2
-    ? [{ type: 'web_search_20250305' as const, name: 'web_search', max_uses: 3 }]
-    : undefined
+  // emit_decomposition is always emitted; web_search is added when v2+ rules apply.
+  // tool_choice is omitted ('auto') so the model can chain web_search calls before
+  // emit_decomposition — forcing the custom tool would preclude web_search entirely.
+  const baseTools: any[] = [EMIT_DECOMPOSITION_TOOL]
+  if (rulesRow.version >= 2) {
+    baseTools.push({ type: 'web_search_20250305', name: 'web_search', max_uses: 3 })
+  }
 
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 4000,
     // Extractive task — lower temperature improves consistency without hurting
-    // quality. Stop sequences omitted here: web search interaction makes them
-    // risky (the tool emits intermediate text blocks before the final JSON).
+    // quality.
     temperature: 0.3,
     system: [
       {
@@ -225,28 +262,24 @@ Decompose this track per the rules. ${keysLine}No prose before or after the JSON
         cache_control: { type: 'ephemeral' },
       },
     ],
-    tools: tools as any,
+    tools: baseTools,
     messages: [{ role: 'user', content: userMessage }],
   })
 
-  // With web search enabled, the response has multiple content blocks: server_tool_use,
-  // web_search_tool_result, and one or more text blocks. The final text block holds the
-  // structured output. Take the last text block and pull a JSON object out of it.
-  const textBlocks = response.content.filter((b: any) => b.type === 'text') as any[]
-  if (textBlocks.length === 0) throw new Error('Model returned no text content')
-  const raw = textBlocks[textBlocks.length - 1].text as string
-
-  const cleaned = extractJson(raw)
-  let parsed: StyleAnalysisOutput
+  const emitBlock = response.content.find(
+    (b: any) => b.type === 'tool_use' && b.name === 'emit_decomposition',
+  ) as any
+  if (!emitBlock) throw new Error('Decomposer did not emit emit_decomposition tool_use')
+  const parsed = emitBlock.input as StyleAnalysisOutput
   try {
-    parsed = JSON.parse(cleaned) as StyleAnalysisOutput
     validate(parsed, rulesRow.version)
   } catch (e) {
-    console.error('--- raw model output (validation/parse failed) ---')
-    console.error(raw)
+    console.error('--- raw model output (validation failed) ---')
+    console.error(JSON.stringify(parsed, null, 2))
     console.error('--- end raw output ---')
     throw e
   }
+  const raw = JSON.stringify(parsed)
 
   return {
     output: parsed,
@@ -255,35 +288,6 @@ Decompose this track per the rules. ${keysLine}No prose before or after the JSON
     rulesVersion: rulesRow.version,
     eraContext,
   }
-}
-
-function stripCodeFences(s: string): string {
-  // Defensive — Claude sometimes wraps JSON in ```json fences (per memory).
-  return s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-}
-
-/** Extract the first balanced JSON object substring. Tolerates prose before/after. */
-function extractJson(s: string): string {
-  const cleaned = stripCodeFences(s)
-  if (cleaned.startsWith('{')) return cleaned
-  const start = cleaned.indexOf('{')
-  if (start < 0) throw new Error('No JSON object found in model output')
-  let depth = 0
-  let inString = false
-  let escape = false
-  for (let i = start; i < cleaned.length; i++) {
-    const c = cleaned[i]
-    if (escape) { escape = false; continue }
-    if (c === '\\' && inString) { escape = true; continue }
-    if (c === '"') { inString = !inString; continue }
-    if (inString) continue
-    if (c === '{') depth++
-    else if (c === '}') {
-      depth--
-      if (depth === 0) return cleaned.slice(start, i + 1)
-    }
-  }
-  throw new Error('Unbalanced JSON object in model output')
 }
 
 // v8 dropped arrangement_shape and dynamic_curve as standalone fields. Their information

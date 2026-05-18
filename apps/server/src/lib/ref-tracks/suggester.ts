@@ -204,6 +204,60 @@ export type SuggestReferenceTracksResult = {
 export const ALL_BUCKETS = ['PreFormation', 'FormationEra', 'Subculture', 'Aspirational', 'Adjacent'] as const
 export type Bucket = typeof ALL_BUCKETS[number]
 
+const TRACK_PROPS = {
+  type: 'object',
+  properties: {
+    artist: { type: 'string' },
+    title: { type: 'string' },
+    year: { type: 'number', description: 'Original release year. Omit if uncertain.' },
+    rationale: { type: 'string', description: 'One short sentence on why this song for this ICP.' },
+  },
+  required: ['artist', 'title', 'rationale'],
+} as const
+
+const EMIT_SUGGESTIONS_TOOL = {
+  name: 'emit_suggestions',
+  description: 'Emit the proposed reference tracks grouped by bucket plus adjacency reasoning.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      PreFormation: { type: 'array', items: TRACK_PROPS },
+      FormationEra: { type: 'array', items: TRACK_PROPS },
+      Subculture: { type: 'array', items: TRACK_PROPS },
+      Aspirational: { type: 'array', items: TRACK_PROPS },
+      dominant_cluster_in_pool: { type: 'string' },
+      adjacency_vectors: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            axis_broken: { type: 'string' },
+            axis_held: { type: 'string' },
+            rationale_for_this_icp: { type: 'string' },
+          },
+          required: ['name', 'axis_broken', 'axis_held', 'rationale_for_this_icp'],
+        },
+      },
+      Adjacent: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            artist: { type: 'string' },
+            title: { type: 'string' },
+            year: { type: 'number' },
+            vector: { type: 'string', description: 'Label of one of the adjacency_vectors above.' },
+            rationale: { type: 'string', description: 'Bridge sentence: axis broken / axis held.' },
+          },
+          required: ['artist', 'title', 'vector', 'rationale'],
+        },
+      },
+    },
+    // Nothing strictly required at top level — focused requests can omit buckets.
+  },
+} as const
+
 export async function suggestReferenceTracks(opts: { icpId: string; buckets?: readonly Bucket[] }): Promise<SuggestReferenceTracksResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
@@ -270,17 +324,15 @@ Output JSON only.${focusDirective}`
     temperature: 0.5,
     stop_sequences: ['\n\n\n'],
     system: [{ type: 'text', text: prompt.templateText, cache_control: { type: 'ephemeral' } }],
+    tools: [EMIT_SUGGESTIONS_TOOL] as any,
+    tool_choice: { type: 'tool', name: 'emit_suggestions' } as any,
     messages: [{ role: 'user', content: userMessage }],
   })
 
-  const textBlock = response.content.find((b: any) => b.type === 'text') as any
-  if (!textBlock?.text) throw new Error('Reference track suggester returned no text')
-  const raw = textBlock.text as string
-
-  const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-  const start = cleaned.indexOf('{')
-  if (start < 0) throw new Error('No JSON object found in suggester output')
-  const parsed = JSON.parse(cleaned.slice(start)) as Record<string, unknown>
+  const toolUse = response.content.find((b: any) => b.type === 'tool_use' && b.name === 'emit_suggestions') as any
+  if (!toolUse) throw new Error('Reference track suggester did not emit tool_use')
+  const parsed = toolUse.input as Record<string, unknown>
+  const raw = JSON.stringify(parsed)
 
   const norm = (arr: unknown): SuggestedRefTrack[] => {
     if (!Array.isArray(arr)) return []

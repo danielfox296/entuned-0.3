@@ -19,9 +19,22 @@ import { prisma } from '../../db.js'
 import { EDIT_PROMPT_SEED } from '../proto-bernie/lyrics.js'
 import type { ArrangementSections } from '../arranger/arranger.js'
 import type { FormArchetypeChoice } from '../eno/form-archetype.js'
-import { formatArrangementBrief, getOrSeedDraftPrompt, parseLyricJson } from './_helpers.js'
+import { formatArrangementBrief, getOrSeedDraftPrompt } from './_helpers.js'
 
 const MODEL = process.env.LYRICIST_MODEL ?? 'claude-sonnet-4-6'
+
+const EMIT_LYRICS_TOOL: Anthropic.Tool = {
+  name: 'emit_lyrics',
+  description: 'Emit the song title and full lyrics with Suno [Section] markers. The hook must appear verbatim wherever the form note instructs.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: 'Short title for the song.' },
+      lyrics: { type: 'string', description: 'Full lyrics with [Section] markers (e.g., [Verse 1], [Chorus], [Bridge], [Final Chorus]).' },
+    },
+    required: ['title', 'lyrics'],
+  },
+}
 
 export interface BernieInput {
   hookText: string
@@ -91,10 +104,13 @@ ${formBrief ? `${formBrief}\n` : ''}${input.brandLyricGuidelines ? `Brand lyric 
     max_tokens: 2000,
     system: [{ type: 'text', text: draftPrompt.promptText, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: draftUserMessage }],
+    tools: [EMIT_LYRICS_TOOL],
+    tool_choice: { type: 'tool', name: 'emit_lyrics' },
   })
-  const draftBlock = draftResponse.content.find((b: any) => b.type === 'text') as any
-  if (!draftBlock?.text) throw new Error('Bernie draft pass returned no text')
-  const draft = parseLyricJson(draftBlock.text)
+  const draftToolUse = draftResponse.content.find((b: any) => b.type === 'tool_use' && (b as any).name === 'emit_lyrics') as any
+  if (!draftToolUse) throw new Error('Bernie draft pass did not emit tool_use')
+  const draft = draftToolUse.input as { title: string; lyrics: string }
+  if (!draft.title || !draft.lyrics) throw new Error('Bernie draft output missing title or lyrics')
 
   // Pass 2 — edit.
   // Form and arrangement context are intentionally OMITTED from the edit
@@ -117,10 +133,13 @@ Polish the lyrics per the editor instructions. Preserve the hook verbatim. Outpu
     max_tokens: 2000,
     system: [{ type: 'text', text: editPrompt.promptText, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: editUserMessage }],
+    tools: [EMIT_LYRICS_TOOL],
+    tool_choice: { type: 'tool', name: 'emit_lyrics' },
   })
-  const editBlock = editResponse.content.find((b: any) => b.type === 'text') as any
-  if (!editBlock?.text) throw new Error('Bernie edit pass returned no text')
-  const final = parseLyricJson(editBlock.text)
+  const editToolUse = editResponse.content.find((b: any) => b.type === 'tool_use' && (b as any).name === 'emit_lyrics') as any
+  if (!editToolUse) throw new Error('Bernie edit pass did not emit tool_use')
+  const final = editToolUse.input as { title: string; lyrics: string }
+  if (!final.title || !final.lyrics) throw new Error('Bernie edit output missing title or lyrics')
 
   // Hook preservation invariant: the polished output must contain the hook verbatim
   // in every chorus instance the draft had. Counting handles [Chorus] + [Final Chorus]:

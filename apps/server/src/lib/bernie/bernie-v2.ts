@@ -27,9 +27,22 @@ import type { ArrangementSections } from '../arranger/arranger.js'
 import type { FormArchetypeChoice } from '../eno/form-archetype.js'
 import { getGenreCraftOverrides, formatGenreCraftBlock } from './genre-craft-rules.js'
 import type { BernieOutput } from './bernie.js'
-import { formatArrangementBrief, getOrSeedDraftPrompt, parseLyricJson } from './_helpers.js'
+import { formatArrangementBrief, getOrSeedDraftPrompt } from './_helpers.js'
 
 const MODEL = process.env.LYRICIST_MODEL ?? 'claude-sonnet-4-6'
+
+const EMIT_LYRICS_TOOL: Anthropic.Tool = {
+  name: 'emit_lyrics',
+  description: 'Emit the song title and full lyrics with Suno [Section] markers. The hook must appear verbatim wherever the form note instructs.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: 'Short title for the song.' },
+      lyrics: { type: 'string', description: 'Full lyrics with [Section] markers (e.g., [Verse 1], [Chorus], [Bridge], [Final Chorus]).' },
+    },
+    required: ['title', 'lyrics'],
+  },
+}
 
 export interface GenreBrief {
   genreTag: string
@@ -115,10 +128,13 @@ ${formBrief ? `${formBrief}\n` : ''}${genreContext ? `${genreContext}\n` : ''}${
     max_tokens: 2000,
     system: [{ type: 'text', text: draftPrompt.promptText, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: draftUserMessage }],
+    tools: [EMIT_LYRICS_TOOL],
+    tool_choice: { type: 'tool', name: 'emit_lyrics' },
   })
-  const draftBlock = draftResponse.content.find((b: any) => b.type === 'text') as any
-  if (!draftBlock?.text) throw new Error('Bernie-v2 draft pass returned no text')
-  const draft = parseLyricJson(draftBlock.text)
+  const draftToolUse = draftResponse.content.find((b: any) => b.type === 'tool_use' && (b as any).name === 'emit_lyrics') as any
+  if (!draftToolUse) throw new Error('Bernie-v2 draft pass did not emit tool_use')
+  const draft = draftToolUse.input as { title: string; lyrics: string }
+  if (!draft.title || !draft.lyrics) throw new Error('Bernie-v2 draft output missing title or lyrics')
 
   // Pass 2 — edit (same as Eno-1 — genre awareness lives in the draft)
   const editUserMessage = `Hook (must remain verbatim in every instance the draft used it — choruses, verse-end refrains, tag, whatever the form dictates):
@@ -137,10 +153,13 @@ Polish the lyrics per the editor instructions. Preserve the hook verbatim. Outpu
     max_tokens: 2000,
     system: [{ type: 'text', text: editPrompt.promptText, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: editUserMessage }],
+    tools: [EMIT_LYRICS_TOOL],
+    tool_choice: { type: 'tool', name: 'emit_lyrics' },
   })
-  const editBlock = editResponse.content.find((b: any) => b.type === 'text') as any
-  if (!editBlock?.text) throw new Error('Bernie-v2 edit pass returned no text')
-  const final = parseLyricJson(editBlock.text)
+  const editToolUse = editResponse.content.find((b: any) => b.type === 'tool_use' && (b as any).name === 'emit_lyrics') as any
+  if (!editToolUse) throw new Error('Bernie-v2 edit pass did not emit tool_use')
+  const final = editToolUse.input as { title: string; lyrics: string }
+  if (!final.title || !final.lyrics) throw new Error('Bernie-v2 edit output missing title or lyrics')
 
   // Hook preservation invariant — identical to Eno-1
   const draftHookCount = countOccurrences(draft.lyrics, input.hookText)
