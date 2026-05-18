@@ -34,7 +34,7 @@ Eno-2 imports the shared helpers from Eno-1 — `getOrSeedOutcomeFactorPrompt`, 
 2. **Two extra Prisma writes.** Eno-2 records `pipeline` and `genreBrief` on the `SongSeed` row.
 3. **`extractGenreBrief` helper.** Eno-2-only; pulls the genre brief from the reference track.
 
-See [`ASSESSMENT-eno-comparison.md`](../../../../../ASSESSMENT-eno-comparison.md) at the repo root for the full diff inventory.
+See [`audits/ASSESSMENT-eno-comparison.md`](../../../../../audits/ASSESSMENT-eno-comparison.md) for the full diff inventory.
 
 ## Invariants
 

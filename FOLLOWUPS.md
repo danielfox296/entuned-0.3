@@ -95,4 +95,4 @@ Pinned by tests on both surfaces. If you ever want to unify, do it deliberately 
 
 - The `Tier` enum legacy `mvp_pilot` value was ripped out as of 2026-05-18 (migration `20260518000000_remove_mvp_pilot_store_tier`). `ClientPlan.mvp_pilot` is a separate concept and stays.
 - The Eno-1 vs Eno-2 split and the decomposer v1–v8 sweep are documented as intentional experiment surfaces — see `apps/server/src/lib/eno/README.md` and `apps/server/src/lib/decomposer/README.md`. Do not treat as cleanup targets.
-- See also `ASSESSMENT.md` and friends at repo root for the codebase audit that drove the cleanup sprint.
+- See also `audits/` (snapshots from 2026-05-17) for the codebase audits that drove the cleanup + testing-backfill sprint.

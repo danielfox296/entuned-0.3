@@ -56,4 +56,4 @@ Or for historical versions:
 // Experiment surface — historical decomposer rules version. See ./README.md for the version sweep contract; default is v8.
 ```
 
-See [`ASSESSMENT.md`](../../../../../ASSESSMENT.md) §2 and §4 at the repo root for the audit that confirmed the v1–v8 sweep is intentional, not sprawl.
+See [`audits/ASSESSMENT.md`](../../../../../audits/ASSESSMENT.md) §2 and §4 for the audit that confirmed the v1–v8 sweep is intentional, not sprawl.
