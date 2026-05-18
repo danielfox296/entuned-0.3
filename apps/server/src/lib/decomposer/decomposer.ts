@@ -8,17 +8,17 @@
 // Or programmatic:
 //   const result = await decompose({ artist, title, year, decade, genreSlug })
 //
-// EXPERIMENT SURFACE — versioned rules sweep (v1–v8).
-//   This module ships eight versions of the MusicologicalRules prompt
-//   (rules-v1.ts through rules-v8.ts). All eight are imported into the
-//   RULES_BY_VERSION lookup below (lines 13-20) so any past version can be
-//   restored without code edits. Default is v8 (LATEST_RULES_VERSION on
-//   line 35); v1–v7 are reachable only via DECOMPOSER_RULES_VERSION env
-//   override or a styleAnalyzerInstructions DB row pinned to an older
-//   version. This is an active experiment surface — new versions may be
-//   added or existing versions tweaked as the decomposer rules evolve.
-//   See ./README.md for the per-version notes and the rule that older
-//   versions are intentionally retained as rollback parachutes.
+// EXPERIMENT SURFACE — versioned rules sweep (v1–v9).
+//   This module ships nine versions of the MusicologicalRules prompt
+//   (rules-v1.ts through rules-v9.ts). All nine are imported into the
+//   RULES_BY_VERSION lookup so any past version can be restored without
+//   code edits. Default is v9 (LATEST_RULES_VERSION below); v1–v8 are
+//   reachable only via DECOMPOSER_RULES_VERSION env override or a
+//   styleAnalyzerInstructions DB row pinned to an older version. This is
+//   an active experiment surface — new versions may be added or existing
+//   versions tweaked as the decomposer rules evolve. See ./README.md for
+//   the per-version notes and the rule that older versions are
+//   intentionally retained as rollback parachutes.
 
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../db.js'
@@ -30,6 +30,7 @@ import { MUSICOLOGICAL_RULES_V5 } from './rules-v5.js'
 import { MUSICOLOGICAL_RULES_V6 } from './rules-v6.js'
 import { MUSICOLOGICAL_RULES_V7 } from './rules-v7.js'
 import { MUSICOLOGICAL_RULES_V8 } from './rules-v8.js'
+import { MUSICOLOGICAL_RULES_V9 } from './rules-v9.js'
 
 const MODEL = process.env.DECOMPOSER_MODEL ?? 'claude-sonnet-4-5'
 
@@ -43,8 +44,9 @@ const RULES_BY_VERSION: Record<number, string> = {
   6: MUSICOLOGICAL_RULES_V6,
   7: MUSICOLOGICAL_RULES_V7,
   8: MUSICOLOGICAL_RULES_V8,
+  9: MUSICOLOGICAL_RULES_V9,
 }
-const LATEST_RULES_VERSION = 8
+const LATEST_RULES_VERSION = 9
 
 export interface DecomposeInput {
   artist: string
@@ -169,6 +171,12 @@ export async function decompose(input: DecomposeInput): Promise<DecomposeResult>
     ? 'verifiable_facts, confidence, vibe_pitch, era_production_signature, instrumentation_palette, standout_element, arrangement_shape, dynamic_curve, vocal_character, vocal_arrangement, harmonic_and_groove'
     : 'vibe_pitch, era_production_signature, instrumentation_palette, standout_element, arrangement_shape, dynamic_curve, vocal_character, vocal_arrangement, harmonic_and_groove, confidence'
 
+  // v9+: system prompt already enumerates required keys, so we drop the redundant
+  // restatement in the user message. v1-v8 keep the original line for backward compat.
+  const keysLine = rulesRow.version >= 9
+    ? ''
+    : `Output a single JSON object with exactly these keys: ${requiredKeys}. `
+
   const operatorNotesBlock = input.operatorNotes?.trim()
     ? `# Operator producer notes (AUTHORITATIVE — these come from a human producer who
 heard the track. Treat as ground truth and incorporate across the relevant fields,
@@ -196,8 +204,7 @@ ${rulesRow.version >= 2
   ? 'Use web search to ground yourself in this exact track before writing the decomposition. Search for distinguishing details. If multiple distinct tracks share this title, disambiguate via search or report confidence: low.'
   : ''}
 
-Decompose this track per the rules. Output a single JSON object with exactly these
-keys: ${requiredKeys}. No prose before or after the JSON. No markdown code fences.`
+Decompose this track per the rules. ${keysLine}No prose before or after the JSON. No markdown code fences.`
 
   // v2 rules use Anthropic's hosted web search tool.
   const tools = rulesRow.version >= 2
