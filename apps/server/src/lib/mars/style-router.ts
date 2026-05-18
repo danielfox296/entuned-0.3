@@ -75,10 +75,6 @@ Suno is a music-generation model. It grounds well on technical, genre-tag, and g
 
 4. NO temporal/arrangement language in any slot. Words like "builds", "drops", "enters", "fades", "bridge", "verse", "outro", "stripped" do not belong here.
 
-5. Front-load the vocal slot.
-
-6. The mood slot is the ONLY place a literary affect word is permitted, and it must be a single word.
-
 # The 7 slots and their hard ceilings
 
 vocal (≤30 chars, no commas): register + ONE technical qualifier. Example: "tenor male lead", "falsetto male", "baritone with vibrato". If source gives no register, emit "male lead" / "female lead". DO NOT use "croon", "doleful", "plaintive", "earnest" here.
