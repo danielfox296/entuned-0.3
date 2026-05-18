@@ -29,11 +29,10 @@ type Props = {
   viewerTier?: string;
   onSelect: (outcomeId: string) => void;
   onSelectAll: () => void;
-  onClear: (() => void) | null;
   onClose: () => void;
 };
 
-export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, onSelect, onSelectAll, onClear, onClose }: Props) {
+export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, onSelect, onSelectAll, onClose }: Props) {
   const isFree = viewerTier === "free";
 
   // Split outcomes into available-now vs locked. Free-tier: available = modes
@@ -201,27 +200,6 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
             </>
           )}
 
-          {onClear ? (
-            <button
-              type="button"
-              onClick={onClear}
-              style={{
-                marginTop: compact ? 12 : 18,
-                width: "100%",
-                padding: compact ? "9px 14px" : "11px 16px",
-                borderRadius: 10,
-                border: "1px solid rgba(240,153,123,0.35)",
-                background: "rgba(240,153,123,0.06)",
-                color: "rgba(240,153,123,0.95)",
-                fontSize: 11,
-                letterSpacing: 1.6,
-                textTransform: "uppercase",
-                cursor: "pointer",
-              }}
-            >
-              Clear selection
-            </button>
-          ) : null}
         </div>
 
         {/* Persistent upgrade footer — free tier only. Always visible at the

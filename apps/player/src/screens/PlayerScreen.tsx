@@ -567,24 +567,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
     }
   }, [session.mode, session.slug, session.storeId, session.token, refill, refreshOutcomes, playFromQueue, setAllOutcomesMode]);
 
-  const handleClearOutcome = useCallback(async () => {
-    try {
-      if (session.mode === 'slug' && session.slug) {
-        await api.clearOutcomeSelectionBySlug(session.slug);
-      } else {
-        await api.clearOutcomeSelection(session.storeId, session.token);
-      }
-      setAllOutcomesMode(false);
-      setShowOutcomeModal(false);
-      setQueue([]);
-      await refill();
-      await refreshOutcomes();
-    } catch (e) {
-      console.error(e);
-      setError("Could not clear outcome selection.");
-    }
-  }, [session.mode, session.slug, session.storeId, session.token, refill, refreshOutcomes, setAllOutcomesMode]);
-
   const handleSelectAll = useCallback(async () => {
     try {
       // Clear any server-side operator selection so we're not overriding a schedule.
@@ -1039,7 +1021,10 @@ export function PlayerScreen({ session, onLogout }: Props) {
   }, [isPlaying]);
 
   const activeTitle = allOutcomesMode ? "All" : (activeOutcome?.title ?? "Tap to choose");
-  const expiresLabel = !allOutcomesMode && activeOutcome?.source === "selection" && activeOutcome.expiresAt
+  // "Selected · until X:XX" only makes sense when a schedule will take over at
+  // expiry. Free tier has no Outcome Scheduling, so the label is meaningless —
+  // suppress it alongside the locked outcomes / no-clear-selection treatment.
+  const expiresLabel = session.tier !== "free" && !allOutcomesMode && activeOutcome?.source === "selection" && activeOutcome.expiresAt
     ? `Selected · until ${new Date(activeOutcome.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
     : null;
 
@@ -1382,7 +1367,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
           viewerTier={session.tier}
           onSelect={handleSelectOutcome}
           onSelectAll={handleSelectAll}
-          onClear={!allOutcomesMode && activeOutcome?.source === "selection" ? handleClearOutcome : null}
           onClose={() => setShowOutcomeModal(false)}
         />
       ) : null}
