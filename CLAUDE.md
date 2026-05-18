@@ -11,6 +11,7 @@ Production monorepo. 4 apps: `apps/server` (Fastify + Prisma) → `api.entuned.c
 - `../GENERATION.md` — generation pipeline (Hook × Outcome × ReferenceTrack, 3-lane Stage 4)
 - `RUNBOOKS.md` — operator runbooks for end-to-end flows
 - `NAMES.md` — canonical model/route names (always check before referencing legacy names)
+- `TESTING.md` — test conventions, mocking patterns, CI gate. **Read before adding any feature, fix, or refactor in `apps/server` or `packages/`.**
 
 ## Stack (locked)
 
@@ -23,6 +24,8 @@ Production monorepo. 4 apps: `apps/server` (Fastify + Prisma) → `api.entuned.c
 ## Operating rules
 
 - **Push after edits.** Daniel runs everything live.
+- **All new code in `apps/server/` and `packages/` ships with tests in the same PR.** Bug fixes ship with a test that failed before the fix. Cleanup/refactor PRs ship with regression tests proving behavior equivalence. Frontend component tests are out of scope by current policy. See `TESTING.md`.
+- **Tests gate every production deploy.** Railway and both Pages workflows run `pnpm test`; if anything fails, no new deploy is promoted. There is no skip flag — if the gate blocks you, fix or revert.
 - **Schema changes:** update `../entune v0.3/schema/` first (the SSOT), then mirror into `apps/server/prisma/schema.prisma`, then `prisma migrate`.
 - **Railway deploy:** server only. `railway up` from the **monorepo root** (`entuned-0.3/`). The Railway service has Root Directory=`apps/server` set in the dashboard, so the upload must contain that path. Do NOT use `--path-as-root` — that flag conflicts with the dashboard's Root Directory setting and breaks the build.
 - **Customer dashboard deploys to a separate publish repo** (`danielfox296/entuned-0.3-dashboard`). Workflow: `.github/workflows/deploy-dashboard.yml`.
