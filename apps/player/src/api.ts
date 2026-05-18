@@ -87,10 +87,30 @@ export type AudioEventType =
   | 'audio_cache_hit' | 'audio_cache_miss'
   | 'operator_pause' | 'operator_resume'
   | 'push_subscribed' | 'push_unsubscribed'
-  // Phase-3 reliability (2026-05-17): the audio element refused to load
-  // a track URL (404, CORS, decode failure, unsupported source). Extra
-  // carries { reason, audio_url } so admin can hunt dead R2 objects.
+  // Phase-3 (2026-05-17). song_load_failed: audio URL refused to load
+  // (404 / CORS / decode). heartbeat: 60s liveness ping while playing —
+  // lets analytics distinguish "music stopped" from "device died" without
+  // waiting for the next song-event.
   | 'song_load_failed'
+  | 'heartbeat'
+
+// Typed `extra` shape per event_type. Add entries here when you introduce a
+// new event with structured payload; events not listed here default to
+// `Record<string, unknown>`. Documents the wire format in one place instead
+// of scattering it across emit() call sites.
+export type EventExtra = {
+  song_load_failed: { reason: 'aborted' | 'network' | 'decode' | 'src_unsupported' | 'unknown'; audio_url: string; media_error_code: number | null }
+  song_complete: { /* completion_reason + play_duration_ms are first-class columns, not extra */ }
+  heartbeat: { is_playing: boolean; queue_depth: number; current_outcome_id: string | null }
+  pwa_standalone_launch: { is_standalone: boolean; user_agent: string }
+  playback_stalled: { elapsed: number; duration: number }
+  playback_resumed_after_stall: { stall_duration_ms: number; elapsed: number }
+  room_loudness_sample: { dbfs_a: number; sample_window_ms: number; weighted: 'A' }
+  ad_play: { assetId: string; campaignId: string }
+  mediasession_action: { action: string; seekTime?: number | null }
+}
+
+export type ExtraFor<T extends AudioEventType> = T extends keyof EventExtra ? EventExtra[T] : Record<string, unknown>
 
 export interface OutgoingEvent {
   event_type: AudioEventType
@@ -102,6 +122,15 @@ export interface OutgoingEvent {
   report_reason?: string | null
   outcome_id?: string | null
   extra?: Record<string, unknown> | null
+  // Phase-3 correlation fields. Optional; older payloads still validate.
+  playback_session_id?: string | null
+  device_id?: string | null
+  play_duration_ms?: number | null
+  completion_reason?: 'ended' | 'skipped' | 'errored' | 'outcome_changed' | null
+  effective_outcome_id?: string | null
+  client_sent_at?: string | null
+  client_build?: string | null
+  idempotency_key?: string | null
 }
 
 async function req<T>(path: string, init: RequestInit = {}, token?: string): Promise<T> {

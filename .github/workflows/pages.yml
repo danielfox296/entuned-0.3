@@ -40,6 +40,7 @@ jobs:
       - name: Build admin
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_BUILD_ID: ${{ github.sha }}
         run: pnpm --filter admin build
       - name: Stage dist
         run: |
@@ -77,6 +78,7 @@ jobs:
       - name: Build player
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_BUILD_ID: ${{ github.sha }}
         run: pnpm --filter player build
       - name: Stage player publish dir
         run: |

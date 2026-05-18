@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, type QueueItem, type ActiveOutcome, type OutcomeOption, type AudioEventType } from "../api.js";
+import { api, type QueueItem, type ActiveOutcome, type OutcomeOption, type AudioEventType, type ExtraFor } from "../api.js";
 import { CrossfadePlayer } from "../audio/crossfade-player.js";
 import { LoudnessSampler } from "../audio/loudness-sampler.js";
 import { bufferEvent, flushNow } from "../lib/event-buffer.js";
+import { getDeviceId } from "../lib/device-id.js";
 import { prefetch as prefetchAudio, getCachedUrl, revokeCachedUrl } from "../lib/audio-cache.js";
 import { subscribePush, unsubscribePush } from "../lib/push-client.js";
 import { IconButton } from "../components/IconButton.js";
@@ -105,6 +106,34 @@ function classifyLoadError(err: unknown): AudioLoadFailReason {
   return "unknown";
 }
 
+// Events that belong to a continuous-play "session" — they get a
+// playback_session_id stamped. Pure lifecycle events (login, push, visibility)
+// stay session-less because they fire outside of any active playback context.
+const PLAYBACK_SESSION_EVENTS: ReadonlySet<AudioEventType> = new Set<AudioEventType>([
+  "song_start", "song_complete", "song_skip", "song_love", "song_report", "song_load_failed",
+  "ad_play",
+  "audio_cache_hit", "audio_cache_miss",
+  "playback_stalled", "playback_resumed_after_stall", "playback_starved",
+  "operator_pause", "operator_resume",
+  "outcome_selection", "outcome_selection_cleared",
+  "mediasession_action",
+  "heartbeat",
+]);
+
+// Of those, the ones that signal "music is actively moving forward" — they
+// refresh the session-activity timer so a long pause starts a new session
+// next time playback resumes.
+const PLAY_ACTIVITY_EVENTS: ReadonlySet<AudioEventType> = new Set<AudioEventType>([
+  "song_start", "song_complete", "heartbeat", "operator_resume", "playback_resumed_after_stall",
+]);
+
+const SESSION_GAP_MS = 60_000;
+// VITE_BUILD_ID is set by the Pages workflow to the commit short SHA; falls
+// back to 'dev' for local builds. Stamped on every event so admin can slice
+// "stalls per build" and a deploy regression is obvious.
+const CLIENT_BUILD = (import.meta.env.VITE_BUILD_ID as string | undefined) ?? "dev";
+const HEARTBEAT_INTERVAL_MS = 60_000;
+
 function trackLabel(item: QueueItem | null): string {
   if (!item) return "";
   if (item.type === "ad") return item.title ?? "Advertisement";
@@ -189,6 +218,8 @@ export function PlayerScreen({ session, onLogout }: Props) {
   queueRef.current = queue;
   const currentRef = useRef<QueueItem | null>(null);
   currentRef.current = currentItem;
+  const activeOutcomeRef = useRef<ActiveOutcome | null>(null);
+  activeOutcomeRef.current = activeOutcome;
   const wasPlayingRef = useRef(false);
   // Sticky: set true when the user explicitly pauses, cleared only when the
   // user explicitly plays again. Visibility-wake resume must respect this so
@@ -208,6 +239,16 @@ export function PlayerScreen({ session, onLogout }: Props) {
   // failure is silently skipped; 3+ in a row surfaces a banner because the
   // problem is likely network-wide, not one bad file.
   const consecutiveLoadFailsRef = useRef<number>(0);
+  // Playback-session correlation IDs — see PLAYBACK_SESSION_EVENTS for
+  // semantics. Session resets after SESSION_GAP_MS of silence so a long pause
+  // breaks the "music was playing continuously" signal for POS analytics.
+  const playbackSessionIdRef = useRef<string | null>(null);
+  const lastPlayActivityAtRef = useRef<number>(0);
+  const deviceIdRef = useRef<string>("");
+  if (!deviceIdRef.current) deviceIdRef.current = getDeviceId();
+  // ms of actual audio played for the in-flight track — captured at every
+  // progress tick and read on song_complete (Howl seek may reset by then).
+  const lastProgressMsRef = useRef<number>(0);
 
   const setAllOutcomesMode = useCallback((v: boolean) => {
     allOutcomesModeRef.current = v;
@@ -223,17 +264,31 @@ export function PlayerScreen({ session, onLogout }: Props) {
       : api.next(session.storeId, session.token, allOutcomes)
   ), [session.mode, session.slug, session.storeId, session.token]);
 
-  const emit = useCallback((
-    event_type: AudioEventType,
+  const emit = useCallback(<T extends AudioEventType>(
+    event_type: T,
     item?: QueueItem | null,
-    meta?: { report_reason?: string; outcome_id?: string },
-    wireExtra?: Record<string, unknown>,
+    meta?: { report_reason?: string; outcome_id?: string; completion_reason?: 'ended' | 'skipped' | 'errored' | 'outcome_changed'; play_duration_ms?: number },
+    wireExtra?: ExtraFor<T>,
   ) => {
     const isAd = item?.type === "ad";
     const adExtra = isAd ? { assetId: item.assetId, campaignId: item.campaignId } : null;
     const merged = adExtra || wireExtra
       ? { ...(adExtra ?? {}), ...(wireExtra ?? {}) }
       : undefined;
+
+    // Session ID logic: gate by event class. A long silence (>SESSION_GAP_MS
+    // since the last play-activity event) starts a new session next time
+    // playback resumes, which is what POS correlation needs.
+    let playback_session_id: string | null = null;
+    if (PLAYBACK_SESSION_EVENTS.has(event_type)) {
+      const now = Date.now();
+      if (!playbackSessionIdRef.current || now - lastPlayActivityAtRef.current > SESSION_GAP_MS) {
+        playbackSessionIdRef.current = crypto.randomUUID();
+      }
+      playback_session_id = playbackSessionIdRef.current;
+      if (PLAY_ACTIVITY_EVENTS.has(event_type)) lastPlayActivityAtRef.current = now;
+    }
+
     const event = {
       event_type,
       store_id: session.storeId,
@@ -246,8 +301,19 @@ export function PlayerScreen({ session, onLogout }: Props) {
       report_reason: meta?.report_reason ?? null,
       outcome_id: meta?.outcome_id ?? (isAd ? null : item?.outcomeId ?? null),
       extra: merged,
+      // Phase-3 correlation fields.
+      playback_session_id,
+      device_id: deviceIdRef.current,
+      client_build: CLIENT_BUILD,
+      completion_reason: meta?.completion_reason ?? null,
+      play_duration_ms: meta?.play_duration_ms ?? null,
+      // Denormalize the active outcome onto every playback event so analytics
+      // can filter "transactions while Energize was playing" without an
+      // as-of join against outcome-selection history.
+      effective_outcome_id: playback_session_id ? (activeOutcomeRef.current?.outcomeId ?? null) : null,
     };
-    // Session-boundary events flush immediately; everything else batches.
+    // Session-boundary events flush immediately; everything else batches via
+    // the persistent IDB buffer.
     if (event_type === 'operator_login' || event_type === 'operator_logout') {
       api.emit(event).catch((e) => console.warn("[player] emit failed", e));
     } else {
@@ -401,6 +467,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
     if (playUrl.startsWith("blob:")) currentBlobUrlRef.current = playUrl;
     playerRef.current?.createAndPlay(playUrl, head.type === "ad" ? { volume: AD_VOLUME } : undefined);
     setIsPlaying(true);
+    lastProgressMsRef.current = 0;
     emit(head.type === "ad" ? "ad_play" : "song_start", head);
     if (head.type !== "ad") trackFirstPlay(head.title);
   }, [refill, emit]);
@@ -408,7 +475,10 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const advanceToNext = useCallback(async () => {
     const completed = currentRef.current;
     if (completed && completed.type !== "ad") {
-      emit("song_complete", completed);
+      emit("song_complete", completed, {
+        completion_reason: "ended",
+        play_duration_ms: lastProgressMsRef.current || undefined,
+      });
       trackTrackComplete(completed.title);
       setPlayedCount((c) => c + 1);
     }
@@ -424,8 +494,17 @@ export function PlayerScreen({ session, onLogout }: Props) {
     userPausedRef.current = false;
     const cur = currentRef.current;
     if (cur && cur.type !== "ad") {
-      emit("song_skip", cur);
-      emit("song_complete", cur);
+      // One event with completion_reason='skipped' replaces the legacy
+      // song_skip+song_complete dual emit. Going forward, a skipped track is
+      // a single song_complete row — analytics filter by completion_reason
+      // instead of joining two event types.
+      const progressMs = playerRef.current?.getProgress()?.elapsed
+        ? Math.round((playerRef.current?.getProgress()?.elapsed ?? 0) * 1000)
+        : lastProgressMsRef.current;
+      emit("song_complete", cur, {
+        completion_reason: "skipped",
+        play_duration_ms: progressMs || undefined,
+      });
       setPlayedCount((c) => c + 1);
     }
     await playFromQueue();
@@ -563,8 +642,10 @@ export function PlayerScreen({ session, onLogout }: Props) {
         // Audio failed to load (Howler onloaderror). With html5:true, err is
         // the HTMLAudioElement MediaError code — see classifyLoadError. A
         // single failure is treated as one bad track: skip silently, log
-        // telemetry, suppress the songId for the rest of the session. Only
-        // a sustained streak surfaces a user-visible banner.
+        // telemetry as both song_load_failed (root cause) AND a song_complete
+        // with completion_reason='errored' (so the unified "did this song
+        // play" view stays accurate). Suppress the songId for the rest of
+        // the session. Only a sustained streak surfaces a user-visible banner.
         const reason = classifyLoadError(err);
         const cur = currentRef.current;
         const songId = cur && cur.type !== "ad" ? cur.songId : null;
@@ -575,6 +656,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
             audio_url: cur.audioUrl,
             media_error_code: typeof err === "number" ? err : Number(err) || null,
           });
+          emit("song_complete", cur, { completion_reason: "errored", play_duration_ms: 0 });
           failedSongIdsRef.current.add(cur.songId);
         }
         consecutiveLoadFailsRef.current += 1;
@@ -696,6 +778,9 @@ export function PlayerScreen({ session, onLogout }: Props) {
 
       const p = player.getProgress();
       if (!p || p.duration <= 0) return;
+      // Capture last known good progress so song_complete's play_duration_ms
+      // is accurate even if Howl resets seek by the time onend fires.
+      lastProgressMsRef.current = Math.round(p.elapsed * 1000);
       // Last 5% of the track is the natural-end zone — don't false-positive here.
       if (p.elapsed >= p.duration * 0.95) return;
 
@@ -749,6 +834,27 @@ export function PlayerScreen({ session, onLogout }: Props) {
     stallRef.current = { elapsed: -1, since: Date.now() };
     if (bufferingRef.current) { bufferingRef.current = false; setBuffering(false); }
   }, [currentItem]);
+
+  // Heartbeat — every HEARTBEAT_INTERVAL_MS while audio is actively playing,
+  // emit a liveness ping. Lets analytics tell "music stopped" from "device
+  // died" without waiting for the next song-event, and gives POS correlation
+  // a guaranteed time-series tick even during long tracks.
+  useEffect(() => {
+    let lastBeatAt = Date.now();
+    const beat = () => {
+      const player = playerRef.current;
+      if (!player || !player.isPlaying()) return;
+      const now = Date.now();
+      emit("heartbeat", currentRef.current, { play_duration_ms: now - lastBeatAt }, {
+        is_playing: true,
+        queue_depth: queueRef.current.length,
+        current_outcome_id: activeOutcomeRef.current?.outcomeId ?? null,
+      });
+      lastBeatAt = now;
+    };
+    const iv = window.setInterval(beat, HEARTBEAT_INTERVAL_MS);
+    return () => clearInterval(iv);
+  }, [emit]);
 
   // ── Screen Wake Lock: keep iPad/iPhone screens awake while playing ────────
   // iOS 16.4+ supports navigator.wakeLock. iOS releases it automatically when
