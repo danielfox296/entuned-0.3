@@ -10,3 +10,7 @@ build
 .vite
 coverage
 apps/dashboard/tsconfig.tsbuildinfo
+
+# macOS Finder duplicates (filename with " 2" suffix before extension)
+*\ 2.*
+*\ 2

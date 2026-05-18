@@ -4,7 +4,7 @@ Code/behavior items that surfaced during cleanup + test work and were deliberate
 
 When you fix something here, delete the item (don't strike-through). Keep this list short and load-bearing.
 
-Last updated: 2026-05-18 (after Sweep C player-traffic backfill — +146 tests across playbackHeartbeat / hendrix-route / events / hendrix-lib). Sweeps A+B+C complete; suite at 677.
+Last updated: 2026-05-18 (post Sweeps A+B+C; cleared 3 trivials — lifecycleEmails doc drift, pauseAutoResume guard annotated, tsconfig cruft file). Suite at 677.
 
 ---
 
@@ -56,29 +56,19 @@ The cron writes the audit row + store update with its own `prisma.$transaction([
 
 **Pinned in**: `apps/server/src/lib/compExpiry.test.ts` (current inline-transaction shape locked).
 
-### `apps/server/src/lib/lifecycleEmails.ts` — header comment says 6 drips, module exports 9
-
-The top-of-file comment overview lists 6 drips. The module actually exports 9 — three Boost-Trial drips (`runBoostTrialStreamReady`, `runBoostTrialEngagement`, `runPostConversionBenchmark`) aren't mentioned. Pure doc drift.
-
-**Fix**: update the header overview to match the actual export list.
-
 ### `apps/server/src/lib/pauseAutoResume.ts` — `STRIPE_PRICE_ID_PRO=''` empty-string match
 
 If `STRIPE_PRICE_ID_PRO` is unset, the env default of `''` would match a (theoretical) subscription with `stripePriceId: ''` and incorrectly restore tier=`'pro'`. In practice every real `stripePriceId` is non-empty, so this never trips. Defense-in-depth fix: require both sides non-empty before treating as Pro.
 
 **Pinned in**: `apps/server/src/lib/pauseAutoResume.test.ts` (current "empty env → core" behavior locked).
 
-### `apps/server/src/lib/pauseAutoResume.ts` — unreachable defensive guard
-
-The `if (!s.subscription)` skip is unreachable: the Prisma `where` clause already filters `subscription: { isNot: null }`. Either delete the guard, or keep it and note it's intentional defense-in-depth.
-
 ### `apps/server/src/routes/events.ts` — strict UTC contract silently quarantines non-`Z` timestamps
 
 `z.string().datetime()` (without `{ offset: true }`) rejects any timestamp with an explicit offset like `2026-05-18T12:00:00.000-06:00`. Such events route into the `PlaybackEventRaw` quarantine table rather than ingesting. Today every Entuned-shipped client sends `Z`, so this is invisible. Risk surfaces if a third party ever wires their POS directly into `/events`, or if a future SDK accidentally emits offsets — every event silently disappears into the raw table.
 
-**Fix**: either pass `{ offset: true }` to accept offset-bearing ISO timestamps and normalize on insert, OR document the contract in the OpenAPI/integration docs and add a clear error code when offset is detected (instead of silent quarantine).
+**Decided 2026-05-18**: accept offsets and normalize to UTC on insert. Pass `{ offset: true }` to the zod `datetime()` validator; convert to UTC `Date` via the standard `new Date(str)` constructor (JS Date stores UTC internally regardless of input offset). Update the strict-Z tests accordingly.
 
-**Pinned in**: `apps/server/src/routes/events.test.ts` (current strict-Z behavior locked).
+**Pinned in**: `apps/server/src/routes/events.test.ts` (current strict-Z behavior locked — will need to flip when this is implemented).
 
 ### `apps/server/src/routes/events.ts` — `/events/loved` bypasses `requireAuth`
 
@@ -119,12 +109,6 @@ After 5 collision retries the function returns `${slugify(name)}-${randomBytes(3
 ---
 
 ## Low / housekeeping
-
-### Repo: `apps/admin/tsconfig 2.tsbuildinfo` accidentally committed
-
-A macOS Finder-duplicated build cache file (` 2` suffix) got committed during the packages-workspace work on 2026-05-17. Not breaking anything, but clutters the repo.
-
-**Fix**: delete the file, add `**/*\ 2.*` (or similar) to `.gitignore` to prevent recurrence.
 
 ### Schedule `schedule_overlap` message wording diverges between admin and me
 

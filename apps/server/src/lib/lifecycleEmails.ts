@@ -3,14 +3,19 @@
 // Drives behavioral / lifecycle drips on a daily cron. Triggers:
 //
 //   Time-based:
-//     1. icpUnfilled         — paid Store created ≥48h ago, no ICP saved
-//     2. pauseEnding         — Subscription paused, day 53 of the 60-day window
-//     3. freeToCoreNudge     — free signup ≥72h ago, no paid Store
+//     1. icpUnfilled              — paid Store created ≥48h ago, no ICP saved
+//     2. pauseEnding              — Subscription paused, day 53 of the 60-day window
+//     3. freeToCoreNudge          — free signup ≥72h ago, no paid Store
 //
 //   Behavior-based:
-//     4. engagedFreeToCore     — Free Client with ≥100 song_starts in last 14d
-//     5. scalingCoreToPro      — Client with ≥2 paid Stores, no Pro yet
-//     6. establishedCoreToPro  — Core ≥30 days, ICP saved, no Pro yet
+//     4. engagedFreeToCore        — Free Client with ≥100 song_starts in last 14d
+//     5. scalingCoreToPro         — Client with ≥2 paid Stores, no Pro yet
+//     6. establishedCoreToPro     — Core ≥30 days, ICP saved, no Pro yet
+//
+//   Boost Trial:
+//     7. boostTrialStreamReady    — Day 0-3 of trial (compExpiresAt in [now+27d, now+30d])
+//     8. boostTrialEngagement     — Day 12-16 of trial (compExpiresAt in [now+14d, now+18d])
+//     9. postConversionBenchmark  — 7-10 days after trial→core conversion via stripe_webhook
 //
 // Each send is idempotent via `LifecycleEmailLog` (unique on userId, template,
 // contextKey). Lifecycle templates are gated on User.lifecycleEmailsOptOut by

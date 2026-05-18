@@ -38,6 +38,10 @@ export async function runPauseAutoResume(): Promise<AutoResumeStats> {
   const stats: AutoResumeStats = { considered: 0, resumed: 0, skipped: 0, errors: 0 }
   const now = new Date()
 
+  // `subscription: { isNot: null }` enforces non-null at runtime; the
+  // `if (!s.subscription)` checks below are then needed for TS narrowing
+  // (Prisma's generated types don't model `isNot: null` as a refinement,
+  // so `s.subscription` is still typed as nullable in the loop bodies).
   const stores = await prisma.store.findMany({
     where: {
       archivedAt: null,
