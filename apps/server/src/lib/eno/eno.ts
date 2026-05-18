@@ -3,6 +3,24 @@
 //
 // OutcomeFactorPrompt prepends Outcome fields onto the style portion per Card 14 spec.
 // Default template prepends BPM and mode. Edit via admin /engine/outcome-factor-prompt.
+//
+// EXPERIMENT SURFACE — Eno-1 / Eno-2 parallel orchestrators.
+//   This file (eno.ts) is the Eno-1 pipeline AND the module root. Its sibling
+//   eno-v2.ts (Eno-2) is an opt-in pipeline variant selected by the
+//   `pipeline: 'eno-2'` flag on SeedBuilderOptions. Default is 'eno-1' (see
+//   `runEno` line 60 and the Dash UI default at
+//   apps/admin/src/panels/seeding/SongSeedQueue.tsx:69). Dispatch happens at
+//   line 84-86 below.
+//
+//   Eno-2 imports the shared helpers (`getOrSeedOutcomeFactorPrompt`,
+//   `applyOutcomeFactorPrompt`, `pickAvailableHook`, `pickReferenceTrack`,
+//   `CreateSongSeedResult`) from this file — it is a thin extension, not a
+//   parallel rewrite. See ./README.md for the full module contract and the
+//   list of behavioral diffs.
+//
+//   Both Eno-1 and Eno-2 are active experiment surfaces; the shape of these
+//   files may continue to change as the pipelines evolve. Do not treat the
+//   parallel structure as cleanup debt.
 
 import { prisma } from '../../db.js'
 import { marsAssemble, type StyleBuilderName } from '../mars/mars.js'

@@ -7,6 +7,24 @@
 //
 // Toggle: `pipeline: 'eno-2'` on SeedBuilderOptions. Eno-1 dispatches here when
 // that flag is set; otherwise runs its own unchanged createSongSeed().
+//
+// EXPERIMENT SURFACE — opt-in Eno-2 lane.
+//   Eno-1 (eno.ts) is the production default; Eno-2 fires only when an
+//   operator sets the Dash toggle to "Eno-2" (persisted per-browser in
+//   localStorage). Default fallbacks point to Eno-1 in two independent places:
+//   server `runEno` (eno.ts:60) and the Dash UI state
+//   (apps/admin/src/panels/seeding/SongSeedQueue.tsx:69).
+//
+//   This file is a thin extension of eno.ts — every shared helper is imported
+//   from there (see lines 17-23). The substantive diffs vs Eno-1 are:
+//     (a) calls `generateLyricsV2` from bernie-v2.ts instead of
+//         `generateLyrics` from bernie.ts,
+//     (b) writes the SongSeed.pipeline column ('eno-2'),
+//     (c) writes the SongSeed.genreBrief column (JSON), and
+//     (d) the Eno-2-only `extractGenreBrief` helper below.
+//
+//   The shape of this file may continue to change while Eno-2 is being tested.
+//   See ./README.md for the full module contract.
 
 import { prisma } from '../../db.js'
 import { marsAssemble, type StyleBuilderName } from '../mars/mars.js'

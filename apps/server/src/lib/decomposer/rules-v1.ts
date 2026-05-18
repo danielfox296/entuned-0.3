@@ -1,3 +1,4 @@
+// Experiment surface — historical decomposer rules version. See ./README.md for the version sweep contract; default is v8.
 // MusicologicalRules v1 — the body fed to the decomposer LLM as context.
 // Drawn from CARD_5_INTAKE.md (the producer interview) and CARD_5_PROPOSAL.md.
 // Locked 2026-04-25. Edit only via a new versioned row in the musicological_rules table.

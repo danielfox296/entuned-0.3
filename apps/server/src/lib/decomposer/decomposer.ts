@@ -7,6 +7,18 @@
 //
 // Or programmatic:
 //   const result = await decompose({ artist, title, year, decade, genreSlug })
+//
+// EXPERIMENT SURFACE — versioned rules sweep (v1–v8).
+//   This module ships eight versions of the MusicologicalRules prompt
+//   (rules-v1.ts through rules-v8.ts). All eight are imported into the
+//   RULES_BY_VERSION lookup below (lines 13-20) so any past version can be
+//   restored without code edits. Default is v8 (LATEST_RULES_VERSION on
+//   line 35); v1–v7 are reachable only via DECOMPOSER_RULES_VERSION env
+//   override or a styleAnalyzerInstructions DB row pinned to an older
+//   version. This is an active experiment surface — new versions may be
+//   added or existing versions tweaked as the decomposer rules evolve.
+//   See ./README.md for the per-version notes and the rule that older
+//   versions are intentionally retained as rollback parachutes.
 
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../db.js'
