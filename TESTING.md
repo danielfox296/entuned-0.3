@@ -137,6 +137,10 @@ Reset mocks between tests:
 beforeEach(() => vi.clearAllMocks())
 ```
 
+**Gotcha — `clearAllMocks` vs `resetAllMocks`.** `vi.clearAllMocks()` only clears call history (`mock.calls`, `mock.results`). Per-test `.mockResolvedValue(...)` / `.mockRejectedValue(...)` implementations persist into the next test. If any test in the file sets a one-off implementation on a shared mock (e.g. `prisma.store.update.mockRejectedValue(new Error('db down'))`), use `vi.resetAllMocks()` in `beforeEach` instead — it clears history AND restores implementations to default. Confirmed leakage twice: `pauseAutoResume.test.ts` (Stripe ctor) and `billing.test.ts` (subscription.updateMany rejecting in every subsequent webhook test).
+
+**Gotcha — ESM hoisting and `process.env`.** ESM `import` statements are hoisted above plain top-level statements. So `process.env.MY_VAR = 'x'` followed by `import { foo } from './foo.js'` runs imports FIRST. If `foo.ts` does `const MY_VAR = process.env.MY_VAR ?? ''` at module level, it captures the unset value. Wrap env mutations in `vi.hoisted(() => { ... })` so they run before imports. See `billing.test.ts` for the canonical pattern.
+
 ### Global `fetch` — `vi.stubGlobal`
 
 See `packages/api-client/src/index.test.ts` for the canonical pattern.
@@ -169,7 +173,7 @@ vi.mock('@anthropic-ai/sdk', () => ({
 
 Shared helpers live in `apps/server/src/test-utils/`:
 
-- **`fastifyApp.ts`** — `buildTestApp(plugin)` creates a Fastify instance, registers the plugin, returns the ready app. Used in every route integration test.
+- **`fastifyApp.ts`** — `buildTestApp(plugin)` creates a Fastify instance, registers the plugin, returns the ready app. Used in every route integration test. **Note**: does NOT register `sessionPlugin`. Routes that use `requireAuth` as a preHandler are fine (mock `requireAuth` to populate `request.user`). Routes that read `request.user` / `request.account` *directly* (without `requireAuth` — e.g. `GET /billing/upgrade`, `GET /billing/upgrade-from-comp`) need a local Fastify wrapper that installs an `onRequest` hook mirroring `attachSession`. See the local `buildTestApp` in `billing.test.ts` for the pattern.
 - **`fixtures.ts`** — fixture builders for common shapes: `makeStore(overrides)`, `makeOperator(overrides)`. Saves boilerplate when a test needs a complete row shape but only cares about a few fields.
 
 Add to these as needed. Keep them small and focused — they should make tests shorter, not introduce abstractions.

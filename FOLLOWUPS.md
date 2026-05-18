@@ -4,7 +4,7 @@ Code/behavior items that surfaced during cleanup + test work and were deliberate
 
 When you fix something here, delete the item (don't strike-through). Keep this list short and load-bearing.
 
-Last updated: 2026-05-18 (after Sweep A cron-backfill — +155 tests across lifecycleEmails / pauseAutoResume / compExpiry / tier.applyTierChange).
+Last updated: 2026-05-18 (after Sweep B signup-to-payment backfill — +168 tests across account / auth / login / billing).
 
 ---
 
@@ -71,6 +71,22 @@ If `STRIPE_PRICE_ID_PRO` is unset, the env default of `''` would match a (theore
 ### `apps/server/src/lib/pauseAutoResume.ts` — unreachable defensive guard
 
 The `if (!s.subscription)` skip is unreachable: the Prisma `where` clause already filters `subscription: { isNot: null }`. Either delete the guard, or keep it and note it's intentional defense-in-depth.
+
+### `apps/server/src/lib/account.ts` — `uniqueStoreSlug` exhaustion fallback has no uniqueness check
+
+After 5 collision retries the function returns `${slugify(name)}-${randomBytes(3).toString('hex')}` with NO `findUnique` on the final string. Collision probability is ~1/2^48 — vanishingly small — but non-zero, and on collision the caller gets a Prisma unique-constraint error rather than a friendly retry.
+
+**Fix**: either tighten the retry budget contract (acknowledge the rare-throw path in JSDoc) or add a final findUnique + escalate suffix length on miss.
+
+**Pinned in**: `apps/server/src/lib/account.test.ts` (current "no uniqueness check on final" behavior locked).
+
+### `apps/server/src/lib/account.ts` — `slugify` keeps only the first whitespace token
+
+`slugify` does `name.split(/\s+/)[0]` before lowering/stripping. So `"Big Sky Outfitters"` → `big-...` (the "sky" and "outfitters" tokens vanish). Probably intentional (short slugs), but worth knowing if a customer ever asks why their slug doesn't include their full business name.
+
+**Fix (optional)**: document the contract in JSDoc, or change to join all tokens with `-` and cap length.
+
+**Pinned in**: `apps/server/src/lib/account.test.ts` (current first-token-only behavior locked).
 
 ### `apps/server/packages/api-client/src/index.ts` — `baseUrl` naive concat
 
