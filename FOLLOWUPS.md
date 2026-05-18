@@ -1,0 +1,80 @@
+# Follow-ups — entuned-0.3
+
+Code/behavior items that surfaced during cleanup + test work and were deliberately deferred. Not test work — actual code or behavior to fix later. Each item is keyed by file/module so you can grep into it from a future PR.
+
+When you fix something here, delete the item (don't strike-through). Keep this list short and load-bearing.
+
+Last updated: 2026-05-18 (end of testing-practice-setup + first backfill sweep).
+
+---
+
+## High-leverage
+
+### `apps/server/src/lib/outcomes.ts` — empty-allowlist fall-through
+
+`pickSystemDefaultOutcomeId` for a free Store falls through to the **unfiltered global default** when the `FreeTierOutcome` allowlist is empty. The "free Stores never get an outcome outside allowlist" invariant only holds when the allowlist is non-empty. If a future seed/migration ever produces an empty allowlist (e.g. an admin deletes all FreeTierOutcome rows), new free Stores get initialized with paid-only outcomes silently.
+
+**Fix**: defensive guard — when free tier AND allowlist empty, return `null` rather than falling through. Caller already handles `null` (leaves field blank).
+
+**Pinned in**: `apps/server/src/lib/outcomes.test.ts` (current behavior is locked, deliberate-change required to fix).
+
+---
+
+## Medium
+
+### `apps/server/src/routes/me.ts` — `requireAuth` / `getClient` field mismatch
+
+`requireAuth` (in `lib/session.ts`) populates `request.user`. The local `getClient` helper in `me.ts` reads `request.account`. Today both are set consistently by the same `attachSession` Fastify hook, so the mismatch is invisible. If auth shape ever drifts (e.g. someone changes `attachSession` to stop setting one field), routes would 401 with `unauthorized` from `getClient` even though `requireAuth` passed.
+
+**Fix**: pick one field name across the codebase. Either rename `request.user` → `request.account` in session.ts, or change me.ts's `getClient` to read `request.user`. Coordinate with `apps/server/src/routes/auth.ts` and any other consumer.
+
+### `apps/server/src/routes/admin.ts` — opaque `store_or_outcome_not_found`
+
+POST `/stores/:id/schedule` returns `error: 'store_or_outcome_not_found'` for two distinct failure modes: (a) store deleted, (b) outcome deleted/superseded. Surfaces as a single 404 via Prisma `P2003` foreign-key violation. Operators reporting the error can't distinguish which entity is the problem.
+
+**Fix**: pre-check both with a single `prisma.store.findUnique` + `prisma.outcome.findUnique` before the create. Return distinct codes `store_not_found` / `outcome_not_found`.
+
+### `apps/server/src/routes/admin.ts` — free-tier outcome guard returns 409
+
+The free-tier outcome allowlist guard responds with HTTP 409 `outcome_not_in_free_tier_allowlist`. 409 ("Conflict") is semantically odd here — the request is well-formed and there's no state conflict; the resource just isn't allowed. 403 ("Forbidden") or 422 ("Unprocessable") would be more conventional.
+
+**Fix**: audit the entire codebase's error-status conventions first. If the project consistently uses 409 for "policy-blocked" cases, keep this. If 403/422 are used elsewhere, normalize.
+
+### `apps/server/packages/api-client/src/index.ts` — `buildError` drops `.code` on `{error}`-only responses
+
+When the server returns `{error: 'unauthorized'}` with no `message` field, `buildError` falls through to the raw `${status} ${statusText}: ${body}` shape AND `.code` is left undefined. Callers can't reliably read `.code` on errors unless the server also sent `message`.
+
+**Fix**: always set `.code = parsed.error` if parsed JSON had an `error` field, regardless of `message` presence.
+
+**Pinned in**: `packages/api-client/src/index.test.ts` (current behavior locked).
+
+### `apps/server/packages/api-client/src/index.ts` — `baseUrl` naive concat
+
+`fetch(`${opts.baseUrl}${path}`, ...)` does no slash normalization. If a caller ever passes `baseUrl: 'https://x.com/'` (trailing slash) and `path: '/y'` (leading slash), result is `https://x.com//y`. Today every caller passes the canonical shape so it works, but the contract is brittle.
+
+**Fix**: either strip trailing slash from baseUrl or document the contract in JSDoc.
+
+---
+
+## Low / housekeeping
+
+### Repo: `apps/admin/tsconfig 2.tsbuildinfo` accidentally committed
+
+A macOS Finder-duplicated build cache file (` 2` suffix) got committed during the packages-workspace work on 2026-05-17. Not breaking anything, but clutters the repo.
+
+**Fix**: delete the file, add `**/*\ 2.*` (or similar) to `.gitignore` to prevent recurrence.
+
+### Schedule `schedule_overlap` message wording diverges between admin and me
+
+- Operator surface: `"Overlaps with existing slot HH:MM–HH:MM"`
+- Customer surface: `"Overlaps with HH:MM–HH:MM"`
+
+Pinned by tests on both surfaces. If you ever want to unify, do it deliberately and update both test files.
+
+---
+
+## Notes on workflow
+
+- The `Tier` enum legacy `mvp_pilot` value was ripped out as of 2026-05-18 (migration `20260518000000_remove_mvp_pilot_store_tier`). `ClientPlan.mvp_pilot` is a separate concept and stays.
+- The Eno-1 vs Eno-2 split and the decomposer v1–v8 sweep are documented as intentional experiment surfaces — see `apps/server/src/lib/eno/README.md` and `apps/server/src/lib/decomposer/README.md`. Do not treat as cleanup targets.
+- See also `ASSESSMENT.md` and friends at repo root for the codebase audit that drove the cleanup sprint.
