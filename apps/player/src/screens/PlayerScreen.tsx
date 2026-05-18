@@ -377,7 +377,8 @@ export function PlayerScreen({ session, onLogout }: Props) {
   // waiting for React to flush the setQueue state update.
   const refill = useCallback(async (): Promise<QueueItem[]> => {
     try {
-      const r = await fetchNext(allOutcomesModeRef.current);
+      const allOutcomes = allOutcomesModeRef.current;
+      const r = await fetchNext(allOutcomes);
       setActiveOutcome(r.activeOutcome);
       setReason(r.reason);
       setNetworkError(null);
@@ -388,15 +389,26 @@ export function PlayerScreen({ session, onLogout }: Props) {
         samplerStartedRef.current = false;
       }
       setQueue((prev) => {
-        const have = new Set(prev.filter((q) => q.type !== "ad").map((q) => q.songId));
-        if (currentRef.current?.type !== "ad") have.add(currentRef.current?.songId ?? "");
-        have.delete("");
-        // Always allow ad items through; dedup songs only. Songs whose
-        // audio URL failed to load earlier in this session are excluded
-        // here so the queue never re-serves a known-broken track.
+        // Sibling-aware merge: a "sibling key" is the same identifier the
+        // server uses to keep two takes of the same generation apart
+        // (hookId for paid pool, songSeedId for free general pool, songId
+        // fallback). Without this, outcome-change refills could land a
+        // sibling next to one still queued.
+        const siblingKey = (q: QueueItem): string =>
+          q.type === "ad" ? `ad:${q.assetId ?? q.songId}` : (q.hookId ?? q.songSeedId ?? q.songId);
+        const haveSongs = new Set(prev.filter((q) => q.type !== "ad").map((q) => q.songId));
+        const haveSiblings = new Set(prev.filter((q) => q.type !== "ad").map(siblingKey));
+        if (currentRef.current && currentRef.current.type !== "ad") {
+          haveSongs.add(currentRef.current.songId);
+          haveSiblings.add(siblingKey(currentRef.current));
+        }
+        haveSongs.delete("");
+        haveSiblings.delete("");
         const failed = failedSongIdsRef.current;
-        const additions = r.queue.filter(
-          (q) => q.type === "ad" || (!have.has(q.songId) && !failed.has(q.songId)),
+        const additions = r.queue.filter((q) =>
+          q.type === "ad"
+            ? true
+            : !haveSongs.has(q.songId) && !haveSiblings.has(siblingKey(q)) && !failed.has(q.songId),
         );
         return [...prev, ...additions].slice(0, 6);
       });
@@ -407,6 +419,14 @@ export function PlayerScreen({ session, onLogout }: Props) {
         .slice(0, 2)
         .forEach((q) => { void prefetchAudio(q.songId, q.audioUrl); });
       if (r.reason === "no_pool" && !currentRef.current) emit("playback_starved");
+      // Telemetry: surfaces 'panic' fallback frequency without log-diving.
+      emit("queue_refill", null, undefined, {
+        fallback_tier: r.fallbackTier,
+        queue_size: r.queue.length,
+        all_outcomes: allOutcomes,
+        active_outcome_id: r.activeOutcome?.outcomeId ?? null,
+        reason: r.reason,
+      });
       return r.queue;
     } catch (e) {
       console.warn("[player] refill failed", e);

@@ -717,6 +717,12 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
         },
       })
       await tx.storeICP.create({ data: { storeId: store.id, icpId: icp.id } })
+      // Sever the Free Tier ICP link by default — a paying customer's pool
+      // should be just their own ICP. Operators can re-link via the Dash
+      // Location settings toggle if a client explicitly asks for it.
+      await tx.storeICP.deleteMany({
+        where: { storeId: store.id, icpId: FREE_TIER_ICP_ID },
+      })
       await tx.store.update({
         where: { id: store.id },
         data: {

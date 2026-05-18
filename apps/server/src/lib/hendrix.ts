@@ -1,12 +1,18 @@
 // Card 18 Hendrix — playback routing.
-// Resolves outcome, builds eligible pool, applies rotation rules with tiered fallback.
+// Resolves outcome, builds eligible pool, applies rotation rules, falls back to
+// "least-played / least-recent" panic mode only when every song is filtered out.
 
 import { prisma } from '../db.js'
 import { resolveActiveOutcome } from './outcomeSchedule.js'
 import { effectiveTier, type StoreTierFields } from './tier.js'
 import { FREE_TIER_AD_STORE_ID } from './freeTier.js'
 
-export type FallbackTier = 'none' | 'daily_cap' | 'sibling_spacing' | 'no_repeat_window'
+// `normal`: ≥1 song passed sibling-spacing + no-repeat filters.
+// `panic`:  pool exists but every song was filtered out — pick the least-played /
+//           least-recently-played row(s) instead of returning an empty queue.
+//           dedupeBySibling still runs in panic, so two siblings never ride
+//           together inside a single 3-song batch.
+export type FallbackTier = 'normal' | 'panic'
 export type EmptyReason = 'no_pool' | null
 
 export interface QueueItem {
@@ -16,6 +22,10 @@ export interface QueueItem {
   // hookId / icpId are nullable: rows from the general pool (free-tier
   // Stores with no ICPs) have neither. icpName/hookText follow.
   hookId: string | null
+  // songSeedId is the cross-take generation identifier — two cuts of the
+  // same Suno generation share it even when hookId is null (free tier).
+  // Surfaced on the wire so the player can do sibling-aware queue merging.
+  songSeedId: string | null
   outcomeId: string
   icpId: string | null
   icpName: string | null
@@ -99,12 +109,8 @@ async function fetchAllPool(icpIds: string[], retiredSongIds: string[]): Promise
 async function applyFilters(
   storeId: string,
   pool: PoolRow[],
-  applyDailyCap: boolean,
-  applySiblingSpacing: boolean,
-  applyNoRepeat: boolean,
-  rules: { siblingSpacingMinutes: number; noRepeatWindowMinutes: number; dailyCap: number },
+  rules: { siblingSpacingMinutes: number; noRepeatWindowMinutes: number },
   now: Date,
-  timezone: string,
 ): Promise<PoolRow[]> {
   if (pool.length === 0) return pool
 
@@ -117,21 +123,18 @@ async function applyFilters(
 
   const noRepeatCutoff = new Date(now.getTime() - rules.noRepeatWindowMinutes * 60 * 1000)
   const siblingCutoff = new Date(now.getTime() - rules.siblingSpacingMinutes * 60 * 1000)
-  const todayStart = storeLocalMidnight(now, timezone)
 
-  const [recentSongPlays, recentHookPlays, recentSeedSongPlays, todaySongPlays] = await Promise.all([
-    applyNoRepeat
-      ? prisma.playbackEvent.findMany({
-          where: {
-            storeId,
-            songId: { in: songIds },
-            eventType: 'song_start',
-            occurredAt: { gte: noRepeatCutoff },
-          },
-          select: { songId: true, occurredAt: true },
-        })
-      : Promise.resolve([]),
-    applySiblingSpacing && hookIds.length > 0
+  const [recentSongPlays, recentHookPlays, recentSeedSongPlays] = await Promise.all([
+    prisma.playbackEvent.findMany({
+      where: {
+        storeId,
+        songId: { in: songIds },
+        eventType: 'song_start',
+        occurredAt: { gte: noRepeatCutoff },
+      },
+      select: { songId: true, occurredAt: true },
+    }),
+    hookIds.length > 0
       ? prisma.playbackEvent.findMany({
           where: {
             storeId,
@@ -144,7 +147,7 @@ async function applyFilters(
       : Promise.resolve([]),
     // PlaybackEvent has no songSeedId column — resolve recent plays' seeds
     // by joining through LineageRow on the songId.
-    applySiblingSpacing && seedIds.length > 0
+    seedIds.length > 0
       ? prisma.lineageRow.findMany({
           where: {
             songSeedId: { in: seedIds },
@@ -161,52 +164,18 @@ async function applyFilters(
           select: { songSeedId: true },
         })
       : Promise.resolve([]),
-    applyDailyCap
-      ? prisma.playbackEvent.findMany({
-          where: {
-            storeId,
-            songId: { in: songIds },
-            eventType: 'song_start',
-            occurredAt: { gte: todayStart },
-          },
-          select: { songId: true },
-        })
-      : Promise.resolve([]),
   ])
 
   const noRepeatBlock = new Set(recentSongPlays.map((p) => p.songId!))
   const siblingHookBlock = new Set(recentHookPlays.map((p) => p.hookId!))
   const siblingSeedBlock = new Set(recentSeedSongPlays.map((r) => r.songSeedId!).filter(Boolean))
-  const dailyCount = new Map<string, number>()
-  for (const p of todaySongPlays) {
-    if (!p.songId) continue
-    dailyCount.set(p.songId, (dailyCount.get(p.songId) ?? 0) + 1)
-  }
 
   return pool.filter((r) => {
-    if (applyNoRepeat && noRepeatBlock.has(r.songId)) return false
-    if (applySiblingSpacing) {
-      if (r.hookId && siblingHookBlock.has(r.hookId)) return false
-      if (r.songSeedId && siblingSeedBlock.has(r.songSeedId)) return false
-    }
-    if (applyDailyCap && (dailyCount.get(r.songId) ?? 0) >= rules.dailyCap) return false
+    if (noRepeatBlock.has(r.songId)) return false
+    if (r.hookId && siblingHookBlock.has(r.hookId)) return false
+    if (r.songSeedId && siblingSeedBlock.has(r.songSeedId)) return false
     return true
   })
-}
-
-function storeLocalMidnight(now: Date, timezone: string): Date {
-  const fmt = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  })
-  const dateStr = fmt.format(now)
-  const candidate = new Date(`${dateStr}T00:00:00Z`)
-  new Date(`${dateStr}T00:00:00Z`).toLocaleString('en-US', { timeZone: timezone, hour12: false })
-  const local = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
-  const offsetMs = local.getTime() - now.getTime()
-  return new Date(candidate.getTime() - offsetMs)
 }
 
 async function rankByPlayCount(storeId: string, pool: PoolRow[]): Promise<PoolRow[]> {
@@ -255,7 +224,7 @@ function dedupeBySibling(pool: PoolRow[]): PoolRow[] {
   return out
 }
 
-type PlaybackRules = { siblingSpacingMinutes: number; noRepeatWindowMinutes: number; dailyCap: number }
+type PlaybackRules = { siblingSpacingMinutes: number; noRepeatWindowMinutes: number }
 
 async function hydrateQueue(top: PoolRow[]): Promise<QueueItem[]> {
   const lineageIds = top.map((r) => r.id)
@@ -281,6 +250,7 @@ async function hydrateQueue(top: PoolRow[]): Promise<QueueItem[]> {
     songId: r.songId,
     audioUrl: r.r2Url,
     hookId: r.hookId,
+    songSeedId: r.songSeedId,
     outcomeId: r.outcomeId,
     icpId: r.icpId,
     icpName: r.icpId ? (nameByIcp.get(r.icpId) ?? null) : null,
@@ -293,29 +263,28 @@ async function buildQueueFromPool(
   storeId: string,
   unfilteredPool: PoolRow[],
   rules: PlaybackRules,
-  timezone: string,
   now: Date,
 ): Promise<{ queue: QueueItem[]; fallbackTier: FallbackTier }> {
-  if (unfilteredPool.length === 0) return { queue: [], fallbackTier: 'none' }
+  if (unfilteredPool.length === 0) return { queue: [], fallbackTier: 'normal' }
 
-  const tiers: { tier: FallbackTier; cap: boolean; sib: boolean; rep: boolean }[] = [
-    { tier: 'none', cap: true, sib: true, rep: true },
-    { tier: 'daily_cap', cap: false, sib: true, rep: true },
-    { tier: 'sibling_spacing', cap: false, sib: false, rep: true },
-    { tier: 'no_repeat_window', cap: false, sib: false, rep: false },
-  ]
+  const eligible = await applyFilters(storeId, unfilteredPool, rules, now)
 
-  for (const t of tiers) {
-    const eligible = await applyFilters(storeId, unfilteredPool, t.cap, t.sib, t.rep, rules, now, timezone)
-    if (eligible.length > 0) {
-      const ranked = await rankByPlayCount(storeId, eligible)
-      const top = dedupeBySibling(ranked).slice(0, 3)
-      const queue = await hydrateQueue(top)
-      return { queue, fallbackTier: t.tier }
-    }
+  // Normal path: ≥1 song survived sibling-spacing + no-repeat. Rank, dedupe
+  // siblings within the batch, take top 3.
+  if (eligible.length > 0) {
+    const ranked = await rankByPlayCount(storeId, eligible)
+    const top = dedupeBySibling(ranked).slice(0, 3)
+    const queue = await hydrateQueue(top)
+    return { queue, fallbackTier: 'normal' }
   }
 
-  return { queue: [], fallbackTier: 'no_repeat_window' }
+  // Panic: every song was filtered out. Pick from the full pool ranked by
+  // least-played / least-recently-played so we never return an empty queue
+  // when songs exist. dedupeBySibling still runs so twins don't ride together.
+  const ranked = await rankByPlayCount(storeId, unfilteredPool)
+  const top = dedupeBySibling(ranked).slice(0, 3)
+  const queue = await hydrateQueue(top)
+  return { queue, fallbackTier: 'panic' }
 }
 
 async function injectAdIfDue(
@@ -368,6 +337,7 @@ async function injectAdIfDue(
     songId: asset.id,
     audioUrl: asset.r2Url,
     hookId: null,
+    songSeedId: null,
     outcomeId: '',
     icpId: null,
     icpName: null,
@@ -392,7 +362,7 @@ export async function nextQueue(
   const decidedAt = now.toISOString()
   const store = await prisma.store.findUnique({ where: { id: storeId } })
   if (!store) {
-    return { storeId, decidedAt, activeOutcome: null, queue: [], fallbackTier: 'none', reason: 'no_pool', roomLoudnessSamplingEnabled: false }
+    return { storeId, decidedAt, activeOutcome: null, queue: [], fallbackTier: 'normal', reason: 'no_pool', roomLoudnessSamplingEnabled: false }
   }
 
   const roomLoudness = roomLoudnessFlag(store.roomLoudnessSamplingEnabled)
@@ -400,7 +370,6 @@ export async function nextQueue(
   const rules = (await prisma.playbackRules.findFirst()) ?? {
     siblingSpacingMinutes: 240,
     noRepeatWindowMinutes: 45,
-    dailyCap: 3,
   }
 
   // Resolve the Store's active ICP set via the StoreICP join (Free Tier ICP
@@ -416,7 +385,7 @@ export async function nextQueue(
   // All-outcomes mode: pull from every outcome's pool without restricting to the active one.
   if (opts.allOutcomes) {
     const pool = dedupeBySong(await fetchAllPool(icpIds, retiredSongIds))
-    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, store.timezone, now)
+    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, now)
     return {
       storeId,
       decidedAt,
@@ -433,7 +402,7 @@ export async function nextQueue(
     // No outcome configured (no selection, schedule, or default) — fall back to all-outcomes pool
     // so the player always plays something when songs exist.
     const pool = dedupeBySong(await fetchAllPool(icpIds, retiredSongIds))
-    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, store.timezone, now)
+    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, now)
     return {
       storeId,
       decidedAt,
@@ -451,7 +420,7 @@ export async function nextQueue(
     // Resolved outcome exists but has no songs — fall back to all-outcomes pool
     // so the player always has something to play when songs exist under any outcome.
     const pool = dedupeBySong(await fetchAllPool(icpIds, retiredSongIds))
-    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, store.timezone, now)
+    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, now)
     return {
       storeId,
       decidedAt,
@@ -463,7 +432,7 @@ export async function nextQueue(
     }
   }
 
-  const { queue, fallbackTier } = await buildQueueFromPool(storeId, unfilteredPool, rules, store.timezone, now)
+  const { queue, fallbackTier } = await buildQueueFromPool(storeId, unfilteredPool, rules, now)
   return {
     storeId,
     decidedAt,

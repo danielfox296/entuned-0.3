@@ -51,6 +51,12 @@ const EventSchema = z.object({
     // `heartbeat` is the every-60s liveness ping with { is_playing, queue_depth }.
     'song_load_failed',
     'heartbeat',
+    // Hendrix rotation debugging (2026-05-17): emitted by player after every
+    // /hendrix/next call. extra carries { fallback_tier, queue_size, all_outcomes }.
+    // 'panic' fallback means the sibling+no-repeat filters wiped the pool and
+    // we served from the full pool ranked by least-played — a signal the
+    // library is too small relative to playback rate.
+    'queue_refill',
   ]),
   store_id: z.string().uuid(),
   occurred_at: z.string().datetime(),

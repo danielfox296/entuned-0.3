@@ -10,6 +10,10 @@ export interface QueueItem {
   // hookId / icpId are nullable: rows from the general pool (free-tier
   // Stores with no ICPs) have neither.
   hookId: string | null
+  // songSeedId: cross-take generation id — two cuts of the same Suno
+  // generation share it even when hookId is null. Used for sibling-aware
+  // queue merging in the player.
+  songSeedId: string | null
   outcomeId: string
   icpId: string | null
   icpName: string | null
@@ -41,7 +45,7 @@ export interface NextResponse {
   decidedAt: string
   activeOutcome: ActiveOutcome | null
   queue: QueueItem[]
-  fallbackTier: 'none' | 'daily_cap' | 'sibling_spacing' | 'no_repeat_window'
+  fallbackTier: 'normal' | 'panic'
   reason: 'no_pool' | null
   roomLoudnessSamplingEnabled: boolean
 }
@@ -93,6 +97,9 @@ export type AudioEventType =
   // waiting for the next song-event.
   | 'song_load_failed'
   | 'heartbeat'
+  // Hendrix rotation debugging (2026-05-17). Emitted on every successful
+  // /hendrix/next response so 'panic' fallback frequency is queryable.
+  | 'queue_refill'
 
 // Typed `extra` shape per event_type. Add entries here when you introduce a
 // new event with structured payload; events not listed here default to
@@ -108,6 +115,7 @@ export type EventExtra = {
   room_loudness_sample: { dbfs_a: number; sample_window_ms: number; weighted: 'A' }
   ad_play: { assetId: string; campaignId: string }
   mediasession_action: { action: string; seekTime?: number | null }
+  queue_refill: { fallback_tier: 'normal' | 'panic'; queue_size: number; all_outcomes: boolean; active_outcome_id: string | null; reason: 'no_pool' | null }
 }
 
 export type ExtraFor<T extends AudioEventType> = T extends keyof EventExtra ? EventExtra[T] : Record<string, unknown>

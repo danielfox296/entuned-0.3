@@ -19,7 +19,7 @@ export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void 
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
   const [freeTierAllowedKeys, setFreeTierAllowedKeys] = useState<Set<string> | null>(null)
   const [storeId, setStoreId] = useStoreSelection()
-  const [detail, setDetail] = useState<{ id: string; name: string; timezone: string; clientId: string; clientName: string; icps: { id: string; name: string }[]; goLiveDate: string | null; defaultOutcomeId: string | null; roomLoudnessSamplingEnabled: boolean; tier: 'free' | 'core' | 'pro' | 'enterprise' | 'mvp_pilot' } | null>(null)
+  const [detail, setDetail] = useState<{ id: string; name: string; timezone: string; clientId: string; clientName: string; icps: { id: string; name: string }[]; goLiveDate: string | null; defaultOutcomeId: string | null; roomLoudnessSamplingEnabled: boolean; tier: 'free' | 'core' | 'pro' | 'enterprise' | 'mvp_pilot'; includeFreeTierPool: boolean } | null>(null)
   const [draft, setDraft] = useState<StoreUpdateBody | null>(null)
   const [creating, setCreating] = useState<StoreCreateBody | null>(null)
   const [busy, setBusy] = useState(false)
@@ -61,6 +61,7 @@ export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void 
         defaultOutcomeId: d.store.defaultOutcomeId,
         roomLoudnessSamplingEnabled: d.store.roomLoudnessSamplingEnabled,
         tier: d.store.tier,
+        includeFreeTierPool: d.store.includeFreeTierPool,
       })
       setDraft({})
     }).catch((e) => setErr(e.message))
@@ -205,6 +206,22 @@ export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void 
                 player requests mic, emits ~1/min A-weighted dBFS
               </label>
             </Field>
+
+            {detail.tier !== 'free' && (
+              <Field label="include Entuned free pool">
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: T.sans, fontSize: S.small, color: T.textMuted }}>
+                  <input
+                    type="checkbox"
+                    checked={draft.includeFreeTierPool ?? detail.includeFreeTierPool}
+                    onChange={(e) => setDraft({ ...draft, includeFreeTierPool: e.target.checked })}
+                  />
+                  draw from the Entuned-curated free pool in addition to this location&rsquo;s own ICP
+                </label>
+                <div style={{ fontSize: 11, fontFamily: T.mono, color: T.textDim, marginTop: 4 }}>
+                  default OFF for paid locations. Turn on if the client explicitly wants extra music breadth from the curated free pool.
+                </div>
+              </Field>
+            )}
           </Section>
 
           <Section title="Read-only">

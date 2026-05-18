@@ -352,7 +352,7 @@ export interface TierHistoryResponse {
 }
 
 export interface StoreDetail {
-  store: { id: string; name: string; timezone: string; clientId: string; clientName: string; goLiveDate: string | null; defaultOutcomeId: string | null; roomLoudnessSamplingEnabled: boolean; tier: 'free' | 'core' | 'pro' | 'enterprise' | 'mvp_pilot' }
+  store: { id: string; name: string; timezone: string; clientId: string; clientName: string; goLiveDate: string | null; defaultOutcomeId: string | null; roomLoudnessSamplingEnabled: boolean; tier: 'free' | 'core' | 'pro' | 'enterprise' | 'mvp_pilot'; includeFreeTierPool: boolean }
   icps: (IcpRow & { referenceTracks: ReferenceTrackRow[] })[]
   sharedWith: { id: string; name: string; clientName: string }[]
 }
@@ -494,6 +494,7 @@ export interface StoreUpdateBody {
   goLiveDate?: string | null
   defaultOutcomeId?: string | null
   roomLoudnessSamplingEnabled?: boolean
+  includeFreeTierPool?: boolean
 }
 
 export interface IcpCreateBody {
@@ -769,7 +770,7 @@ export interface LiveStoreView {
     expiresAt: string | null
   } | null
   queue: QueueEntry[]
-  fallbackTier: 'none' | 'daily_cap' | 'sibling_spacing' | 'no_repeat_window'
+  fallbackTier: 'normal' | 'panic'
   reason: 'no_pool' | null
   outcomes: OutcomeWithPool[]
   recentEvents: PlaybackEventRow[]

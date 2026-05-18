@@ -675,6 +675,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     goLiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
     defaultOutcomeId: z.string().uuid().nullable().optional(),
     roomLoudnessSamplingEnabled: z.boolean().optional(),
+    // Toggle the Free Tier ICP link on/off. Free stores can't toggle this off
+    // (they have no other pool). Hendrix reads the StoreICP join at runtime;
+    // adding/removing the row is the only thing this flag does.
+    includeFreeTierPool: z.boolean().optional(),
   })
 
   app.put('/stores/:id', async (req, reply) => {
@@ -682,7 +686,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const id = (req.params as any).id as string
     const parsed = StoreUpdateBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const data: any = { ...parsed.data }
+    const { includeFreeTierPool, ...rest } = parsed.data
+    const data: any = { ...rest }
     if (parsed.data.goLiveDate !== undefined) {
       data.goLiveDate = parsed.data.goLiveDate ? new Date(parsed.data.goLiveDate) : null
     }
@@ -707,6 +712,28 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         }
       }
     }
+    // Free-pool toggle. Free stores can't sever — that's their only pool.
+    if (includeFreeTierPool !== undefined) {
+      const target = await prisma.store.findUnique({ where: { id }, select: { tier: true } })
+      if (!target) return reply.code(404).send({ error: 'not_found' })
+      if (target.tier === 'free' && includeFreeTierPool === false) {
+        return reply.code(409).send({
+          error: 'free_tier_cannot_sever_free_pool',
+          message: 'Free-tier stores draw exclusively from the free pool — cannot disable.',
+        })
+      }
+      if (includeFreeTierPool) {
+        await prisma.storeICP.upsert({
+          where: { storeId_icpId: { storeId: id, icpId: FREE_TIER_ICP_ID } },
+          create: { storeId: id, icpId: FREE_TIER_ICP_ID },
+          update: {},
+        })
+      } else {
+        await prisma.storeICP.deleteMany({
+          where: { storeId: id, icpId: FREE_TIER_ICP_ID },
+        })
+      }
+    }
     try {
       const row = await prisma.store.update({
         where: { id }, data,
@@ -722,6 +749,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         goLiveDate: row.goLiveDate ? row.goLiveDate.toISOString().slice(0, 10) : null,
         defaultOutcomeId: row.defaultOutcomeId,
         roomLoudnessSamplingEnabled: row.roomLoudnessSamplingEnabled,
+        includeFreeTierPool: row.icpLinks.some((l) => l.icp.id === FREE_TIER_ICP_ID),
       }
     } catch {
       return reply.code(404).send({ error: 'not_found' })
@@ -808,6 +836,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         },
       },
     })
+    const includeFreeTierPool = icps.some((i) => i.id === FREE_TIER_ICP_ID)
     return {
       store: {
         id: store.id,
@@ -819,6 +848,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         defaultOutcomeId: store.defaultOutcomeId,
         roomLoudnessSamplingEnabled: store.roomLoudnessSamplingEnabled,
         tier: store.tier,
+        // Whether this Store also draws from the Entuned-curated free pool.
+        // Default for paid stores is `false` (severed on upgrade); operators
+        // can re-enable via PUT /stores/:id { includeFreeTierPool: true } if
+        // a client wants the extra pool.
+        includeFreeTierPool,
       },
       icps,
       sharedWith: [],
