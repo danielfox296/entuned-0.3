@@ -96,11 +96,15 @@ ${formBrief ? `${formBrief}\n` : ''}${input.brandLyricGuidelines ? `Brand lyric 
   if (!draftBlock?.text) throw new Error('Bernie draft pass returned no text')
   const draft = parseLyricJson(draftBlock.text)
 
-  // Pass 2 — edit
+  // Pass 2 — edit.
+  // Form and arrangement context are intentionally OMITTED from the edit
+  // user-message: the draft already encoded section structure into the lyrics,
+  // and the editor's job is polish, not re-architecture. Re-injecting form/
+  // arrangement here just pays tokens for context the editor doesn't act on.
   const editUserMessage = `Hook (must remain verbatim in every instance the draft used it — choruses, verse-end refrains, tag, whatever the form dictates):
 "${input.hookText}"
 
-${formBrief ? `${formBrief}\n` : ''}${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n\n` : ''}${arrangementBrief ? `${arrangementBrief}\n` : ''}Draft to polish:
+${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n\n` : ''}Draft to polish:
 
 Title: ${draft.title}
 

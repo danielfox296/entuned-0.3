@@ -273,6 +273,11 @@ Output JSON only.${focusDirective}`
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 4000,
+    // Suggester is partly extractive (real songs only) and partly generative
+    // (Adjacent vectors). 0.5 keeps Adjacent picks varied without letting
+    // PreFormation/FormationEra hallucinate fake tracks.
+    temperature: 0.5,
+    stop_sequences: ['\n\n\n'],
     system: [{ type: 'text', text: prompt.templateText, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: userMessage }],
   })

@@ -22,7 +22,9 @@ import type { StyleAnalysis } from '@prisma/client'
 import { stripForSuno } from './sanitize.js'
 import { capStyle } from './cap.js'
 
-const MODEL = process.env.MARS_ANCHOR_MODEL ?? 'claude-haiku-4-5-20251001'
+// Un-pinned alias — picks up minor model improvements automatically. Pin via
+// MARS_ANCHOR_MODEL env if reproducibility matters for a given experiment.
+const MODEL = process.env.MARS_ANCHOR_MODEL ?? 'claude-haiku-4-5'
 const ANCHOR_VERSION = 1
 const STYLE_HARD_CAP = 250
 
@@ -148,6 +150,10 @@ export async function buildAnchorStyle(
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 600,
+    // Anchor picking is extractive over a small vocabulary — low temperature
+    // reduces drift across repeat calls. Stop sequence cuts prose tails.
+    temperature: 0.3,
+    stop_sequences: ['\n\n\n'],
     system: [
       {
         type: 'text',

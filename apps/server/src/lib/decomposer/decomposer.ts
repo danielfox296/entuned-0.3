@@ -207,6 +207,10 @@ keys: ${requiredKeys}. No prose before or after the JSON. No markdown code fence
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 4000,
+    // Extractive task — lower temperature improves consistency without hurting
+    // quality. Stop sequences omitted here: web search interaction makes them
+    // risky (the tool emits intermediate text blocks before the final JSON).
+    temperature: 0.3,
     system: [
       {
         type: 'text',

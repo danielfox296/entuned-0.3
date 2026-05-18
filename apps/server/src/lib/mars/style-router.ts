@@ -26,7 +26,9 @@ import Anthropic from '@anthropic-ai/sdk'
 import type { StyleAnalysis } from '@prisma/client'
 import { stripForSuno } from './sanitize.js'
 
-const MODEL = process.env.MARS_ROUTER_MODEL ?? 'claude-haiku-4-5-20251001'
+// Un-pinned alias — picks up minor model improvements automatically. Pin via
+// MARS_ROUTER_MODEL env if reproducibility matters for a given experiment.
+const MODEL = process.env.MARS_ROUTER_MODEL ?? 'claude-haiku-4-5'
 const ROUTER_VERSION = 1
 const HARD_CAP = 250
 
@@ -180,6 +182,10 @@ export async function routeStylePortion(
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 800,
+    // Extractive slot-routing — low temperature improves consistency. Stop
+    // sequence cuts any prose tail after the JSON closes.
+    temperature: 0.3,
+    stop_sequences: ['\n\n\n'],
     system: [
       {
         type: 'text',
