@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 
-// First-launch onboarding tour — three sequential tooltips that point at the
-// outcome selector, love button, and report button. Gated on a localStorage
-// flag so it fires once per device/browser. Marked seen on completion or skip.
+// First-launch onboarding tour — single tooltip pointing at the Outcome chip,
+// the one control whose meaning isn't self-evident. Heart and Flag are
+// universal patterns; tutorializing them trains tune-out. Gated on a
+// localStorage flag so it fires once per device/browser.
 
-const TOUR_KEY = "entuned.player.tour.seen.v1";
+const TOUR_KEY = "entuned.player.tour.seen.v2";
 
 // Brand teal — matches --accent in index.css. The tour is the user's first
 // touchpoint with the player, so it has to read as "Entuned" not "premium
@@ -38,10 +39,11 @@ interface Props {
   onClose: () => void;
 }
 
-const TOOLTIP_WIDTH = 296;
-const VIEWPORT_MARGIN = 14;
-const TARGET_GAP = 14;          // breathing room between halo and tooltip
-const ARROW_SIZE = 10;
+const TOOLTIP_WIDTH = 360;
+const VIEWPORT_MARGIN = 16;
+const TARGET_GAP = 18;          // breathing room between halo and tooltip
+const ARROW_SIZE = 11;
+const SPOTLIGHT_PAD = 10;       // extra room around target inside the hole-punched scrim
 
 export function TooltipTour({ steps, onClose }: Props) {
   const [index, setIndex] = useState(0);
@@ -127,16 +129,29 @@ export function TooltipTour({ steps, onClose }: Props) {
 
   return (
     <>
-      {/* Soft full-screen scrim — slightly stronger than before so the teal
-          accents on the tooltip and halo pop. */}
+      {/* Click-catcher behind the spotlight — taps anywhere outside the
+          target dismiss the tour. Transparent; only here for pointer events. */}
       <div
         onClick={finish}
         style={{
-          position: "fixed", inset: 0, zIndex: 80,
-          background: "rgba(8,10,12,0.62)",
-          backdropFilter: "blur(2px)",
-          WebkitBackdropFilter: "blur(2px)",
+          position: "fixed", inset: 0, zIndex: 79,
+          background: "transparent",
           cursor: "pointer",
+          animation: "entunedTourFade 220ms ease-out",
+        }}
+      />
+      {/* Hole-punched scrim: a transparent rect over the target whose outward
+          box-shadow paints the rest of the screen dim. pointer-events:none so
+          clicks on the target itself pass through, and clicks in the dark
+          area fall to the catcher below. */}
+      <div
+        style={{
+          position: "fixed", zIndex: 80, pointerEvents: "none",
+          left: rect.left - SPOTLIGHT_PAD, top: rect.top - SPOTLIGHT_PAD,
+          width: rect.width + SPOTLIGHT_PAD * 2,
+          height: rect.height + SPOTLIGHT_PAD * 2,
+          borderRadius: haloRadius,
+          boxShadow: "0 0 0 9999px rgba(8,10,12,0.72)",
           animation: "entunedTourFade 220ms ease-out",
         }}
       />
@@ -161,80 +176,74 @@ export function TooltipTour({ steps, onClose }: Props) {
           width: TOOLTIP_WIDTH,
           background: "linear-gradient(180deg, #1c1f22 0%, #16181b 100%)",
           border: `1px solid ${TEAL_BORDER}`,
-          borderRadius: 14,
-          padding: "16px 18px 14px",
+          borderRadius: 16,
+          padding: "20px 22px 18px",
           color: "#D4E1E5",
           fontFamily: "'Inter', sans-serif",
-          boxShadow: `0 18px 56px rgba(0,0,0,0.55), 0 0 0 1px rgba(106,176,187,0.06), 0 0 28px ${TEAL_GLOW}`,
+          boxShadow: `0 22px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(106,176,187,0.06), 0 0 32px ${TEAL_GLOW}`,
           animation: placement === "above"
             ? "entunedTourRiseUp 260ms cubic-bezier(.2,.8,.2,1)"
             : "entunedTourRiseDown 260ms cubic-bezier(.2,.8,.2,1)",
         }}
       >
-        {/* Teal accent rail on the left edge — gives the card structure and
-            re-states the brand color at the eye's first landing point. */}
-        <div style={{
-          position: "absolute", left: 0, top: 12, bottom: 12, width: 3,
-          background: `linear-gradient(180deg, ${TEAL} 0%, rgba(106,176,187,0.25) 100%)`,
-          borderTopRightRadius: 3, borderBottomRightRadius: 3,
-        }} />
-
         {step.eyebrow ? (
           <div style={{
             fontSize: 10, fontWeight: 600, letterSpacing: "0.18em",
-            color: TEAL, textTransform: "uppercase", marginBottom: 6,
+            color: TEAL, textTransform: "uppercase", marginBottom: 8,
           }}>
             {step.eyebrow}
           </div>
         ) : null}
 
         <div style={{
-          fontSize: 14.5, lineHeight: 1.55, color: "#E8EEF0",
+          fontSize: 16, lineHeight: 1.5, color: "#E8EEF0",
           fontWeight: 400, letterSpacing: "0.005em",
-          marginBottom: 14,
+          marginBottom: 18,
         }}>
           {step.body}
         </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-          {/* Dot step indicator + skip */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ display: "flex", gap: 5 }}>
-              {steps.map((_, i) => (
-                <span
-                  key={i}
+          {/* Dot step indicator + skip — hidden when there's only one step. */}
+          {steps.length > 1 ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ display: "flex", gap: 5 }}>
+                {steps.map((_, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      width: i === index ? 18 : 6, height: 6,
+                      borderRadius: 3,
+                      background: i === index ? TEAL : "rgba(212,225,229,0.22)",
+                      transition: "width 220ms ease, background 220ms ease",
+                    }}
+                  />
+                ))}
+              </div>
+              {!isLast ? (
+                <button
+                  type="button"
+                  onClick={finish}
                   style={{
-                    width: i === index ? 18 : 6, height: 6,
-                    borderRadius: 3,
-                    background: i === index ? TEAL : "rgba(212,225,229,0.22)",
-                    transition: "width 220ms ease, background 220ms ease",
+                    background: "none", border: "none", padding: "2px 0",
+                    color: "rgba(212,225,229,0.5)", fontSize: 11.5,
+                    letterSpacing: "0.04em", cursor: "pointer",
+                    fontFamily: "inherit",
                   }}
-                />
-              ))}
+                >
+                  Skip
+                </button>
+              ) : null}
             </div>
-            {!isLast ? (
-              <button
-                type="button"
-                onClick={finish}
-                style={{
-                  background: "none", border: "none", padding: "2px 0",
-                  color: "rgba(212,225,229,0.5)", fontSize: 11.5,
-                  letterSpacing: "0.04em", cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                Skip
-              </button>
-            ) : null}
-          </div>
+          ) : <span />}
 
           <button
             type="button"
             onClick={next}
             style={{
               background: TEAL, color: "#0d1416",
-              border: "none", borderRadius: 8,
-              padding: "7px 16px", fontSize: 13, fontWeight: 700,
+              border: "none", borderRadius: 9,
+              padding: "9px 20px", fontSize: 14, fontWeight: 700,
               letterSpacing: "0.02em",
               cursor: "pointer", fontFamily: "inherit",
               boxShadow: `0 4px 14px ${TEAL_GLOW}`,

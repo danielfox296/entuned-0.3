@@ -185,12 +185,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
   }, []);
 
   // Onboarding tour — fires once per device on first launch (slug or operator).
-  // Targets the outcome selector, love, and report — the three most product-
-  // defining controls. Marked seen on completion or skip via TooltipTour.
+  // Targets the Outcome chip only: it's the one control whose meaning isn't
+  // self-evident from its glyph. Love/Report are universal patterns and don't
+  // need a coach-mark. Marked seen on completion or skip via TooltipTour.
   // Defer to post-mount so target refs are populated before the tour reads them.
   const outcomeRef = useRef<HTMLDivElement | null>(null);
-  const loveRef = useRef<HTMLButtonElement | null>(null);
-  const reportRef = useRef<HTMLButtonElement | null>(null);
   const [tourActive, setTourActive] = useState<boolean>(false);
   useEffect(() => {
     if (tourSeen()) return;
@@ -1290,7 +1289,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
             return (
               <div style={{ display: "flex", gap: 44, justifyContent: "center", alignItems: "center" }}>
                 <button
-                  ref={loveRef}
                   type="button"
                   disabled={idle}
                   onClick={idle ? undefined : handleLove}
@@ -1307,7 +1305,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
                   </svg>
                 </button>
                 <button
-                  ref={reportRef}
                   type="button"
                   disabled={idle}
                   onClick={idle ? undefined : () => setShowReportModal(true)}
@@ -1424,16 +1421,6 @@ export function PlayerScreen({ session, onLogout }: Props) {
             {
               target: outcomeRef.current,
               body: "Pick what the music should do — Chill, Steady, or Upbeat. Or play All Outcomes. Unlock more with Boost.",
-              placement: "above",
-            },
-            {
-              target: loveRef.current,
-              body: "A track lands? Tap love. We'll lean into what works for your room.",
-              placement: "above",
-            },
-            {
-              target: reportRef.current,
-              body: "Not right for the room? Tap report and tell us why.",
               placement: "above",
             },
           ] satisfies TourStep[]}
