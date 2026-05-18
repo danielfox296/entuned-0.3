@@ -13,7 +13,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../db.js'
 
-const MODEL = process.env.REF_TRACK_SUGGESTER_MODEL ?? 'claude-sonnet-4-5'
+const MODEL = process.env.REF_TRACK_SUGGESTER_MODEL ?? 'claude-sonnet-4-6'
 
 export const REFERENCE_TRACK_PROMPT_SEED = `
 You suggest reference tracks for a brand's in-store music ICP. A reference track

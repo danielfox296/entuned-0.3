@@ -21,7 +21,7 @@ import type { ArrangementSections } from '../arranger/arranger.js'
 import type { FormArchetypeChoice } from '../eno/form-archetype.js'
 import { formatArrangementBrief, getOrSeedDraftPrompt, parseLyricJson } from './_helpers.js'
 
-const MODEL = process.env.LYRICIST_MODEL ?? 'claude-sonnet-4-5'
+const MODEL = process.env.LYRICIST_MODEL ?? 'claude-sonnet-4-6'
 
 export interface BernieInput {
   hookText: string

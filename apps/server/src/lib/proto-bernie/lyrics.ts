@@ -9,7 +9,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../db.js'
 import { DRAFT_CRAFT_BLOCK, EDIT_CRAFT_BLOCK, formatNoGoBlockSync } from '../bernie/lyric-craft-rules.js'
 
-const MODEL = process.env.LYRICIST_MODEL ?? 'claude-sonnet-4-5'
+const MODEL = process.env.LYRICIST_MODEL ?? 'claude-sonnet-4-6'
 
 export interface LyricInput {
   hookText: string

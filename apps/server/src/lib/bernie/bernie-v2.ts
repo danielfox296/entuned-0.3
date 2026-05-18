@@ -29,7 +29,7 @@ import { getGenreCraftOverrides, formatGenreCraftBlock } from './genre-craft-rul
 import type { BernieOutput } from './bernie.js'
 import { formatArrangementBrief, getOrSeedDraftPrompt, parseLyricJson } from './_helpers.js'
 
-const MODEL = process.env.LYRICIST_MODEL ?? 'claude-sonnet-4-5'
+const MODEL = process.env.LYRICIST_MODEL ?? 'claude-sonnet-4-6'
 
 export interface GenreBrief {
   genreTag: string

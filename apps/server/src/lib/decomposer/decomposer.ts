@@ -32,7 +32,7 @@ import { MUSICOLOGICAL_RULES_V7 } from './rules-v7.js'
 import { MUSICOLOGICAL_RULES_V8 } from './rules-v8.js'
 import { MUSICOLOGICAL_RULES_V9 } from './rules-v9.js'
 
-const MODEL = process.env.DECOMPOSER_MODEL ?? 'claude-sonnet-4-5'
+const MODEL = process.env.DECOMPOSER_MODEL ?? 'claude-sonnet-4-6'
 
 // Versioned rule selection. Default to latest. Override via env DECOMPOSER_RULES_VERSION=1.
 const RULES_BY_VERSION: Record<number, string> = {

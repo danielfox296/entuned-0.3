@@ -7,7 +7,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../db.js'
 import { OVERUSED_WORDS, loadBanEntries } from '../bernie/lyric-craft-rules.js'
 
-const MODEL = process.env.HOOK_DRAFTER_MODEL ?? 'claude-sonnet-4-5'
+const MODEL = process.env.HOOK_DRAFTER_MODEL ?? 'claude-sonnet-4-6'
 
 export const HOOK_WRITER_PROMPT_SEED = `
 You write hook lines for a brand's in-store music. A hook becomes the chorus —
