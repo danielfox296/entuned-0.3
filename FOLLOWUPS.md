@@ -4,7 +4,7 @@ Code/behavior items that surfaced during cleanup + test work and were deliberate
 
 When you fix something here, delete the item (don't strike-through). Keep this list short and load-bearing.
 
-Last updated: 2026-05-18 (end of testing-practice-setup + first backfill sweep).
+Last updated: 2026-05-18 (after Sweep A cron-backfill — +155 tests across lifecycleEmails / pauseAutoResume / compExpiry / tier.applyTierChange).
 
 ---
 
@@ -47,6 +47,30 @@ When the server returns `{error: 'unauthorized'}` with no `message` field, `buil
 **Fix**: always set `.code = parsed.error` if parsed JSON had an `error` field, regardless of `message` presence.
 
 **Pinned in**: `packages/api-client/src/index.test.ts` (current behavior locked).
+
+### `apps/server/src/lib/compExpiry.ts` — inlines `$transaction` instead of calling `applyTierChange`
+
+The cron writes the audit row + store update with its own `prisma.$transaction([store.update, tierChangeLog.create])` instead of routing through `applyTierChange`. Output is equivalent today, but every other tier-change path (admin, billing, pauseAutoResume) goes through `applyTierChange`. Drift risk if `applyTierChange` grows new responsibilities (e.g. emitting an event, calling a webhook) and compExpiry doesn't get the update.
+
+**Fix**: refactor `compExpiry` pass 2 to call `applyTierChange` with `source: 'comp_expired'`. Both behaviors are pinned by tests, so equivalence will surface immediately.
+
+**Pinned in**: `apps/server/src/lib/compExpiry.test.ts` (current inline-transaction shape locked).
+
+### `apps/server/src/lib/lifecycleEmails.ts` — header comment says 6 drips, module exports 9
+
+The top-of-file comment overview lists 6 drips. The module actually exports 9 — three Boost-Trial drips (`runBoostTrialStreamReady`, `runBoostTrialEngagement`, `runPostConversionBenchmark`) aren't mentioned. Pure doc drift.
+
+**Fix**: update the header overview to match the actual export list.
+
+### `apps/server/src/lib/pauseAutoResume.ts` — `STRIPE_PRICE_ID_PRO=''` empty-string match
+
+If `STRIPE_PRICE_ID_PRO` is unset, the env default of `''` would match a (theoretical) subscription with `stripePriceId: ''` and incorrectly restore tier=`'pro'`. In practice every real `stripePriceId` is non-empty, so this never trips. Defense-in-depth fix: require both sides non-empty before treating as Pro.
+
+**Pinned in**: `apps/server/src/lib/pauseAutoResume.test.ts` (current "empty env → core" behavior locked).
+
+### `apps/server/src/lib/pauseAutoResume.ts` — unreachable defensive guard
+
+The `if (!s.subscription)` skip is unreachable: the Prisma `where` clause already filters `subscription: { isNot: null }`. Either delete the guard, or keep it and note it's intentional defense-in-depth.
 
 ### `apps/server/packages/api-client/src/index.ts` — `baseUrl` naive concat
 
