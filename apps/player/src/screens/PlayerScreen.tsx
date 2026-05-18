@@ -15,6 +15,7 @@ import { TooltipTour, tourSeen, type TourStep } from "../components/TooltipTour.
 import { UpgradeRail } from "../components/UpgradeRail.js";
 import { PWAInstallTip } from "../components/PWAInstallTip.js";
 import { saveSession, type Session } from "../lib/storage.js";
+import { effectFor } from "../lib/outcomeCopy.js";
 import { trackPlayerLanding, trackFirstPlay, trackTrackComplete } from "../lib/ga4.js";
 import logoUrl from "/entuned_logo.png";
 import lockscreenArtUrl from "/lockscreen-art.png";
@@ -1041,6 +1042,9 @@ export function PlayerScreen({ session, onLogout }: Props) {
   }, [isPlaying]);
 
   const activeTitle = allOutcomesMode ? "All" : (activeOutcome?.title ?? "Tap to choose");
+  // Effect line teaches the value prop: music drives a specific behavior.
+  // Suppressed for the placeholder, "All" mode, and unknown titles.
+  const activeEffect = allOutcomesMode || !activeOutcome ? null : effectFor(activeOutcome.title);
   // "Selected · until X:XX" only makes sense when a schedule will take over at
   // expiry. Free tier has no Outcome Scheduling, so the label is meaningless —
   // suppress it alongside the locked outcomes / no-clear-selection treatment.
@@ -1358,13 +1362,18 @@ export function PlayerScreen({ session, onLogout }: Props) {
           }}
         >
           <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "0.18em", color: "#6AB0BB", textTransform: "uppercase" }}>
-            Outcome
+            Music for
           </span>
           <span style={{ width: 1, height: 18, background: "rgba(80, 146, 156, 0.30)" }} />
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
             <span style={{ fontFamily: "'Manrope', sans-serif", fontSize: 15, fontWeight: 600, letterSpacing: "0.01em", color: "#D4E1E5", whiteSpace: "nowrap" }}>
               {activeTitle}
             </span>
+            {activeEffect ? (
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 400, letterSpacing: "0.02em", color: "rgba(212,225,229,0.55)", whiteSpace: "nowrap" }}>
+                {activeEffect}
+              </span>
+            ) : null}
             {expiresLabel ? (
               <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 10, fontWeight: 500, letterSpacing: "0.10em", color: "#E8B458", textTransform: "uppercase", whiteSpace: "nowrap" }}>
                 {expiresLabel}

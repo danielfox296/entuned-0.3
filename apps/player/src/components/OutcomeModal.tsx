@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { OutcomeOption } from "../api.js";
+import { effectFor } from "../lib/outcomeCopy.js";
 
 // Free-tier upgrade-CTA destination. Anchor #outcomes scrolls users into the
 // "more outcomes" section of the upgrade page.
@@ -125,7 +126,7 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
             color: "#e8eef0",
             letterSpacing: "-0.01em",
           }}>
-            Choose an outcome
+            Pick what the music should do
           </h2>
           <button
             type="button"
@@ -165,6 +166,7 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
               <OutcomeRow
                 key={o.outcomeId}
                 label={o.title}
+                subtitle={effectFor(o.title)}
                 count={o.poolSize}
                 active={!allOutcomesMode && activeId === o.outcomeId}
                 empty={o.poolSize === 0}
@@ -189,6 +191,7 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
                   <OutcomeRow
                     key={o.outcomeId}
                     label={o.title}
+                    subtitle={effectFor(o.title)}
                     active={false}
                     empty={false}
                     locked
@@ -276,9 +279,10 @@ function SectionLabel({ children, compact }: { children: string; compact: boolea
 }
 
 function OutcomeRow({
-  label, count, active, empty, locked, compact, onClick,
+  label, subtitle, count, active, empty, locked, compact, onClick,
 }: {
   label: string;
+  subtitle?: string | null;
   count?: number;
   active: boolean;
   empty: boolean;
@@ -327,13 +331,29 @@ function OutcomeRow({
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
           </svg>
         ) : null}
-        <span style={{
-          fontSize: compact ? 14 : 15,
-          fontWeight: 600,
-          letterSpacing: 0.2,
-          color: active ? TEAL : (locked ? "rgba(212,225,229,0.65)" : "#e8eef0"),
-        }}>
-          {label}
+        <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+          <span style={{
+            fontSize: compact ? 14 : 15,
+            fontWeight: 600,
+            letterSpacing: 0.2,
+            color: active ? TEAL : (locked ? "rgba(212,225,229,0.65)" : "#e8eef0"),
+          }}>
+            {label}
+          </span>
+          {subtitle ? (
+            <span style={{
+              fontSize: 12,
+              fontWeight: 400,
+              letterSpacing: 0.1,
+              color: locked ? "rgba(212,225,229,0.45)" : "rgba(212,225,229,0.55)",
+              lineHeight: 1.25,
+              // Override global `button { text-transform: uppercase }` —
+              // the subtitle is prose, not a label.
+              textTransform: "none",
+            }}>
+              {subtitle}
+            </span>
+          ) : null}
         </span>
       </span>
       <span style={{
