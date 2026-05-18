@@ -224,6 +224,41 @@ function dedupeBySibling(pool: PoolRow[]): PoolRow[] {
   return out
 }
 
+// All-outcomes mode: interleave outcomes round-robin so a single 3-song batch
+// surfaces multiple modes. Without this, ranking by global play count lets one
+// outcome's least-played songs dominate the top slice and the player feels
+// "stuck" on one mode. Outcome rotation order is shuffled per call so
+// consecutive batches don't always lead with the same outcome.
+function interleaveByOutcome(ranked: PoolRow[]): PoolRow[] {
+  if (ranked.length === 0) return ranked
+  const groups = new Map<string, PoolRow[]>()
+  for (const r of ranked) {
+    const g = groups.get(r.outcomeId)
+    if (g) g.push(r)
+    else groups.set(r.outcomeId, [r])
+  }
+  const order = [...groups.keys()]
+  // Fisher-Yates shuffle for randomized starting outcome each call.
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[order[i], order[j]] = [order[j]!, order[i]!]
+  }
+  const out: PoolRow[] = []
+  let added = true
+  while (added) {
+    added = false
+    for (const outcomeId of order) {
+      const g = groups.get(outcomeId)!
+      const next = g.shift()
+      if (next) {
+        out.push(next)
+        added = true
+      }
+    }
+  }
+  return out
+}
+
 type PlaybackRules = { siblingSpacingMinutes: number; noRepeatWindowMinutes: number }
 
 async function hydrateQueue(top: PoolRow[]): Promise<QueueItem[]> {
@@ -264,6 +299,7 @@ async function buildQueueFromPool(
   unfilteredPool: PoolRow[],
   rules: PlaybackRules,
   now: Date,
+  opts: { interleaveOutcomes?: boolean } = {},
 ): Promise<{ queue: QueueItem[]; fallbackTier: FallbackTier }> {
   if (unfilteredPool.length === 0) return { queue: [], fallbackTier: 'normal' }
 
@@ -273,7 +309,8 @@ async function buildQueueFromPool(
   // siblings within the batch, take top 3.
   if (eligible.length > 0) {
     const ranked = await rankByPlayCount(storeId, eligible)
-    const top = dedupeBySibling(ranked).slice(0, 3)
+    const rotated = opts.interleaveOutcomes ? interleaveByOutcome(ranked) : ranked
+    const top = dedupeBySibling(rotated).slice(0, 3)
     const queue = await hydrateQueue(top)
     return { queue, fallbackTier: 'normal' }
   }
@@ -282,7 +319,8 @@ async function buildQueueFromPool(
   // least-played / least-recently-played so we never return an empty queue
   // when songs exist. dedupeBySibling still runs so twins don't ride together.
   const ranked = await rankByPlayCount(storeId, unfilteredPool)
-  const top = dedupeBySibling(ranked).slice(0, 3)
+  const rotated = opts.interleaveOutcomes ? interleaveByOutcome(ranked) : ranked
+  const top = dedupeBySibling(rotated).slice(0, 3)
   const queue = await hydrateQueue(top)
   return { queue, fallbackTier: 'panic' }
 }
@@ -385,7 +423,7 @@ export async function nextQueue(
   // All-outcomes mode: pull from every outcome's pool without restricting to the active one.
   if (opts.allOutcomes) {
     const pool = dedupeBySong(await fetchAllPool(icpIds, retiredSongIds))
-    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, now)
+    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, now, { interleaveOutcomes: true })
     return {
       storeId,
       decidedAt,
@@ -402,7 +440,7 @@ export async function nextQueue(
     // No outcome configured (no selection, schedule, or default) — fall back to all-outcomes pool
     // so the player always plays something when songs exist.
     const pool = dedupeBySong(await fetchAllPool(icpIds, retiredSongIds))
-    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, now)
+    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, now, { interleaveOutcomes: true })
     return {
       storeId,
       decidedAt,
@@ -420,7 +458,7 @@ export async function nextQueue(
     // Resolved outcome exists but has no songs — fall back to all-outcomes pool
     // so the player always has something to play when songs exist under any outcome.
     const pool = dedupeBySong(await fetchAllPool(icpIds, retiredSongIds))
-    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, now)
+    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, now, { interleaveOutcomes: true })
     return {
       storeId,
       decidedAt,

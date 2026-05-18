@@ -639,6 +639,52 @@ describe('nextQueue — allOutcomes mode', () => {
     expect(where.icpId).toEqual({ in: ['icp-A', 'icp-B'] })
     expect(where.outcomeId).toBeUndefined()
   })
+
+  // Regression: pre-fix, ranking by global play count let one outcome's
+  // least-played songs dominate the 3-song slice and the player felt stuck
+  // on a single mode. Interleaving by outcome guarantees mode variety in
+  // each batch when multiple outcomes have eligible content.
+  it('interleaves outcomes round-robin so a single batch surfaces multiple modes', async () => {
+    // oc-A has 3 unplayed songs (counts 0,0,0); oc-B has 1 song with count 5.
+    // Pre-fix: ranked by play count → [a1, a2, a3, b1] → top 3 = [a1, a2, a3] (all oc-A).
+    // Post-fix: interleave by outcome → first round picks one from each outcome
+    // → top 3 must include the oc-B song.
+    defaultMocks({
+      pool: [
+        poolRow({ id: 'lr-a1', songId: 'a1', outcomeId: 'oc-A' }),
+        poolRow({ id: 'lr-a2', songId: 'a2', outcomeId: 'oc-A' }),
+        poolRow({ id: 'lr-a3', songId: 'a3', outcomeId: 'oc-A' }),
+        poolRow({ id: 'lr-b1', songId: 'b1', outcomeId: 'oc-B' }),
+      ],
+    })
+    eventGroupBy.mockResolvedValue([
+      { songId: 'b1', _count: { _all: 5 }, _max: { occurredAt: new Date('2026-05-01') } },
+    ])
+    const res = await nextQueue('store-1', new Date(), { allOutcomes: true })
+    const outcomes = new Set(res.queue.map((q) => q.outcomeId))
+    expect(res.queue).toHaveLength(3)
+    expect(outcomes.has('oc-A')).toBe(true)
+    expect(outcomes.has('oc-B')).toBe(true)
+  })
+
+  it('randomizes outcome rotation order across calls (perceptual variety)', async () => {
+    // Two outcomes, one song each → 2-song queue. Lead outcome should vary
+    // across many calls thanks to the shuffled rotation order.
+    defaultMocks({
+      pool: [
+        poolRow({ id: 'lr-a1', songId: 'a1', outcomeId: 'oc-A' }),
+        poolRow({ id: 'lr-b1', songId: 'b1', outcomeId: 'oc-B' }),
+      ],
+    })
+    const leads = new Set<string>()
+    for (let i = 0; i < 20; i++) {
+      const res = await nextQueue('store-1', new Date(), { allOutcomes: true })
+      if (res.queue[0]) leads.add(res.queue[0].outcomeId)
+    }
+    // Across 20 calls with a 50/50 shuffle, both outcomes lead with
+    // probability ~1 - 2 * 0.5^20. Flake risk is negligible.
+    expect(leads.size).toBe(2)
+  })
 })
 
 // =========================================================================
