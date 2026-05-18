@@ -1,5 +1,7 @@
 # Handoff — Testing Backfill Sweeps A / B / C
 
+> **STATUS: COMPLETED 2026-05-18.** All three sweeps merged to main. Test suite went from 208 → 679 (server 651 + api-client 28, 19 server test files). Net +469 tests. Prod-deploy gate is live across all four surfaces (Railway server + admin/dashboard/player Pages workflows). Kept on disk as institutional history of the multi-agent sweep pattern; the *pattern documentation* below remains useful for any future backfill (e.g. admin.ts batch, email-template snapshots, generation pipeline). The *sweep briefs* (A/B/C) are historical only — do not re-run.
+
 A fresh Claude session can pick up this work without re-discovering anything. Read this top-to-bottom before starting.
 
 Written 2026-05-18 at the end of a long session that established the testing practice + did the first backfill sweep.

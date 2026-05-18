@@ -1,6 +1,8 @@
 # HANDOFF — Free-tier outcome leakage (2026-05-11)
 
-Daniel flagged two related issues. The first was partially fixed in commits today; the second is still broken and is the main reason this handoff exists.
+Daniel flagged two related issues on 2026-05-11. The default-outcome path was partially fixed that day; the runtime-playback and schedule-slot paths remain broken and are the main reason this handoff exists.
+
+> **2026-05-18 update**: the default-outcome path was further hardened — `pickSystemDefaultOutcomeId` now returns `null` for free tier when the `FreeTierOutcome` allowlist is empty (was: silent fall-through to the global default, which would leak paid-only outcomes into free Stores). The two issues below — runtime playback selection in `hendrix.ts` and schedule-slot validation in `admin.ts` — are unchanged and still need to be fixed.
 
 ## The rule (single source of truth)
 
