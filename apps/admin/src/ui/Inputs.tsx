@@ -1,5 +1,5 @@
 import type { CSSProperties, InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes, ReactNode } from 'react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { S } from './sizes.js'
 
 const baseField: CSSProperties = {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { S } from './sizes.js'
 import { Button } from './Button.js'
 import { Input, Textarea } from './Inputs.js'

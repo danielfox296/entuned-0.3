@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { CampaignRow, AdAssetRow } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { Button, Input, Section, Field, S, useToast, useStoreSelection, ConfirmDelete } from '../../ui/index.js'
 
 function campaignStatus(c: CampaignRow): 'active' | 'upcoming' | 'ended' {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { PoolDepthResponse, PoolStatus } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { Button, PanelHeader, S } from '../../ui/index.js'
 
 type Sort = 'low' | 'icp' | 'outcome'

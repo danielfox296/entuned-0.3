@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { Logo } from '../ui/index.js'
 import { api, primaryStore, PLAYER_URL, type OnboardProfileInput } from '../api.js'
 import content from '../content/onboard.yaml'

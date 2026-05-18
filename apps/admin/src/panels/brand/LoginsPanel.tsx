@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { ClientLoginRow, LoginRole, StoreSummary } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import {
   Button, Input, Section, Field, S, useToast, useClientSelection,
 } from '../../ui/index.js'

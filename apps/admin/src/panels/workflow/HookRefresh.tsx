@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { HookVocalGender, OutcomeRowFull } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { Button, useToast, LlmProgress } from '../../ui/index.js'
 import type { WorkflowContext } from './WorkflowRouter.js'
 

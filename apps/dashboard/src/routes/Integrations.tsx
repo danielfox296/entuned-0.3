@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { Layout } from '../ui/Layout.js'
 import { LockScreen } from '../ui/LockScreen.js'
 import { useTier } from '../lib/tier.jsx'

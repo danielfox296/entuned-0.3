@@ -1,4 +1,4 @@
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { S } from './sizes.js'
 import { Select } from './Inputs.js'
 import type { StoreSummary } from '../api.js'

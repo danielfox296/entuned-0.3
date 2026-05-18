@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode, MouseEventHandler } from 'react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 
 export type ButtonVariant = 'primary' | 'ghost' | 'danger'
 

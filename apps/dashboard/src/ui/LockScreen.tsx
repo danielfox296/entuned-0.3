@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Lock } from 'lucide-react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { TIER_LABEL, TIER_PRICE, api, type Tier } from '../api.js'
 
 type Required = 'core' | 'pro' | 'roadmap'

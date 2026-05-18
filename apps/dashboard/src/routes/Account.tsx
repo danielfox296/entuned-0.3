@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Download, ExternalLink, Lock, LogOut, Pencil } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { Layout } from '../ui/Layout.js'
 import { Card, EmptyState } from '../ui/Card.js'
 import { Button, Input } from '../ui/index.js'

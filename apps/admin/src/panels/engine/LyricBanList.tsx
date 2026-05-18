@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { LyricBanEntryRow, LyricBanCategory } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { Button, Input, Select, PanelHeader, S } from '../../ui/index.js'
 
 type Draft = Omit<LyricBanEntryRow, 'id'>

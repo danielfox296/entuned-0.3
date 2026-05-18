@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, highestTier, type StoreRow, type Tier } from '../api.js'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 
 interface TierContextValue {
   stores: StoreRow[]

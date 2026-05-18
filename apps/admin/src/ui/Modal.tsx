@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 
 /**
  * Lightweight in-viewport modal. Click backdrop or press Escape to close.

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
 import type { StoreDetail, IcpUpdate } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { S, useToast, useStoreSelection } from '../../ui/index.js'
 
 // Width per field (px). Compact for short scalars, prose for paragraphs.

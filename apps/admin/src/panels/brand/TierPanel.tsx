@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { StoreCompState, TierHistoryRow } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { Button, Section, S, useToast } from '../../ui/index.js'
 
 interface Props {

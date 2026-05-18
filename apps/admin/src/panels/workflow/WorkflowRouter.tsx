@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { ListChecks } from 'lucide-react'
 import { api, getToken } from '../../api.js'
 import type { ClientListRow, StoreSummary, StoreDetail } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import {
   S, HeaderSelect, useClientSelection, useStoreSelection, useIcpSelection,
 } from '../../ui/index.js'

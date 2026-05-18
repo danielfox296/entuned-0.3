@@ -1,5 +1,5 @@
 import type { ReactNode, CSSProperties } from 'react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 
 export function Card({ children, title, subtitle, style }: {
   children: ReactNode

@@ -1,5 +1,5 @@
 import { useRef, type ReactNode } from 'react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 
 // 1–5 spectrum slider with labelled poles. Lifted from the PLG onboarding
 // design; click anywhere on the track to set a value. Optional `note` prints

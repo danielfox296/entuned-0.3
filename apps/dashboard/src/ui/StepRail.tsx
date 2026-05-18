@@ -1,4 +1,4 @@
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 
 // Friendly horizontal step rail. Pulled from the PLG onboarding design after
 // the user rejected the techy "01 · Account" / dot-only versions:

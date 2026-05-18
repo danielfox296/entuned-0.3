@@ -4,7 +4,7 @@ import {
   Home as HomeIcon, MapPin, UserCircle2,
   Sparkles, CalendarClock, Plug, BarChart3, Lock, Menu, X,
 } from 'lucide-react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { TIER_LABEL, TIER_PRICE, TIER_RANK, type Tier } from '../api.js'
 import { useAuth } from '../lib/auth.jsx'
 import { useTier } from '../lib/tier.jsx'

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, getToken, previewEmailTemplate, type EmailTemplateDetail, type EmailTemplateListRow } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { S } from '../../ui/sizes.js'
 import { Button, Input, Textarea, Pill, useToast } from '../../ui/index.js'
 

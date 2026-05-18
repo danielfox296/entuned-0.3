@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, getToken, outcomeLabel } from '../../api.js'
 import type { OutcomeLyricFactorRow } from '../../api.js'
-import { T } from '../../tokens.js'
+import { T } from '@entuned/tokens'
 import { Button, S, useToast } from '../../ui/index.js'
 
 export function OutcomeLyricFactor() {

@@ -1,5 +1,8 @@
 // API client for entuned-0.3 admin.
-// Mirrors the player's req<T>() pattern; extends with admin-specific endpoints.
+// Wire-level fetch + structured-error parsing lives in @entuned/api-client.
+// This file adds admin-specific typed endpoints + localStorage token storage.
+
+import { createRequestClient } from '@entuned/api-client'
 
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
@@ -15,48 +18,7 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY)
 }
 
-async function req<T>(path: string, init: RequestInit = {}, token?: string): Promise<T> {
-  const headers: Record<string, string> = {
-    ...(init.headers as Record<string, string> | undefined),
-  }
-  // Only set Content-Type when there's actually a body — Fastify rejects empty JSON bodies
-  // when the header is present.
-  if (init.body != null) headers['Content-Type'] = 'application/json'
-  if (token) headers.Authorization = `Bearer ${token}`
-  const res = await fetch(`${API_URL}${path}`, { ...init, headers })
-  if (!res.ok) throw await buildError(res)
-  const ct = res.headers.get('content-type') ?? ''
-  if (!ct.includes('application/json')) return undefined as unknown as T
-  return res.json() as Promise<T>
-}
-
-async function upload<T>(path: string, formData: FormData, token: string): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    method: 'POST',
-    body: formData,
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!res.ok) throw await buildError(res)
-  const ct = res.headers.get('content-type') ?? ''
-  if (!ct.includes('application/json')) return undefined as unknown as T
-  return res.json() as Promise<T>
-}
-
-// If the server sent a structured `{error, message}` payload, surface
-// `message` as the Error's message so UI code can display it directly.
-// Otherwise fall back to the raw `${status} ${statusText}: ${body}` shape.
-async function buildError(res: Response): Promise<Error> {
-  const body = await res.text().catch(() => '')
-  let parsed: { error?: string; message?: string } | null = null
-  try { parsed = JSON.parse(body) } catch { /* not json */ }
-  if (parsed?.message) {
-    const e = new Error(parsed.message) as Error & { status?: number; code?: string }
-    e.status = res.status
-    e.code = parsed.error
-    return e
-  }
-  return new Error(`${res.status} ${res.statusText}: ${body}`)
-}
+const { req, upload } = createRequestClient({ baseUrl: API_URL })
 
 // --- Types matching Prisma schema ---
 

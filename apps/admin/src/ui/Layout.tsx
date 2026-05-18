@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { T } from '../tokens.js'
+import { T } from '@entuned/tokens'
 import { S } from './sizes.js'
 
 export function Section({ title, subtitle, children, columns }: {
