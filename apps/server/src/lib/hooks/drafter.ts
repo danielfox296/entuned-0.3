@@ -194,6 +194,16 @@ export async function buildHookDrafterContext(opts: {
     .slice(0, 8)
     .map((h) => ({ text: h.text, reason: h.rejectionReason }))
 
+  // Dedup: any hook already shown in approvedExemplars or rejectedSamples is
+  // suppressed from the generic "existing hooks" list below so each hook
+  // appears in the prompt at most once. Without this, busy ICPs render the
+  // same hook 2-3 times across the three blocks — pure token waste.
+  const shownTexts = new Set<string>([
+    ...approvedExemplars,
+    ...rejectedSamples.map((r) => r.text),
+  ])
+  const remainingHooks = existingHooks.filter((h) => !shownTexts.has(h.text))
+
   const icpDescriptor = [
     icp.name && `Name: ${icp.name}`,
     icp.ageRange && `Age range: ${icp.ageRange}`,
@@ -249,20 +259,14 @@ These hooks were rejected for this ICP + outcome. Each line includes the reason 
 
 ${rejectedSamples.map((h) => h.reason ? `- "${h.text}" — reason: ${h.reason}` : `- "${h.text}"`).join('\n')}
 
-` : ''}# Existing hooks (do not repeat verbatim)
+` : ''}${remainingHooks.length > 0 ? `# Other existing hooks (do not repeat verbatim)
 
-${existingHooks.length === 0 ? '(none)' : existingHooks.map((h) => `- "${h.text}" (${h.status})`).join('\n')}
+${remainingHooks.map((h) => `- "${h.text}" (${h.status})`).join('\n')}
 
-# Task
+` : ''}# Task
 
-Write ${opts.n} new hook candidates for this ICP + Outcome.
+Write ${opts.n} new hook candidates for this ICP + Outcome.${approvedExemplars.length > 0 ? ' Anchor on the approved hooks above — match their voice and concreteness.' : ''} Apply the structural variance, scene test, and diction rules from the system prompt.${rejectedSamples.length > 0 ? ' Stay outside the shape of the rejected hooks listed above.' : ''}
 
-Requirements:
-- ${approvedExemplars.length > 0 ? 'Anchor on the approved hooks above — match their voice and concreteness. ' : ''}Spread across at least 3 different sentence types (declaration, question, imperative, observation, fragment).
-- Mix tenses and POVs — no more than half the batch in the same tense or the same POV.
-- Every hook must pass the "scene test": can you picture a specific person in a specific moment? If not, it's too abstract.
-- Let the tempo and mode shape your syllable density and vowel choices.
-${rejectedSamples.length > 0 ? '- Stay outside the shape of the rejected hooks listed above.\n' : ''}
 Output JSON only.`
 
   const existingHookTexts = existingHooks.map((h) => h.text)
