@@ -5,13 +5,10 @@
 //
 // Schema SSOT: ../../../entune v0.3/schema/03-duke.md "Comp tier" section.
 
-export type Tier = 'free' | 'core' | 'pro' | 'enterprise' | 'mvp_pilot'
+export type Tier = 'free' | 'core' | 'pro' | 'enterprise'
 
-// `mvp_pilot` is a legacy seed-tier; ranked equal to `core` so seeded stores
-// behave like Core for entitlement purposes. `free` is the floor.
 const RANK: Record<Tier, number> = {
   free: 0,
-  mvp_pilot: 1,
   core: 1,
   pro: 2,
   enterprise: 3,

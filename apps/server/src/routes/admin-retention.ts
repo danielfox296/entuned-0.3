@@ -164,7 +164,7 @@ export const adminRetentionRoutes: FastifyPluginAsync = async (app) => {
       activatedStores: storeRows.filter((s) => s.activated).length,
       goneDarkStores: storeRows.filter((s) => s.status === 'gone_dark').length,
       freeStores: storeRows.filter((s) => s.tier === 'free').length,
-      paidStores: storeRows.filter((s) => ['core', 'pro', 'enterprise', 'mvp_pilot'].includes(s.tier)).length,
+      paidStores: storeRows.filter((s) => ['core', 'pro', 'enterprise'].includes(s.tier)).length,
     }
 
     const cohortMap = new Map<string, { signups: number; activated: number; convertedToPaid: number; stillActive: number }>()
@@ -175,7 +175,7 @@ export const adminRetentionRoutes: FastifyPluginAsync = async (app) => {
       const row = cohortMap.get(week) ?? { signups: 0, activated: 0, convertedToPaid: 0, stillActive: 0 }
       row.signups++
       if (sr.activated) row.activated++
-      if (['core', 'pro', 'enterprise', 'mvp_pilot'].includes(sr.tier)) row.convertedToPaid++
+      if (['core', 'pro', 'enterprise'].includes(sr.tier)) row.convertedToPaid++
       if (sr.status === 'active') row.stillActive++
       cohortMap.set(week, row)
     }
