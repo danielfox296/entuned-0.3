@@ -102,8 +102,7 @@ describe('formatArrangementBrief', () => {
   it('skips sections not in SECTION_ORDER', () => {
     const sections = {
       verse: { instruments: ['bass'] },
-      // @ts-expect-error - intentional extra key not in SECTION_ORDER
-      breakdown: { instruments: ['synth'] },
+      breakdown: { instruments: ['synth'] }, // intentional extra key not in SECTION_ORDER
     } as ArrangementSections
     const out = formatArrangementBrief(sections)
     expect(out).toContain('- verse:')
