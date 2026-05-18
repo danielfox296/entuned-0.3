@@ -8,11 +8,20 @@
 #   /apps/dashboard, /apps/server here. Updating "/" already covers every
 #   workspace package because the lockfile is shared.
 #
-# Why one grouped PR per ecosystem:
-#   Without grouping, every vite/esbuild/etc. CVE spawns a separate PR for
-#   each workspace package, which is mostly noise. The "all-deps" group
-#   collapses every weekly + security update into a single PR Daniel can
-#   review and merge once.
+# Why grouping is split by update-type:
+#   Originally everything was in one "all-deps" group, which produced a
+#   weekly PR with 5–7 major-version bumps mixed in (React 18→19, Vite 6→8,
+#   Prisma 5→7, etc.). Merging that wholesale would cascade breakage across
+#   the codebase; splitting them by hand was tedious.
+#
+#   New shape:
+#     - `non-major` group: collapses every patch + minor bump into one PR
+#       (lucide additions, AWS SDK patches, @types updates, etc.). Safe to
+#       review and merge once.
+#     - Majors are NOT grouped — each major-version bump gets its own PR so
+#       it can be triaged, migrated, and shipped on its own timeline.
+#     - `security` group: still collapses security updates into one PR
+#       (security trumps the major/minor distinction).
 #
 # Schedule: weekly is the sane cadence — no daily PR drip — and security
 # advisories still open immediately regardless of schedule.
@@ -24,12 +33,15 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
     groups:
-      all-deps:
+      non-major:
         applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
       security:
         applies-to: security-updates
         patterns:

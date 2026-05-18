@@ -8,6 +8,11 @@ on:
       - "apps/player/**"
       - "pnpm-lock.yaml"
       - ".github/workflows/pages.yml"
+  # Run the test gate on every PR targeting main (especially Dependabot PRs),
+  # but do NOT build/deploy from a PR branch — see the `if:` conditions on the
+  # build jobs below.
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -44,6 +49,9 @@ jobs:
 
   build-admin:
     needs: test
+    # Build/deploy only on push to main + manual dispatch. PRs run the test
+    # gate above but never deploy.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -70,6 +78,7 @@ jobs:
 
   deploy-admin:
     needs: build-admin
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -83,6 +92,7 @@ jobs:
   # fine-grained PAT (or classic PAT) with contents:write on the player repo.
   build-and-publish-player:
     needs: test
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
