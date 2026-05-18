@@ -12,6 +12,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "dashboard", "dev"],
       "port": 5179
+    },
+    {
+      "name": "player",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "player", "dev"],
+      "port": 5177
     }
   ]
 }

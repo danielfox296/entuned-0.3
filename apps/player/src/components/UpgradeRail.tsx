@@ -7,7 +7,16 @@ import { useEffect, useState, type CSSProperties } from "react";
 //   enterprise → no rail
 // Layout shape stays the same across tiers; only the slot pool and CTA differ.
 
-type SlotKind = "core_upsell" | "pro_upsell" | "core_reminder" | "pro_reminder";
+type SlotKind =
+  | "core_upsell"
+  | "pro_upsell"
+  | "core_reminder"
+  | "pro_reminder"
+  // Outcome explainer — one slot per Boost/Pro Outcome, naming what the
+  // outcome promotes in associate-legible language. Appears in every active
+  // tier pool (free as upsell, Boost/Pro as reminder); CTA is resolved
+  // per-tier in the render path, not by kind.
+  | "outcome_explainer";
 
 // Each slot is an anchor (one tight line) + 2-3 bullets. Designed for
 // scan-reading on the floor — operator should grok the value in under a second.
@@ -189,16 +198,105 @@ const SLOTS: Slot[] = [
     kind: "pro_reminder",
     photo: "/promo/shopping.jpg",
   },
+  // ── Outcome explainers (every active tier) ──────────────────────────────
+  // One slot per Boost/Pro Outcome. Anchor format is "Name: what it promotes."
+  // so a floor associate scans the name and the promise in one beat. Bullets
+  // give the texture (mood, when to switch to it). Order roughly follows the
+  // dash.entuned.co outcome list.
+  {
+    anchor: "Stay & Browse: linger longer on the floor.",
+    points: [
+      "Slower tempo, warmer feel",
+      "Customers settle in instead of breezing through",
+      "Right when you want dwell, not turnover",
+    ],
+    kind: "outcome_explainer",
+    photo: "/promo/parallax-luxury-store.jpg",
+  },
+  {
+    anchor: "Help Them Decide: nudge browsers toward the till.",
+    points: [
+      "Steady, confident momentum",
+      "Cuts decision fatigue at the rack",
+      "For when traffic browses but doesn't buy",
+    ],
+    kind: "outcome_explainer",
+    photo: "/promo/shopping.jpg",
+  },
+  {
+    anchor: "Trade Them Up: lift the average ticket.",
+    points: [
+      "Premium, considered energy",
+      "Makes the higher-tier picks feel worth it",
+      "For days the basket value should climb",
+    ],
+    kind: "outcome_explainer",
+    photo: "/promo/parallax-cosmetics-store.jpg",
+  },
+  {
+    anchor: "Fill the Basket: more items per visit.",
+    points: [
+      "Curious, open mood",
+      "Encourages add-ons and second looks",
+      "Right for cart-friendly floors",
+    ],
+    kind: "outcome_explainer",
+    photo: "/promo/retail-store.jpg",
+  },
+  {
+    anchor: "Grab It Now: drive impulse pickups.",
+    points: [
+      "Brighter pulse, present-tense urgency",
+      "Pulls hands to the counter",
+      "Right by the register or at limited displays",
+    ],
+    kind: "outcome_explainer",
+    photo: "/promo/alcott-store.jpg",
+  },
+  {
+    anchor: "Keep It Moving: speed turnover when it's busy.",
+    points: [
+      "Up-tempo without overheating",
+      "Keeps aisles and lines flowing",
+      "For peak-hour rush",
+    ],
+    kind: "outcome_explainer",
+    photo: "/promo/parallax-green-lamp.jpg",
+  },
+  {
+    anchor: "Our Sound: pure brand vibe.",
+    points: [
+      "The room just sounds like you",
+      "No behaviour nudge, just identity",
+      "When the brand should lead, not the sale",
+    ],
+    kind: "outcome_explainer",
+    photo: "/promo/mara-icp.jpg",
+  },
+  {
+    anchor: "Swagger Spend: confidence to upgrade.",
+    points: [
+      "Status-forward, aspirational energy",
+      "Frames the spend as upgrade, not splurge",
+      "For premium drops and statement pieces",
+    ],
+    kind: "outcome_explainer",
+    photo: "/promo/parallax-cosmetics-store.jpg",
+  },
 ];
 
 function slotsForTier(tier: string | undefined): Slot[] {
   switch (tier) {
     case "free":
-      return SLOTS.filter((s) => s.kind === "core_upsell" || s.kind === "pro_upsell");
+      return SLOTS.filter(
+        (s) => s.kind === "core_upsell" || s.kind === "pro_upsell" || s.kind === "outcome_explainer",
+      );
     case "core":
-      return SLOTS.filter((s) => s.kind === "pro_upsell" || s.kind === "core_reminder");
+      return SLOTS.filter(
+        (s) => s.kind === "pro_upsell" || s.kind === "core_reminder" || s.kind === "outcome_explainer",
+      );
     case "pro":
-      return SLOTS.filter((s) => s.kind === "pro_reminder");
+      return SLOTS.filter((s) => s.kind === "pro_reminder" || s.kind === "outcome_explainer");
     default:
       return [];
   }
@@ -264,6 +362,13 @@ export function UpgradeRail({ rotationKey, tier, compact = false, withPhoto = fa
         return { label: "See what Boost unlocks →", href: "https://app.entuned.co/upgrade" };
       case "pro_upsell":
         return { label: "See what Pro unlocks →", href: "https://app.entuned.co/upgrade" };
+      case "outcome_explainer":
+        // Free reads this card as an upsell ("here's what you'd unlock"); paid
+        // tiers read it as a reminder of what's already at their fingertips.
+        if (tier === "free") {
+          return { label: "See what Boost unlocks →", href: "https://app.entuned.co/upgrade" };
+        }
+        return { label: "Open your dashboard →", href: "https://app.entuned.co" };
       case "core_reminder":
       case "pro_reminder":
       default:
