@@ -1,0 +1,632 @@
+// Integration tests for operator (Dash) admin routes.
+//
+// Scope so far: schedule-slot CRUD only (GET/POST /stores/:id/schedule,
+// PUT/DELETE /schedule-rows/:id). These routes are the operator-side
+// integration layer over apps/server/src/lib/scheduleSlots.ts. The /me
+// surface has a parallel test file at me.test.ts; the two surfaces share
+// helpers but diverge on (1) auth (admin = JWT-style Bearer + isAdmin
+// check; me = cookie session), (2) the free-tier outcome guard (admin
+// enforces it; me does not), and (3) the schedule_overlap message wording.
+//
+// Wrapped in a top-level `describe('schedule slots', ...)` so future
+// admin-route test groups can sit alongside in their own describes
+// (musicological-rules, style-exclusion-rules, lyric-prompts, etc.)
+// without renaming this file.
+//
+// Mocking strategy:
+//   - Prisma: vi.mock('../db.js') — `account`, `store`, `scheduleSlot`.
+//   - Auth: vi.mock('../lib/auth.js') overrides `verify` to return a
+//     known admin payload, and prisma.account.findUnique returns a
+//     matching admin row (requireAdmin re-verifies the operator is
+//     still active and tokenVersion matches the payload's `tv`).
+//   - Free-tier guard: vi.mock('../lib/outcomes.js') stubs
+//     `isFreeTierAllowedOutcome` directly. Default is to allow the
+//     outcome (true); tests that want to hit the guard override to
+//     false. This keeps the FreeTierOutcome / Outcome lookup pair out
+//     of the Prisma mock surface (those models aren't otherwise used
+//     by the schedule routes).
+//
+// The schedule_overlap message wording on the admin surface is the public
+// contract: "Overlaps with existing slot HH:MM–HH:MM" (em-dash, with the
+// "existing slot" prefix). Pinned byte-for-byte below. This differs from
+// /me which omits "existing slot" — legacy admin clients depend on the
+// exact string.
+
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// Hoisted Prisma mock. Path is literal (relative to this test file), per
+// TESTING.md "Mocking conventions". Only the models the schedule routes
+// (and requireAdmin) touch.
+vi.mock('../db.js', () => ({
+  prisma: {
+    account: {
+      findUnique: vi.fn(),
+    },
+    store: {
+      findUnique: vi.fn(),
+    },
+    scheduleSlot: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    },
+  },
+}))
+
+// Bypass JWT signing by stubbing `verify` to return a known admin payload
+// for the magic test token. requireAdmin still re-fetches the account row
+// from Prisma and checks tokenVersion — that's covered by the account mock.
+vi.mock('../lib/auth.js', () => ({
+  verify: vi.fn((token: string) => {
+    if (token === 'admin-test-token') {
+      return {
+        accountId: 'op-admin-001',
+        email: 'admin@example.com',
+        isAdmin: true,
+        tv: 7,
+        exp: Date.now() + 60_000,
+      }
+    }
+    if (token === 'non-admin-test-token') {
+      return {
+        accountId: 'op-user-002',
+        email: 'user@example.com',
+        isAdmin: false,
+        tv: 1,
+        exp: Date.now() + 60_000,
+      }
+    }
+    return null
+  }),
+}))
+
+// Free-tier outcome allowlist: default to "allowed" so most tests don't
+// have to touch it. Tests that exercise the guard override per-call.
+vi.mock('../lib/outcomes.js', async () => {
+  const actual = await vi.importActual<typeof import('../lib/outcomes.js')>('../lib/outcomes.js')
+  return {
+    ...actual,
+    isFreeTierAllowedOutcome: vi.fn(async () => true),
+  }
+})
+
+import { adminRoutes } from './admin.js'
+import { prisma } from '../db.js'
+import { isFreeTierAllowedOutcome } from '../lib/outcomes.js'
+import { buildTestApp } from '../test-utils/fastifyApp.js'
+
+const accountFindUnique = prisma.account.findUnique as ReturnType<typeof vi.fn>
+const storeFindUnique = prisma.store.findUnique as ReturnType<typeof vi.fn>
+const slotFindMany = prisma.scheduleSlot.findMany as ReturnType<typeof vi.fn>
+const slotFindUnique = prisma.scheduleSlot.findUnique as ReturnType<typeof vi.fn>
+const slotCreate = prisma.scheduleSlot.create as ReturnType<typeof vi.fn>
+const slotUpdate = prisma.scheduleSlot.update as ReturnType<typeof vi.fn>
+const slotDelete = prisma.scheduleSlot.delete as ReturnType<typeof vi.fn>
+const freeTierAllowedMock = isFreeTierAllowedOutcome as ReturnType<typeof vi.fn>
+
+const STORE_ID = 'store-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+const OUTCOME_ID = '11111111-1111-1111-1111-111111111111'
+const SLOT_ID = 'slot-cccccccc-cccc-cccc-cccc-cccccccccccc'
+const AUTH = { authorization: 'Bearer admin-test-token' }
+
+// Mirrors hhmmToTime — Prisma @db.Time(6) round-trips as a Date with the
+// UTC time portion set. Use this for fixture rows the handlers will
+// format back to HH:MM via timeToHHMM.
+function hhmmDate(hhmm: string): Date {
+  return new Date(`1970-01-01T${hhmm}:00.000Z`)
+}
+
+interface SlotRowOverrides {
+  id?: string
+  storeId?: string
+  dayOfWeek?: number
+  startTime?: Date
+  endTime?: Date
+  outcomeId?: string
+  outcome?: { id?: string; title: string; displayTitle: string | null; version: number }
+}
+
+function makeSlotRow(overrides: SlotRowOverrides = {}) {
+  return {
+    id: SLOT_ID,
+    storeId: STORE_ID,
+    dayOfWeek: 1,
+    startTime: hhmmDate('09:00'),
+    endTime: hhmmDate('10:00'),
+    outcomeId: OUTCOME_ID,
+    outcome: { id: OUTCOME_ID, title: 'Energize', displayTitle: 'Morning Energize', version: 3 },
+    ...overrides,
+  }
+}
+
+// requireAdmin re-fetches the operator row from Prisma. Default seed is
+// an active admin matching the payload tokenVersion. Tests that want to
+// exercise auth edge-cases override with .mockResolvedValueOnce.
+function seedAdminAccount() {
+  accountFindUnique.mockResolvedValue({
+    id: 'op-admin-001',
+    email: 'admin@example.com',
+    isAdmin: true,
+    disabledAt: null,
+    tokenVersion: 7,
+  })
+}
+
+describe('admin routes — schedule slots', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // Re-prime defaults that vi.clearAllMocks wiped.
+    freeTierAllowedMock.mockResolvedValue(true)
+    seedAdminAccount()
+  })
+
+  // ---------- GET /stores/:id/schedule ----------
+
+  describe('GET /stores/:id/schedule', () => {
+    it('returns 200 with formatted rows (outcomeVersion included — operator surface contract)', async () => {
+      slotFindMany.mockResolvedValue([
+        makeSlotRow({ dayOfWeek: 1, startTime: hhmmDate('09:00'), endTime: hhmmDate('10:00') }),
+        makeSlotRow({
+          id: 'slot-other',
+          dayOfWeek: 3,
+          startTime: hhmmDate('13:00'),
+          endTime: hhmmDate('14:30'),
+          outcome: { id: OUTCOME_ID, title: 'Focus', displayTitle: 'Afternoon Focus', version: 5 },
+        }),
+      ])
+
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'GET',
+        url: `/stores/${STORE_ID}/schedule`,
+        headers: AUTH,
+      })
+
+      expect(res.statusCode).toBe(200)
+      const body = res.json()
+      expect(body).toHaveLength(2)
+      expect(body[0]).toEqual({
+        id: SLOT_ID,
+        storeId: STORE_ID,
+        dayOfWeek: 1,
+        startTime: '09:00',
+        endTime: '10:00',
+        outcomeId: OUTCOME_ID,
+        outcomeTitle: 'Energize',
+        outcomeDisplayTitle: 'Morning Energize',
+        outcomeVersion: 3,
+      })
+      expect(body[1].outcomeVersion).toBe(5)
+      // Query shape: storeId scope, ordered for the weekly grid.
+      expect(slotFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { storeId: STORE_ID },
+          orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+        }),
+      )
+    })
+
+    it('returns 401 when no Authorization header is sent', async () => {
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({ method: 'GET', url: `/stores/${STORE_ID}/schedule` })
+
+      expect(res.statusCode).toBe(401)
+      expect(res.json()).toEqual({ error: 'unauthorized' })
+      expect(slotFindMany).not.toHaveBeenCalled()
+    })
+
+    it('returns 403 when the token is valid but the operator is not admin', async () => {
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'GET',
+        url: `/stores/${STORE_ID}/schedule`,
+        headers: { authorization: 'Bearer non-admin-test-token' },
+      })
+
+      expect(res.statusCode).toBe(403)
+      expect(res.json()).toEqual({ error: 'admin_required' })
+    })
+  })
+
+  // ---------- POST /stores/:id/schedule ----------
+
+  describe('POST /stores/:id/schedule', () => {
+    it('returns 200 with the created slot on happy path (correct Prisma write)', async () => {
+      storeFindUnique.mockResolvedValue({ tier: 'pro' })
+      slotFindMany.mockResolvedValue([]) // no existing slots to clash with
+      slotCreate.mockResolvedValue(
+        makeSlotRow({ dayOfWeek: 2, startTime: hhmmDate('12:00'), endTime: hhmmDate('13:00') }),
+      )
+
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'POST',
+        url: `/stores/${STORE_ID}/schedule`,
+        headers: AUTH,
+        payload: { dayOfWeek: 2, startTime: '12:00', endTime: '13:00', outcomeId: OUTCOME_ID },
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toEqual({
+        id: SLOT_ID,
+        storeId: STORE_ID,
+        dayOfWeek: 2,
+        startTime: '12:00',
+        endTime: '13:00',
+        outcomeId: OUTCOME_ID,
+        outcomeTitle: 'Energize',
+        outcomeDisplayTitle: 'Morning Energize',
+        outcomeVersion: 3,
+      })
+
+      // Pin the Prisma create shape — HH:MM strings come in, Date with UTC
+      // time portion goes out. A drift here silently shifts hours on the
+      // @db.Time(6) column.
+      expect(slotCreate).toHaveBeenCalledWith({
+        data: {
+          storeId: STORE_ID,
+          dayOfWeek: 2,
+          startTime: hhmmDate('12:00'),
+          endTime: hhmmDate('13:00'),
+          outcomeId: OUTCOME_ID,
+        },
+        include: { outcome: { select: { title: true, displayTitle: true, version: true } } },
+      })
+    })
+
+    it('returns 404 when the store does not exist (P2003 FK violation on create)', async () => {
+      storeFindUnique.mockResolvedValue(null) // store gone — free-tier guard skips (target?.tier === 'free' is false)
+      slotFindMany.mockResolvedValue([])
+      // The route doesn't pre-check store existence; it relies on the FK to
+      // surface 404. The handler instanceof-checks
+      // Prisma.PrismaClientKnownRequestError, so we throw a real one.
+      const { Prisma } = await import('@prisma/client')
+      const prismaErr = new Prisma.PrismaClientKnownRequestError('FK fail', {
+        code: 'P2003',
+        clientVersion: 'test',
+      })
+      slotCreate.mockRejectedValue(prismaErr)
+
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'POST',
+        url: `/stores/${STORE_ID}/schedule`,
+        headers: AUTH,
+        payload: { dayOfWeek: 1, startTime: '09:00', endTime: '10:00', outcomeId: OUTCOME_ID },
+      })
+
+      expect(res.statusCode).toBe(404)
+      expect(res.json()).toEqual({ error: 'store_or_outcome_not_found' })
+    })
+
+    it('returns 400 on bad body (zod — missing outcomeId)', async () => {
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'POST',
+        url: `/stores/${STORE_ID}/schedule`,
+        headers: AUTH,
+        payload: { dayOfWeek: 1, startTime: '09:00', endTime: '10:00' },
+      })
+
+      expect(res.statusCode).toBe(400)
+      expect(res.json().error).toBe('bad_body')
+      expect(slotCreate).not.toHaveBeenCalled()
+    })
+
+    it('returns 400 on bad body (zod — malformed time string)', async () => {
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'POST',
+        url: `/stores/${STORE_ID}/schedule`,
+        headers: AUTH,
+        payload: { dayOfWeek: 1, startTime: '9am', endTime: '10:00', outcomeId: OUTCOME_ID },
+      })
+
+      expect(res.statusCode).toBe(400)
+      expect(res.json().error).toBe('bad_body')
+    })
+
+    it('returns 400 when startTime >= endTime (start_must_precede_end)', async () => {
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'POST',
+        url: `/stores/${STORE_ID}/schedule`,
+        headers: AUTH,
+        payload: { dayOfWeek: 1, startTime: '10:00', endTime: '10:00', outcomeId: OUTCOME_ID },
+      })
+
+      expect(res.statusCode).toBe(400)
+      expect(res.json()).toEqual({ error: 'start_must_precede_end' })
+      expect(slotCreate).not.toHaveBeenCalled()
+    })
+
+    // The schedule_overlap message wording is the PUBLIC CONTRACT. Admin uses
+    // "Overlaps with existing slot HH:MM–HH:MM" (em-dash, with "existing
+    // slot" prefix). Byte-exact. /me sibling omits the prefix.
+    it('returns 409 with byte-exact schedule_overlap message on overlap', async () => {
+      storeFindUnique.mockResolvedValue({ tier: 'pro' })
+      slotFindMany.mockResolvedValue([
+        // Existing 12:00–13:00; the candidate 12:30–13:30 clashes.
+        { id: 'slot-existing', startTime: hhmmDate('12:00'), endTime: hhmmDate('13:00') },
+      ])
+
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'POST',
+        url: `/stores/${STORE_ID}/schedule`,
+        headers: AUTH,
+        payload: { dayOfWeek: 1, startTime: '12:30', endTime: '13:30', outcomeId: OUTCOME_ID },
+      })
+
+      expect(res.statusCode).toBe(409)
+      expect(res.json()).toEqual({
+        error: 'schedule_overlap',
+        message: 'Overlaps with existing slot 12:00–13:00',
+      })
+      expect(slotCreate).not.toHaveBeenCalled()
+    })
+
+    // Free-tier guard: only the admin surface enforces it. Returns 409
+    // with outcome_not_in_free_tier_allowlist.
+    it('returns 409 when the store is free-tier and the outcome is not allowlisted', async () => {
+      storeFindUnique.mockResolvedValue({ tier: 'free' })
+      freeTierAllowedMock.mockResolvedValueOnce(false)
+
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'POST',
+        url: `/stores/${STORE_ID}/schedule`,
+        headers: AUTH,
+        payload: { dayOfWeek: 1, startTime: '09:00', endTime: '10:00', outcomeId: OUTCOME_ID },
+      })
+
+      expect(res.statusCode).toBe(409)
+      expect(res.json()).toEqual({
+        error: 'outcome_not_in_free_tier_allowlist',
+        message: 'This outcome is not available on the free tier.',
+      })
+      expect(slotCreate).not.toHaveBeenCalled()
+    })
+
+    it('does NOT apply free-tier guard when the store is paid (pro)', async () => {
+      // Same outcome that would be blocked on free should pass through on pro
+      // because the guard's allowlist check is gated by `target?.tier === 'free'`.
+      storeFindUnique.mockResolvedValue({ tier: 'pro' })
+      freeTierAllowedMock.mockResolvedValue(false) // would block if checked
+      slotFindMany.mockResolvedValue([])
+      slotCreate.mockResolvedValue(makeSlotRow())
+
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'POST',
+        url: `/stores/${STORE_ID}/schedule`,
+        headers: AUTH,
+        payload: { dayOfWeek: 1, startTime: '09:00', endTime: '10:00', outcomeId: OUTCOME_ID },
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(slotCreate).toHaveBeenCalled()
+    })
+  })
+
+  // ---------- PUT /schedule-rows/:id ----------
+
+  describe('PUT /schedule-rows/:id', () => {
+    it('returns 200 with the updated slot on happy path', async () => {
+      slotFindUnique.mockResolvedValue({
+        id: SLOT_ID,
+        storeId: STORE_ID,
+        dayOfWeek: 1,
+        startTime: hhmmDate('09:00'),
+        endTime: hhmmDate('10:00'),
+        outcomeId: OUTCOME_ID,
+      })
+      storeFindUnique.mockResolvedValue({ tier: 'pro' })
+      slotFindMany.mockResolvedValue([]) // no siblings
+      slotUpdate.mockResolvedValue(
+        makeSlotRow({ dayOfWeek: 1, startTime: hhmmDate('11:00'), endTime: hhmmDate('12:00') }),
+      )
+
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/schedule-rows/${SLOT_ID}`,
+        headers: AUTH,
+        payload: { dayOfWeek: 1, startTime: '11:00', endTime: '12:00', outcomeId: OUTCOME_ID },
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toEqual({
+        id: SLOT_ID,
+        storeId: STORE_ID,
+        dayOfWeek: 1,
+        startTime: '11:00',
+        endTime: '12:00',
+        outcomeId: OUTCOME_ID,
+        outcomeTitle: 'Energize',
+        outcomeDisplayTitle: 'Morning Energize',
+        outcomeVersion: 3,
+      })
+      // Self-exclusion filter: siblings query must use id: { not: id }.
+      expect(slotFindMany).toHaveBeenCalledWith({
+        where: { storeId: STORE_ID, dayOfWeek: 1, id: { not: SLOT_ID } },
+      })
+    })
+
+    it('returns 404 when the row does not exist', async () => {
+      slotFindUnique.mockResolvedValue(null)
+
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/schedule-rows/${SLOT_ID}`,
+        headers: AUTH,
+        payload: { dayOfWeek: 1, startTime: '09:00', endTime: '10:00', outcomeId: OUTCOME_ID },
+      })
+
+      expect(res.statusCode).toBe(404)
+      expect(res.json()).toEqual({ error: 'not_found' })
+      expect(slotUpdate).not.toHaveBeenCalled()
+    })
+
+    it('returns 400 on bad body', async () => {
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/schedule-rows/${SLOT_ID}`,
+        headers: AUTH,
+        payload: { dayOfWeek: 99, startTime: '09:00', endTime: '10:00', outcomeId: OUTCOME_ID },
+      })
+
+      expect(res.statusCode).toBe(400)
+      expect(res.json().error).toBe('bad_body')
+      expect(slotFindUnique).not.toHaveBeenCalled()
+    })
+
+    it('returns 400 when startTime >= endTime', async () => {
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/schedule-rows/${SLOT_ID}`,
+        headers: AUTH,
+        payload: { dayOfWeek: 1, startTime: '11:00', endTime: '10:00', outcomeId: OUTCOME_ID },
+      })
+
+      expect(res.statusCode).toBe(400)
+      expect(res.json()).toEqual({ error: 'start_must_precede_end' })
+      expect(slotFindUnique).not.toHaveBeenCalled()
+    })
+
+    it('returns 409 with byte-exact message when overlapping a DIFFERENT slot', async () => {
+      slotFindUnique.mockResolvedValue({
+        id: SLOT_ID,
+        storeId: STORE_ID,
+        dayOfWeek: 1,
+        startTime: hhmmDate('09:00'),
+        endTime: hhmmDate('10:00'),
+        outcomeId: OUTCOME_ID,
+      })
+      storeFindUnique.mockResolvedValue({ tier: 'pro' })
+      // Sibling at 14:00-15:00; candidate 14:30-15:30 clashes.
+      slotFindMany.mockResolvedValue([
+        { id: 'slot-sibling', startTime: hhmmDate('14:00'), endTime: hhmmDate('15:00') },
+      ])
+
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/schedule-rows/${SLOT_ID}`,
+        headers: AUTH,
+        payload: { dayOfWeek: 1, startTime: '14:30', endTime: '15:30', outcomeId: OUTCOME_ID },
+      })
+
+      expect(res.statusCode).toBe(409)
+      expect(res.json()).toEqual({
+        error: 'schedule_overlap',
+        message: 'Overlaps with existing slot 14:00–15:00',
+      })
+      expect(slotUpdate).not.toHaveBeenCalled()
+    })
+
+    it('returns 409 free-tier guard on update (same rule as create)', async () => {
+      slotFindUnique.mockResolvedValue({
+        id: SLOT_ID,
+        storeId: STORE_ID,
+        dayOfWeek: 1,
+        startTime: hhmmDate('09:00'),
+        endTime: hhmmDate('10:00'),
+        outcomeId: OUTCOME_ID,
+      })
+      storeFindUnique.mockResolvedValue({ tier: 'free' })
+      freeTierAllowedMock.mockResolvedValueOnce(false)
+
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/schedule-rows/${SLOT_ID}`,
+        headers: AUTH,
+        payload: { dayOfWeek: 1, startTime: '09:00', endTime: '10:00', outcomeId: OUTCOME_ID },
+      })
+
+      expect(res.statusCode).toBe(409)
+      expect(res.json()).toEqual({
+        error: 'outcome_not_in_free_tier_allowlist',
+        message: 'This outcome is not available on the free tier.',
+      })
+      expect(slotUpdate).not.toHaveBeenCalled()
+    })
+
+    // Pins the self-exclusion filter (id: { not: id }) — without it, editing
+    // a row to a range overlapping its OWN current range would falsely
+    // return 409. This test would fail before the filter was added.
+    it("returns 200 when the only 'overlap' is with the row's own current range (self-excluded)", async () => {
+      slotFindUnique.mockResolvedValue({
+        id: SLOT_ID,
+        storeId: STORE_ID,
+        dayOfWeek: 1,
+        startTime: hhmmDate('09:00'),
+        endTime: hhmmDate('10:00'),
+        outcomeId: OUTCOME_ID,
+      })
+      storeFindUnique.mockResolvedValue({ tier: 'pro' })
+      slotFindMany.mockResolvedValue([]) // self-excluded by the where filter
+      slotUpdate.mockResolvedValue(
+        makeSlotRow({ dayOfWeek: 1, startTime: hhmmDate('09:30'), endTime: hhmmDate('10:30') }),
+      )
+
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/schedule-rows/${SLOT_ID}`,
+        headers: AUTH,
+        payload: { dayOfWeek: 1, startTime: '09:30', endTime: '10:30', outcomeId: OUTCOME_ID },
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(slotUpdate).toHaveBeenCalled()
+    })
+  })
+
+  // ---------- DELETE /schedule-rows/:id ----------
+
+  describe('DELETE /schedule-rows/:id', () => {
+    it('returns 200 { ok: true } on happy path and calls prisma.scheduleSlot.delete', async () => {
+      slotDelete.mockResolvedValue({ id: SLOT_ID })
+
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/schedule-rows/${SLOT_ID}`,
+        headers: AUTH,
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toEqual({ ok: true })
+      expect(slotDelete).toHaveBeenCalledWith({ where: { id: SLOT_ID } })
+    })
+
+    it('returns 404 when the row does not exist', async () => {
+      slotDelete.mockRejectedValue(new Error('not found'))
+
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/schedule-rows/${SLOT_ID}`,
+        headers: AUTH,
+      })
+
+      expect(res.statusCode).toBe(404)
+      expect(res.json()).toEqual({ error: 'not_found' })
+    })
+
+    it('returns 401 when no Authorization header is sent', async () => {
+      const app = await buildTestApp(adminRoutes)
+      const res = await app.inject({ method: 'DELETE', url: `/schedule-rows/${SLOT_ID}` })
+
+      expect(res.statusCode).toBe(401)
+      expect(slotDelete).not.toHaveBeenCalled()
+    })
+  })
+})
