@@ -725,6 +725,29 @@ export interface PlaybackEventRow {
   operatorEmail: string | null
   reportReason: string | null
   extra: Record<string, unknown> | null
+  // Phase-3 correlation fields.
+  playbackSessionId: string | null
+  deviceId: string | null
+  playDurationMs: number | null
+  completionReason: 'ended' | 'skipped' | 'errored' | 'outcome_changed' | null
+  effectiveOutcomeId: string | null
+  clientBuild: string | null
+}
+
+export interface PlayerHealthSummary {
+  sinceDays: number
+  totalsByType: Record<string, number>
+  daily: { day: string; counts: Record<string, number> }[]
+  recent: {
+    id: string
+    eventType: string
+    occurredAt: string
+    deviceId: string | null
+    playbackSessionId: string | null
+    clientBuild: string | null
+    songId: string | null
+    extra: Record<string, unknown> | null
+  }[]
 }
 
 export interface LiveStoreView {
@@ -1217,6 +1240,8 @@ export const api = {
       `/admin/stores/${id}/events${qs ? `?${qs}` : ''}`, {}, token,
     )
   },
+  playerHealth: (id: string, days: number, token: string) =>
+    req<PlayerHealthSummary>(`/admin/stores/${id}/player-health?days=${days}`, {}, token),
   setOutcomeSelection: (id: string, outcomeId: string, token: string) =>
     req<{ outcomeId: string; expiresAt: string }>(`/admin/stores/${id}/outcome-selection`, { method: 'POST', body: JSON.stringify({ outcomeId }) }, token),
   clearOutcomeSelection: (id: string, token: string) =>
