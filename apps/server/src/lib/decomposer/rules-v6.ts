@@ -1,3 +1,4 @@
+// Experiment surface — historical decomposer rules version (still imported by decomposer.ts). See ./README.md for the version sweep contract; default is v8.
 // MusicologicalRules v6 — adds per-section arrangement output for the Arranger module.
 //   v5 → v6 change: model now also emits `arrangement_sections`, a structured map
 //   from section type (verse/chorus/bridge/etc) to instrumentation directives.

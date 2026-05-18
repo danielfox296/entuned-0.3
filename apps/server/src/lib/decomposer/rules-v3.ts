@@ -1,3 +1,4 @@
+// Experiment surface — historical decomposer rules version. See ./README.md for the version sweep contract; default is v8.
 // MusicologicalRules v3 — adds tight Suno-prompt-friendly output style + hard ban on
 // tempo/mode/key in any field. Driver: v2 outputs ran ~2400 chars and contained tempo/mode
 // references that conflict with Outcome supremacy.

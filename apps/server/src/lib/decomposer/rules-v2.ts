@@ -1,3 +1,4 @@
+// Experiment surface — historical decomposer rules version. See ./README.md for the version sweep contract; default is v8.
 // MusicologicalRules v2 — adds web-search grounding, verifiable facts, tightened confidence.
 // Driver: calibration run 1 exposed model confabulating "Hong Kong" while reporting confidence=high.
 // Locked 2026-04-25.

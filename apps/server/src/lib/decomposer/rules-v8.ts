@@ -1,3 +1,4 @@
+// Experiment surface — current default decomposer rules version. See ./README.md for the version sweep contract.
 // MusicologicalRules v8 — schema consolidation + bloat trim.
 //   v7 → v8 changes:
 //     - DROP arrangement_shape and dynamic_curve as standalone fields (their

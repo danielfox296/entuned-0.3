@@ -1,3 +1,4 @@
+// Experiment surface — historical decomposer rules version. See ./README.md for the version sweep contract; default is v8.
 // MusicologicalRules v7 — Suno-readable language discipline.
 //   v6 → v7 change: hard ban on literary/aesthetic vocabulary in the descriptive
 //   fields (doleful, plaintive, pastoral, hymnal, surefooted, literary, communal,

@@ -1,3 +1,4 @@
+// Experiment surface — historical decomposer rules version. See ./README.md for the version sweep contract; default is v8.
 // MusicologicalRules v5 — harmonic vocabulary upgrade.
 //   v4 → v5 change: harmonic_and_groove instruction rewritten to produce
 //   Suno-actionable chord movement vocabulary instead of generic descriptors.

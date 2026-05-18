@@ -1,3 +1,4 @@
+// Experiment surface — historical decomposer rules version. See ./README.md for the version sweep contract; default is v8.
 // MusicologicalRules v4 — fixes Suno-side failures observed in real test:
 //   - Suno strips artist/personnel names → swaps to genre centroid → generic output
 //   - Track essence/energy not landing (loose, irreverent, percussion-forward etc)
