@@ -631,7 +631,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       const slug = await uniqueStoreSlug(parsed.data.name)
       // Fall back to the system default if no defaultOutcomeId was supplied,
       // so admin-created Stores are launchable without an extra setup step.
-      // Admin-created Stores default to 'mvp_pilot' tier; not free-tier.
       const fallbackOutcomeId = parsed.data.defaultOutcomeId ?? await pickSystemDefaultOutcomeId()
       const row = await prisma.store.create({
         data: {
@@ -641,8 +640,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           goLiveDate: parsed.data.goLiveDate ? new Date(parsed.data.goLiveDate) : null,
           defaultOutcomeId: fallbackOutcomeId,
           slug,
-          // tier defaults to 'mvp_pilot' at the DB layer; admin-created Stores
-          // are operator-managed and don't go through the customer billing path.
+          // tier defaults to 'free' at the DB layer; admin-created Stores
+          // start on the PLG default and are upgraded manually as needed.
         },
         include: {
           client: { select: { companyName: true } },
@@ -4290,7 +4289,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   //   - Enterprise is excluded — there's no self-serve Stripe price for it,
   //     so an Enterprise comp would have no upgrade path on expiry. Add
   //     'enterprise' back to this enum when an Enterprise SKU exists.
-  //   - mvp_pilot is not a valid comp tier (it's a legacy seed tier; use core).
   app.post('/stores/:id/comp', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as { id?: string } | undefined)?.id

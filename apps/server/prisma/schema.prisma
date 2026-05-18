@@ -156,7 +156,7 @@ model Store {
   // `slug` is the URL fragment for music.entuned.co/<slug>. `tier` is a string
   // (not enum) so adding tiers doesn't require a migration.
   slug                        String    @unique
-  tier                        String    @default("mvp_pilot") // 'free' | 'core' | 'pro' | 'enterprise' | 'mvp_pilot' — Stripe-authoritative
+  tier                        String    @default("free") // 'free' | 'core' | 'pro' | 'enterprise' — Stripe-authoritative
   pausedUntil                 DateTime? @map("paused_until") @db.Timestamptz(6)
   archivedAt                  DateTime? @map("archived_at") @db.Timestamptz(6)
   // Comp-tier override (admin-granted free upgrade). Effective tier =
