@@ -17,6 +17,7 @@ import { billingRoutes } from './routes/billing.js'
 import { meRoutes } from './routes/me.js'
 import { emailRoutes } from './routes/email.js'
 import { pushRoutes } from './routes/push.js'
+import { devLoginRoutes } from './routes/dev-login.js'
 import { sessionPlugin } from './lib/session.js'
 import { seedEmailTemplates } from './lib/email.js'
 import { runLifecycleEmails } from './lib/lifecycleEmails.js'
@@ -78,6 +79,10 @@ await app.register(billingRoutes)
 await app.register(meRoutes, { prefix: '/me' })
 await app.register(emailRoutes, { prefix: '/email' })
 await app.register(pushRoutes, { prefix: '/push' })
+// Dev-only auth bypass. Self-disables when DEV_LOGIN_TOKEN is unset (404s),
+// so leaving it always-registered is safe — production Railway must never
+// set DEV_LOGIN_TOKEN. See routes/dev-login.ts.
+await app.register(devLoginRoutes)
 
 // Boot-time seed: ensure each DB-editable email template has a row. Idempotent —
 // never overwrites existing rows so operator edits survive deploys.
