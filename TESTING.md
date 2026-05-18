@@ -210,12 +210,15 @@ This reflects that Daniel is a bootstrapper who can't afford to do everything hi
 
 ## Backfill priority
 
-Where untested surface gets covered first, in order:
+Sweeps A+B+C complete as of 2026-05-18 — 208 → 677 tests (+469). Remaining surface, in order:
 
-1. `apps/server/src/lib/` rest of files (outcomeSchedule, freeTier, account, push, email, etc.)
-2. `apps/server/src/routes/` integration tests, in order of risk: auth → me → admin (the 4.5k LOC monolith) → billing → stores (most done) → events
-3. `apps/server/src/email-templates/` snapshot tests for HTML output
-4. `apps/server/src/lib/` generation pipeline (decomposer, eno, bernie, mars, hendrix, ref-tracks) — lower priority because shapes change (these are documented "experiment surfaces"; see `apps/server/src/lib/eno/README.md` and `apps/server/src/lib/decomposer/README.md`)
+1. **The other 100+ admin routes** (`apps/server/src/routes/admin.ts` is 4.5k LOC). Most are CRUD; can be batched in one or two agent sweeps.
+2. **Operational routes** not yet covered: `apps/server/src/routes/push.ts`, `email.ts`, `health.ts`, `admin-reliability.ts`, `admin-retention.ts`
+3. **Email templates** — `apps/server/src/email-templates/*.ts` snapshot tests for HTML output (~27 templates; could be one agent sweep)
+4. **Email shell** — `apps/server/src/lib/email.ts` template render shell (likely snapshot test)
+5. **Generation pipeline** — `decomposer/`, `eno/`, `bernie/`, `mars/`, `hendrix/` (generation, separate from rotation), `ref-tracks/`. Lower priority because shapes change (documented "experiment surfaces"; see `apps/server/src/lib/eno/README.md` and `apps/server/src/lib/decomposer/README.md`)
+
+What's already covered (don't redo): bernie._helpers, scheduleSlots, tier (incl. applyTierChange), outcomeSchedule, outcomes, compExpiry, pauseAutoResume, lifecycleEmails, account (lib), playbackHeartbeat, hendrix (lib — rotation), api-client. Routes: stores (demo), me (schedule slots), admin (schedule slots), auth (operator password-auth), login (customer magic-link + Google OAuth), billing (full), hendrix (route), events.
 
 Top of stack is what the next sweep targets unless Daniel says otherwise.
 

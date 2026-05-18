@@ -4,7 +4,7 @@ Code/behavior items that surfaced during cleanup + test work and were deliberate
 
 When you fix something here, delete the item (don't strike-through). Keep this list short and load-bearing.
 
-Last updated: 2026-05-18 (after Sweep B signup-to-payment backfill — +168 tests across account / auth / login / billing).
+Last updated: 2026-05-18 (after Sweep C player-traffic backfill — +146 tests across playbackHeartbeat / hendrix-route / events / hendrix-lib). Sweeps A+B+C complete; suite at 677.
 
 ---
 
@@ -71,6 +71,28 @@ If `STRIPE_PRICE_ID_PRO` is unset, the env default of `''` would match a (theore
 ### `apps/server/src/lib/pauseAutoResume.ts` — unreachable defensive guard
 
 The `if (!s.subscription)` skip is unreachable: the Prisma `where` clause already filters `subscription: { isNot: null }`. Either delete the guard, or keep it and note it's intentional defense-in-depth.
+
+### `apps/server/src/routes/events.ts` — strict UTC contract silently quarantines non-`Z` timestamps
+
+`z.string().datetime()` (without `{ offset: true }`) rejects any timestamp with an explicit offset like `2026-05-18T12:00:00.000-06:00`. Such events route into the `PlaybackEventRaw` quarantine table rather than ingesting. Today every Entuned-shipped client sends `Z`, so this is invisible. Risk surfaces if a third party ever wires their POS directly into `/events`, or if a future SDK accidentally emits offsets — every event silently disappears into the raw table.
+
+**Fix**: either pass `{ offset: true }` to accept offset-bearing ISO timestamps and normalize on insert, OR document the contract in the OpenAPI/integration docs and add a clear error code when offset is detected (instead of silent quarantine).
+
+**Pinned in**: `apps/server/src/routes/events.test.ts` (current strict-Z behavior locked).
+
+### `apps/server/src/routes/events.ts` — `/events/loved` bypasses `requireAuth`
+
+Every other protected route in the codebase uses `requireAuth` as a preHandler. `GET /events/loved` inlines its own `Bearer` parsing + `verify()` + `isAccountAuthorizedForStore`. Divergent style only — no security gap — but if `requireAuth` ever grows new logic (rate-limiting, audit logging, session-rotation), `/events/loved` won't pick it up.
+
+**Fix**: refactor `/events/loved` to use `{ preHandler: requireAuth }` like everything else.
+
+### `apps/server/src/routes/hendrix.ts` — `setOverride` error string becomes the public 404 body
+
+The `POST /outcome-selection` 404 handler uses `e.message ?? 'failed'` straight from `lib/outcomeSchedule.setOverride`. So the public API's error wording is whatever string the lib happened to throw. Changes to the lib's error messages silently change the API.
+
+**Fix**: map known lib error codes to stable public strings in the route handler. Or have setOverride throw a typed error with a stable `.code`.
+
+**Pinned in**: `apps/server/src/routes/hendrix.test.ts`.
 
 ### `apps/server/src/lib/account.ts` — `uniqueStoreSlug` exhaustion fallback has no uniqueness check
 
