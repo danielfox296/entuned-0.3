@@ -2324,6 +2324,13 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         operatorEmail: e.account?.email ?? null,
         reportReason: e.reportReason,
         extra: e.extra ?? null,
+        // Phase-3 correlation fields.
+        playbackSessionId: e.playbackSessionId,
+        deviceId: e.deviceId,
+        playDurationMs: e.playDurationMs,
+        completionReason: e.completionReason,
+        effectiveOutcomeId: e.effectiveOutcomeId,
+        clientBuild: e.clientBuild,
       })),
     }
   })
@@ -2375,8 +2382,73 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         operatorEmail: e.account?.email ?? null,
         reportReason: e.reportReason,
         extra: e.extra ?? null,
+        playbackSessionId: e.playbackSessionId,
+        deviceId: e.deviceId,
+        playDurationMs: e.playDurationMs,
+        completionReason: e.completionReason,
+        effectiveOutcomeId: e.effectiveOutcomeId,
+        clientBuild: e.clientBuild,
       })),
       nextBefore: events.length === limit ? events[events.length - 1].occurredAt : null,
+    }
+  })
+
+  // Player Health summary for a single store. Surfaces only the problem
+  // events from the audio stream — stalls, starves, load failures, push
+  // unsubscribes — bucketed by day with severity coding. Replaces "scan the
+  // full event firehose for trouble" with a single read.
+  app.get('/stores/:id/player-health', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const q = z.object({ days: z.coerce.number().int().min(1).max(60).default(7) }).safeParse(req.query)
+    if (!q.success) return reply.code(400).send({ error: 'bad_query' })
+    const since = new Date(Date.now() - q.data.days * 24 * 60 * 60 * 1000)
+
+    const problemTypes = [
+      'playback_starved',
+      'playback_stalled',
+      'song_load_failed',
+      'push_unsubscribed',
+      'wake_lock_failed',
+      'interruption_suspected',
+    ]
+    const events = await prisma.playbackEvent.findMany({
+      where: { storeId: id, eventType: { in: problemTypes }, occurredAt: { gte: since } },
+      orderBy: { occurredAt: 'desc' },
+      select: {
+        id: true, eventType: true, occurredAt: true, deviceId: true,
+        playbackSessionId: true, clientBuild: true, extra: true, songId: true,
+      },
+      take: 500,
+    })
+
+    // Per-day counts per event_type for a compact sparkline-ready response.
+    type DayBucket = { day: string; counts: Record<string, number> }
+    const byDay = new Map<string, DayBucket>()
+    for (const e of events) {
+      const day = e.occurredAt.toISOString().slice(0, 10)
+      let b = byDay.get(day)
+      if (!b) { b = { day, counts: {} }; byDay.set(day, b) }
+      b.counts[e.eventType] = (b.counts[e.eventType] ?? 0) + 1
+    }
+
+    return {
+      sinceDays: q.data.days,
+      totalsByType: events.reduce((acc, e) => {
+        acc[e.eventType] = (acc[e.eventType] ?? 0) + 1
+        return acc
+      }, {} as Record<string, number>),
+      daily: [...byDay.values()].sort((a, b) => b.day.localeCompare(a.day)),
+      recent: events.slice(0, 100).map((e) => ({
+        id: e.id,
+        eventType: e.eventType,
+        occurredAt: e.occurredAt,
+        deviceId: e.deviceId,
+        playbackSessionId: e.playbackSessionId,
+        clientBuild: e.clientBuild,
+        songId: e.songId,
+        extra: e.extra ?? null,
+      })),
     }
   })
 

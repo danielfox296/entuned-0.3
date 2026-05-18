@@ -601,13 +601,14 @@ model Outcome {
   createdById     String?   @map("created_by") @db.Uuid
   supersededAt    DateTime? @map("superseded_at") @db.Timestamptz(6)
 
-  storesAsDefault   Store[]        @relation("StoreDefaultOutcome")
-  storesAsSelection Store[]        @relation("StoreOutcomeSelection")
-  scheduleSlots     ScheduleSlot[]
-  hooks             Hook[]
-  lineageRows       LineageRow[]
-  songSeeds         SongSeed[]
-  productionEra     ProductionEra? @relation(fields: [productionEraId], references: [id])
+  storesAsDefault             Store[]         @relation("StoreDefaultOutcome")
+  storesAsSelection           Store[]         @relation("StoreOutcomeSelection")
+  scheduleSlots               ScheduleSlot[]
+  hooks                       Hook[]
+  lineageRows                 LineageRow[]
+  songSeeds                   SongSeed[]
+  productionEra               ProductionEra?  @relation(fields: [productionEraId], references: [id])
+  playbackEventsAsEffective   PlaybackEvent[] @relation("PlaybackEventEffectiveOutcome")
 
   @@unique([outcomeKey, version])
   @@index([outcomeKey, version(sort: Desc)])
@@ -818,16 +819,44 @@ model PlaybackEvent {
   reportReason ReportReason?     @map("report_reason")
   outcomeId    String?           @map("outcome_id") @db.Uuid
   extra        Json?
+  // Phase-3 (2026-05-17). See schema/20-audio-event-stream.md for semantics
+  // and POS-correlation rationale.
+  playbackSessionId   String?  @map("playback_session_id") @db.Uuid
+  deviceId            String?  @map("device_id")
+  playDurationMs      Int?     @map("play_duration_ms")
+  completionReason    String?  @map("completion_reason")
+  effectiveOutcomeId  String?  @map("effective_outcome_id") @db.Uuid
+  clientSentAt        DateTime? @map("client_sent_at") @db.Timestamptz(6)
+  clientBuild         String?  @map("client_build")
+  idempotencyKey      String?  @unique @map("idempotency_key")
 
-  store   Store    @relation(fields: [storeId], references: [id])
-  account Account? @relation(fields: [accountId], references: [id])
-  song    Song?    @relation(fields: [songId], references: [id])
+  store            Store    @relation(fields: [storeId], references: [id])
+  account          Account? @relation(fields: [accountId], references: [id])
+  song             Song?    @relation(fields: [songId], references: [id])
+  effectiveOutcome Outcome? @relation("PlaybackEventEffectiveOutcome", fields: [effectiveOutcomeId], references: [id])
 
   @@index([storeId, songId, occurredAt(sort: Desc)])
   @@index([storeId, hookId, occurredAt(sort: Desc)])
   @@index([storeId, occurredAt(sort: Desc)])
   @@index([storeId, eventType, occurredAt(sort: Desc)])
+  @@index([storeId, playbackSessionId, occurredAt])
   @@map("playback_events")
+}
+
+// Quarantine for events the zod allow-list rejected. Stale players or new
+// event types ship without losing telemetry — Daniel promotes to the allow-
+// list and either replays or discards. See schema/20-audio-event-stream.md.
+model PlaybackEventRaw {
+  id         String   @id @default(uuid()) @db.Uuid
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+  rawJson    Json     @map("raw_json")
+  errorText  String?  @map("error_text")
+  storeId    String?  @map("store_id") @db.Uuid
+  eventType  String?  @map("event_type")
+
+  @@index([receivedAt(sort: Desc)])
+  @@index([eventType, receivedAt(sort: Desc)])
+  @@map("playback_events_raw")
 }
 
 // ---------- Web Push subscriptions (iOS 16.4+ + Android) ----------
