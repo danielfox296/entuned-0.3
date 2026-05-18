@@ -67,9 +67,12 @@ export async function uniqueStoreSlug(name: string): Promise<string> {
  * Idempotent: if a membership already exists, returns without creating duplicates.
  *
  * Every first sign-in gets a fresh Client + ClientMembership + free-tier
- * Store. Operator-managed Clients (UNTUCKit, Lululemon, Friends-Demo) are
- * intentionally inaccessible from self-serve sign-in; if a human at one of
- * those needs dashboard access, an admin attaches them explicitly.
+ * Store. Customer Clients without an attached owner Account are unreachable
+ * from self-serve sign-in (this path would auto-provision a fresh Client
+ * instead) — admins attach them explicitly via POST /admin/clients/:id/owner.
+ *
+ * The Free Tier system sentinel (FREE_TIER_CLIENT_ID) is the only Client
+ * that intentionally has zero memberships; it's not a customer.
  *
  * Called from the magic-link verify and Google OAuth callback paths.
  */

@@ -879,8 +879,10 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
     },
   })
 
-  // Pull the first member's email for the dunning notice. If no membership
-  // exists (operator-managed Client), fall back to the Client.contactEmail.
+  // Pull the first member's email for the dunning notice. Customer Clients
+  // always have at least one membership post-cleanup; the contactEmail
+  // fallback is defensive (e.g., legacy rows or future admin-created Clients
+  // pending owner attach).
   const memberEmail = sub.store.client.memberships[0]?.account.email
   const dest = memberEmail ?? sub.store.client.contactEmail
   if (dest) {

@@ -360,6 +360,7 @@ export interface ClientListRow {
   storeCount: number
   icpCount: number
   isPlg: boolean
+  isSystem: boolean
   ownerEmail: string | null
 }
 
@@ -375,6 +376,7 @@ export interface ClientFull {
   createdAt: string
   updatedAt: string
   isPlg: boolean
+  isSystem: boolean
   ownerEmail: string | null
   stores: {
     id: string; name: string; timezone: string; goLiveDate: string | null

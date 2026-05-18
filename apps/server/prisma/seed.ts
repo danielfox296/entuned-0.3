@@ -58,6 +58,15 @@ async function main() {
     },
   })
 
+  // Owner membership tying the seeded Client to the admin Account so dev
+  // mirrors the post-cleanup prod shape (every customer Client has at least
+  // one membership). Idempotent via the unique (clientId, accountId).
+  await prisma.clientMembership.upsert({
+    where: { clientId_accountId: { clientId: client.id, accountId: admin.id } },
+    update: {},
+    create: { clientId: client.id, accountId: admin.id, role: 'owner' },
+  })
+
   const icp = await prisma.iCP.upsert({
     where: { id: '22222222-2222-2222-2222-222222222222' },
     update: {},

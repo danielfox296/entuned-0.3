@@ -115,8 +115,8 @@ model Client {
   posCredentials       Json?      @map("pos_credentials")
   brandLyricGuidelines String?    @map("brand_lyric_guidelines")
   // Stripe customer id; absorbed from the dropped `Account` table 2026-05-04.
-  // Null for operator-managed Clients (Untuckit, Lululemon, Friends-Demo) that
-  // never went through Stripe Checkout.
+  // Null for free-tier Clients that haven't upgraded yet, and for the Free
+  // Tier system sentinel (FREE_TIER_CLIENT_ID).
   stripeCustomerId     String?    @unique @map("stripe_customer_id")
   // Onboarding profile — collected at /onboard (post-auth, pre-dashboard gate).
   // `industry` null = onboarding not yet complete; server redirects to /onboard on login.

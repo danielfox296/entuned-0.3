@@ -26,7 +26,7 @@ import { pickSystemDefaultOutcomeId, isFreeTierAllowedOutcome } from '../lib/out
 import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 import { runEno } from '../lib/eno/eno.js'
-import { FREE_TIER_ICP_ID, FREE_TIER_AD_STORE_ID } from '../lib/freeTier.js'
+import { FREE_TIER_ICP_ID, FREE_TIER_AD_STORE_ID, FREE_TIER_CLIENT_ID } from '../lib/freeTier.js'
 import { downloadAndUploadFromUrl, uploadBuffer } from '../lib/r2.js'
 import { draftHooks, getOrSeedHookWriterPrompt, buildHookDrafterContext } from '../lib/hooks/drafter.js'
 import { suggestReferenceTracks } from '../lib/ref-tracks/suggester.js'
@@ -405,9 +405,13 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       updatedAt: c.updatedAt.toISOString(),
       storeCount: c._count.stores,
       icpCount: c._count.icps,
-      // PLG = self-serve customer (has a User membership). Operator-managed
-      // clients (Untuckit, Lululemon, Friends-Demo) have no User attached.
+      // PLG = self-serve customer with at least one membership.
+      // isSystem = the one Free-Tier sentinel Client that holds the canonical
+      // Free Tier ICP; it has no owner by design and is the only zero-membership
+      // Client in the system. (Customer Clients without owners can be attached
+      // via POST /admin/clients/:id/owner.)
       isPlg: c._count.memberships > 0,
+      isSystem: c.id === FREE_TIER_CLIENT_ID,
       ownerEmail: c.memberships[0]?.account.email ?? null,
     }))
   })
@@ -460,6 +464,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       createdAt: client.createdAt.toISOString(),
       updatedAt: client.updatedAt.toISOString(),
       isPlg: client.memberships.length > 0,
+      isSystem: client.id === FREE_TIER_CLIENT_ID,
       ownerEmail: client.memberships[0]?.account.email ?? null,
       stores: client.stores.map((s) => ({
         id: s.id,

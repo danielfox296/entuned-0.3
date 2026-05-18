@@ -146,23 +146,28 @@ export function ClientDetail({ onClientsChanged, selectedClient: _summary }: {
       {client && draft && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: T.sans, fontSize: S.small, flexWrap: 'wrap' }}>
-            {client.isPlg && (
+            {client.isSystem ? (
+              <span style={{
+                background: T.surfaceRaised, color: T.textDim, padding: '2px 8px',
+                border: `1px solid ${T.borderSubtle}`,
+                borderRadius: 3, fontSize: 11, fontWeight: 600, letterSpacing: '0.04em',
+              }}>SYSTEM</span>
+            ) : client.isPlg ? (
               <span style={{
                 background: T.accent, color: T.bg, padding: '2px 8px',
                 borderRadius: 3, fontSize: 11, fontWeight: 600, letterSpacing: '0.04em',
               }}>PLG</span>
-            )}
-            {!client.isPlg && (
+            ) : (
               <span style={{
-                background: T.surfaceRaised, color: T.textDim, padding: '2px 8px',
-                border: `1px solid ${T.borderSubtle}`,
+                background: T.surfaceRaised, color: T.danger, padding: '2px 8px',
+                border: `1px solid ${T.danger}`,
                 borderRadius: 3, fontSize: 11, fontWeight: 600, letterSpacing: '0.04em',
               }}>NO OWNER</span>
             )}
             {client.ownerEmail && (
               <span style={{ color: T.textMuted }}>owner: {client.ownerEmail}</span>
             )}
-            {!client.isPlg && (
+            {!client.isPlg && !client.isSystem && (
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 'auto' }}>
                 <Input
                   placeholder="owner email"
