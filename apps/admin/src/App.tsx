@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   Sparkles, CalendarDays, Settings, Music2,
-  FlaskConical, Lightbulb, Activity, ListChecks, Target, ShoppingCart, Mail, Radar,
+  FlaskConical, Lightbulb, Activity, ListChecks, Target, ShoppingCart, Mail,
 } from 'lucide-react'
 import { api, getToken, setToken, clearToken } from './api.js'
 import type { MeResponse, ClientListRow, StoreSummary, StoreDetail } from './api.js'
@@ -37,7 +37,6 @@ import { RetentionDashboard } from './panels/monitoring/RetentionDashboard.js'
 import { PlayerReliability } from './panels/monitoring/PlayerReliability.js'
 import { SalesDataIngest } from './panels/salesdata/SalesDataIngest.js'
 import { EmailTemplates } from './panels/email/EmailTemplates.js'
-import { CommandCenter } from './panels/command-center/CommandCenter.js'
 import { useNavGroup, useNavSub } from './nav.js'
 
 // ── Surface groups (from admin-ui.md, priority order) ──────────
@@ -47,9 +46,6 @@ interface SurfaceGroup {
 }
 
 const GROUPS: SurfaceGroup[] = [
-  { key: 'command-center', label: 'Command Center', short: 'Command', icon: Radar,
-    cards: ['Morning Review'],
-    description: '' },
   { key: 'workflows', label: 'Workflows', short: 'Workflows', icon: ListChecks,
     cards: ['Launch Checklist', 'Hook Writing', 'Reference Tracks', 'Hook → Prompt'],
     description: '' },
@@ -231,9 +227,8 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
         </div>
       )}
 
-      <div style={{ flex: 1, overflow: 'auto', padding: ownsHeader || group.key === 'command-center' ? 0 : 28 }}>
-        {group.key === 'command-center' ? <CommandCenter /> :
-         group.key === 'workflows' ? <WorkflowRouter /> :
+      <div style={{ flex: 1, overflow: 'auto', padding: ownsHeader ? 0 : 28 }}>
+        {group.key === 'workflows' ? <WorkflowRouter /> :
          group.key === 'engine' ? <EngineRouter cards={group.cards} /> :
          group.key === 'brand' ? <BrandRouter cards={group.cards} /> :
          group.key === 'schedule' ? <ScheduleRouter cards={group.cards} /> :
@@ -796,7 +791,7 @@ function ChangePasswordModal({ onClose, onChanged }: { onClose: () => void; onCh
 export function App() {
   const [token, setTokenState] = useState<string | null>(getToken)
   const [me, setMe] = useState<MeResponse | null>(null)
-  const [active, setActive] = useNavGroup('command-center')
+  const [active, setActive] = useNavGroup('workflows')
   const [collapsed, setCollapsed] = useState(false)
   const [showChangePassword, setShowChangePassword] = useState(false)
   // Reset-password hash takes priority over normal auth — the operator clicking

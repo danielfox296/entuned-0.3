@@ -18,7 +18,6 @@ import { meRoutes } from './routes/me.js'
 import { emailRoutes } from './routes/email.js'
 import { pushRoutes } from './routes/push.js'
 import { devLoginRoutes } from './routes/dev-login.js'
-import { commandCenterRoutes, commandCenterWorkerRoutes } from './routes/command-center.js'
 import { sessionPlugin } from './lib/session.js'
 import { seedEmailTemplates } from './lib/email.js'
 import { runLifecycleEmails } from './lib/lifecycleEmails.js'
@@ -27,11 +26,6 @@ import { runCompExpiryCron } from './lib/compExpiry.js'
 import { runBoostTrialClockActivation } from './lib/boostTrialClock.js'
 import { runPlaybackHeartbeat } from './lib/playbackHeartbeat.js'
 import { isPushConfigured } from './lib/push.js'
-import { runSignalScanner } from './workers/signal-scanner.js'
-import { runContentMultiplier } from './workers/content-multiplier.js'
-import { runNurtureDrip } from './workers/nurture-drip.js'
-import { runSeoPipeline } from './workers/seo-pipeline.js'
-import { runTriggerMonitor } from './workers/trigger-monitor.js'
 
 const app = Fastify({
   logger: {
@@ -85,8 +79,6 @@ await app.register(billingRoutes)
 await app.register(meRoutes, { prefix: '/me' })
 await app.register(emailRoutes, { prefix: '/email' })
 await app.register(pushRoutes, { prefix: '/push' })
-await app.register(commandCenterRoutes, { prefix: '/command-center' })
-await app.register(commandCenterWorkerRoutes, { prefix: '/command-center' })
 // Dev-only auth bypass. Self-disables when DEV_LOGIN_TOKEN is unset (404s),
 // so leaving it always-registered is safe — production Railway must never
 // set DEV_LOGIN_TOKEN. See routes/dev-login.ts.
@@ -163,77 +155,6 @@ if (process.env.PLAYBACK_HEARTBEAT_DISABLED !== '1' && isPushConfigured()) {
     }
   })
   app.log.info('playback_heartbeat_cron_registered (every 5min)')
-}
-
-// ── Command Center crons ────────────────────────────────────────────────
-//
-// All five scheduled workers run on the same Railway server process.
-// Each one is gated by ANTHROPIC_API_KEY presence — if the key isn't set,
-// the worker self-skips (so a missing key never crashes the cron tick).
-// COMMAND_CENTER_DISABLED=1 turns the whole stack off (one-off scripts / CI).
-//
-// Outreach is on-demand only — triggered by POST /command-center/outreach/research,
-// not on a cron.
-if (process.env.COMMAND_CENTER_DISABLED !== '1' && process.env.ANTHROPIC_API_KEY) {
-  // Signal scanner — every 4 hours (6am, 10am, 2pm, 6pm America/Denver).
-  cron.schedule('0 6,10,14,18 * * *', async () => {
-    try {
-      const stats = await runSignalScanner()
-      app.log.info({ stats }, 'signal_scanner_tick_complete')
-    } catch (err) {
-      app.log.error({ err }, 'signal_scanner_tick_failed')
-    }
-  }, { timezone: 'America/Denver' })
-
-  // Trigger monitor — daily at 7am. No-ops cleanly when SERPAPI_KEY is unset.
-  cron.schedule('0 7 * * *', async () => {
-    try {
-      const stats = await runTriggerMonitor()
-      app.log.info({ stats }, 'trigger_monitor_tick_complete')
-    } catch (err) {
-      app.log.error({ err }, 'trigger_monitor_tick_failed')
-    }
-  }, { timezone: 'America/Denver' })
-
-  // Content multiplier — weekly Monday 7am. Fans every ProofPoint into the
-  // 7 content formats it's missing.
-  cron.schedule('0 7 * * 1', async () => {
-    try {
-      const stats = await runContentMultiplier()
-      app.log.info({ stats }, 'content_multiplier_tick_complete')
-    } catch (err) {
-      app.log.error({ err }, 'content_multiplier_tick_failed')
-    }
-  }, { timezone: 'America/Denver' })
-
-  // SEO pipeline — weekly Tuesday 7am. Drafts blog posts for uncovered
-  // keyword clusters.
-  cron.schedule('0 7 * * 2', async () => {
-    try {
-      const stats = await runSeoPipeline()
-      app.log.info({ stats }, 'seo_pipeline_tick_complete')
-    } catch (err) {
-      app.log.error({ err }, 'seo_pipeline_tick_failed')
-    }
-  }, { timezone: 'America/Denver' })
-
-  app.log.info('command_center_crons_registered (signal/trigger/content/seo)')
-}
-
-// Nurture drip — separate from the ANTHROPIC_API_KEY gate above because it
-// doesn't call Claude. Runs daily at 9am alongside the existing lifecycle
-// drips. Gated by LIFECYCLE_DRIPS_DISABLED for consistency with the rest of
-// the email system.
-if (process.env.LIFECYCLE_DRIPS_DISABLED !== '1' && process.env.COMMAND_CENTER_DISABLED !== '1') {
-  cron.schedule('0 9 * * *', async () => {
-    try {
-      const stats = await runNurtureDrip()
-      app.log.info({ stats }, 'nurture_drip_tick_complete')
-    } catch (err) {
-      app.log.error({ err }, 'nurture_drip_tick_failed')
-    }
-  }, { timezone: 'America/Denver' })
-  app.log.info('nurture_drip_cron_registered (9am America/Denver)')
 }
 
 const port = Number(process.env.PORT ?? 3000)
