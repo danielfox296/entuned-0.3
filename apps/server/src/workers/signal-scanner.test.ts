@@ -199,7 +199,7 @@ describe('runSignalScanner', () => {
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>
     // First subreddit returns one strong-match post; others return [].
     fetchMock.mockImplementation(async (url: string) => {
-      if (url.includes('r/smallbusiness/new.json')) {
+      if (url.includes('/search.json')) {
         return {
           ok: true,
           json: async () => ({
@@ -241,7 +241,7 @@ describe('runSignalScanner', () => {
   it('does not re-queue posts already in the queue (idempotency on externalId)', async () => {
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>
     fetchMock.mockImplementation(async (url: string) => {
-      if (url.includes('r/smallbusiness/new.json')) {
+      if (url.includes('/search.json')) {
         return {
           ok: true,
           json: async () => ({
@@ -269,7 +269,7 @@ describe('runSignalScanner', () => {
   it('skips stale posts older than SIGNAL_MAX_AGE_HOURS without LLM call', async () => {
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>
     fetchMock.mockImplementation(async (url: string) => {
-      if (url.includes('r/smallbusiness/new.json')) {
+      if (url.includes('/search.json')) {
         return {
           ok: true,
           json: async () => ({
@@ -296,7 +296,7 @@ describe('runSignalScanner', () => {
   it('uses the helpful lane (no-pitch) for medium-relevance posts', async () => {
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>
     fetchMock.mockImplementation(async (url: string) => {
-      if (url.includes('r/smallbusiness/new.json')) {
+      if (url.includes('/search.json')) {
         return {
           ok: true,
           json: async () => ({
@@ -333,7 +333,7 @@ describe('runSignalScanner', () => {
   it('drops items where Claude says SKIP — does not queue zombie rows', async () => {
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>
     fetchMock.mockImplementation(async (url: string) => {
-      if (url.includes('r/smallbusiness/new.json')) {
+      if (url.includes('/search.json')) {
         return {
           ok: true,
           json: async () => ({

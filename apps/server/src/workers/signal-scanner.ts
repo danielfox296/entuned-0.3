@@ -96,6 +96,10 @@ interface ScannerResult {
 // The user-agent is required (Reddit returns 429 with a generic UA).
 const UA = 'entuned-signal-scanner/0.1 (by /u/danielchristopherfox)'
 
+// Most-recent feed per sub. Kept around for tests + occasional spot-checks
+// but the main scanner now uses sitewide search across keywords because the
+// new-feed approach surfaces near-zero matches (a random /new feed on
+// r/Entrepreneur is funding talk, not store-music questions).
 export async function fetchSubredditNew(subreddit: string, limit = 25): Promise<RedditPost[]> {
   const url = `https://www.reddit.com/r/${subreddit}/new.json?limit=${limit}`
   const res = await fetch(url, { headers: { 'user-agent': UA } })
@@ -105,6 +109,32 @@ export async function fetchSubredditNew(subreddit: string, limit = 25): Promise<
       return []
     }
     throw new Error(`Reddit ${subreddit} returned ${res.status}`)
+  }
+  const data = (await res.json()) as {
+    data?: { children?: { data: RedditPost }[] }
+  }
+  return (data.data?.children ?? []).map((c) => c.data)
+}
+
+// Sitewide search for posts containing the keyword phrase, sorted newest
+// first, restricted to the last week. We filter to our SIGNAL_SUBREDDITS
+// list client-side rather than hitting per-sub search endpoints to keep
+// the request count manageable (1 per keyword × ~35 keywords vs.
+// 17 subs × 35 keywords = 595).
+export async function searchRedditForKeyword(
+  keyword: string,
+  limit = 25,
+): Promise<RedditPost[]> {
+  // Quote the keyword so multi-word phrases match as phrases, not OR'd terms.
+  const q = encodeURIComponent(`"${keyword}"`)
+  const url = `https://www.reddit.com/search.json?q=${q}&sort=new&t=week&limit=${limit}&include_over_18=off`
+  const res = await fetch(url, { headers: { 'user-agent': UA } })
+  if (!res.ok) {
+    if (res.status === 429) {
+      console.warn(`[signal-scanner] rate-limited on search "${keyword}"`)
+      return []
+    }
+    return []
   }
   const data = (await res.json()) as {
     data?: { children?: { data: RedditPost }[] }
@@ -202,24 +232,36 @@ export async function runSignalScanner(opts?: {
   let drafted = 0
   let queued = 0
   let skipped = 0
-  const candidates: { post: RedditPost; score: number; matchedKeywords: string[] }[] = []
 
-  for (const sub of SIGNAL_SUBREDDITS) {
+  // Dedupe by post id — the same post can come back from multiple keyword
+  // searches if it mentions several of our terms.
+  const seenById = new Map<string, RedditPost>()
+  const targetSubs = new Set(SIGNAL_SUBREDDITS.map((s) => s.toLowerCase()))
+
+  for (const kw of SIGNAL_KEYWORDS) {
     let posts: RedditPost[]
     try {
-      posts = await fetchSubredditNew(sub)
+      posts = await searchRedditForKeyword(kw)
     } catch (e) {
-      console.warn(`[signal-scanner] r/${sub} failed: ${(e as Error).message}`)
+      console.warn(`[signal-scanner] search "${kw}" failed: ${(e as Error).message}`)
       continue
     }
     for (const post of posts) {
-      const ageHours = (now.getTime() - post.created_utc * 1000) / (1000 * 60 * 60)
-      if (ageHours > SIGNAL_MAX_AGE_HOURS) continue
-      const { score, matched: kws } = scoreRelevance(post, now)
-      if (score === 0) continue
-      matched++
-      candidates.push({ post, score, matchedKeywords: kws })
+      if (!post.subreddit) continue
+      // Only keep hits from our curated subreddit list.
+      if (!targetSubs.has(post.subreddit.toLowerCase())) continue
+      if (!seenById.has(post.id)) seenById.set(post.id, post)
     }
+  }
+
+  const candidates: { post: RedditPost; score: number; matchedKeywords: string[] }[] = []
+  for (const post of seenById.values()) {
+    const ageHours = (now.getTime() - post.created_utc * 1000) / (1000 * 60 * 60)
+    if (ageHours > SIGNAL_MAX_AGE_HOURS) continue
+    const { score, matched: kws } = scoreRelevance(post, now)
+    if (score === 0) continue
+    matched++
+    candidates.push({ post, score, matchedKeywords: kws })
   }
 
   // Sort by score descending, take the top N for LLM drafting.

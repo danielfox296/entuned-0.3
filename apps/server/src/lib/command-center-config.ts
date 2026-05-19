@@ -112,28 +112,49 @@ export const FORMAT_CONSTRAINTS: Record<
 // ---- Signal scanner (Reddit) --------------------------------------------
 
 export const SIGNAL_KEYWORDS = [
+  // Direct buying signals (most likely to score into the pitch lane)
   'background music',
   'in-store music',
   'store playlist',
   'retail music',
   'what do you play in your store',
   'music for my store',
+  'music for my shop',
+  'music for my cafe',
+  'music for my restaurant',
   'store ambiance',
+  'shop ambiance',
   'Mood Media',
   'Soundtrack Your Brand',
   'Cloud Cover',
   'Rockbot',
   'music licensing retail',
   'can I play Spotify in my store',
+  'spotify business',
+  'spotify for business',
+  'commercial spotify',
   'ASCAP BMI retail',
-  'store vibe',
-  'retail atmosphere',
-  'increase dwell time',
-  'customer experience retail',
   'background music service',
   'business music service',
+  // Adjacent signals — typically score into the helpful (no-pitch) lane
+  'store vibe',
+  'retail atmosphere',
+  'shop music',
+  'music for business',
+  'play music in store',
+  'play music in shop',
+  'increase dwell time',
+  'customer experience retail',
+  'staff hate the music',
+  'sick of the music',
+  'same songs every day',
+  'same songs over and over',
 ]
 
+// Curated list — every entry verified 200 OK against Reddit's public JSON
+// endpoint on 2026-05-19. Reddit returns 404 for nonexistent subs and 302
+// for renamed ones; both break the scanner. If a sub later goes private or
+// is renamed, drop it here.
 export const SIGNAL_SUBREDDITS = [
   'smallbusiness',
   'retail',
@@ -151,9 +172,6 @@ export const SIGNAL_SUBREDDITS = [
   'RetailManagement',
   'EntrepreneurRideAlong',
   'Flipping',
-  'BoutiqueOwners',
-  'antiqueshop',
-  'cafeowners',
   'restaurantowners',
 ]
 
