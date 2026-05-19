@@ -36,7 +36,8 @@ export function CommandCenter() {
         icon={<Radar size={14} strokeWidth={1.75} />}
         defaultOpen
         showPayload
-        emptyMessage="Reddit buying-signal scanner. Scans 10 subreddits 4×/day for posts matching retail-music keywords, drafts a reply in your voice, and queues it here for you to copy + send. Empty = next run hasn't fired yet, or no matching posts."
+        workerName="signal-scanner"
+        emptyMessage="Reddit buying-signal scanner. Scans 20 subreddits 4×/day for posts matching retail-music + adjacent keywords. High-relevance posts get a reply you can pitch from; medium-relevance get a no-pitch helpful reply for presence-building. Click Run now to fire it immediately."
       />
 
       <QueueSection
@@ -53,7 +54,8 @@ export function CommandCenter() {
         type="trigger"
         icon={<Zap size={14} strokeWidth={1.75} />}
         showPayload
-        emptyMessage="Daily web-search for warm moments — new store openings, podcast episodes about retail audio, competitor complaints. Drafts a context-appropriate note. Needs SERPAPI_KEY set on Railway to run."
+        workerName="trigger-monitor"
+        emptyMessage="Daily web-search for warm moments — new store openings, podcast episodes about retail audio, competitor complaints. Drafts a context-appropriate note. Needs SERPAPI_KEY set on Railway to actually return hits — without it the worker no-ops cleanly."
       />
 
       <ContentBank />
@@ -62,14 +64,16 @@ export function CommandCenter() {
         title="SEO Drafts"
         type="seo"
         icon={<Globe size={14} strokeWidth={1.75} />}
-        emptyMessage="Weekly blog-post drafter. Picks uncovered keywords from 4 SEO clusters (competitor-alternative, licensing, outcome-optimization, sensory-retail) and drafts a 1000-1400 word post each. Next run: Tuesday 7am MT."
+        workerName="seo-pipeline"
+        emptyMessage="Weekly blog-post drafter. Picks uncovered keywords from 4 SEO clusters (competitor-alternative, licensing, outcome-optimization, sensory-retail) and drafts a 1000-1400 word post each. Cron fires Tuesday 7am MT. Click Run now to generate up to 8 drafts immediately."
       />
 
       <QueueSection
-        title="Community"
+        title="Nurture (free→paid drips)"
         type="nurture"
         icon={<Users size={14} strokeWidth={1.75} />}
-        emptyMessage="Manual activity log. Use POST /command-center/queue with type='nurture' to track community engagement (replied to a r/smallbusiness thread, etc). No automation yet."
+        workerName="nurture-drip"
+        emptyMessage="Daily check of every free-tier signup. Sends one drip email per day to anyone who's crossed a day-2/4/7/10/12/14 threshold and hasn't received that email yet. Runs at 9am MT. Click Run now to dispatch any due-today emails immediately."
       />
 
       <ProofPoints />

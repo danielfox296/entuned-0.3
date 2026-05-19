@@ -137,7 +137,7 @@ export const SIGNAL_KEYWORDS = [
 export const SIGNAL_SUBREDDITS = [
   'smallbusiness',
   'retail',
-  'entrepreneur',
+  'Entrepreneur',
   'retailowners',
   'boutique',
   'restaurateur',
@@ -145,11 +145,33 @@ export const SIGNAL_SUBREDDITS = [
   'ecommerce',
   'shopify',
   'squareup',
+  'marketing',
+  'Music',
+  'AskRetail',
+  'RetailManagement',
+  'EntrepreneurRideAlong',
+  'Flipping',
+  'BoutiqueOwners',
+  'antiqueshop',
+  'cafeowners',
+  'restaurantowners',
 ]
 
 // Auto-expire signal items older than this — stale Reddit posts aren't
 // worth replying to.
 export const SIGNAL_MAX_AGE_HOURS = 48
+
+// Score thresholds for the signal scanner lanes (see workers/signal-scanner.ts):
+//   ≥ MIN_SCORE_FOR_PITCH_DRAFT     → "you can mention Entuned if natural" lane
+//   ≥ MIN_SCORE_FOR_HELPFUL_DRAFT   → "be helpful, no pitch" lane
+//   below that                       → queue without a draft (Daniel reads + decides)
+//
+// Two-lane design: most adjacent retail conversation isn't a buying signal,
+// but Daniel showing up helpfully in those threads still builds presence
+// and reciprocity. The helpful lane explicitly forbids the LLM from naming
+// Entuned at all — the goal is "store-floor guy who knows stuff", not pitch.
+export const MIN_SCORE_FOR_PITCH_DRAFT = 50
+export const MIN_SCORE_FOR_HELPFUL_DRAFT = 20
 
 // ---- SEO content pipeline ------------------------------------------------
 

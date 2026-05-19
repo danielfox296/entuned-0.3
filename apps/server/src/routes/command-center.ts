@@ -38,6 +38,11 @@ import {
   OUTREACH_TARGET_TYPES,
 } from '../lib/command-center-config.js'
 import { queueOutreachTarget } from '../workers/outreach-queue.js'
+import { runSignalScanner } from '../workers/signal-scanner.js'
+import { runContentMultiplier } from '../workers/content-multiplier.js'
+import { runNurtureDrip } from '../workers/nurture-drip.js'
+import { runSeoPipeline } from '../workers/seo-pipeline.js'
+import { runTriggerMonitor } from '../workers/trigger-monitor.js'
 
 interface AuthedOp {
   accountId: string
@@ -493,3 +498,53 @@ const OutreachResearchBody = z.object({
   url: z.string().url(),
   notes: z.string().max(2000).optional(),
 })
+
+// ===== On-demand worker triggers =========================================
+//
+// Wraps each worker's `run*` function as POST /workers/:name/run so the UI
+// can fire them outside the cron schedule. Same admin-auth gate. Synchronous:
+// returns the worker stats when done (workers are bounded by per-run caps).
+//
+// Mounted as a separate plugin function so the closure above stays tidy —
+// these get registered on the same plugin via the export below.
+
+type WorkerName =
+  | 'signal-scanner'
+  | 'content-multiplier'
+  | 'trigger-monitor'
+  | 'seo-pipeline'
+  | 'nurture-drip'
+
+const WORKERS: Record<WorkerName, () => Promise<unknown>> = {
+  'signal-scanner': () => runSignalScanner(),
+  'content-multiplier': () => runContentMultiplier(),
+  'trigger-monitor': () => runTriggerMonitor(),
+  'seo-pipeline': () => runSeoPipeline(),
+  'nurture-drip': () => runNurtureDrip(),
+}
+
+export const commandCenterWorkerRoutes: FastifyPluginAsync = async (app) => {
+  app.post('/workers/:name/run', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const name = (req.params as { name: string }).name as WorkerName
+    const runner = WORKERS[name]
+    if (!runner) {
+      return reply.code(404).send({ error: 'unknown_worker', name })
+    }
+    const startedAt = Date.now()
+    try {
+      const stats = await runner()
+      return reply.send({
+        worker: name,
+        durationMs: Date.now() - startedAt,
+        stats,
+      })
+    } catch (e) {
+      return reply.code(500).send({
+        error: 'worker_failed',
+        worker: name,
+        message: (e as Error).message,
+      })
+    }
+  })
+}

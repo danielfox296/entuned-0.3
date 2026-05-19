@@ -26,13 +26,17 @@ import {
   SIGNAL_KEYWORDS,
   SIGNAL_SUBREDDITS,
   SIGNAL_MAX_AGE_HOURS,
+  MIN_SCORE_FOR_PITCH_DRAFT,
+  MIN_SCORE_FOR_HELPFUL_DRAFT,
 } from '../lib/command-center-config.js'
 
 const MODEL = process.env.SIGNAL_SCANNER_MODEL ?? 'claude-sonnet-4-6'
 const MAX_DRAFTS_PER_RUN = 40
-const MIN_SCORE_FOR_DRAFT = 50
 
-const SYSTEM_PROMPT = `
+// Used for high-relevance buying-signal posts (score ≥ 50). Mention of
+// Entuned is allowed when natural. Output is a draft Daniel can copy and
+// paste; Claude can output "SKIP" if the post is unrelated.
+const PITCH_SYSTEM_PROMPT = `
 You are drafting a Reddit reply for Daniel Fox. Daniel works the floor at a
 retail clothing store in Denver. He's also a music producer and the founder
 of Entuned — an AI that composes original music for retail stores.
@@ -46,6 +50,27 @@ Reply rules:
 - Write like someone who actually works in a store, not a SaaS founder.
 - If the post is unrelated, off-topic, or impossible to add value to, output
   exactly "SKIP" and nothing else.
+`.trim()
+
+// Used for topically-adjacent posts (score 20-49). Explicit no-pitch lane —
+// Daniel shows up as the store-floor guy who knows stuff. The goal is
+// presence + reciprocity, not lead capture. NEVER mentions Entuned.
+const HELPFUL_SYSTEM_PROMPT = `
+You are drafting a Reddit reply for Daniel Fox. Daniel works the floor at a
+retail clothing store in Denver and is a music producer.
+
+This reply is in the HELPFUL lane — NEVER mention Entuned, music software,
+SaaS, your product, or any company. This is purely about being a useful
+voice on Reddit so people recognize Daniel's username over time.
+
+Reply rules:
+- Just answer their question from your real experience working a retail floor.
+- Casual, warm, sounds like a real person typed it fast. Lowercase ok, typos ok.
+- Short. 1-3 sentences. No bullet points. No headers. No sign-off.
+- Never use "leverage", "utilize", "streamline", "game-changer", "ROI".
+- Write like someone who's lived through what they're asking about.
+- If the post is unrelated to retail / small business / staff / customers
+  / music / in-store experience, output exactly "SKIP".
 `.trim()
 
 interface RedditPost {
@@ -125,11 +150,14 @@ export function scoreRelevance(post: RedditPost, now: Date = new Date()): {
   return { score, matched }
 }
 
+export type ReplyLane = 'pitch' | 'helpful'
+
 export interface DraftReplyInput {
   postTitle: string
   postBody: string
   subreddit: string
   matchedKeywords: string[]
+  lane: ReplyLane
 }
 
 export async function draftReply(
@@ -150,7 +178,7 @@ ${input.postBody.slice(0, 1500) || '(no body)'}
     model: MODEL,
     max_tokens: 400,
     temperature: 0.7,
-    system: SYSTEM_PROMPT,
+    system: input.lane === 'helpful' ? HELPFUL_SYSTEM_PROMPT : PITCH_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userMessage }],
   })
   const text = response.content
@@ -205,26 +233,34 @@ export async function runSignalScanner(opts?: {
       continue
     }
 
+    // Score determines the lane:
+    //   ≥ MIN_SCORE_FOR_PITCH_DRAFT  → "pitch" lane (mention Entuned if natural)
+    //   ≥ MIN_SCORE_FOR_HELPFUL_DRAFT → "helpful" lane (NEVER mention Entuned)
+    //   below                          → too noisy, skip entirely (used to queue
+    //                                     undrafted, but those rows never got acted on)
+    let lane: ReplyLane | null = null
+    if (c.score >= MIN_SCORE_FOR_PITCH_DRAFT) lane = 'pitch'
+    else if (c.score >= MIN_SCORE_FOR_HELPFUL_DRAFT) lane = 'helpful'
+    if (lane === null) { skipped++; continue }
+
+    if (drafted >= MAX_DRAFTS_PER_RUN) break
+
     let draft: string | null = null
-    if (c.score >= MIN_SCORE_FOR_DRAFT && drafted < MAX_DRAFTS_PER_RUN) {
-      try {
-        draft = await draftReply(client, {
-          postTitle: c.post.title,
-          postBody: c.post.selftext,
-          subreddit: c.post.subreddit,
-          matchedKeywords: c.matchedKeywords,
-        })
-        drafted++
-      } catch (e) {
-        console.warn(`[signal-scanner] draft failed for ${externalId}: ${(e as Error).message}`)
-      }
+    try {
+      draft = await draftReply(client, {
+        postTitle: c.post.title,
+        postBody: c.post.selftext,
+        subreddit: c.post.subreddit,
+        matchedKeywords: c.matchedKeywords,
+        lane,
+      })
+      drafted++
+    } catch (e) {
+      console.warn(`[signal-scanner] draft failed for ${externalId}: ${(e as Error).message}`)
     }
 
-    // If Claude said SKIP, don't queue at all — it's noise.
-    if (c.score >= MIN_SCORE_FOR_DRAFT && draft === null) {
-      skipped++
-      continue
-    }
+    // If Claude said SKIP (returned null), it's noise — don't queue at all.
+    if (draft === null) { skipped++; continue }
 
     const sourceUrl = `https://www.reddit.com${c.post.permalink}`
     const expiresAt = new Date(c.post.created_utc * 1000 + SIGNAL_MAX_AGE_HOURS * 3600 * 1000)
@@ -237,10 +273,13 @@ export async function runSignalScanner(opts?: {
     await prisma.queueItem.create({
       data: {
         type: 'signal',
-        subtype: 'reddit',
+        // Distinct subtype per lane so the UI / filters can split them
+        // visually if needed and the helpful lane never accidentally gets
+        // promoted into pitch language during a later edit pass.
+        subtype: lane === 'helpful' ? 'reddit-helpful' : 'reddit',
         status: 'pending',
         priority: c.score,
-        title: `r/${c.post.subreddit}: ${c.post.title.slice(0, 200)}`,
+        title: `${lane === 'helpful' ? '[helpful] ' : ''}r/${c.post.subreddit}: ${c.post.title.slice(0, 200)}`,
         draftContent: draft,
         sourceUrl,
         externalId,
@@ -255,6 +294,7 @@ export async function runSignalScanner(opts?: {
           commentCount: c.post.num_comments,
           relevanceScore: c.score,
           matchedKeywords: c.matchedKeywords,
+          lane,
         },
       },
     })

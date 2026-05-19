@@ -43,6 +43,27 @@ vi.mock('../db.js', () => {
   return { prisma: mock }
 })
 
+// Worker modules are pulled in by the route file. Mock them at the boundary
+// — the routes' job is to dispatch + serialize, not to know what's inside.
+vi.mock('../workers/signal-scanner.js', () => ({
+  runSignalScanner: vi.fn(),
+}))
+vi.mock('../workers/content-multiplier.js', () => ({
+  runContentMultiplier: vi.fn(),
+}))
+vi.mock('../workers/trigger-monitor.js', () => ({
+  runTriggerMonitor: vi.fn(),
+}))
+vi.mock('../workers/seo-pipeline.js', () => ({
+  runSeoPipeline: vi.fn(),
+}))
+vi.mock('../workers/nurture-drip.js', () => ({
+  runNurtureDrip: vi.fn(),
+}))
+vi.mock('../workers/outreach-queue.js', () => ({
+  queueOutreachTarget: vi.fn(),
+}))
+
 vi.mock('../lib/auth.js', () => ({
   verify: vi.fn((token: string) => {
     if (token === 'admin-test-token') {
@@ -67,7 +88,8 @@ vi.mock('../lib/auth.js', () => ({
   }),
 }))
 
-import { commandCenterRoutes } from './command-center.js'
+import { commandCenterRoutes, commandCenterWorkerRoutes } from './command-center.js'
+import { runSignalScanner } from '../workers/signal-scanner.js'
 import { prisma } from '../db.js'
 import { buildTestApp } from '../test-utils/fastifyApp.js'
 
@@ -468,6 +490,73 @@ describe('content pieces', () => {
     expect(call.data.publishedAt).toBeInstanceOf(Date)
   })
 
+  it('does not test anything here — placeholder for the next describe', () => {
+    expect(true).toBe(true)
+  })
+})
+
+describe('POST /workers/:name/run', () => {
+  it('runs the named worker and returns its stats', async () => {
+    ;(runSignalScanner as ReturnType<typeof vi.fn>).mockResolvedValue({
+      matched: 3, drafted: 2, queued: 2, skipped: 1,
+    })
+    const app = await buildTestApp(commandCenterWorkerRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/workers/signal-scanner/run',
+      headers: AUTH,
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.worker).toBe('signal-scanner')
+    expect(body.stats).toEqual({ matched: 3, drafted: 2, queued: 2, skipped: 1 })
+    expect(body.durationMs).toBeGreaterThanOrEqual(0)
+  })
+
+  it('returns 404 for an unknown worker name', async () => {
+    const app = await buildTestApp(commandCenterWorkerRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/workers/not-a-worker/run',
+      headers: AUTH,
+    })
+    expect(res.statusCode).toBe(404)
+    expect(res.json()).toEqual({ error: 'unknown_worker', name: 'not-a-worker' })
+  })
+
+  it('returns 500 with the worker error message when the worker throws', async () => {
+    ;(runSignalScanner as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('reddit unreachable'),
+    )
+    const app = await buildTestApp(commandCenterWorkerRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/workers/signal-scanner/run',
+      headers: AUTH,
+    })
+    expect(res.statusCode).toBe(500)
+    expect(res.json()).toEqual({
+      error: 'worker_failed',
+      worker: 'signal-scanner',
+      message: 'reddit unreachable',
+    })
+  })
+
+  it('401s without an admin token', async () => {
+    const app = await buildTestApp(commandCenterWorkerRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/workers/signal-scanner/run',
+    })
+    expect(res.statusCode).toBe(401)
+  })
+
+  it('placeholder — keeps the next describe attached', () => {
+    expect(true).toBe(true)
+  })
+})
+
+describe('publishedAt stamping (regression suite)', () => {
   it('PATCH /content/:id does NOT overwrite an explicit publishedAt', async () => {
     contentUpdate.mockResolvedValue({ id: 'cp1', status: 'published' })
     const app = await buildTestApp(commandCenterRoutes)

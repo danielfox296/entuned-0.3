@@ -1481,6 +1481,16 @@ export const api = {
     req<ContentPieceRow>(`/command-center/content/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, token),
   ccDeleteContent: (id: string, token: string) =>
     req<void>(`/command-center/content/${id}`, { method: 'DELETE' }, token),
+
+  ccRunWorker: (
+    name: 'signal-scanner' | 'content-multiplier' | 'trigger-monitor' | 'seo-pipeline' | 'nurture-drip',
+    token: string,
+  ) =>
+    req<{ worker: string; durationMs: number; stats: Record<string, unknown> }>(
+      `/command-center/workers/${name}/run`,
+      { method: 'POST' },
+      token,
+    ),
 }
 
 // --- Command Center types ---

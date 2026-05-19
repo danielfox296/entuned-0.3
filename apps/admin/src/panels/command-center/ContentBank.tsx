@@ -78,8 +78,19 @@ export function ContentBank() {
     }
   }
 
+  async function runMultiplier(): Promise<{ summary: string }> {
+    if (!token) throw new Error('not_authed')
+    const result = await api.ccRunWorker('content-multiplier', token)
+    await refresh()
+    const stats = result.stats as Record<string, number>
+    const seconds = Math.round(result.durationMs / 100) / 10
+    return {
+      summary: `content-multiplier done in ${seconds}s: ${stats.generated ?? 0} generated, ${stats.skipped ?? 0} already existed, ${stats.failed ?? 0} failed`,
+    }
+  }
+
   return (
-    <Section title="Content Bank" count={items?.length}>
+    <Section title="Content Bank" count={items?.length} onRunNow={runMultiplier}>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <label style={{ fontSize: 12, color: T.textDim }}>Format:</label>
         <select value={filterFormat} onChange={(e) => setFilterFormat(e.target.value)}

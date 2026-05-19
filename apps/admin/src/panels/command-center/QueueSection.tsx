@@ -24,10 +24,13 @@ export interface QueueSectionProps {
   // Whether to render the payload preview inside the expand view.
   showPayload?: boolean
   emptyMessage?: string
+  // Name of the worker to trigger via the Run Now button. Omit to hide
+  // the button (Outreach has no cron worker — items get fed via API).
+  workerName?: 'signal-scanner' | 'trigger-monitor' | 'seo-pipeline' | 'nurture-drip'
 }
 
 export function QueueSection({
-  title, icon, type, defaultOpen, allowSnooze = true, showPayload, emptyMessage,
+  title, icon, type, defaultOpen, allowSnooze = true, showPayload, emptyMessage, workerName,
 }: QueueSectionProps) {
   const token = getToken()
   const toast = useToast()
@@ -88,8 +91,32 @@ export function QueueSection({
     }
   }
 
+  async function runWorker(): Promise<{ summary: string }> {
+    if (!token || !workerName) throw new Error('not_configured')
+    const result = await api.ccRunWorker(workerName, token)
+    await refresh()
+    const stats = result.stats as Record<string, number>
+    // Each worker reports different keys; render a compact one-line summary
+    // by picking whichever counts the worker actually returned.
+    const parts: string[] = []
+    if (typeof stats.queued === 'number') parts.push(`${stats.queued} queued`)
+    if (typeof stats.generated === 'number') parts.push(`${stats.generated} generated`)
+    if (typeof stats.sent === 'number') parts.push(`${stats.sent} sent`)
+    if (typeof stats.matched === 'number') parts.push(`${stats.matched} matched`)
+    if (typeof stats.skipped === 'number') parts.push(`${stats.skipped} skipped`)
+    if (typeof stats.failed === 'number' && stats.failed > 0) parts.push(`${stats.failed} failed`)
+    const seconds = Math.round(result.durationMs / 100) / 10
+    return { summary: `${workerName} done in ${seconds}s: ${parts.join(', ') || 'no items'}` }
+  }
+
   return (
-    <Section title={title} icon={icon} count={items?.length} defaultOpen={defaultOpen}>
+    <Section
+      title={title}
+      icon={icon}
+      count={items?.length}
+      defaultOpen={defaultOpen}
+      onRunNow={workerName ? runWorker : undefined}
+    >
       {items === null && <EmptyState message="Loading…" />}
       {items && items.length === 0 && (
         <EmptyState message={emptyMessage ?? `No ${title.toLowerCase()} yet.`} />

@@ -18,7 +18,7 @@ import { meRoutes } from './routes/me.js'
 import { emailRoutes } from './routes/email.js'
 import { pushRoutes } from './routes/push.js'
 import { devLoginRoutes } from './routes/dev-login.js'
-import { commandCenterRoutes } from './routes/command-center.js'
+import { commandCenterRoutes, commandCenterWorkerRoutes } from './routes/command-center.js'
 import { sessionPlugin } from './lib/session.js'
 import { seedEmailTemplates } from './lib/email.js'
 import { runLifecycleEmails } from './lib/lifecycleEmails.js'
@@ -86,6 +86,7 @@ await app.register(meRoutes, { prefix: '/me' })
 await app.register(emailRoutes, { prefix: '/email' })
 await app.register(pushRoutes, { prefix: '/push' })
 await app.register(commandCenterRoutes, { prefix: '/command-center' })
+await app.register(commandCenterWorkerRoutes, { prefix: '/command-center' })
 // Dev-only auth bypass. Self-disables when DEV_LOGIN_TOKEN is unset (404s),
 // so leaving it always-registered is safe — production Railway must never
 // set DEV_LOGIN_TOKEN. See routes/dev-login.ts.

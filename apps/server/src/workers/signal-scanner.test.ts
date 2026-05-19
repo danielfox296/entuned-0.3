@@ -163,7 +163,7 @@ describe('draftReply', () => {
     })
     const client = new Anthropic({ apiKey: 'k' })
     const out = await draftReply(client, {
-      postTitle: 't', postBody: 'b', subreddit: 'smallbusiness', matchedKeywords: ['music'],
+      postTitle: 't', postBody: 'b', subreddit: 'smallbusiness', matchedKeywords: ['music'], lane: 'pitch',
     })
     expect(out).toBe('we use Cloud Cover and it is fine but the loop is short.')
   })
@@ -172,7 +172,7 @@ describe('draftReply', () => {
     messagesCreate.mockResolvedValue({ content: [{ type: 'text', text: 'SKIP' }] })
     const client = new Anthropic({ apiKey: 'k' })
     const out = await draftReply(client, {
-      postTitle: 't', postBody: 'b', subreddit: 'smallbusiness', matchedKeywords: ['music'],
+      postTitle: 't', postBody: 'b', subreddit: 'smallbusiness', matchedKeywords: ['music'], lane: 'pitch',
     })
     expect(out).toBeNull()
   })
@@ -181,7 +181,7 @@ describe('draftReply', () => {
     messagesCreate.mockResolvedValue({ content: [{ type: 'text', text: '   ' }] })
     const client = new Anthropic({ apiKey: 'k' })
     const out = await draftReply(client, {
-      postTitle: 't', postBody: 'b', subreddit: 'smallbusiness', matchedKeywords: ['music'],
+      postTitle: 't', postBody: 'b', subreddit: 'smallbusiness', matchedKeywords: ['music'], lane: 'pitch',
     })
     expect(out).toBeNull()
   })
@@ -288,6 +288,46 @@ describe('runSignalScanner', () => {
     expect(result.matched).toBe(0)
     expect(messagesCreate).not.toHaveBeenCalled()
     expect(queueCreate).not.toHaveBeenCalled()
+  })
+
+  // Two-lane behavior: posts scoring 20-49 should still get a draft, but in
+  // the "helpful" lane (no-pitch). This is the System 7 / community work
+  // from the spec — show up as a useful presence, don't try to sell.
+  it('uses the helpful lane (no-pitch) for medium-relevance posts', async () => {
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.includes('r/smallbusiness/new.json')) {
+        return {
+          ok: true,
+          json: async () => ({
+            data: { children: [{ data: makePost({
+              id: 'med1',
+              // Title with one match + body with one match → moderate score.
+              // Lower engagement keeps it under the pitch threshold (50).
+              title: 'opening a clothing shop — store ambiance ideas?',
+              selftext: 'also curious about background music if anyone has opinions',
+              ups: 1, num_comments: 1,
+              created_utc: Math.floor(NOW.getTime() / 1000) - 10 * 3600,
+            }) }] },
+          }),
+        }
+      }
+      return { ok: true, json: async () => ({ data: { children: [] } }) }
+    })
+    messagesCreate.mockResolvedValue({
+      content: [{ type: 'text', text: 'we use a small streamer and rotate every week or two. helps a lot.' }],
+    })
+    queueFindUnique.mockResolvedValue(null)
+    queueCreate.mockResolvedValue({ id: 'q-helpful' })
+
+    const result = await runSignalScanner({ apiKey: 'k', now: NOW })
+    expect(result.queued).toBe(1)
+    const call = queueCreate.mock.calls[0][0]
+    // Subtype distinguishes the lane so the helpful queue can't accidentally
+    // get re-edited into pitch language later.
+    expect(call.data.subtype).toBe('reddit-helpful')
+    expect(call.data.title).toMatch(/^\[helpful\]/)
+    expect(call.data.payload.lane).toBe('helpful')
   })
 
   it('drops items where Claude says SKIP — does not queue zombie rows', async () => {

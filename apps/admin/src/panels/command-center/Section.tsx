@@ -3,24 +3,49 @@
 // Each section title shows the icon + label + count badge, and click-toggles
 // open/closed. `defaultOpen` lets the page open Signals + Outreach by default
 // (the two highest-leverage sections in the spec).
+//
+// `onRunNow` adds a "Run now" button to the header. The button fires
+// outside the toggle area (stopPropagation) so clicking it doesn't also
+// collapse the section. Shows a spinner while the worker runs and a toast
+// with the result.
 
 import { useState, type ReactNode } from 'react'
 import { T } from '@entuned/tokens'
+import { useToast } from '../../ui/index.js'
 
 export function Section({
   title,
   icon,
   count,
   defaultOpen,
+  onRunNow,
   children,
 }: {
   title: string
   icon?: ReactNode
   count?: number
   defaultOpen?: boolean
+  onRunNow?: () => Promise<{ summary: string }>
   children: ReactNode
 }) {
   const [open, setOpen] = useState(defaultOpen ?? false)
+  const [running, setRunning] = useState(false)
+  const toast = useToast()
+
+  async function handleRun(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!onRunNow || running) return
+    setRunning(true)
+    try {
+      const result = await onRunNow()
+      toast.success(result.summary)
+    } catch (err) {
+      toast.error(String(err))
+    } finally {
+      setRunning(false)
+    }
+  }
+
   return (
     <div style={{
       border: `1px solid ${T.border}`, borderRadius: 6,
@@ -48,6 +73,22 @@ export function Section({
             border: `1px solid ${count > 0 ? T.borderSubtle : 'transparent'}`,
             fontFamily: T.mono,
           }}>{count}</span>
+        )}
+        {onRunNow && (
+          <button
+            onClick={handleRun}
+            disabled={running}
+            style={{
+              marginLeft: 'auto',
+              background: running ? 'transparent' : T.accentGlow,
+              color: running ? T.textDim : T.accent,
+              border: `1px solid ${T.accentMuted}`,
+              padding: '3px 10px', fontSize: 11, fontFamily: T.mono,
+              borderRadius: 3, cursor: running ? 'wait' : 'pointer',
+            }}
+          >
+            {running ? 'Running…' : 'Run now'}
+          </button>
         )}
       </div>
       {open && <div style={{ padding: 16 }}>{children}</div>}
