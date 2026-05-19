@@ -1431,6 +1431,111 @@ export const api = {
       { method: 'POST', body: JSON.stringify({}) },
       token,
     ),
+
+  // --- Command Center ---
+  ccScoreboard: (token: string) =>
+    req<CommandCenterScoreboard>('/command-center/scoreboard', {}, token),
+  ccQueue: (
+    params: { type?: string; status?: string; subtype?: string; limit?: number },
+    token: string,
+  ) => {
+    const qs = new URLSearchParams()
+    if (params.type) qs.set('type', params.type)
+    if (params.status) qs.set('status', params.status)
+    if (params.subtype) qs.set('subtype', params.subtype)
+    if (params.limit) qs.set('limit', String(params.limit))
+    const q = qs.toString()
+    return req<{ items: QueueItemRow[] }>(`/command-center/queue${q ? `?${q}` : ''}`, {}, token)
+  },
+  ccCreateQueueItem: (body: Partial<QueueItemRow> & { type: string; title: string }, token: string) =>
+    req<QueueItemRow>('/command-center/queue', { method: 'POST', body: JSON.stringify(body) }, token),
+  ccUpdateQueueItem: (id: string, body: Partial<QueueItemRow>, token: string) =>
+    req<QueueItemRow>(`/command-center/queue/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, token),
+  ccDeleteQueueItem: (id: string, token: string) =>
+    req<void>(`/command-center/queue/${id}`, { method: 'DELETE' }, token),
+
+  ccProofPoints: (token: string) =>
+    req<{ items: ProofPointRow[] }>('/command-center/proof-points', {}, token),
+  ccCreateProofPoint: (body: Omit<ProofPointRow, 'id' | 'createdAt' | 'updatedAt' | 'pieces'>, token: string) =>
+    req<ProofPointRow>('/command-center/proof-points', { method: 'POST', body: JSON.stringify(body) }, token),
+  ccUpdateProofPoint: (id: string, body: Partial<ProofPointRow>, token: string) =>
+    req<ProofPointRow>(`/command-center/proof-points/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, token),
+  ccDeleteProofPoint: (id: string, token: string) =>
+    req<void>(`/command-center/proof-points/${id}`, { method: 'DELETE' }, token),
+
+  ccContent: (
+    params: { narrative?: string; format?: string; status?: string; proofPointId?: string },
+    token: string,
+  ) => {
+    const qs = new URLSearchParams()
+    if (params.narrative) qs.set('narrative', params.narrative)
+    if (params.format) qs.set('format', params.format)
+    if (params.status) qs.set('status', params.status)
+    if (params.proofPointId) qs.set('proofPointId', params.proofPointId)
+    const q = qs.toString()
+    return req<{ items: ContentPieceRow[] }>(`/command-center/content${q ? `?${q}` : ''}`, {}, token)
+  },
+  ccCreateContent: (body: Partial<ContentPieceRow> & { narrative: string; format: string; body: string }, token: string) =>
+    req<ContentPieceRow>('/command-center/content', { method: 'POST', body: JSON.stringify(body) }, token),
+  ccUpdateContent: (id: string, body: Partial<ContentPieceRow>, token: string) =>
+    req<ContentPieceRow>(`/command-center/content/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, token),
+  ccDeleteContent: (id: string, token: string) =>
+    req<void>(`/command-center/content/${id}`, { method: 'DELETE' }, token),
+}
+
+// --- Command Center types ---
+
+export interface CommandCenterScoreboard {
+  free: number
+  paid: number
+  mrr: number
+  target: { freeSignups: number; paidUsers: number }
+}
+
+export interface QueueItemRow {
+  id: string
+  type: string
+  subtype: string | null
+  status: string
+  priority: number
+  title: string
+  draftContent: string | null
+  sourceUrl: string | null
+  payload: Record<string, unknown> | null
+  externalId: string | null
+  snoozedUntil: string | null
+  actedAt: string | null
+  actedAction: string | null
+  createdAt: string
+  expiresAt: string | null
+}
+
+export interface ProofPointRow {
+  id: string
+  label: string
+  quoteText: string
+  attribution: string
+  context: string | null
+  category: string
+  eventDate: string | null
+  tags: string[]
+  createdAt: string
+  updatedAt: string
+  pieces?: { id: string; format: string; status: string }[]
+}
+
+export interface ContentPieceRow {
+  id: string
+  proofPointId: string | null
+  narrative: string
+  format: string
+  title: string | null
+  body: string
+  status: string
+  publishedAt: string | null
+  publishedUrl: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 // --- Email template types ---

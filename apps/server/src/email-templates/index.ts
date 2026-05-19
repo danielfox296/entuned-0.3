@@ -26,6 +26,12 @@ import * as boostTrialEngagement from './boostTrialEngagement.js'
 import * as boostTrialEnding from './boostTrialEnding.js'
 import * as boostTrialExpired from './boostTrialExpired.js'
 import * as postConversionBenchmark from './postConversionBenchmark.js'
+import * as free_drip_invisible_channel from './free_drip_invisible_channel.js'
+import * as free_drip_proof from './free_drip_proof.js'
+import * as free_drip_whats_missing from './free_drip_whats_missing.js'
+import * as free_drip_case_study from './free_drip_case_study.js'
+import * as free_drip_trial_offer from './free_drip_trial_offer.js'
+import * as free_drip_last_nudge from './free_drip_last_nudge.js'
 
 export interface TemplateModule<P = any> {
   subject: (props: P) => string
@@ -56,6 +62,12 @@ export const TEMPLATES = {
   boostTrialEnding,
   boostTrialExpired,
   postConversionBenchmark,
+  free_drip_invisible_channel,
+  free_drip_proof,
+  free_drip_whats_missing,
+  free_drip_case_study,
+  free_drip_trial_offer,
+  free_drip_last_nudge,
 } satisfies Record<string, TemplateModule>
 
 export type TemplateName = keyof typeof TEMPLATES
@@ -76,6 +88,12 @@ export const LIFECYCLE_TEMPLATES = new Set<TemplateName>([
   'boostTrialEnding',
   'boostTrialExpired',
   'postConversionBenchmark',
+  'free_drip_invisible_channel',
+  'free_drip_proof',
+  'free_drip_whats_missing',
+  'free_drip_case_study',
+  'free_drip_trial_offer',
+  'free_drip_last_nudge',
 ])
 
 // Sample props the admin "preview" pane uses when the operator hasn't supplied
@@ -156,5 +174,26 @@ export const TEMPLATE_PROPS_EXAMPLES: Record<TemplateName, Record<string, unknow
   postConversionBenchmark: {
     benchmarkUrl: 'https://app.entuned.co/benchmark',
     dashboardUrl: 'https://app.entuned.co',
+  },
+  free_drip_invisible_channel: {
+    upgradeUrl: 'https://entuned.co/pricing.html',
+    playerUrl: 'https://music.entuned.co/sample-store-1234',
+  },
+  free_drip_proof: {
+    upgradeUrl: 'https://entuned.co/pricing.html',
+    playerUrl: 'https://music.entuned.co/sample-store-1234',
+  },
+  free_drip_whats_missing: {
+    upgradeUrl: 'https://entuned.co/pricing.html',
+    playerUrl: 'https://music.entuned.co/sample-store-1234',
+  },
+  free_drip_case_study: {
+    upgradeUrl: 'https://entuned.co/pricing.html',
+  },
+  free_drip_trial_offer: {
+    trialUrl: 'https://entuned.co/pricing.html',
+  },
+  free_drip_last_nudge: {
+    upgradeUrl: 'https://entuned.co/pricing.html',
   },
 }
