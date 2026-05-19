@@ -41,7 +41,7 @@ export function Scoreboard() {
         <Metric label="MRR" value={data ? dollarsFromCents(data.mrr) : '—'} />
         <div style={{ flex: 1 }} />
         <div style={{ fontSize: 12, color: T.textFaint }}>
-          Target: 100 free / 10 paid per month
+          Monthly target (spec, not a live counter): 100 free signups / 10 paid users
         </div>
       </div>
       {err && <div style={{ fontSize: 12, color: T.danger }}>{err}</div>}

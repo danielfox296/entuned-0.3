@@ -36,7 +36,7 @@ export function CommandCenter() {
         icon={<Radar size={14} strokeWidth={1.75} />}
         defaultOpen
         showPayload
-        emptyMessage="The signal scanner hasn't run yet, or no Reddit posts matched. Workers run every 4h."
+        emptyMessage="Reddit buying-signal scanner. Scans 10 subreddits 4×/day for posts matching retail-music keywords, drafts a reply in your voice, and queues it here for you to copy + send. Empty = next run hasn't fired yet, or no matching posts."
       />
 
       <QueueSection
@@ -45,7 +45,7 @@ export function CommandCenter() {
         icon={<Send size={14} strokeWidth={1.75} />}
         defaultOpen
         showPayload
-        emptyMessage="No outreach targets in flight. Feed targets via POST /command-center/outreach/research."
+        emptyMessage="On-demand pitch drafter. POST a target (podcast / blogger / consultant) to /command-center/outreach/research and the worker drafts a personalized pitch using one of three angles. No targets fed yet."
       />
 
       <QueueSection
@@ -53,7 +53,7 @@ export function CommandCenter() {
         type="trigger"
         icon={<Zap size={14} strokeWidth={1.75} />}
         showPayload
-        emptyMessage="No trigger events today. Worker runs daily at 7am MT."
+        emptyMessage="Daily web-search for warm moments — new store openings, podcast episodes about retail audio, competitor complaints. Drafts a context-appropriate note. Needs SERPAPI_KEY set on Railway to run."
       />
 
       <ContentBank />
@@ -62,14 +62,14 @@ export function CommandCenter() {
         title="SEO Drafts"
         type="seo"
         icon={<Globe size={14} strokeWidth={1.75} />}
-        emptyMessage="No SEO blog drafts pending. Worker runs Tuesdays."
+        emptyMessage="Weekly blog-post drafter. Picks uncovered keywords from 4 SEO clusters (competitor-alternative, licensing, outcome-optimization, sensory-retail) and drafts a 1000-1400 word post each. Next run: Tuesday 7am MT."
       />
 
       <QueueSection
         title="Community"
         type="nurture"
         icon={<Users size={14} strokeWidth={1.75} />}
-        emptyMessage="Browse today: r/smallbusiness, r/boutique. Log your activity in the nurture queue."
+        emptyMessage="Manual activity log. Use POST /command-center/queue with type='nurture' to track community engagement (replied to a r/smallbusiness thread, etc). No automation yet."
       />
 
       <ProofPoints />
