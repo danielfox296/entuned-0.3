@@ -270,8 +270,11 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       turnOffs: parsed.data.turnOffs ?? null,
     }
 
+    // clientId filter is load-bearing: free-tier Stores are StoreICP-linked to
+    // the shared FREE_TIER_ICP singleton (clientId = FREE_TIER_CLIENT_ID).
+    // Without this filter, the singleton matches and gets clobbered globally.
     const existing = await prisma.iCP.findFirst({
-      where: { storeLinks: { some: { storeId: store.id } }, archivedAt: null },
+      where: { storeLinks: { some: { storeId: store.id } }, clientId: ctx.clientId, archivedAt: null },
       orderBy: { updatedAt: 'desc' },
       select: { id: true },
     })
@@ -343,8 +346,9 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
         turnOffs: parsed.data.turnOffs ?? null,
       }
 
+      // clientId filter is load-bearing: see POST /icp above.
       const existing = await prisma.iCP.findFirst({
-        where: { storeLinks: { some: { storeId: store.id } } },
+        where: { storeLinks: { some: { storeId: store.id } }, clientId: ctx.clientId, archivedAt: null },
         orderBy: { updatedAt: 'desc' },
         select: { id: true },
       })

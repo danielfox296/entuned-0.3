@@ -29,6 +29,7 @@ vi.mock('../db.js', () => ({
   prisma: {
     store: {
       findFirst: vi.fn(),
+      findMany: vi.fn(),
     },
     scheduleSlot: {
       findMany: vi.fn(),
@@ -36,6 +37,11 @@ vi.mock('../db.js', () => ({
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
+    },
+    iCP: {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
     },
   },
 }))
@@ -553,5 +559,86 @@ describe('me schedule-slot routes', () => {
       expect(res.json()).toEqual({ error: 'not_found' })
       expect(slotDelete).not.toHaveBeenCalled()
     })
+  })
+})
+
+// Regression: a free-tier customer's intake save must NOT mutate the shared
+// FREE_TIER_ICP singleton. The bug was a missing `clientId` filter on the
+// `existing` lookup — every free-tier Store is StoreICP-linked to the
+// singleton, so the unguarded findFirst would match it and the subsequent
+// update would clobber the singleton's fields globally across all free Stores.
+//
+// Both POST /icp (primary store) and POST /stores/:storeId/icp (per-store)
+// share the same shape. The clientId guard means the singleton — whose
+// clientId is FREE_TIER_CLIENT_ID, never a real customer id — is excluded
+// from the upsert's "existing" branch, forcing a create of a fresh
+// client-scoped ICP.
+describe('me ICP intake — never mutates FREE_TIER_ICP singleton', () => {
+  const icpFindFirst = prisma.iCP.findFirst as ReturnType<typeof vi.fn>
+  const icpCreate = prisma.iCP.create as ReturnType<typeof vi.fn>
+  const icpUpdate = prisma.iCP.update as ReturnType<typeof vi.fn>
+
+  const INTAKE_BODY = {
+    name: 'My Audience',
+    ageRange: '30-50',
+    fears: 'being upsold',
+    values: 'small business',
+    desires: 'to find something good',
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    icpCreate.mockResolvedValue({
+      id: 'new-icp-id',
+      clientId: CLIENT_ID,
+      name: INTAKE_BODY.name,
+      ageRange: INTAKE_BODY.ageRange,
+      location: null,
+      politicalSpectrum: null,
+      openness: null,
+      fears: INTAKE_BODY.fears,
+      values: INTAKE_BODY.values,
+      desires: INTAKE_BODY.desires,
+      unexpressedDesires: null,
+      turnOffs: null,
+      updatedAt: new Date(),
+    })
+  })
+
+  it('POST /icp scopes the existing-lookup to the requesting clientId', async () => {
+    // POST /icp uses findPrimaryStore → prisma.store.findMany.
+    ;(prisma.store.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: STORE_ID, tier: 'free', compTier: null, compExpiresAt: null, createdAt: new Date() },
+    ])
+    icpFindFirst.mockResolvedValue(null)
+
+    const app = await buildTestApp(meRoutes)
+    const res = await app.inject({ method: 'POST', url: '/icp', payload: INTAKE_BODY })
+
+    expect(res.statusCode).toBe(200)
+    // The where clause MUST include clientId; otherwise the singleton matches.
+    expect(icpFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ clientId: CLIENT_ID }),
+    }))
+    // No existing → must create, never update.
+    expect(icpCreate).toHaveBeenCalledTimes(1)
+    expect(icpUpdate).not.toHaveBeenCalled()
+  })
+
+  it('POST /stores/:storeId/icp scopes the existing-lookup to the requesting clientId', async () => {
+    storeFindFirst.mockResolvedValue({ id: STORE_ID })
+    icpFindFirst.mockResolvedValue(null)
+
+    const app = await buildTestApp(meRoutes)
+    const res = await app.inject({
+      method: 'POST', url: `/stores/${STORE_ID}/icp`, payload: INTAKE_BODY,
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(icpFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ clientId: CLIENT_ID }),
+    }))
+    expect(icpCreate).toHaveBeenCalledTimes(1)
+    expect(icpUpdate).not.toHaveBeenCalled()
   })
 })
