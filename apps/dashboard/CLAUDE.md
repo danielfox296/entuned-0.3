@@ -65,6 +65,18 @@ When adding a new route, create `src/content/<route>.yaml` alongside it.
 
 Auth gate: wrap any private route in `<RequireAuth>` (from `src/lib/auth.ts`).
 
+## Load-bearing rules
+
+Rules that have bitten in the past and aren't enforceable by types or tests.
+
+- **App-created ICPs are first-class.** When a customer completes intake at `/intake`, the resulting ICP starts with empty `ReferenceTrack` / `Hook` / voice-note rows. **This is not a gap.** The `run-pipeline` skill is the automation that fills them — kicked off automatically after intake / on operator request from Dash. Don't gate any dashboard flow on these rows being non-empty, and don't add a "your library is incomplete" warning for an ICP that's just waiting on pipeline output. The intake → pipeline → playback handoff is the whole point of this surface.
+- **v1.5 intake + locations is shipped — don't re-design.** Intake persistence, add-location, rename, and mixed-tier cleanup all landed. If a task touches `/intake`, `/locations`, or the location-rename flow, read the v1.5 handoff entry in `MEMORY.md` (or ask Daniel) before refactoring — the current shape is intentional.
+- **Pricing CTA topology is locked.** Entuned Free → `app.entuned.co/start`. Boost / Pro → direct Stripe checkout (not via this app). Enterprise → contact form. **The asymmetry is intentional** — don't unify the CTAs or add a "select tier" step inside the dashboard. The brand site (`entuned.co`) owns the entry funnel; this app owns post-signup.
+- **Tier display in customer copy:** `'free'` → "Entuned Free", `'core'` → "Boost", `'pro'` → "Pro". DB values and API params are unchanged. Customers see these labels everywhere — never reintroduce "Essentials" or "Core" in YAML content, billing copy, or account-page strings.
+- **No "zones".** Not a product concept; don't reference it in any dashboard label, tooltip, or YAML content.
+- **No "day-parting"** except in the explainer phrase "like day-parting, but better". Use **"Outcome Scheduling"** in customer copy.
+- **No fake or estimated metrics on `/reports`.** Customer-facing dashboards must only show numbers derivable from real logged events. If you can't compute it honestly, drop the panel.
+
 ## Deploy
 
 GitHub Pages **on a separate publish repo** (`danielfox296/entuned-0.3-dashboard`),

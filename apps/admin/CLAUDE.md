@@ -32,6 +32,16 @@ Each surface group in the sidebar shows placeholder sub-cards labeled "ready for
 4. Create the panel component in `apps/admin/src/panels/<group>/<Card>.tsx`.
 5. Replace the placeholder card in `App.tsx`'s `PanelShell` with the real component for that group.
 
+## Load-bearing rules
+
+Rules that have bitten in the past and aren't enforceable by types or tests.
+
+- **Login screen flashes briefly on `dash.entuned.co`, then auto-authenticates.** This is not a bug — don't debug it, don't add a loading shim, don't ask the user to "actually log in." If you see a Dash login screen during preview verification that disappears on its own, that's expected behavior.
+- **Tier display in operator copy:** `'free'` → "Entuned Free", `'core'` → "Boost", `'pro'` → "Pro". DB values and API params are unchanged (`tier=core` is still the param). Don't reintroduce "Essentials" or "Core" in any panel label, button, or table cell. See `../server/CLAUDE.md`.
+- **No fake or estimated data in operator dashboards.** Reliability, retention, and live-store panels must only show metrics derivable from real logged `PlaybackEvent` / lifecycle rows. If a metric can't be computed honestly, drop the panel or reframe — don't ship a placeholder number.
+- **No "zones".** Not a product concept; don't reference it in any Dash label or tooltip.
+- **No "day-parting"** except in the explainer phrase "like day-parting, but better". Use **"Outcome Scheduling"** everywhere else.
+
 ## Known gaps
 
 - **No logout button yet.** A `handleLogout` placeholder was removed during shell setup to satisfy `noUnusedLocals`. When the shell gets a logout affordance, re-add it: `clearToken(); setTokenState(null); setMe(null)`.
