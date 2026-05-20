@@ -182,6 +182,24 @@ ${clicheShapes.map((s) => `- ${s}`).join('\n')}
 `.trim()
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// 7) HARD-BAN block — strict-language version of the overused words list, for
+// runtime injection into the draft + edit user messages. The seeded NO-GO block
+// in the system prompt is soft ("pattern-recognition red flags") to preserve
+// craft judgment on edge cases; this block is the hard "forbidden, never use"
+// gate. The two co-exist on purpose: operators add hard bans (e.g. brand names
+// to avoid, on-the-nose theme words) via Dash → lyric_ban_entries, and those
+// need stricter enforcement than the original AI-cliché flags. Returns empty
+// string when there are no overused-word entries so callers don't inject an
+// empty header.
+// ──────────────────────────────────────────────────────────────────────────────
+export async function formatHardBanBlock(): Promise<string> {
+  const { overusedWords } = await loadBanEntries()
+  if (overusedWords.length === 0) return ''
+  return `FORBIDDEN WORDS — these must not appear in the output, in any morphological form (plural, possessive, all conjugations, hyphenated compounds). If a draft line would naturally include one, replace with concrete sensory imagery rather than a synonym swap. This is a hard constraint, not a stylistic preference:
+${overusedWords.join(', ')}.`
+}
+
 /** Synchronous fallback using hardcoded lists (for cold-start / seed prompts). */
 export function formatNoGoBlockSync(): string {
   return `

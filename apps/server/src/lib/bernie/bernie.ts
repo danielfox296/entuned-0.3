@@ -20,6 +20,7 @@ import { EDIT_PROMPT_SEED } from '../proto-bernie/lyrics.js'
 import type { ArrangementSections } from '../arranger/arranger.js'
 import type { FormArchetypeChoice } from '../eno/form-archetype.js'
 import { formatArrangementBrief, getOrSeedDraftPrompt } from './_helpers.js'
+import { formatHardBanBlock } from './lyric-craft-rules.js'
 
 const MODEL = process.env.LYRICIST_MODEL ?? 'claude-sonnet-4-6'
 
@@ -80,9 +81,10 @@ export async function generateLyrics(input: BernieInput): Promise<BernieOutput> 
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
   const client = new Anthropic({ apiKey })
 
-  const [draftPrompt, editPrompt] = await Promise.all([
+  const [draftPrompt, editPrompt, hardBanBlock] = await Promise.all([
     getOrSeedDraftPrompt(),
     getOrSeedEditPrompt(),
+    formatHardBanBlock(),
   ])
 
   const arrangementBrief = input.arrangementSections ? formatArrangementBrief(input.arrangementSections) : ''
@@ -97,7 +99,7 @@ Form note: ${input.formArchetype.shapeNote}
   const draftUserMessage = `Hook (used verbatim wherever the form note instructs — usually every chorus, but for AABA-style forms the hook lands as the last line of every verse):
 "${input.hookText}"
 
-${formBrief ? `${formBrief}\n` : ''}${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n\n` : ''}${arrangementBrief ? `${arrangementBrief}\n` : ''}Write the lyrics now. Output the JSON only.`
+${formBrief ? `${formBrief}\n` : ''}${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n\n` : ''}${arrangementBrief ? `${arrangementBrief}\n` : ''}${hardBanBlock ? `${hardBanBlock}\n\n` : ''}Write the lyrics now. Output the JSON only.`
 
   const draftResponse = await client.messages.create({
     model: MODEL,
@@ -120,7 +122,7 @@ ${formBrief ? `${formBrief}\n` : ''}${input.brandLyricGuidelines ? `Brand lyric 
   const editUserMessage = `Hook (must remain verbatim in every instance the draft used it — choruses, verse-end refrains, tag, whatever the form dictates):
 "${input.hookText}"
 
-${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n\n` : ''}Draft to polish:
+${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n\n` : ''}${hardBanBlock ? `${hardBanBlock}\n\n` : ''}Draft to polish:
 
 Title: ${draft.title}
 
