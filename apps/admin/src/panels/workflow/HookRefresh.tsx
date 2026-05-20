@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, getToken } from '../../api.js'
-import type { HookVocalGender, OutcomeRowFull } from '../../api.js'
+import type { HookRowFull, HookVocalGender, OutcomeRowFull } from '../../api.js'
 import { T } from '@entuned/tokens'
 import { Button, useToast, LlmProgress } from '../../ui/index.js'
 import type { WorkflowContext } from './WorkflowRouter.js'
@@ -34,7 +34,7 @@ type RejectReason = typeof REJECT_REASONS[number] | 'other'
 export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
   const toast = useToast()
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
-  const [acceptedCounts, setAcceptedCounts] = useState<Record<string, number>>({})
+  const [icpHooks, setIcpHooks] = useState<HookRowFull[]>([])
   const [activeOutcomeId, setActiveOutcomeId] = useState<string | null>(null)
   const [n, setN] = useState(DEFAULT_N)
   const [drafting, setDrafting] = useState(false)
@@ -46,24 +46,39 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
     api.outcomes(token).then(setOutcomes).catch((e) => setErr(e.message))
   }, [])
 
-  // Approved-hook counts power the per-card badge. Refreshed on ICP change;
-  // bumped locally on each Accept to avoid a refetch per click.
+  // Existing approved hooks for the selected ICP. Drives the per-outcome
+  // count badge AND the editable list above the drafting area.
   useEffect(() => {
-    setAcceptedCounts({})
+    setIcpHooks([])
     setActiveOutcomeId(null)
     setRows([])
     setErr(null)
     if (!ctx.icpId) return
     const token = getToken(); if (!token) return
-    api.icpHooks(ctx.icpId, token).then((hooks) => {
-      const counts: Record<string, number> = {}
-      for (const h of hooks) {
-        if (h.status !== 'approved') continue
-        counts[h.outcomeId] = (counts[h.outcomeId] ?? 0) + 1
-      }
-      setAcceptedCounts(counts)
-    }).catch((e) => setErr(e.message))
+    api.icpHooks(ctx.icpId, token)
+      .then((hooks) => setIcpHooks(hooks))
+      .catch((e) => setErr(e.message))
   }, [ctx.icpId])
+
+  const acceptedCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const h of icpHooks) {
+      if (h.status !== 'approved') continue
+      counts[h.outcomeId] = (counts[h.outcomeId] ?? 0) + 1
+    }
+    return counts
+  }, [icpHooks])
+
+  // Existing approved hooks for the active outcome — excluding rows the
+  // operator just drafted-and-accepted in this session (those are still
+  // visible in the draft list below).
+  const existingForActive = useMemo(() => {
+    if (!activeOutcomeId) return []
+    const sessionIds = new Set(rows.map((r) => r.hookId).filter((id): id is string => !!id))
+    return icpHooks
+      .filter((h) => h.status === 'approved' && h.outcomeId === activeOutcomeId && !sessionIds.has(h.id))
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+  }, [icpHooks, activeOutcomeId, rows])
 
   // Honor an outcome pre-select hint from another panel (e.g. Pipeline → click
   // on an idle-outcome chip). Read once on mount, then clear so navigating away
@@ -134,7 +149,7 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
       setRows((rs) => rs.map((r, i) => i === idx
         ? { ...r, saving: false, hookId: created.id, persistedAs: 'approved', editing: false }
         : r))
-      setAcceptedCounts((c) => ({ ...c, [outcomeId]: (c[outcomeId] ?? 0) + 1 }))
+      setIcpHooks((hs) => [...hs, created])
       toast.success('hook saved')
     } catch (e: any) {
       setRows((rs) => rs.map((r, i) => i === idx ? { ...r, saving: false } : r))
@@ -266,6 +281,42 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {!activeOutcomeId && (
             <Empty>select an outcome to start drafting hooks</Empty>
+          )}
+          {activeOutcomeId && existingForActive.length > 0 && (
+            <ExistingHooks
+              hooks={existingForActive}
+              onEdit={async (id, text) => {
+                const token = getToken(); if (!token) return
+                try {
+                  const updated = await api.updateHook(id, { text }, token)
+                  setIcpHooks((hs) => hs.map((h) => h.id === id ? updated : h))
+                  toast.success('hook updated')
+                } catch (e: any) {
+                  toast.error(e.message ?? 'failed to update hook')
+                  throw e
+                }
+              }}
+              onRetirePreview={async (id) => {
+                const token = getToken(); if (!token) return null
+                try {
+                  return await api.retireHookPreview(id, token)
+                } catch (e: any) {
+                  toast.error(e.message ?? 'failed to load retire preview')
+                  return null
+                }
+              }}
+              onRetire={async (id, force) => {
+                const token = getToken(); if (!token) return
+                try {
+                  await api.retireHook(id, force, token)
+                  setIcpHooks((hs) => hs.filter((h) => h.id !== id))
+                  toast.success('hook retired')
+                } catch (e: any) {
+                  toast.error(e.message ?? 'failed to retire hook')
+                  throw e
+                }
+              }}
+            />
           )}
           {activeOutcomeId && <ManualHookEntry onAdd={(text) => {
             setRows((rs) => [{
@@ -428,6 +479,143 @@ function ManualHookEntry({ onAdd }: { onAdd: (text: string) => void }) {
         }}
       />
       <Button onClick={submit} disabled={!value.trim()}>Add</Button>
+    </div>
+  )
+}
+
+type RetirePreview = {
+  hookId: string; status: string; inFlightSongSeeds: number;
+  activeLineageRows: number; warning: string | null
+}
+
+function ExistingHooks({ hooks, onEdit, onRetirePreview, onRetire }: {
+  hooks: HookRowFull[]
+  onEdit: (id: string, text: string) => Promise<void>
+  onRetirePreview: (id: string) => Promise<RetirePreview | null>
+  onRetire: (id: string, force: boolean) => Promise<void>
+}) {
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', gap: 6,
+      paddingBottom: 8, borderBottom: `1px solid ${T.borderSubtle}`, marginBottom: 4,
+    }}>
+      <div style={{
+        fontFamily: T.sans, fontSize: 12, color: T.textDim,
+        fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.4,
+      }}>
+        Existing hooks · {hooks.length}
+      </div>
+      {hooks.map((h) => (
+        <ExistingHookRow
+          key={h.id}
+          hook={h}
+          onEdit={(text) => onEdit(h.id, text)}
+          onRetirePreview={() => onRetirePreview(h.id)}
+          onRetire={(force) => onRetire(h.id, force)}
+        />
+      ))}
+    </div>
+  )
+}
+
+function ExistingHookRow({ hook, onEdit, onRetirePreview, onRetire }: {
+  hook: HookRowFull
+  onEdit: (text: string) => Promise<void>
+  onRetirePreview: () => Promise<RetirePreview | null>
+  onRetire: (force: boolean) => Promise<void>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState(hook.text)
+  const [saving, setSaving] = useState(false)
+  const [retireState, setRetireState] = useState<'idle' | 'confirming'>('idle')
+  const [preview, setPreview] = useState<RetirePreview | null>(null)
+  const [loadingPreview, setLoadingPreview] = useState(false)
+
+  useEffect(() => { setText(hook.text) }, [hook.text])
+
+  const startEdit = () => { setText(hook.text); setEditing(true) }
+  const cancelEdit = () => { setText(hook.text); setEditing(false) }
+  const save = async () => {
+    const t = text.trim()
+    if (!t || t === hook.text) { setEditing(false); return }
+    setSaving(true)
+    try { await onEdit(t); setEditing(false) }
+    catch { /* toast handled upstream */ }
+    finally { setSaving(false) }
+  }
+
+  const startRetire = async () => {
+    setLoadingPreview(true)
+    const p = await onRetirePreview()
+    setLoadingPreview(false)
+    if (!p) return
+    setPreview(p)
+    setRetireState('confirming')
+  }
+  const cancelRetire = () => { setRetireState('idle'); setPreview(null) }
+  const confirmRetire = async () => {
+    const force = !!preview && (preview.inFlightSongSeeds > 0 || preview.activeLineageRows > 0)
+    setSaving(true)
+    try { await onRetire(force) }
+    catch { /* toast handled upstream */ }
+    finally { setSaving(false); setRetireState('idle'); setPreview(null) }
+  }
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', gap: 4,
+      background: T.surfaceRaised, border: `1px solid ${T.borderSubtle}`,
+      borderRadius: 3, padding: '6px 8px',
+    }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          disabled={!editing || saving}
+          rows={1}
+          style={{
+            flex: 1,
+            background: editing ? T.bg : 'transparent',
+            color: T.text,
+            border: `1px solid ${editing ? T.border : 'transparent'}`,
+            borderRadius: 3, padding: '4px 6px',
+            fontFamily: T.sans, fontSize: 13, lineHeight: 1.4,
+            resize: 'vertical', outline: 'none',
+          }}
+        />
+        {!editing && retireState === 'idle' && (
+          <>
+            <Button onClick={startEdit} disabled={saving} variant="ghost">Edit</Button>
+            <Button onClick={startRetire} disabled={saving || loadingPreview} variant="tinyDanger">
+              {loadingPreview ? '…' : 'Retire'}
+            </Button>
+          </>
+        )}
+        {editing && (
+          <>
+            <Button onClick={cancelEdit} disabled={saving} variant="ghost">Cancel</Button>
+            <Button onClick={save} disabled={saving || !text.trim() || text.trim() === hook.text}>
+              {saving ? '…' : 'Save'}
+            </Button>
+          </>
+        )}
+      </div>
+      {retireState === 'confirming' && preview && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+          fontFamily: T.mono, fontSize: 12, color: T.textMuted, paddingTop: 2,
+        }}>
+          <span>
+            {preview.warning
+              ? preview.warning
+              : 'Retire this hook? It will no longer be used in new generations.'}
+          </span>
+          <Button onClick={cancelRetire} disabled={saving} variant="ghost">Cancel</Button>
+          <Button onClick={confirmRetire} disabled={saving} variant="tinyDanger">
+            {saving ? '…' : (preview.inFlightSongSeeds > 0 || preview.activeLineageRows > 0) ? 'Force retire' : 'Confirm'}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
