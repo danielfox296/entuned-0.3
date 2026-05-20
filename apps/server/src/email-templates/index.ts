@@ -26,6 +26,7 @@ import * as boostTrialEngagement from './boostTrialEngagement.js'
 import * as boostTrialEnding from './boostTrialEnding.js'
 import * as boostTrialExpired from './boostTrialExpired.js'
 import * as postConversionBenchmark from './postConversionBenchmark.js'
+import * as adminSignupNotification from './adminSignupNotification.js'
 
 export interface TemplateModule<P = any> {
   subject: (props: P) => string
@@ -56,6 +57,7 @@ export const TEMPLATES = {
   boostTrialEnding,
   boostTrialExpired,
   postConversionBenchmark,
+  adminSignupNotification,
 } satisfies Record<string, TemplateModule>
 
 export type TemplateName = keyof typeof TEMPLATES
@@ -156,5 +158,11 @@ export const TEMPLATE_PROPS_EXAMPLES: Record<TemplateName, Record<string, unknow
   postConversionBenchmark: {
     benchmarkUrl: 'https://app.entuned.co/benchmark',
     dashboardUrl: 'https://app.entuned.co',
+  },
+  adminSignupNotification: {
+    userEmail: 'newuser@example.com',
+    companyName: 'newuser',
+    playerUrl: 'https://music.entuned.co/sample-store-1234',
+    signedUpAt: '2026-05-20 14:32 UTC',
   },
 }

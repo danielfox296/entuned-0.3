@@ -342,6 +342,26 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
       dashboardUrl: 'https://app.entuned.co',
     },
   },
+  adminSignupNotification: {
+    subject: 'New Entuned signup: {{userEmail}}',
+    preheader: 'New signup: {{userEmail}}',
+    body: `
+    <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">New signup</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px 0;font-size:14px;">
+      <tr><td style="padding:2px 12px 2px 0;color:#8a929a;">Email</td><td style="padding:2px 0;color:#d4e1e5;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">{{userEmail}}</td></tr>
+      <tr><td style="padding:2px 12px 2px 0;color:#8a929a;">Company</td><td style="padding:2px 0;color:#d4e1e5;">{{companyName}}</td></tr>
+      <tr><td style="padding:2px 12px 2px 0;color:#8a929a;">Player</td><td style="padding:2px 0;"><a href="{{playerUrl}}" style="color:#50929c;">{{playerUrl}}</a></td></tr>
+      <tr><td style="padding:2px 12px 2px 0;color:#8a929a;">When</td><td style="padding:2px 0;color:#d4e1e5;">{{signedUpAt}}</td></tr>
+    </table>
+    <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">Free tier, welcome email already sent. Account is in Dash.</p>
+    `.trim(),
+    propsExample: {
+      userEmail: 'newuser@example.com',
+      companyName: 'newuser',
+      playerUrl: 'https://music.entuned.co/sample-store-1234',
+      signedUpAt: '2026-05-20 14:32 UTC',
+    },
+  },
   postConversionBenchmark: {
     subject: 'A week on Boost — want to track your lift?',
     preheader: 'Set a baseline. Track the lift. Two minutes.',

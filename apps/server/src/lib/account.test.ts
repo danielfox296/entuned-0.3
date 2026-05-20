@@ -26,6 +26,7 @@ vi.mock('./outcomes.js', () => ({
 // the welcome email was triggered exactly when expected.
 vi.mock('./email.js', () => ({
   sendWelcome: vi.fn(),
+  sendAdminSignup: vi.fn(),
 }))
 
 // Mock node:crypto's randomBytes so slug suffixes are deterministic. The
@@ -47,7 +48,7 @@ vi.mock('node:crypto', () => ({
 import { uniqueStoreSlug, ensureFreeClientForUser } from './account.js'
 import { prisma } from '../db.js'
 import { pickSystemDefaultOutcomeId } from './outcomes.js'
-import { sendWelcome } from './email.js'
+import { sendWelcome, sendAdminSignup } from './email.js'
 import { FREE_TIER_ICP_ID } from './freeTier.js'
 
 const storeFindUnique = prisma.store.findUnique as unknown as ReturnType<typeof vi.fn>
@@ -59,6 +60,7 @@ const storeIcpCreate = prisma.storeICP.create as unknown as ReturnType<typeof vi
 const txMock = prisma.$transaction as unknown as ReturnType<typeof vi.fn>
 const pickDefault = pickSystemDefaultOutcomeId as unknown as ReturnType<typeof vi.fn>
 const sendWelcomeMock = sendWelcome as unknown as ReturnType<typeof vi.fn>
+const sendAdminSignupMock = sendAdminSignup as unknown as ReturnType<typeof vi.fn>
 
 function setRandomBytesSequence(values: string[]): void {
   randomBytesSequence.length = 0
@@ -74,6 +76,7 @@ beforeEach(() => {
   txMock.mockImplementation(async (cb: (db: typeof prisma) => Promise<unknown>) => cb(prisma))
   // Default: sendWelcome resolves successfully (best-effort, never throws in test).
   sendWelcomeMock.mockResolvedValue({ ok: true })
+  sendAdminSignupMock.mockResolvedValue({ ok: true })
 })
 
 // ============================================================================
@@ -260,6 +263,7 @@ describe('ensureFreeClientForUser', () => {
     expect(storeCreate).not.toHaveBeenCalled()
     expect(storeIcpCreate).not.toHaveBeenCalled()
     expect(sendWelcomeMock).not.toHaveBeenCalled()
+    expect(sendAdminSignupMock).not.toHaveBeenCalled()
     expect(pickDefault).not.toHaveBeenCalled()
   })
 
@@ -429,6 +433,50 @@ describe('ensureFreeClientForUser', () => {
     await ensureFreeClientForUser('acct-1', 'user@example.com')
 
     expect(sendWelcomeMock).not.toHaveBeenCalled()
+  })
+
+  it('notifies ADMIN_EMAIL once on creation with normalized email, companyName, playerUrl, and an ISO timestamp', async () => {
+    setRandomBytesSequence(['1234'])
+    membershipFindFirst.mockResolvedValueOnce(null)
+    clientCreate.mockResolvedValueOnce({ id: 'client-1' })
+    membershipCreate.mockResolvedValueOnce({ id: 'mem-1' })
+    storeFindUnique.mockResolvedValueOnce(null)
+    pickDefault.mockResolvedValueOnce('outcome-x')
+    storeCreate.mockResolvedValueOnce({ id: 'store-1' })
+    storeIcpCreate.mockResolvedValueOnce({ id: 'sicp-1' })
+
+    await ensureFreeClientForUser('acct-1', '  NewUser@Example.COM  ')
+
+    expect(sendAdminSignupMock).toHaveBeenCalledTimes(1)
+    const arg = sendAdminSignupMock.mock.calls[0]![0]
+    expect(arg.userEmail).toBe('newuser@example.com')
+    expect(arg.companyName).toBe('newuser')
+    expect(arg.playerUrl).toMatch(/\/newuser-1234$/)
+    // ISO-8601 timestamp.
+    expect(arg.signedUpAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
+  })
+
+  it('does NOT notify ADMIN_EMAIL when membership already exists', async () => {
+    membershipFindFirst.mockResolvedValueOnce({ id: 'existing-membership' })
+
+    await ensureFreeClientForUser('acct-1', 'user@example.com')
+
+    expect(sendAdminSignupMock).not.toHaveBeenCalled()
+  })
+
+  it('swallows sendAdminSignup errors (best-effort, never blocks sign-in)', async () => {
+    setRandomBytesSequence(['1234'])
+    membershipFindFirst.mockResolvedValueOnce(null)
+    clientCreate.mockResolvedValueOnce({ id: 'client-1' })
+    membershipCreate.mockResolvedValueOnce({ id: 'mem-1' })
+    storeFindUnique.mockResolvedValueOnce(null)
+    pickDefault.mockResolvedValueOnce('outcome-x')
+    storeCreate.mockResolvedValueOnce({ id: 'store-1' })
+    storeIcpCreate.mockResolvedValueOnce({ id: 'sicp-1' })
+    sendAdminSignupMock.mockRejectedValueOnce(new Error('resend exploded'))
+
+    await expect(ensureFreeClientForUser('acct-1', 'user@example.com')).resolves.toBeUndefined()
+    expect(sendAdminSignupMock).toHaveBeenCalledTimes(1)
   })
 
   it('swallows sendWelcome errors (best-effort, never blocks sign-in)', async () => {

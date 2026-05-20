@@ -302,6 +302,21 @@ export async function sendDunning(
   return sendTemplate(name, to, { billingPortalUrl })
 }
 
+/**
+ * Internal admin notification on a new signup. Recipient is process.env.ADMIN_EMAIL.
+ * Returns { ok: true, skipped: true } if ADMIN_EMAIL is unset (local dev w/o the var).
+ */
+export async function sendAdminSignup(props: {
+  userEmail: string
+  companyName: string
+  playerUrl: string
+  signedUpAt: string
+}): Promise<SendResult> {
+  const to = process.env.ADMIN_EMAIL
+  if (!to) return { ok: true, skipped: true }
+  return sendTemplate('adminSignupNotification', to, props)
+}
+
 export async function sendPauseEnding(
   to: string,
   daysRemaining: number,

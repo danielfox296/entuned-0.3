@@ -10,7 +10,7 @@
 
 import { randomBytes } from 'node:crypto'
 import { prisma } from '../db.js'
-import { sendWelcome } from './email.js'
+import { sendAdminSignup, sendWelcome } from './email.js'
 import { FREE_TIER_ICP_ID } from './freeTier.js'
 import { pickSystemDefaultOutcomeId } from './outcomes.js'
 
@@ -120,6 +120,17 @@ export async function ensureFreeClientForUser(accountId: string, email: string):
     return s
   })
 
+  const playerUrl = `${PLAYER_URL}/${slug}`
+
   // Welcome email — best-effort, never blocks sign-in. Resend dev mode logs instead.
-  await sendWelcome(normalized, 'free', `${PLAYER_URL}/${slug}`, APP_URL).catch(() => undefined)
+  await sendWelcome(normalized, 'free', playerUrl, APP_URL).catch(() => undefined)
+
+  // Operator notification to ADMIN_EMAIL — best-effort, never blocks sign-in.
+  // Skipped automatically when ADMIN_EMAIL is unset.
+  await sendAdminSignup({
+    userEmail: normalized,
+    companyName: localPart,
+    playerUrl,
+    signedUpAt: new Date().toISOString(),
+  }).catch(() => undefined)
 }
