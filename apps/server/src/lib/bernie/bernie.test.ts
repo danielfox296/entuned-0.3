@@ -16,7 +16,7 @@ vi.mock('@anthropic-ai/sdk', () => {
   return { default: MockAnthropic }
 })
 
-import { generateLyrics, type GenreBrief } from './bernie.js'
+import { generateLyrics, type GenreBrief, type OutcomeBrief } from './bernie.js'
 import { prisma } from '../../db.js'
 
 const draftFindFirst = prisma.lyricDraftPrompt.findFirst as ReturnType<typeof vi.fn>
@@ -170,5 +170,80 @@ describe('generateLyrics — genre brief injection', () => {
     expect(draftUserMsg).not.toContain('Genre:')
     expect(editUserMsg).not.toContain('Reference track context')
     expect(editUserMsg).not.toContain('Genre:')
+  })
+})
+
+describe('generateLyrics — outcome brief injection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.env.ANTHROPIC_API_KEY = 'test-key'
+    draftFindFirst.mockResolvedValue({ version: 1, promptText: 'draft system prompt' })
+    editFindFirst.mockResolvedValue({ version: 1, promptText: 'edit system prompt' })
+    banFindMany.mockResolvedValue([])
+  })
+
+  const outcomeBrief: OutcomeBrief = {
+    mood: 'calm browsing',
+    tempoBpm: 75,
+    mode: 'major',
+  }
+
+  it('puts the outcome brief in the DRAFT pass and keeps it OUT of the edit pass', async () => {
+    messagesCreate
+      .mockResolvedValueOnce(toolUseResponse('T', '[Chorus]\nhook here\n'))
+      .mockResolvedValueOnce(toolUseResponse('T', '[Chorus]\nhook here\n'))
+
+    await generateLyrics({ hookText: 'hook here', outcomeBrief })
+
+    const draftUserMsg = messagesCreate.mock.calls[0][0].messages[0].content as string
+    const editUserMsg = messagesCreate.mock.calls[1][0].messages[0].content as string
+
+    expect(draftUserMsg).toContain('Emotional brief')
+    expect(draftUserMsg).toContain('Mood: calm browsing')
+    expect(draftUserMsg).toContain('Tempo: 75bpm')
+    expect(draftUserMsg).toContain('Mode: major')
+
+    expect(editUserMsg).not.toContain('Emotional brief')
+    expect(editUserMsg).not.toContain('Mood:')
+    expect(editUserMsg).not.toContain('Tempo:')
+  })
+
+  it('coexists with a genreBrief — both appear in the draft, neither in the edit', async () => {
+    const genreBrief: GenreBrief = {
+      genreTag: 'hip-hop',
+      grooveCharacter: 'syncopated',
+      harmonicCharacter: 'minor pentatonic',
+      vocalRegister: 'baritone',
+      eraDecade: '2010s',
+    }
+    messagesCreate
+      .mockResolvedValueOnce(toolUseResponse('T', '[Chorus]\nhook here\n'))
+      .mockResolvedValueOnce(toolUseResponse('T', '[Chorus]\nhook here\n'))
+
+    await generateLyrics({ hookText: 'hook here', genreBrief, outcomeBrief })
+
+    const draftUserMsg = messagesCreate.mock.calls[0][0].messages[0].content as string
+    const editUserMsg = messagesCreate.mock.calls[1][0].messages[0].content as string
+
+    expect(draftUserMsg).toContain('Genre: hip-hop')
+    expect(draftUserMsg).toContain('Emotional brief')
+    expect(draftUserMsg).toContain('Mood: calm browsing')
+
+    expect(editUserMsg).not.toContain('Genre:')
+    expect(editUserMsg).not.toContain('Emotional brief')
+  })
+
+  it('omits the brief from both passes when outcomeBrief is absent', async () => {
+    messagesCreate
+      .mockResolvedValueOnce(toolUseResponse('T', '[Chorus]\nhook here\n'))
+      .mockResolvedValueOnce(toolUseResponse('T', '[Chorus]\nhook here\n'))
+
+    await generateLyrics({ hookText: 'hook here' })
+
+    const draftUserMsg = messagesCreate.mock.calls[0][0].messages[0].content as string
+    const editUserMsg = messagesCreate.mock.calls[1][0].messages[0].content as string
+
+    expect(draftUserMsg).not.toContain('Emotional brief')
+    expect(editUserMsg).not.toContain('Emotional brief')
   })
 })

@@ -38,6 +38,16 @@ export interface GenreBrief {
   eraDecade: string
 }
 
+// Outcome-side emotional brief. Genre handles *craft* (rhyme, density,
+// typography); outcome handles *affect* (mood, energy implied by tempo,
+// tonal color from mode). Both flow into the draft pass; the editor stays
+// outcome-blind so it doesn't try to re-architect emotional tenor.
+export interface OutcomeBrief {
+  mood: string
+  tempoBpm: number
+  mode: string
+}
+
 export interface BernieInput {
   hookText: string
   brandLyricGuidelines?: string | null
@@ -51,6 +61,10 @@ export interface BernieInput {
   // genre context block plus genre-family craft overrides (rhyme, density,
   // typography). Omitted = pop-default craft guidance from the seed prompt.
   genreBrief?: GenreBrief | null
+  // Outcome brief — mood/tempo/mode for the requested Outcome. Tempo and mode
+  // should be the *resolved* values (post-variance), matching what Suno
+  // actually renders. Drives emotional tenor within the genre's craft world.
+  outcomeBrief?: OutcomeBrief | null
 }
 
 export interface BernieOutput {
@@ -70,6 +84,14 @@ function formatGenreContext(brief: GenreBrief): string {
   if (brief.vocalRegister) parts.push(`Vocal register: ${brief.vocalRegister}`)
   return `Reference track context (write lyrics that fit this musical world — do NOT name these terms in the lyrics):
 ${parts.join('\n')}
+`
+}
+
+function formatOutcomeBrief(brief: OutcomeBrief): string {
+  return `Emotional brief (the outcome — write lyrics whose tone, pacing, and word density match this. The genre context above informs *craft* — rhyme, line structure, vocabulary register; the brief here informs *affect*. When the two would pull opposite directions, deliver the genre's craft in the outcome's affective register):
+Mood: ${brief.mood}
+Tempo: ${brief.tempoBpm}bpm
+Mode: ${brief.mode}
 `
 }
 
@@ -115,14 +137,17 @@ Form note: ${input.formArchetype.shapeNote}
   const genreContext = input.genreBrief ? formatGenreContext(input.genreBrief) : ''
   const genreOverrides = input.genreBrief ? getGenreCraftOverrides(input.genreBrief.genreTag) : null
   const genreCraftBlock = genreOverrides ? `\n${formatGenreCraftBlock(genreOverrides)}\n` : ''
+  const outcomeBrief = input.outcomeBrief ? formatOutcomeBrief(input.outcomeBrief) : ''
 
   // Pass 1 — draft. Genre context + craft block steer the draft toward the
   // reference track's genre family (hip-hop bars vs country storytelling vs
-  // EDM chant). Pop defaults apply when genreBrief is absent.
+  // EDM chant); the outcome brief sets emotional tenor (mood, tempo, mode).
+  // Genre = craft; outcome = affect. Pop / outcome-blind defaults apply when
+  // the respective brief is absent.
   const draftUserMessage = `Hook (used verbatim wherever the form note instructs — usually every chorus, but for AABA-style forms the hook lands as the last line of every verse):
 "${input.hookText}"
 
-${formBrief ? `${formBrief}\n` : ''}${genreContext ? `${genreContext}\n` : ''}${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n\n` : ''}${arrangementBrief ? `${arrangementBrief}\n` : ''}${genreCraftBlock}${hardBanBlock ? `${hardBanBlock}\n\n` : ''}Write the lyrics now. Output the JSON only.`
+${formBrief ? `${formBrief}\n` : ''}${genreContext ? `${genreContext}\n` : ''}${outcomeBrief ? `${outcomeBrief}\n` : ''}${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n\n` : ''}${arrangementBrief ? `${arrangementBrief}\n` : ''}${genreCraftBlock}${hardBanBlock ? `${hardBanBlock}\n\n` : ''}Write the lyrics now. Output the JSON only.`
 
   const draftResponse = await client.messages.create({
     model: MODEL,
@@ -138,11 +163,11 @@ ${formBrief ? `${formBrief}\n` : ''}${genreContext ? `${genreContext}\n` : ''}${
   if (!draft.title || !draft.lyrics) throw new Error('Bernie draft output missing title or lyrics')
 
   // Pass 2 — edit.
-  // Form, arrangement, and genre context are intentionally OMITTED from the
-  // edit user-message: the draft already encoded section structure and genre
-  // craft into the lyrics, and the editor's job is polish, not re-architecture.
-  // Re-injecting that context here just pays tokens for input the editor
-  // doesn't act on.
+  // Form, arrangement, genre context, and outcome brief are intentionally
+  // OMITTED from the edit user-message: the draft already encoded section
+  // structure, genre craft, and emotional tenor into the lyrics, and the
+  // editor's job is polish, not re-architecture. Re-injecting that context
+  // here just pays tokens for input the editor doesn't act on.
   const editUserMessage = `Hook (must remain verbatim in every instance the draft used it — choruses, verse-end refrains, tag, whatever the form dictates):
 "${input.hookText}"
 

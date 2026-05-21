@@ -11,7 +11,7 @@
 
 import { prisma } from '../../db.js'
 import { marsAssemble, type StyleBuilderName } from '../mars/mars.js'
-import { generateLyrics, type GenreBrief } from '../bernie/bernie.js'
+import { generateLyrics, type GenreBrief, type OutcomeBrief } from '../bernie/bernie.js'
 import { injectArrangement, type ArrangementSections } from '../arranger/arranger.js'
 import { resolveOutcomeParams } from '../variance/variance.js'
 import { extractVocalGender, type VocalGender } from '../mars/vocal-gender.js'
@@ -193,12 +193,22 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
     // groove/harmonic/vocal-register/era fields to steer the draft.
     const genreBrief = extractGenreBrief(styleAnalysis, refTrack.year, mars.anchor?.tag ?? null)
 
+    // Outcome brief — the affective target. Use *resolved* tempo/mode (post-
+    // variance) so Bernie writes against the same values Suno will render.
+    // Mood doesn't vary; passed straight from the Outcome row.
+    const outcomeBrief: OutcomeBrief = {
+      mood: outcome.mood,
+      tempoBpm: resolved.tempoBpm,
+      mode: resolved.mode,
+    }
+
     const lyricsRaw = await generateLyrics({
       hookText: hook.text,
       brandLyricGuidelines: client?.brandLyricGuidelines ?? null,
       arrangementSections: arrangementSections ?? null,
       formArchetype,
       genreBrief,
+      outcomeBrief,
     })
 
     // Always run injectArrangement: even when arrangementSections is null, the
