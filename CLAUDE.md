@@ -42,6 +42,8 @@ When verifying admin/player/dashboard flows via `preview_*` tools, do NOT stop a
    preview_start("entuned-0.3-admin-local")   # port 5178, VITE_API_URL=http://localhost:3000
    ```
    `entuned-0.3-admin-local` exists specifically to override the prod `.env.local` baseURL. Don't use plain `entuned-0.3-admin` for verification — it talks to prod.
+
+   `STRIPE_SECRET_KEY` (and the other `STRIPE_*` vars) can be empty in `apps/server/.env` for non-billing verification — billing.ts lazy-inits the Stripe client, so the server boots cleanly without them and only `/billing/*` + `/webhooks/stripe` requests fail. If your verification needs billing, populate `STRIPE_SECRET_KEY` first.
 3. **Read the token:** `grep '^DEV_LOGIN_TOKEN=' apps/server/.env | cut -d= -f2`
 4. **Mint a Bearer JWT:**
    ```
