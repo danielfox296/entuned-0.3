@@ -34,7 +34,30 @@ const APP_URL = process.env.APP_URL ?? 'http://localhost:5173'
 const WEBSITE_URL = process.env.WEBSITE_URL ?? 'https://entuned.co'
 const PLAYER_URL = process.env.PLAYER_URL ?? 'https://music.entuned.co'
 
-const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' as Stripe.LatestApiVersion })
+// Lazy Stripe initialization. Constructing `new Stripe('')` throws synchronously
+// ("Neither apiKey nor config.authenticator provided"), which used to crash the
+// whole server at module load whenever STRIPE_SECRET_KEY was unset — blocking
+// local preview verification (which can't reach /dev-login if the server never
+// boots). We now defer construction to first use: every other route (auth,
+// admin, hendrix, dev-login, etc.) imports cleanly, and only billing requests
+// fail (at request time) when the key is missing. Production behavior is
+// unchanged — first billing request constructs the client and every subsequent
+// access reuses it.
+let _stripe: Stripe | undefined
+function getStripeClient(): Stripe {
+  if (!_stripe) {
+    if (!STRIPE_SECRET_KEY) {
+      throw new Error('stripe_not_configured: STRIPE_SECRET_KEY is required')
+    }
+    _stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' as Stripe.LatestApiVersion })
+  }
+  return _stripe
+}
+const stripe: Stripe = new Proxy({} as Stripe, {
+  get(_target, prop, receiver) {
+    return Reflect.get(getStripeClient(), prop, receiver)
+  },
+})
 
 // ---------- types ----------
 
