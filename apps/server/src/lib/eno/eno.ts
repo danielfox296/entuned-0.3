@@ -114,15 +114,23 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
   const hook = await pickAvailableHook(icpId, outcomeId)
   if (!hook) return { ok: false, reason: 'pool_exhausted_hooks' }
 
-  const refTrack = await pickReferenceTrack(icpId, hook.vocalGender)
-  if (!refTrack || !refTrack.styleAnalysis) {
-    return {
-      ok: false,
-      reason: hook.vocalGender
-        ? `pool_exhausted_reference_tracks_for_hook_vocal_gender_${hook.vocalGender}`
-        : 'pool_exhausted_reference_tracks',
+  // Outcome is guaranteed to exist + be non-superseded by runEno's precheck,
+  // but createSongSeed is also exported-shape-accessible via test scripts;
+  // fetch once and use both for the picker gate and Mars assembly.
+  const outcome = await prisma.outcome.findUnique({ where: { id: outcomeId } })
+  if (!outcome) return { ok: false, reason: 'outcome_not_found' }
+
+  const pickResult = await pickReferenceTrack(icpId, hook.vocalGender, outcome.tempoBpm)
+  if (!pickResult.ok) {
+    if (pickResult.reason === 'no_outcome_tempo_match') {
+      return { ok: false, reason: `pool_exhausted_reference_tracks_outcome_tempo_${outcome.tempoBpm}` }
     }
+    if (pickResult.reason === 'no_vocal_gender_match' && hook.vocalGender) {
+      return { ok: false, reason: `pool_exhausted_reference_tracks_for_hook_vocal_gender_${hook.vocalGender}` }
+    }
+    return { ok: false, reason: 'pool_exhausted_reference_tracks' }
   }
+  const refTrack = pickResult.ref
 
   const songSeed = await prisma.songSeed.create({
     data: {
@@ -131,7 +139,9 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
   })
 
   try {
-    const outcome = await prisma.outcome.findUniqueOrThrow({ where: { id: outcomeId } })
+    // The picker's where clause filters `styleAnalysis: { isNot: null }`, but
+    // Prisma's typings still mark the included relation as nullable. Narrow here.
+    if (!refTrack.styleAnalysis) throw new Error('refTrack.styleAnalysis missing after picker filter')
     const styleAnalysis = refTrack.styleAnalysis
     const mars = await marsAssemble(styleAnalysis, outcome, { year: refTrack.year, styleBuilder })
 
@@ -341,7 +351,25 @@ export function vocalGenderCompatible(refGender: VocalGender, hookGender: HookVo
   return refGender === hookGender || refGender === 'duet'
 }
 
-export async function pickReferenceTrack(icpId: string, hookGender: HookVocalGender): Promise<RefTrackWithAnalysis | null> {
+// Outcome → ref tempo gate. Refs without a decomposed BPM pass through
+// (lazy backfill on re-decompose); refs with a BPM must be within ±7 of the
+// outcome's tempo. See schema/05-reference-track-decomposition.md
+// "The BPM doctrine, restated".
+export const OUTCOME_TEMPO_TOLERANCE_BPM = 7
+export function bpmCompatible(refBpm: number | null | undefined, outcomeTempoBpm: number): boolean {
+  if (refBpm == null) return true
+  return Math.abs(refBpm - outcomeTempoBpm) <= OUTCOME_TEMPO_TOLERANCE_BPM
+}
+
+export type PickRefResult =
+  | { ok: true; ref: RefTrackWithAnalysis }
+  | { ok: false; reason: 'no_approved_with_analysis' | 'no_vocal_gender_match' | 'no_outcome_tempo_match' }
+
+export async function pickReferenceTrack(
+  icpId: string,
+  hookGender: HookVocalGender,
+  outcomeTempoBpm: number,
+): Promise<PickRefResult> {
   // useCount alone doesn't spread bursts: it only increments on operator
   // accept (admin.ts), so every iteration of a burst sees the same snapshot
   // and grabs the same lowest-useCount track. Add in-flight + already-
@@ -355,11 +383,11 @@ export async function pickReferenceTrack(icpId: string, hookGender: HookVocalGen
       songSeeds: { select: { status: true } },
     },
   })
-  if (tracks.length === 0) return null
+  if (tracks.length === 0) return { ok: false, reason: 'no_approved_with_analysis' }
 
-  // Filter: exclude instrumentals universally, and refs whose vocal gender
-  // doesn't match the hook's gender constraint when one is set.
-  const compatible = tracks.filter((t) => {
+  // Filter 1: vocal-gender compatibility. Exclude instrumentals universally;
+  // also exclude refs whose vocal lead doesn't match the hook's constraint.
+  const vocalCompatible = tracks.filter((t) => {
     if (!t.styleAnalysis) return false
     const vocalText = [t.styleAnalysis.vocalCharacter, t.styleAnalysis.vocalArrangement]
       .filter(Boolean)
@@ -367,9 +395,14 @@ export async function pickReferenceTrack(icpId: string, hookGender: HookVocalGen
     const refGender = extractVocalGender(vocalText)
     return vocalGenderCompatible(refGender, hookGender)
   })
-  if (compatible.length === 0) return null
+  if (vocalCompatible.length === 0) return { ok: false, reason: 'no_vocal_gender_match' }
 
-  const scored = compatible.map((t) => {
+  // Filter 2: outcome tempo compatibility (±7bpm). Refs whose StyleAnalysis
+  // has no decomposed BPM pass through — they get filtered on next decompose.
+  const tempoCompatible = vocalCompatible.filter((t) => bpmCompatible(t.styleAnalysis?.bpm, outcomeTempoBpm))
+  if (tempoCompatible.length === 0) return { ok: false, reason: 'no_outcome_tempo_match' }
+
+  const scored = tempoCompatible.map((t) => {
     const inFlight = t.songSeeds.filter(
       (s) => s.status === 'assembling' || s.status === 'queued' || s.status === 'accepted',
     ).length
@@ -378,6 +411,6 @@ export async function pickReferenceTrack(icpId: string, hookGender: HookVocalGen
   scored.sort((a, b) => (a.score - b.score) || (Math.random() - 0.5))
 
   const winner = scored[0]?.t
-  if (!winner || !winner.styleAnalysis) return null
-  return winner as unknown as RefTrackWithAnalysis
+  if (!winner || !winner.styleAnalysis) return { ok: false, reason: 'no_approved_with_analysis' }
+  return { ok: true, ref: winner as unknown as RefTrackWithAnalysis }
 }

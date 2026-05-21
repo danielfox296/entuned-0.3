@@ -1157,6 +1157,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           harmonicAndGroove: result.output.harmonic_and_groove,
           arrangementSections: result.output.arrangement_sections ?? Prisma.JsonNull,
           arrangementVersion: result.output.arrangement_sections ? result.rulesVersion : null,
+          bpm: result.output.bpm ?? null,
         }
         await prisma.styleAnalysis.upsert({
           where: { referenceTrackId: id },
@@ -1236,6 +1237,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           harmonicAndGroove: result.output.harmonic_and_groove,
           arrangementSections: result.output.arrangement_sections ?? Prisma.JsonNull,
           arrangementVersion: result.output.arrangement_sections ? result.rulesVersion : null,
+          bpm: result.output.bpm ?? null,
         }
         await prisma.styleAnalysis.upsert({
           where: { referenceTrackId: ref.id },
@@ -1291,6 +1293,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       harmonicAndGroove: result.output.harmonic_and_groove,
       arrangementSections: result.output.arrangement_sections ?? Prisma.JsonNull,
       arrangementVersion: result.output.arrangement_sections ? result.rulesVersion : null,
+      bpm: result.output.bpm ?? null,
     }
     const row = await prisma.styleAnalysis.upsert({
       where: { referenceTrackId: id },
@@ -1310,6 +1313,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     vocalCharacter: z.string().nullable().optional(),
     vocalArrangement: z.string().nullable().optional(),
     harmonicAndGroove: z.string().nullable().optional(),
+    // Private picker-compatibility data — operator can override the
+    // decomposer's web-search-derived value. Never rendered into Suno.
+    bpm: z.number().int().min(1).max(300).nullable().optional(),
   })
 
   // ----- Bulk: decompose every approved reference track across all ICPs -----
@@ -1348,6 +1354,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           harmonicAndGroove: result.output.harmonic_and_groove,
           arrangementSections: result.output.arrangement_sections ?? Prisma.JsonNull,
           arrangementVersion: result.output.arrangement_sections ? result.rulesVersion : null,
+          bpm: result.output.bpm ?? null,
         }
         await prisma.styleAnalysis.upsert({
           where: { referenceTrackId: ref.id },

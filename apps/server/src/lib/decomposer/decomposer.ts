@@ -8,11 +8,11 @@
 // Or programmatic:
 //   const result = await decompose({ artist, title, year, decade, genreSlug })
 //
-// EXPERIMENT SURFACE — versioned rules sweep (v1–v9).
-//   This module ships nine versions of the MusicologicalRules prompt
-//   (rules-v1.ts through rules-v9.ts). All nine are imported into the
+// EXPERIMENT SURFACE — versioned rules sweep (v1–v10).
+//   This module ships ten versions of the MusicologicalRules prompt
+//   (rules-v1.ts through rules-v10.ts). All ten are imported into the
 //   RULES_BY_VERSION lookup so any past version can be restored without
-//   code edits. Default is v9 (LATEST_RULES_VERSION below); v1–v8 are
+//   code edits. Default is v10 (LATEST_RULES_VERSION below); v1–v9 are
 //   reachable only via DECOMPOSER_RULES_VERSION env override or a
 //   styleAnalyzerInstructions DB row pinned to an older version. This is
 //   an active experiment surface — new versions may be added or existing
@@ -31,6 +31,7 @@ import { MUSICOLOGICAL_RULES_V6 } from './rules-v6.js'
 import { MUSICOLOGICAL_RULES_V7 } from './rules-v7.js'
 import { MUSICOLOGICAL_RULES_V8 } from './rules-v8.js'
 import { MUSICOLOGICAL_RULES_V9 } from './rules-v9.js'
+import { MUSICOLOGICAL_RULES_V10 } from './rules-v10.js'
 
 const MODEL = process.env.DECOMPOSER_MODEL ?? 'claude-sonnet-4-6'
 
@@ -45,8 +46,9 @@ const RULES_BY_VERSION: Record<number, string> = {
   7: MUSICOLOGICAL_RULES_V7,
   8: MUSICOLOGICAL_RULES_V8,
   9: MUSICOLOGICAL_RULES_V9,
+  10: MUSICOLOGICAL_RULES_V10,
 }
-const LATEST_RULES_VERSION = 9
+const LATEST_RULES_VERSION = 10
 
 const SECTION_PROPS = {
   type: 'object',
@@ -81,6 +83,10 @@ const EMIT_DECOMPOSITION_TOOL = {
         type: 'object',
         description: 'Per-section instrumentation map (v6+).',
         additionalProperties: SECTION_PROPS,
+      },
+      bpm: {
+        type: ['integer', 'null'],
+        description: 'v10+. Track tempo (BPM), integer or null. Web-search grounded; main-body tempo, not intro/outro; aligned to snare/backbeat (not hi-hat subdivision). Null when no confident source is available — also set confidence: low. Private picker data — never rendered into a Suno prompt.',
       },
     },
     required: ['vibe_pitch', 'era_production_signature', 'instrumentation_palette', 'standout_element', 'vocal_character', 'vocal_arrangement', 'harmonic_and_groove', 'confidence'],
@@ -132,6 +138,9 @@ export interface StyleAnalysisOutput {
       vocal_delivery?: string
     }
   >
+  // v10+: numeric BPM. Private picker-compatibility data — never rendered.
+  // See schema/05-reference-track-decomposition.md "The BPM doctrine, restated".
+  bpm?: number | null
 }
 
 function decadeFromYear(y: number): string {
@@ -200,7 +209,9 @@ export async function decompose(input: DecomposeInput): Promise<DecomposeResult>
 
   const client = new Anthropic({ apiKey })
 
-  const requiredKeys = rulesRow.version >= 8
+  const requiredKeys = rulesRow.version >= 10
+    ? 'verifiable_facts, confidence, vibe_pitch, era_production_signature, instrumentation_palette, standout_element, vocal_character, vocal_arrangement, harmonic_and_groove, vocal_gender, arrangement_sections, bpm'
+    : rulesRow.version >= 8
     ? 'verifiable_facts, confidence, vibe_pitch, era_production_signature, instrumentation_palette, standout_element, vocal_character, vocal_arrangement, harmonic_and_groove, vocal_gender, arrangement_sections'
     : rulesRow.version >= 6
     ? 'verifiable_facts, confidence, vibe_pitch, era_production_signature, instrumentation_palette, standout_element, arrangement_shape, dynamic_curve, vocal_character, vocal_arrangement, harmonic_and_groove, vocal_gender, arrangement_sections'
@@ -351,6 +362,14 @@ function validate(o: any, rulesVersion: number): asserts o is StyleAnalysisOutpu
           delete d.vocal_delivery
         }
       }
+    }
+  }
+  // v10+ bpm: integer in (0, 300] or null. Drop silently if the value is
+  // outside that range — better to lose the picker hint than fail the whole
+  // decomposition over a hallucinated tempo.
+  if (rulesVersion >= 10 && o.bpm !== undefined && o.bpm !== null) {
+    if (typeof o.bpm !== 'number' || !Number.isInteger(o.bpm) || o.bpm <= 0 || o.bpm > 300) {
+      o.bpm = null
     }
   }
 }
