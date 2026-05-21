@@ -273,6 +273,7 @@ export interface StyleAnalysisRow {
   vocalCharacter: string | null
   vocalArrangement: string | null
   harmonicAndGroove: string | null
+  bpm: number | null
   createdAt: string
   updatedAt: string
 }
@@ -810,6 +811,7 @@ export type StyleAnalysisUpdate = Partial<{
   vocalCharacter: string | null
   vocalArrangement: string | null
   harmonicAndGroove: string | null
+  bpm: number | null
 }>
 
 // --- Campaigns ---

@@ -365,6 +365,7 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
                 onArchive={() => archive(t)}
                 archiving={pendingMutation.has(t.id)}
                 onResolvedPreview={refetch}
+                onUpdated={refetch}
               />
             ))
           )}
@@ -615,15 +616,41 @@ function PendingRow({ track, edit, busy, onChange, onBlur, onApprove, onDiscard,
   )
 }
 
-function ApprovedRow({ track, analyzing, onOpen, onArchive, archiving, onResolvedPreview }: {
+function ApprovedRow({ track, analyzing, onOpen, onArchive, archiving, onResolvedPreview, onUpdated }: {
   track: ReferenceTrackRow
   analyzing: boolean
   onOpen: () => void
   onArchive: () => void
   archiving: boolean
   onResolvedPreview: () => void
+  onUpdated: () => void
 }) {
   const analysis = track.styleAnalysis
+  const toast = useToast()
+  const [bpmDraft, setBpmDraft] = useState('')
+  const [savingBpm, setSavingBpm] = useState(false)
+
+  const saveBpm = async () => {
+    if (!analysis) return
+    const n = parseInt(bpmDraft.trim(), 10)
+    if (!Number.isFinite(n) || n <= 0 || n > 300) {
+      toast.error('BPM must be 1–300')
+      return
+    }
+    const token = getToken(); if (!token) return
+    setSavingBpm(true)
+    try {
+      await api.updateStyleAnalysis(analysis.id, { bpm: n }, token)
+      toast.success(`bpm ${n} saved`)
+      setBpmDraft('')
+      onUpdated()
+    } catch (e: any) {
+      toast.error(e.message ?? 'failed to save bpm')
+    } finally {
+      setSavingBpm(false)
+    }
+  }
+
   return (
     <div style={cardStyle(true)}>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -651,7 +678,7 @@ function ApprovedRow({ track, analyzing, onOpen, onArchive, archiving, onResolve
         >{archiving ? '…' : 'archive'}</button>
       </div>
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
+        display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
         fontFamily: T.mono, fontSize: 12, color: T.textDim,
       }}>
         <span>{BUCKET_LABEL[track.bucket]}</span>
@@ -660,6 +687,39 @@ function ApprovedRow({ track, analyzing, onOpen, onArchive, archiving, onResolve
         <span style={{ color: analysis ? T.accent : T.textDim }}>
           {analysis ? 'ready' : 'not ready'}
         </span>
+        {analysis && (
+          <>
+            <span>·</span>
+            <span style={{ color: analysis.bpm != null ? T.text : T.textDim }}>
+              {analysis.bpm != null ? `${analysis.bpm}bpm` : 'no bpm'}
+            </span>
+            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type="number"
+                min={1}
+                max={300}
+                value={bpmDraft}
+                placeholder="BPM"
+                disabled={savingBpm}
+                onChange={(e) => setBpmDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') saveBpm() }}
+                style={{
+                  width: 64,
+                  background: T.bg, border: `1px solid ${T.borderSubtle}`, borderRadius: 3,
+                  padding: '4px 6px', color: T.text, fontFamily: T.mono, fontSize: 12,
+                  outline: 'none',
+                }}
+              />
+              <button
+                onClick={saveBpm}
+                disabled={savingBpm || bpmDraft.trim() === ''}
+                style={ghostBtnStyle}
+              >
+                {savingBpm ? '…' : (analysis.bpm != null ? 'update' : 'add')}
+              </button>
+            </span>
+          </>
+        )}
       </div>
       {analyzing && <LlmProgress etaSeconds={30} label="decomposing track" />}
     </div>
