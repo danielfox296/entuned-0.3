@@ -9,6 +9,9 @@ export function DecomposerRules() {
   const [running, setRunning] = useState(false)
   const [result, setResult] = useState<{ total: number; processed: number; failed: number; errors: { id: string; artist: string; title: string; error: string }[] } | null>(null)
 
+  const [bpmRunning, setBpmRunning] = useState(false)
+  const [bpmProgress, setBpmProgress] = useState<{ succeeded: number; skipped: number; failed: number; remaining: number } | null>(null)
+
   const runAll = async () => {
     const token = getToken(); if (!token) return
     setRunning(true)
@@ -25,6 +28,38 @@ export function DecomposerRules() {
       toast.error(e.message ?? 'decompose-all failed')
     } finally {
       setRunning(false)
+    }
+  }
+
+  // Loops the cheap backfill endpoint until remaining hits 0 (or an error).
+  // Each call processes up to 50 rows; the server returns the count still
+  // needing backfill so we know when we're done.
+  const runBpmBackfill = async () => {
+    const token = getToken(); if (!token) return
+    setBpmRunning(true)
+    setBpmProgress(null)
+    let totalSucceeded = 0
+    let totalSkipped = 0
+    let totalFailed = 0
+    try {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const r = await api.backfillBpm(token, 50)
+        totalSucceeded += r.succeeded
+        totalSkipped += r.skipped
+        totalFailed += r.failed
+        setBpmProgress({ succeeded: totalSucceeded, skipped: totalSkipped, failed: totalFailed, remaining: r.remaining })
+        if (r.total === 0 || r.remaining === 0) break
+      }
+      if (totalFailed === 0) {
+        toast.success(`backfilled ${totalSucceeded} BPM${totalSucceeded === 1 ? '' : 's'}${totalSkipped > 0 ? ` (${totalSkipped} unresolved)` : ''}`)
+      } else {
+        toast.error(`${totalSucceeded} ok, ${totalFailed} failed`)
+      }
+    } catch (e: any) {
+      toast.error(e.message ?? 'bpm-backfill failed')
+    } finally {
+      setBpmRunning(false)
     }
   }
 
@@ -71,6 +106,32 @@ export function DecomposerRules() {
                 ))}
               </ul>
             )}
+          </div>
+        )}
+      </div>
+
+      <div style={{
+        background: T.surfaceRaised, border: `1px solid ${T.border}`,
+        borderRadius: 4, padding: '16px 18px',
+        display: 'flex', flexDirection: 'column', gap: 12,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Button onClick={runBpmBackfill} disabled={bpmRunning}>
+            {bpmRunning ? 'backfilling…' : 'backfill BPM (cheap)'}
+          </Button>
+          <span style={{ fontFamily: T.sans, fontSize: 13, color: T.textDim }}>
+            fills bpm on existing decompositions via a Haiku side route — ~$0.005–0.01 per track. resumable; loops until done.
+          </span>
+        </div>
+        {bpmRunning && <LlmProgress etaSeconds={120} label="backfilling BPM" />}
+        {bpmProgress && (
+          <div style={{ fontFamily: T.mono, fontSize: 12, color: bpmProgress.failed > 0 ? T.danger : T.accent }}>
+            {bpmProgress.succeeded} filled
+            {bpmProgress.skipped > 0 && ` · ${bpmProgress.skipped} unresolved`}
+            {bpmProgress.failed > 0 && ` · ${bpmProgress.failed} failed`}
+            {bpmProgress.remaining > 0
+              ? ` · ${bpmProgress.remaining} remaining`
+              : ' · done'}
           </div>
         )}
       </div>

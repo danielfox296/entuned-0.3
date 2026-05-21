@@ -1121,6 +1121,15 @@ export const api = {
     req<StyleAnalysisRow>(`/admin/reference-tracks/${id}/decompose`, { method: 'POST' }, token),
   decomposeAllReferenceTracks: (token: string) =>
     req<{ total: number; processed: number; failed: number; errors: { id: string; artist: string; title: string; error: string }[] }>('/admin/reference-tracks/decompose-all', { method: 'POST' }, token),
+  backfillBpm: (token: string, limit?: number) =>
+    req<{
+      total: number
+      succeeded: number
+      skipped: number
+      failed: number
+      remaining: number
+      results: { styleAnalysisId: string; artist: string; title: string; bpm: number | null; confidence: 'low' | 'medium' | 'high' | null; error?: string }[]
+    }>('/admin/style-analyses/backfill-bpm', { method: 'POST', body: JSON.stringify({ limit }) }, token),
   rejectReferenceTrack: (id: string, token: string) =>
     req<ReferenceTrackRow>(`/admin/reference-tracks/${id}/reject`, { method: 'POST' }, token),
   archiveReferenceTrack: (id: string, token: string) =>
