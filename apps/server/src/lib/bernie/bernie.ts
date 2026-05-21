@@ -1,18 +1,10 @@
-// Real Bernie (Card 13) — two-pass lyric generator.
-//   Pass 1 (draft): writes a first draft around the hook using LyricDraftPrompt as system.
+// Bernie — two-pass lyric generator.
+//   Pass 1 (draft): writes a first draft around the hook using LyricDraftPrompt as system,
+//     with genre context + genre-family craft overrides when a GenreBrief is supplied.
 //   Pass 2 (edit):  rewrites the draft for brand voice + playability using LyricEditPrompt.
 // Both prompts are DB-backed; `getOrSeed*` cold-starts v1 from the seed text in
 // proto-bernie/lyrics.ts so the migration window is invisible. The Submission row
 // captures both prompt versions for full provenance.
-//
-// EXPERIMENT SURFACE — Bernie-1 / Bernie-2 pair.
-//   This file (bernie.ts) is the Bernie-1 lyric generator, called from the
-//   Eno-1 pipeline (../eno/eno.ts). Its sibling bernie-v2.ts is the genre-aware
-//   Bernie-2 variant called from the Eno-2 pipeline (../eno/eno-v2.ts).
-//   Bernie-1 is the production default — Eno-1 is default, see ../eno/README.md.
-//   The two files share helper code via ./_helpers.ts. See ../eno/README.md
-//   for the diff inventory and the rule that this pair is an opt-in
-//   experiment surface whose shape may change.
 
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../db.js'
@@ -21,6 +13,7 @@ import type { ArrangementSections } from '../arranger/arranger.js'
 import type { FormArchetypeChoice } from '../eno/form-archetype.js'
 import { formatArrangementBrief, getOrSeedDraftPrompt } from './_helpers.js'
 import { formatHardBanBlock } from './lyric-craft-rules.js'
+import { getGenreCraftOverrides, formatGenreCraftBlock } from './genre-craft-rules.js'
 
 const MODEL = process.env.LYRICIST_MODEL ?? 'claude-sonnet-4-6'
 
@@ -37,6 +30,14 @@ const EMIT_LYRICS_TOOL: Anthropic.Tool = {
   },
 }
 
+export interface GenreBrief {
+  genreTag: string
+  grooveCharacter: string
+  harmonicCharacter: string
+  vocalRegister: string
+  eraDecade: string
+}
+
 export interface BernieInput {
   hookText: string
   brandLyricGuidelines?: string | null
@@ -46,6 +47,10 @@ export interface BernieInput {
   // compat with old call sites; when omitted, the draft prompt's legacy
   // hardcoded shape applies.
   formArchetype?: FormArchetypeChoice | null
+  // Genre brief from the reference track. When supplied, the draft pass gets a
+  // genre context block plus genre-family craft overrides (rhyme, density,
+  // typography). Omitted = pop-default craft guidance from the seed prompt.
+  genreBrief?: GenreBrief | null
 }
 
 export interface BernieOutput {
@@ -54,6 +59,18 @@ export interface BernieOutput {
   draft: { title: string; lyrics: string }
   draftPromptVersion: number
   editPromptVersion: number
+}
+
+function formatGenreContext(brief: GenreBrief): string {
+  const parts: string[] = []
+  parts.push(`Genre: ${brief.genreTag}`)
+  if (brief.eraDecade) parts.push(`Era: ${brief.eraDecade}`)
+  if (brief.grooveCharacter) parts.push(`Groove: ${brief.grooveCharacter}`)
+  if (brief.harmonicCharacter) parts.push(`Harmonic character: ${brief.harmonicCharacter}`)
+  if (brief.vocalRegister) parts.push(`Vocal register: ${brief.vocalRegister}`)
+  return `Reference track context (write lyrics that fit this musical world — do NOT name these terms in the lyrics):
+${parts.join('\n')}
+`
 }
 
 async function getOrSeedEditPrompt(): Promise<{ version: number; promptText: string }> {
@@ -95,11 +112,17 @@ Form note: ${input.formArchetype.shapeNote}
 `
     : ''
 
-  // Pass 1 — draft
+  const genreContext = input.genreBrief ? formatGenreContext(input.genreBrief) : ''
+  const genreOverrides = input.genreBrief ? getGenreCraftOverrides(input.genreBrief.genreTag) : null
+  const genreCraftBlock = genreOverrides ? `\n${formatGenreCraftBlock(genreOverrides)}\n` : ''
+
+  // Pass 1 — draft. Genre context + craft block steer the draft toward the
+  // reference track's genre family (hip-hop bars vs country storytelling vs
+  // EDM chant). Pop defaults apply when genreBrief is absent.
   const draftUserMessage = `Hook (used verbatim wherever the form note instructs — usually every chorus, but for AABA-style forms the hook lands as the last line of every verse):
 "${input.hookText}"
 
-${formBrief ? `${formBrief}\n` : ''}${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n\n` : ''}${arrangementBrief ? `${arrangementBrief}\n` : ''}${hardBanBlock ? `${hardBanBlock}\n\n` : ''}Write the lyrics now. Output the JSON only.`
+${formBrief ? `${formBrief}\n` : ''}${genreContext ? `${genreContext}\n` : ''}${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n\n` : ''}${arrangementBrief ? `${arrangementBrief}\n` : ''}${genreCraftBlock}${hardBanBlock ? `${hardBanBlock}\n\n` : ''}Write the lyrics now. Output the JSON only.`
 
   const draftResponse = await client.messages.create({
     model: MODEL,
@@ -115,10 +138,11 @@ ${formBrief ? `${formBrief}\n` : ''}${input.brandLyricGuidelines ? `Brand lyric 
   if (!draft.title || !draft.lyrics) throw new Error('Bernie draft output missing title or lyrics')
 
   // Pass 2 — edit.
-  // Form and arrangement context are intentionally OMITTED from the edit
-  // user-message: the draft already encoded section structure into the lyrics,
-  // and the editor's job is polish, not re-architecture. Re-injecting form/
-  // arrangement here just pays tokens for context the editor doesn't act on.
+  // Form, arrangement, and genre context are intentionally OMITTED from the
+  // edit user-message: the draft already encoded section structure and genre
+  // craft into the lyrics, and the editor's job is polish, not re-architecture.
+  // Re-injecting that context here just pays tokens for input the editor
+  // doesn't act on.
   const editUserMessage = `Hook (must remain verbatim in every instance the draft used it — choruses, verse-end refrains, tag, whatever the form dictates):
 "${input.hookText}"
 

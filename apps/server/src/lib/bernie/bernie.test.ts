@@ -16,7 +16,7 @@ vi.mock('@anthropic-ai/sdk', () => {
   return { default: MockAnthropic }
 })
 
-import { generateLyrics } from './bernie.js'
+import { generateLyrics, type GenreBrief } from './bernie.js'
 import { prisma } from '../../db.js'
 
 const draftFindFirst = prisma.lyricDraftPrompt.findFirst as ReturnType<typeof vi.fn>
@@ -80,5 +80,95 @@ describe('generateLyrics — hard ban block injection', () => {
     const editUserMsg = messagesCreate.mock.calls[1][0].messages[0].content as string
     expect(draftUserMsg).not.toContain('FORBIDDEN WORDS')
     expect(editUserMsg).not.toContain('FORBIDDEN WORDS')
+  })
+})
+
+describe('generateLyrics — genre brief injection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.env.ANTHROPIC_API_KEY = 'test-key'
+    draftFindFirst.mockResolvedValue({ version: 1, promptText: 'draft system prompt' })
+    editFindFirst.mockResolvedValue({ version: 1, promptText: 'edit system prompt' })
+    banFindMany.mockResolvedValue([])
+  })
+
+  const brief: GenreBrief = {
+    genreTag: 'hip-hop',
+    grooveCharacter: 'syncopated, behind-the-beat',
+    harmonicCharacter: 'minor pentatonic',
+    vocalRegister: 'baritone',
+    eraDecade: '2010s',
+  }
+
+  it('puts genre context + craft block in the DRAFT pass and keeps them OUT of the edit pass', async () => {
+    messagesCreate
+      .mockResolvedValueOnce(toolUseResponse('T', '[Chorus]\nhook here\n'))
+      .mockResolvedValueOnce(toolUseResponse('T', '[Chorus]\nhook here\n'))
+
+    await generateLyrics({ hookText: 'hook here', genreBrief: brief })
+
+    const draftUserMsg = messagesCreate.mock.calls[0][0].messages[0].content as string
+    const editUserMsg = messagesCreate.mock.calls[1][0].messages[0].content as string
+
+    // Draft sees the brief fields
+    expect(draftUserMsg).toContain('Reference track context')
+    expect(draftUserMsg).toContain('Genre: hip-hop')
+    expect(draftUserMsg).toContain('Era: 2010s')
+    expect(draftUserMsg).toContain('Groove: syncopated, behind-the-beat')
+    expect(draftUserMsg).toContain('Vocal register: baritone')
+
+    // Edit pass is polish-only — must NOT see the brief
+    expect(editUserMsg).not.toContain('Reference track context')
+    expect(editUserMsg).not.toContain('Genre: hip-hop')
+    expect(editUserMsg).not.toContain('Era: 2010s')
+  })
+
+  it('injects genre-family craft guidance into the draft when the tag matches a known family', async () => {
+    messagesCreate
+      .mockResolvedValueOnce(toolUseResponse('T', '[Chorus]\nhook here\n'))
+      .mockResolvedValueOnce(toolUseResponse('T', '[Chorus]\nhook here\n'))
+
+    await generateLyrics({ hookText: 'hook here', genreBrief: brief })
+
+    const draftUserMsg = messagesCreate.mock.calls[0][0].messages[0].content as string
+
+    // genre-craft-rules.ts maps 'hip-hop' → familyName 'hip-hop' with density/rhyme guidance
+    expect(draftUserMsg).toMatch(/hip-hop/i)
+    // The craft block is structured guidance — should mention bars/density/rhyme
+    expect(draftUserMsg).toMatch(/density|rhyme|bars/i)
+  })
+
+  it('falls back to no craft block for unknown genre tags but still injects context', async () => {
+    messagesCreate
+      .mockResolvedValueOnce(toolUseResponse('T', '[Chorus]\nhook here\n'))
+      .mockResolvedValueOnce(toolUseResponse('T', '[Chorus]\nhook here\n'))
+
+    await generateLyrics({
+      hookText: 'hook here',
+      genreBrief: { ...brief, genreTag: 'klezmer-djent-fusion' },
+    })
+
+    const draftUserMsg = messagesCreate.mock.calls[0][0].messages[0].content as string
+
+    // Context block still appears with the unknown tag
+    expect(draftUserMsg).toContain('Genre: klezmer-djent-fusion')
+    // No genre-family override matches — formatGenreCraftBlock isn't called
+    expect(draftUserMsg).not.toMatch(/familyName/)
+  })
+
+  it('omits all genre signal from BOTH passes when genreBrief is absent', async () => {
+    messagesCreate
+      .mockResolvedValueOnce(toolUseResponse('T', '[Chorus]\nhook here\n'))
+      .mockResolvedValueOnce(toolUseResponse('T', '[Chorus]\nhook here\n'))
+
+    await generateLyrics({ hookText: 'hook here' })
+
+    const draftUserMsg = messagesCreate.mock.calls[0][0].messages[0].content as string
+    const editUserMsg = messagesCreate.mock.calls[1][0].messages[0].content as string
+
+    expect(draftUserMsg).not.toContain('Reference track context')
+    expect(draftUserMsg).not.toContain('Genre:')
+    expect(editUserMsg).not.toContain('Reference track context')
+    expect(editUserMsg).not.toContain('Genre:')
   })
 })

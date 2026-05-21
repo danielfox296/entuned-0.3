@@ -1,37 +1,22 @@
-// Card 14 Eno (Seed Builder) — orchestrates batch generation of SongSeeds.
+// Eno (Seed Builder) — orchestrates batch generation of SongSeeds.
 // One SongSeed = one assembled Suno-ready Final Song Prompt: hook + ref track + Style Builder output + Lyric Writer output.
 //
 // OutcomeFactorPrompt prepends Outcome fields onto the style portion per Card 14 spec.
 // Default template prepends BPM and mode. Edit via admin /engine/outcome-factor-prompt.
 //
-// EXPERIMENT SURFACE — Eno-1 / Eno-2 parallel orchestrators.
-//   This file (eno.ts) is the Eno-1 pipeline AND the module root. Its sibling
-//   eno-v2.ts (Eno-2) is an opt-in pipeline variant selected by the
-//   `pipeline: 'eno-2'` flag on SeedBuilderOptions. Default is 'eno-1' (see
-//   `runEno` line 60 and the Dash UI default at
-//   apps/admin/src/panels/seeding/SongSeedQueue.tsx:69). Dispatch happens at
-//   line 84-86 below.
-//
-//   Eno-2 imports the shared helpers (`getOrSeedOutcomeFactorPrompt`,
-//   `applyOutcomeFactorPrompt`, `pickAvailableHook`, `pickReferenceTrack`,
-//   `CreateSongSeedResult`) from this file — it is a thin extension, not a
-//   parallel rewrite. See ./README.md for the full module contract and the
-//   list of behavioral diffs.
-//
-//   Both Eno-1 and Eno-2 are active experiment surfaces; the shape of these
-//   files may continue to change as the pipelines evolve. Do not treat the
-//   parallel structure as cleanup debt.
+// Lyric path uses genre-aware Bernie: the reference track's StyleAnalysis (plus
+// Mars's anchor tag when available) is converted to a GenreBrief and threaded
+// into Bernie's draft pass so lyric craft adapts to hip-hop / country / EDM /
+// R&B / latin instead of defaulting to pop.
 
 import { prisma } from '../../db.js'
 import { marsAssemble, type StyleBuilderName } from '../mars/mars.js'
-import { generateLyrics } from '../bernie/bernie.js'
+import { generateLyrics, type GenreBrief } from '../bernie/bernie.js'
 import { injectArrangement, type ArrangementSections } from '../arranger/arranger.js'
 import { resolveOutcomeParams } from '../variance/variance.js'
 import { extractVocalGender, type VocalGender } from '../mars/vocal-gender.js'
 import { pickFormArchetype } from './form-archetype.js'
-import { createSongSeedV2 } from './eno-v2.js'
-
-export type PipelineName = 'eno-1' | 'eno-2'
+import type { StyleAnalysis } from '@prisma/client'
 
 export const OUTCOME_FACTOR_PROMPT_SEED = '{mood}, {tempo_bpm}bpm, {mode}' // prepended to style string. Mood is required on Outcome and leads the prefix as the affect anchor. Tokens {dynamics} {instrumentation} still resolve for backward compat with old templates but are deprecated — they were stamping genre-mismatched instrument lists onto every track and using rules-v8 banned vocab.
 
@@ -62,8 +47,6 @@ export interface SeedBuilderOptions {
   triggeredByUser?: string
   /** Mars style builder strategy for this batch. Defaults to STYLE_BUILDER env / 'router'. */
   styleBuilder?: StyleBuilderName
-  /** Pipeline version. 'eno-2' activates genre-aware lyrics. Defaults to 'eno-1'. */
-  pipeline?: PipelineName
 }
 
 export interface SeedBuilderResult {
@@ -75,7 +58,6 @@ export interface SeedBuilderResult {
 }
 
 export async function runEno(opts: SeedBuilderOptions): Promise<SeedBuilderResult> {
-  const pipeline = opts.pipeline ?? 'eno-1'
   const batch = await prisma.songSeedBatch.create({
     data: {
       icpId: opts.icpId,
@@ -83,7 +65,6 @@ export async function runEno(opts: SeedBuilderOptions): Promise<SeedBuilderResul
       requestedN: opts.n,
       triggeredBy: opts.triggeredBy,
       triggeredByUser: opts.triggeredByUser ?? null,
-      pipeline,
     },
   })
 
@@ -99,9 +80,7 @@ export async function runEno(opts: SeedBuilderOptions): Promise<SeedBuilderResul
 
   for (let i = 0; i < opts.n; i++) {
     try {
-      const result = pipeline === 'eno-2'
-        ? await createSongSeedV2(batch.id, opts.icpId, opts.outcomeId, opts.styleBuilder)
-        : await createSongSeed(batch.id, opts.icpId, opts.outcomeId, opts.styleBuilder)
+      const result = await createSongSeed(batch.id, opts.icpId, opts.outcomeId, opts.styleBuilder)
       if (!result.ok) {
         errors.push(result.reason ?? 'unknown')
         if (result.reason === 'pool_exhausted_hooks' || result.reason === 'pool_exhausted_reference_tracks') {
@@ -198,11 +177,18 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
       referenceYear: refTrack.year ?? null,
     })
 
+    // Genre brief from the reference track's StyleAnalysis. Mars's anchor tag is
+    // the most genre-accurate signal when present; otherwise fall back to the
+    // leading vibePitch fragment. Either way Bernie sees a `genreTag` plus
+    // groove/harmonic/vocal-register/era fields to steer the draft.
+    const genreBrief = extractGenreBrief(styleAnalysis, refTrack.year, mars.anchor?.tag ?? null)
+
     const lyricsRaw = await generateLyrics({
       hookText: hook.text,
       brandLyricGuidelines: client?.brandLyricGuidelines ?? null,
       arrangementSections: arrangementSections ?? null,
       formArchetype,
+      genreBrief,
     })
 
     // Always run injectArrangement: even when arrangementSections is null, the
@@ -228,6 +214,7 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
         resolvedTempoBpm: resolved.tempoBpm,
         resolvedMode: resolved.mode,
         firedExclusionRuleIds: mars.firedExclusionRuleIds,
+        genreBrief: JSON.stringify(genreBrief),
       },
     })
 
@@ -239,6 +226,85 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
     })
     return { ok: false, reason: `assembly_failed: ${e?.message ?? e}` }
   }
+}
+
+// --- GenreBrief extraction -------------------------------------------------
+//
+// Turns a reference track's StyleAnalysis (plus the Mars anchor tag when
+// available) into the structured brief Bernie's draft pass consumes.
+
+const GROOVE_TERMS = new Set([
+  'loose', 'tight', 'swung', 'behind-the-beat', 'on-the-grid', 'syncopated',
+  'polyrhythmic', 'straight', 'triplet', 'sidechained', 'mid-tempo', 'uptempo',
+  'downtempo', 'half-time', 'pocket', 'laid-back', 'pushed',
+])
+
+const REGISTER_TERMS = [
+  'tenor', 'baritone', 'bass', 'alto', 'mezzo', 'soprano',
+  'falsetto', 'head voice', 'chest voice',
+]
+
+export function extractGenreBrief(
+  styleAnalysis: StyleAnalysis,
+  refTrackYear: number | null | undefined,
+  anchorTag?: string | null,
+): GenreBrief {
+  const genreTag = anchorTag
+    ?? extractLeadingGenre(styleAnalysis.vibePitch)
+    ?? 'pop'
+
+  const harmAndGroove = styleAnalysis.harmonicAndGroove ?? ''
+  const commaIdx = harmAndGroove.lastIndexOf(',')
+  let harmonicCharacter: string
+  let grooveCharacter: string
+  if (commaIdx > 0) {
+    const parts = splitHarmonicAndGroove(harmAndGroove)
+    harmonicCharacter = parts.harmonic
+    grooveCharacter = parts.groove
+  } else {
+    harmonicCharacter = harmAndGroove.trim()
+    grooveCharacter = ''
+  }
+
+  const vocalRegister = extractVocalRegister(styleAnalysis.vocalCharacter ?? '')
+
+  const eraDecade = typeof refTrackYear === 'number'
+    ? `${Math.floor(refTrackYear / 10) * 10}s`
+    : ''
+
+  return { genreTag, grooveCharacter, harmonicCharacter, vocalRegister, eraDecade }
+}
+
+function splitHarmonicAndGroove(text: string): { harmonic: string; groove: string } {
+  const fragments = text.split(',').map((s) => s.trim()).filter(Boolean)
+  const grooveParts: string[] = []
+  const harmonicParts: string[] = []
+  for (const f of fragments) {
+    const lower = f.toLowerCase()
+    const isGroove = [...GROOVE_TERMS].some((t) => lower.includes(t))
+    if (isGroove) grooveParts.push(f)
+    else harmonicParts.push(f)
+  }
+  return {
+    harmonic: harmonicParts.join(', '),
+    groove: grooveParts.join(', '),
+  }
+}
+
+function extractLeadingGenre(vibePitch: string | null): string | null {
+  if (!vibePitch) return null
+  const firstComma = vibePitch.indexOf(',')
+  const lead = firstComma > 0 ? vibePitch.slice(0, firstComma).trim() : vibePitch.trim()
+  if (lead.length > 60) return lead.slice(0, 60).trim()
+  return lead || null
+}
+
+function extractVocalRegister(vocalCharacter: string): string {
+  const lower = vocalCharacter.toLowerCase()
+  for (const term of REGISTER_TERMS) {
+    if (lower.includes(term)) return term
+  }
+  return ''
 }
 
 export type HookVocalGender = 'male' | 'female' | 'duet' | null

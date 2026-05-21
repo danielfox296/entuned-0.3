@@ -1,13 +1,5 @@
-// Shared helpers for the Bernie lyric generators.
-//
-// Extracted verbatim from bernie.ts and bernie-v2.ts, where these three
-// functions (plus SECTION_ORDER, the local constant formatArrangementBrief
-// depends on) were byte-identical duplicates. See ASSESSMENT-eno-comparison.md
-// §6 items 7 and 8 — "LOW risk = pure duplication of Bernie helpers
-// (getOrSeedDraftPrompt, formatArrangementBrief, parseLyricJson — all
-// byte-identical between Bernie-1 and Bernie-2)."
-//
-// No semantic changes. Comments and types preserved.
+// Shared helpers for Bernie. Split out from bernie.ts so the generator stays
+// focused on the two-pass orchestration.
 
 import { prisma } from '../../db.js'
 import { DRAFT_PROMPT_SEED } from '../proto-bernie/lyrics.js'
