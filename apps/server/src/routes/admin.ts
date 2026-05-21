@@ -22,6 +22,7 @@ import { prisma } from '../db.js'
 import { verify } from '../lib/auth.js'
 import bcrypt from 'bcryptjs'
 import { decompose } from '../lib/decomposer/decomposer.js'
+import { lookupBpm } from '../lib/decomposer/bpm-lookup.js'
 import { pickSystemDefaultOutcomeId, isFreeTierAllowedOutcome } from '../lib/outcomes.js'
 import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
@@ -1368,6 +1369,59 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       }
     }
     return { total: tracks.length, processed, failed, errors }
+  })
+
+  // ----- Cheap BPM backfill ---------------------------------------------------
+  // Fills StyleAnalysis.bpm on existing decompositions without re-running the
+  // full rules-v10 decomposer (Sonnet + 4000 max_tokens). Uses a Haiku side
+  // route with one web_search call — ~$0.005-0.01 per track.
+  //
+  // Iterates StyleAnalysis rows where bpm IS NULL (oldest first), one at a
+  // time. Returns counts + per-row outcomes. Bound by `limit` (default 50,
+  // max 500) so a single call is cheap and resumable.
+  const BackfillBpmBody = z.object({
+    limit: z.number().int().min(1).max(500).optional(),
+  })
+
+  app.post('/style-analyses/backfill-bpm', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = BackfillBpmBody.safeParse(req.body ?? {})
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const limit = parsed.data.limit ?? 50
+
+    const rows = await prisma.styleAnalysis.findMany({
+      where: { bpm: null },
+      include: { referenceTrack: { select: { id: true, artist: true, title: true, year: true } } },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    })
+    if (rows.length === 0) return { total: 0, succeeded: 0, skipped: 0, failed: 0, remaining: 0, results: [] }
+
+    let succeeded = 0
+    let skipped = 0
+    let failed = 0
+    const results: { styleAnalysisId: string; artist: string; title: string; bpm: number | null; confidence: 'low' | 'medium' | 'high' | null; error?: string }[] = []
+
+    for (const row of rows) {
+      const ref = row.referenceTrack
+      try {
+        const result = await lookupBpm({ artist: ref.artist, title: ref.title, year: ref.year })
+        if (result.bpm === null) {
+          skipped++
+          results.push({ styleAnalysisId: row.id, artist: ref.artist, title: ref.title, bpm: null, confidence: result.confidence })
+          continue
+        }
+        await prisma.styleAnalysis.update({ where: { id: row.id }, data: { bpm: result.bpm } })
+        succeeded++
+        results.push({ styleAnalysisId: row.id, artist: ref.artist, title: ref.title, bpm: result.bpm, confidence: result.confidence })
+      } catch (e: any) {
+        failed++
+        results.push({ styleAnalysisId: row.id, artist: ref.artist, title: ref.title, bpm: null, confidence: null, error: e?.message ?? 'unknown' })
+      }
+    }
+
+    const remaining = await prisma.styleAnalysis.count({ where: { bpm: null } })
+    return { total: rows.length, succeeded, skipped, failed, remaining, results }
   })
 
   // ----- Outcomes (read-only list for hook picker etc.) -----
