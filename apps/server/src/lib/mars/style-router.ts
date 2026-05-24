@@ -28,6 +28,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { StyleAnalysis } from '@prisma/client'
 import { stripForSuno } from './sanitize.js'
+import { prisma } from '../../db.js'
 
 // Un-pinned alias — picks up minor model improvements automatically. Pin via
 // MARS_ROUTER_MODEL env if reproducibility matters for a given experiment.
@@ -54,6 +55,23 @@ function softCap(s: string, max: number): string {
   return cut.slice(0, breakAt).replace(/[,\s]+$/, '')
 }
 
+// DB-backed prompt loader. Mirrors getOrSeedAnchorPrompt in style-anchor.ts
+// and the LyricDraftPrompt / LyricEditPrompt pattern in bernie/. Cold-starts
+// v1 from the TS seed on first call; thereafter always reads the latest
+// version from the styleRouterPrompt table.
+export async function getOrSeedRouterPrompt(): Promise<{ version: number; promptText: string }> {
+  const row = await prisma.styleRouterPrompt.findFirst({ orderBy: { version: 'desc' } })
+  if (row) return { version: row.version, promptText: row.promptText }
+  const seeded = await prisma.styleRouterPrompt.create({
+    data: {
+      version: 1,
+      promptText: STYLE_ROUTER_SYSTEM_PROMPT_SEED,
+      notes: 'Auto-seeded v1 (migrated from TS const STYLE_ROUTER_SYSTEM_PROMPT_SEED).',
+    },
+  })
+  return { version: seeded.version, promptText: seeded.promptText }
+}
+
 export function getRouterVersion(): number {
   return ROUTER_VERSION
 }
@@ -67,7 +85,11 @@ interface RouterSlots {
   rhythm_feel: string
 }
 
-const SYSTEM_PROMPT = `You are a Suno-prompt slotter. You receive a musicological decomposition of a single reference track and produce 6 short slot strings that compose into a Suno style field.
+// Cold-start seed only — used when the StyleRouterPrompt table is empty on
+// first run. Once getOrSeedRouterPrompt() has inserted v1, runtime ALWAYS
+// reads from the DB and this const is never consulted again. Edit prompts
+// through Dash → Prompts & Rules → Mars Prompts, NOT here.
+export const STYLE_ROUTER_SYSTEM_PROMPT_SEED = `You are a Suno-prompt slotter. You receive a musicological decomposition of a single reference track and produce 6 short slot strings that compose into a Suno style field.
 
 Suno is a music-generation model. It grounds well on technical, genre-tag, and gear vocabulary. It does NOT ground on literary or affect-laden adjectives. Your job is to translate the decomposer's prose (which often contains both) into the Suno-readable subset only, with strict per-slot discipline.
 
@@ -181,7 +203,7 @@ export async function routeStylePortion(
     system: [
       {
         type: 'text',
-        text: SYSTEM_PROMPT,
+        text: (await getOrSeedRouterPrompt()).promptText,
         cache_control: { type: 'ephemeral' },
       },
     ],

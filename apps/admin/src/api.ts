@@ -1039,6 +1039,14 @@ export const api = {
   saveEditPrompt: (promptText: string, notes: string | undefined, token: string) =>
     req<LyricPromptRow>('/admin/lyric-prompts/edit', { method: 'POST', body: JSON.stringify({ promptText, notes }) }, token),
 
+  // Mars system prompts (anchor + router) — DB-backed, same shape as lyric prompts.
+  marsPrompts: (token: string) =>
+    req<{ anchor: { latest: LyricPromptRow | null; history: LyricPromptRow[] }; router: { latest: LyricPromptRow | null; history: LyricPromptRow[] } }>('/admin/mars-prompts', {}, token),
+  saveAnchorPrompt: (promptText: string, notes: string | undefined, token: string) =>
+    req<LyricPromptRow>('/admin/mars-prompts/anchor', { method: 'POST', body: JSON.stringify({ promptText, notes }) }, token),
+  saveRouterPrompt: (promptText: string, notes: string | undefined, token: string) =>
+    req<LyricPromptRow>('/admin/mars-prompts/router', { method: 'POST', body: JSON.stringify({ promptText, notes }) }, token),
+
   // --- Brand ---
 
   stores: (token: string) =>

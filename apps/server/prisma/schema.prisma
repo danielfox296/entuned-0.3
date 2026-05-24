@@ -448,6 +448,37 @@ model LyricEditPrompt {
   @@map("lyric_edit_prompts")
 }
 
+// Mars LLM builders — DB-backed system prompts so operators can iterate
+// without code deploys. Each table is global, single-row-per-version, same
+// shape as LyricDraftPrompt. Schema SSOT: ../../../entune v0.3/schema/light-cards.md
+// (Card 12 — Mars, "StyleAnchorPrompt and StyleRouterPrompt" section).
+//
+// Cold-start: `getOrSeed*Prompt()` in lib/mars/style-{anchor,router}.ts inserts
+// v1 from a TS const seed when the table is empty. After v1 exists, the TS
+// const is NEVER consulted at runtime — operators edit through Dash.
+
+model StyleAnchorPrompt {
+  id          String   @id @default(uuid()) @db.Uuid
+  version     Int      @unique
+  promptText  String   @map("prompt_text")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by") @db.Uuid
+
+  @@map("style_anchor_prompts")
+}
+
+model StyleRouterPrompt {
+  id          String   @id @default(uuid()) @db.Uuid
+  version     Int      @unique
+  promptText  String   @map("prompt_text")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by") @db.Uuid
+
+  @@map("style_router_prompts")
+}
+
 model LyricBanEntry {
   id        String   @id @default(uuid()) @db.Uuid
   category  String

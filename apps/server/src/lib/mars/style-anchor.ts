@@ -21,6 +21,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import type { StyleAnalysis } from '@prisma/client'
 import { stripForSuno } from './sanitize.js'
 import { capStyle } from './cap.js'
+import { prisma } from '../../db.js'
 
 // Un-pinned alias — picks up minor model improvements automatically. Pin via
 // MARS_ANCHOR_MODEL env if reproducibility matters for a given experiment.
@@ -41,7 +42,11 @@ interface AnchorPick {
   sub_attractors: string[]
 }
 
-const SYSTEM_PROMPT = `You are picking Suno style parameters for one reference track. Suno is genre-tag driven — it reads genre tags as the dominant signal and ignores most technical vocabulary. Your job is to pick three things.
+// Cold-start seed only — used when the StyleAnchorPrompt table is empty on
+// first run. Once getOrSeedAnchorPrompt() has inserted v1, runtime ALWAYS
+// reads from the DB and this const is never consulted again. Edit prompts
+// through Dash → Prompts & Rules → Mars Prompts, NOT here.
+export const STYLE_ANCHOR_SYSTEM_PROMPT_SEED = `You are picking Suno style parameters for one reference track. Suno is genre-tag driven — it reads genre tags as the dominant signal and ignores most technical vocabulary. Your job is to pick three things.
 
 1. ANCHOR: one genre tag (subgenre + decade) whose CENTROID points at the right family for this track. NOT the literal genre label if that label's Suno-training centroid is a famously generic artist. Examples:
    - "yacht rock" collapses to Christopher Cross. For a Steely Dan track, "1970s jazz-rock" is better because jazz-rock's centroid carries Steely Dan DNA.
@@ -125,6 +130,22 @@ function composeStyle(pick: AnchorPick): string {
   return capStyle(stripForSuno(joined), STYLE_HARD_CAP)
 }
 
+// DB-backed prompt loader. Mirrors the LyricDraftPrompt / LyricEditPrompt
+// pattern in bernie/_helpers.ts and bernie/bernie.ts. Cold-starts v1 from
+// the TS seed on first call; thereafter always reads the latest version.
+export async function getOrSeedAnchorPrompt(): Promise<{ version: number; promptText: string }> {
+  const row = await prisma.styleAnchorPrompt.findFirst({ orderBy: { version: 'desc' } })
+  if (row) return { version: row.version, promptText: row.promptText }
+  const seeded = await prisma.styleAnchorPrompt.create({
+    data: {
+      version: 1,
+      promptText: STYLE_ANCHOR_SYSTEM_PROMPT_SEED,
+      notes: 'Auto-seeded v1 (migrated from TS const STYLE_ANCHOR_SYSTEM_PROMPT_SEED).',
+    },
+  })
+  return { version: seeded.version, promptText: seeded.promptText }
+}
+
 export function getAnchorVersion(): number {
   return ANCHOR_VERSION
 }
@@ -160,7 +181,7 @@ export async function buildAnchorStyle(
     system: [
       {
         type: 'text',
-        text: SYSTEM_PROMPT,
+        text: (await getOrSeedAnchorPrompt()).promptText,
         cache_control: { type: 'ephemeral' },
       },
     ],

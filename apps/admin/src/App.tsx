@@ -13,6 +13,7 @@ import { useClientLogo } from './ui/clientLogo.js'
 import { DecomposerRules } from './panels/engine/DecomposerRules.js'
 import { FailureRules } from './panels/engine/FailureRules.js'
 import { LyricPrompts } from './panels/engine/LyricPrompts.js'
+import { MarsPrompts } from './panels/engine/MarsPrompts.js'
 import { LyricBanList } from './panels/engine/LyricBanList.js'
 import { OutcomeFactorPrompt } from './panels/engine/OutcomeFactorPrompt.js'
 import { OutcomeLyricFactor } from './panels/engine/OutcomeLyricFactor.js'
@@ -59,7 +60,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Outcome Library', 'Style Rules', 'Dry Run'],
     description: '' },
   { key: 'engine', label: 'Prompts & Rules', short: 'Prompts & Rules', icon: Settings,
-    cards: ['Hook Prompts', 'Hook Drafter (legacy)', 'Decomposition', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Form Archetypes', 'Reference Track Suggester'],
+    cards: ['Hook Prompts', 'Hook Drafter (legacy)', 'Decomposition', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Mars Prompts', 'Form Archetypes', 'Reference Track Suggester'],
     description: '' },
   { key: 'catalogue', label: 'Library', short: 'Library', icon: Music2,
     cards: ['Song Browser', 'Flagged Review', 'Pool Depth', 'Free Tier Outcomes'],
@@ -294,6 +295,7 @@ function EngineRouter({ cards }: { cards: string[] }) {
       {active === 'Style Exclusion Rules' && <FailureRules />}
       {active === 'Lyric Ban List' && <LyricBanList />}
       {active === 'Lyric Prompts' && <LyricPrompts />}
+      {active === 'Mars Prompts' && <MarsPrompts />}
       {active === 'Form Archetypes' && <FormArchetypes />}
       {active === 'Reference Track Suggester' && <ReferenceTrackPrompt />}
     </div>
