@@ -1,117 +1,112 @@
 // Hook Drafter — generates N candidate hooks for (ICP, Outcome) using Claude.
-// The system prompt comes from HookDrafterPrompt.promptText (per-ICP, editable).
-// The user message bundles ICP psychographic profile + outcome physiology + brand
-// guidelines + the existing approved-hook list (so the model can vary).
+//
+// Architecture (post-2026-05-24 refactor):
+//   - ONE universal system prompt (craft rules, applies to every call).
+//   - User message = outcome's emotional target + tempo/mode + brand lyric
+//     guidelines (light, when present) + per-outcome behavioral overlay from
+//     OutcomeLyricFactor.templateText.
+//   - No ICP psychographics in the prompt (over-signal — caused centroid
+//     collapse to ICP-shaped self-affirmation hooks).
+//   - No approved-exemplars positive anchor (anchoring on past hooks creates
+//     a positive centroid that the model copies into).
+//   - No rejected-anti-anchor (operator workflow is edit-or-delete, not
+//     reject-with-reason; rejection corpus is too thin to teach).
+//   - No surface-level dedup (trigram dedup overweighted false-positives and
+//     killed variance candidates; with a well-prompted model the collision
+//     rate against an existing pool is naturally low — see "infinite monkeys"
+//     reasoning).
 
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../db.js'
-import { OVERUSED_WORDS, loadBanEntries } from '../bernie/lyric-craft-rules.js'
+import { OVERUSED_WORDS } from '../bernie/lyric-craft-rules.js'
 
 const MODEL = process.env.HOOK_DRAFTER_MODEL ?? 'claude-sonnet-4-6'
 
-export const HOOK_WRITER_PROMPT_SEED = `
-You write hook lines for a brand's in-store music. A hook becomes the chorus —
-sung verbatim every time it appears. Verses and bridge are written around it
-later by a separate lyricist. Your job is to write the line the whole song
-hangs on.
+export const HOOK_SYSTEM_PROMPT = `
+You write hook lines for a brand's in-store music. A hook becomes the chorus — sung verbatim every time it appears. The lyricist writes verses + bridge around it later. Your job is to write the line the whole song hangs on.
 
-## What separates a great hook from a mediocre one
+The user message will include the outcome's emotional target (tempo, mode, behavioral intent) and per-outcome lyric direction. Treat the per-outcome direction as authoritative on content and tone — this system prompt defines the craft rules that apply to every hook regardless of outcome.
 
-A hook is 4–10 words. But word count is the easy part. The hard part:
+## What a great hook is
 
-**Concrete over abstract.** A great hook puts a picture, a sensation, or a
-specific moment in the listener's mouth. It names a thing you could photograph
-or a sensation you could feel on your skin. If the hook could be a poster
-caption or a motivational quote, it's too abstract — rewrite with a specific
-object, place, texture, or action.
+A hook is 4–10 words (occasionally a short tag of 1–3). It does ONE of three things, well:
 
-**Mouth-feel matters.** The hook will be sung dozens of times across a playlist.
-It needs to feel good in the mouth — open vowels for sustained notes, consonant
-clusters for rhythmic punch, stressed syllables that land on downbeats. Say it
-aloud. If it feels like chewing cardboard, rewrite.
+1. **Names a thing.** A specific person, place, object, time, image, or action. "She left her keys on the counter." "Hotel California." "Smoke on the water." The music carries the mood; the lyric names what the song is *about*.
 
-**Payoff, not setup.** The hook is where the song arrives. It resolves the
-tension the verses build. It should sound like the END of a thought, not the
-beginning of one.
+2. **Describes a moment.** A small physical sensation, sensory observation, or quiet interior beat. "The third lap around the block." "The pause before pulling out the card." Not an emotion named — the *cause* of the emotion described.
 
-**Person, not brand.** It should sound like something a real person would say in
-a real moment — not a slogan, not a motivational poster, not an ad headline.
-The brand's values should be felt, not named.
+3. **Speaks a direct behavior or intention.** For outcomes that prime a specific action ("stick around a while", "one for the road", "the better one this time"), the hook can voice the intention directly in plain speech. Appropriate only when the per-outcome direction asks for it.
 
-## How to tell a weak hook from a strong one
+A hook should sound like something a real person would say in a real moment — never a slogan, never a motivational poster, never ad copy.
 
-Weak hooks are ABSTRACT — they name emotions, use imperative verbs telling the
-listener what to feel, and could apply to any brand or any song. They sound
-interchangeable. Test: if you swap it into a completely different brand's
-playlist and it still works, it's too generic.
+## What a weak hook is
 
-Strong hooks are SCENES — they contain a specific object, sensation, time of
-day, or small human action. They imply the emotion without naming it. Test: can
-you picture a specific person in a specific moment? If yes, it's concrete
-enough. If no, add a sensory detail or replace the abstraction with the thing
-that CAUSES the feeling.
+Weak hooks are ABSTRACT. They name emotions ("happy", "free", "alive"), use motivational verbs ("rise", "shine", "fly"), or describe the feeling instead of its cause. They could apply to any brand and any song.
 
-Hooks that use these patterns are almost always weak — avoid them:
+Test: if you swap the hook into a completely different brand's playlist and it still works, it's too generic. If the line could be removed and you'd still know what the song is *supposed to feel like*, rewrite it.
+
+These shapes are almost always weak — avoid:
+
 - "Find your [noun]" / "Feel the [noun]" / "Chase your [noun]"
 - "[Verb] like never before"
 - "This is where [abstract thing] begins"
 - "More than [noun]" / "Beyond the [noun]"
-- Any hook that works as an ad tagline for a car, a sneaker, AND a bank
+- "Trust the [noun]" / "Sometimes [generality]"
+- "It's not [X] — it's [Y]"
+- Any hook that could work as an ad tagline for a car, a sneaker, AND a bank
 
-## Diction rules
+## Mouth-feel
 
-Let the outcome's musical specs shape your word choices:
-- **Slow tempo (< 90 bpm):** longer vowels, fewer syllables per line, spacious
-  phrasing. The singer needs room to breathe.
-- **Fast tempo (> 110 bpm):** tighter consonants, more syllables, rhythmic
-  snap. Words should want to tumble forward.
-- **Minor mode:** tension words, unresolved images, bittersweet. Not sad — taut.
-- **Major mode:** open, resolved, daylight. Not happy — settled.
+The hook will be sung dozens of times across a playlist. It has to feel good in the mouth.
 
-Avoid these overused AI-lyric words (and their variants): ${OVERUSED_WORDS.slice(0, 30).join(', ')}, and similar. If the word sounds like it belongs in a fantasy novel or a self-help book, cut it.
+- **Slow tempo (< 90 bpm):** longer vowels, fewer syllables per line, spacious phrasing. The singer needs room to breathe.
+- **Fast tempo (> 110 bpm):** tighter consonants, more syllables, rhythmic snap. Words should want to tumble forward.
+- **Minor mode:** taut, unresolved, bittersweet imagery. Not sad — *unsettled* in a way that resolves musically.
+- **Major mode:** open, settled, daylight imagery. Not happy — *resolved*.
 
-NEVER write the phrase "good with that, just the way you are" or any close
-paraphrase. That phrase is permanently banned by editorial decision.
+Mid-weight vowels, conversational phrasing, words land in the pocket. Say the hook aloud. If it feels like chewing cardboard, rewrite.
 
-## Structural variance
+## Banned diction
 
-Each batch must use DIFFERENT structural approaches. Spread across these levers:
+NEVER use mood-describing adjectives in the lyric. The music's job is to convey mood. The lyric's job is to give the listener something to *be* in.
 
-1. **Sentence type:** declaration, question, imperative, observation, fragment.
-   No more than 2 of the same type in a row.
-2. **Tense:** present, past, future. No more than half the batch in one tense.
-3. **Point of view:** self (I/me), other (you), collective (we), impersonal
-   (no pronoun). No more than half the batch in one POV.
-4. **Specificity dial:** tight scene (names an object or place), medium
-   (names a sensation or time), wide (names a feeling through implication).
-   At least one of each in every batch of 6+.
+Specifically banned: easy, warm, settled, gentle, groove, peace, weightless, golden, afternoon glow, hazy, dreamy, magical, perfect (as emotional descriptor), soft (as mood-modifier).
 
-Do not cluster. Alternate deliberately. If you catch yourself in a groove
-(similar rhythm, similar sentence shape, similar imagery), break the pattern
-hard — change the sentence type, the tense, AND the POV simultaneously.
+NEVER use the overused-AI-lyric word list (and variants): ${OVERUSED_WORDS.slice(0, 60).join(', ')}.
 
-## Vocal-gender tagging (per-hook)
+NEVER write the phrase "good with that, just the way you are" or any close paraphrase. That phrase is permanently banned by editorial decision.
+
+## Structural variance — every batch must spread
+
+Each batch of N hooks must use DIFFERENT structural approaches. The per-outcome direction will add outcome-specific anti-clustering rules; this section is the universal floor.
+
+Spread deliberately across these levers — never cluster:
+
+1. **Sentence type:** declaration, question, imperative, observation, fragment. No more than 2 of the same type per batch.
+2. **Tense:** present, past, future. No more than half the batch in any one tense.
+3. **Point of view:** self (I/me), other (you), collective (we), impersonal (no pronoun). No more than half the batch in any one POV.
+4. **Specificity dial:** tight (names a specific named object, person, or place — Tulsa, Maria, the third step), medium (names a sensation or non-specific object — "the heavier one"), wide (names a feeling through implication — "I don't usually take this aisle"). At least one of each in batches of 6+.
+
+If you catch yourself in a groove — similar rhythm, similar sentence shape, similar opening word, similar imagery — break the pattern hard. Change sentence type, tense, AND POV simultaneously.
+
+## Vocal-gender tagging
 
 Tag each hook with a vocal_gender for downstream reference-track pairing:
 
-- "male" — uses he/him/his or has an unambiguously male first-person POV.
-- "female" — uses she/her/hers or has an unambiguously female first-person POV.
-- "duet" — structured as call-and-response between two voices.
-- null — gender-neutral, singable by any voice. **This is the default for the
-  vast majority of hooks.** Only tag male/female/duet when the lyric requires it.
+- "male" — uses he/him/his or has unambiguously male first-person POV
+- "female" — uses she/her/hers or has unambiguously female first-person POV
+- "duet" — structured as call-and-response between two voices
+- null — gender-neutral, singable by any voice. **Default for the vast majority of hooks.** Only tag male/female/duet when the lyric requires it.
 
 ## Output
 
-JSON only, no prose, no markdown fences:
-
-{ "hooks": [ { "text": "...", "vocal_gender": null }, ... ] }
-
-Do not number the hooks. Do not repeat any hook from the existing-hooks list.
+JSON only, via the emit_hooks tool. No prose, no markdown fences. Do not number the hooks. Each hook is its own entry.
 `.trim()
 
-const EMIT_HOOKS_TOOL: Anthropic.Tool = {
+export const EMIT_HOOKS_TOOL: Anthropic.Tool = {
   name: 'emit_hooks',
-  description: 'Emit the new candidate hooks. Each hook needs the text and an optional vocal_gender tag (omit when the hook is gender-neutral).',
+  description:
+    'Emit the new candidate hooks. Each hook needs the text and an optional vocal_gender tag (omit when the hook is gender-neutral).',
   input_schema: {
     type: 'object',
     properties: {
@@ -121,7 +116,11 @@ const EMIT_HOOKS_TOOL: Anthropic.Tool = {
           type: 'object',
           properties: {
             text: { type: 'string', description: 'The hook line, 4–10 words.' },
-            vocal_gender: { type: 'string', enum: ['male', 'female', 'duet'], description: 'Omit for gender-neutral hooks (the vast majority).' },
+            vocal_gender: {
+              type: 'string',
+              enum: ['male', 'female', 'duet'],
+              description: 'Omit for gender-neutral hooks (the vast majority).',
+            },
           },
           required: ['text'],
         },
@@ -129,14 +128,6 @@ const EMIT_HOOKS_TOOL: Anthropic.Tool = {
     },
     required: ['hooks'],
   },
-}
-
-export async function getOrSeedHookWriterPrompt(icpId: string): Promise<{ id: string; icpId: string; promptText: string }> {
-  const existing = await prisma.hookWriterPrompt.findUnique({ where: { icpId } })
-  if (existing) return existing
-  return prisma.hookWriterPrompt.create({
-    data: { icpId, promptText: HOOK_WRITER_PROMPT_SEED },
-  })
 }
 
 export type HookVocalGender = 'male' | 'female' | 'duet' | null
@@ -149,221 +140,70 @@ export interface DraftedHook {
 export interface DraftHooksResult {
   hooks: DraftedHook[]
   rawText: string
-  promptUsed: string
+  /** The full user message sent (system prompt is HOOK_SYSTEM_PROMPT). */
+  userMessage: string
 }
 
 /**
- * Builds the system + user message that the hook drafter sends to Claude.
- * Pulled out so the admin can preview the exact context without firing an
- * LLM call.
+ * Build the user message for a (icpId, outcomeId, n) target. Pulled out so
+ * the system prompt + user message can be inspected in tests without firing
+ * an LLM call.
+ *
+ * Includes: outcome title + tempo + mode + dynamics/instrumentation when
+ * present, brand lyric guidelines when present, per-outcome templateText
+ * (the load-bearing behavioral overlay) when present.
+ *
+ * Does NOT include: ICP psychographics, approved-hook exemplars,
+ * rejected-hook anti-anchors, existing-hook dedup list.
  */
-function extractTrigrams(text: string): Set<string> {
-  const words = text.toLowerCase().replace(/[^a-z' -]/g, ' ').split(/\s+/).filter(w => w.length > 1)
-  const trigrams = new Set<string>()
-  for (let i = 0; i < words.length - 2; i++) {
-    trigrams.add(`${words[i]} ${words[i + 1]} ${words[i + 2]}`)
-  }
-  return trigrams
-}
-
-function sharesTooManyTrigrams(candidate: string, existingTrigrams: Set<string>): boolean {
-  const candidateTrigrams = extractTrigrams(candidate)
-  for (const tg of candidateTrigrams) {
-    if (existingTrigrams.has(tg)) return true
-  }
-  return false
-}
-
-export async function buildHookDrafterContext(opts: {
-  icpId: string
-  outcomeId: string
-  n: number
-}): Promise<{ systemPrompt: string; userMessage: string; existingHookTexts: string[] }> {
-  const [icp, outcome, prompt] = await Promise.all([
-    prisma.iCP.findUniqueOrThrow({ where: { id: opts.icpId }, include: { client: true } }),
-    prisma.outcome.findUniqueOrThrow({
-      where: { id: opts.outcomeId },
-      include: { productionEra: true },
+export async function buildUserMessage(opts: { icpId: string; outcomeId: string; n: number }): Promise<string> {
+  const [icp, outcome] = await Promise.all([
+    prisma.iCP.findUniqueOrThrow({
+      where: { id: opts.icpId },
+      include: { client: { select: { brandLyricGuidelines: true } } },
     }),
-    getOrSeedHookWriterPrompt(opts.icpId),
+    prisma.outcome.findUniqueOrThrow({ where: { id: opts.outcomeId } }),
   ])
-
-  // Per-outcome operator guidance (keyed by outcomeKey so it survives across
-  // outcome versions). Optional — if not present or empty, the section is omitted.
   const lyricFactor = await prisma.outcomeLyricFactor.findUnique({
     where: { outcomeKey: outcome.outcomeKey },
     select: { templateText: true },
   })
-  const lyricGuidance = lyricFactor?.templateText?.trim() || null
+  const overlay = lyricFactor?.templateText?.trim() || null
 
-  const existingHooks = await prisma.hook.findMany({
-    where: { icpId: opts.icpId, outcomeId: opts.outcomeId },
-    select: { text: true, status: true, rejectionReason: true },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-  })
-
-  // Split by status so the prompt can use approved hooks as positive anchors
-  // ("write more in this voice") and rejected hooks as anti-anchors with their
-  // captured reasons. Every approval and every rejection becomes a teaching
-  // signal for the next batch.
-  const approvedExemplars = existingHooks
-    .filter((h) => h.status === 'approved')
-    .slice(0, 12)
-    .map((h) => h.text)
-  const rejectedSamples = existingHooks
-    .filter((h) => h.status === 'rejected')
-    .slice(0, 8)
-    .map((h) => ({ text: h.text, reason: h.rejectionReason }))
-
-  // Dedup: any hook already shown in approvedExemplars or rejectedSamples is
-  // suppressed from the generic "existing hooks" list below so each hook
-  // appears in the prompt at most once. Without this, busy ICPs render the
-  // same hook 2-3 times across the three blocks — pure token waste.
-  const shownTexts = new Set<string>([
-    ...approvedExemplars,
-    ...rejectedSamples.map((r) => r.text),
-  ])
-  const remainingHooks = existingHooks.filter((h) => !shownTexts.has(h.text))
-
-  const icpDescriptor = [
-    icp.name && `Name: ${icp.name}`,
-    icp.ageRange && `Age range: ${icp.ageRange}`,
-    icp.location && `Location: ${icp.location}`,
-    icp.politicalSpectrum && `Political: ${icp.politicalSpectrum}`,
-    icp.openness && `Openness: ${icp.openness}`,
-    icp.fears && `Fears: ${icp.fears}`,
-    icp.values && `Values: ${icp.values}`,
-    icp.desires && `Desires: ${icp.desires}`,
-    icp.unexpressedDesires && `Unexpressed desires: ${icp.unexpressedDesires}`,
-    icp.turnOffs && `Turn-offs: ${icp.turnOffs}`,
-  ].filter(Boolean).join('\n')
-
-  // title is the behavioral/LLM signal ("Linger", "Browse to Buy", etc.).
-  // displayTitle is the operator-facing retail label ("Stay & Browse", etc.) —
-  // a floor-management concept, not a lyric signal. Hook generation always keys on title.
-  const emotionalTarget = outcome.title
-  const era = outcome.productionEra
-  const outcomeDescriptor = [
-    `Emotional target: ${emotionalTarget}`,
+  const outcomeBlock = [
+    `Emotional target: ${outcome.title}`,
     `Tempo: ${outcome.tempoBpm} bpm`,
     `Mode: ${outcome.mode}`,
     outcome.dynamics && `Dynamics: ${outcome.dynamics}`,
     outcome.instrumentation && `Instrumentation: ${outcome.instrumentation}`,
-    outcome.familiarity && `Familiarity: ${outcome.familiarity}`,
-    era && `Production era: ${era.genreDisplayName ?? era.genreSlug} · ${era.decade}`,
-    era?.textureLanguage && `Era texture: ${era.textureLanguage}`,
-  ].filter(Boolean).join('\n')
+  ]
+    .filter(Boolean)
+    .join('\n')
 
-  const userMessage = `# ICP
+  const brandBlock = icp.client?.brandLyricGuidelines?.trim()
+    ? `# Brand lyric guidelines\n\n${icp.client.brandLyricGuidelines.trim()}\n\n`
+    : ''
 
-${icpDescriptor}
+  const overlayBlock = overlay
+    ? `# Per-outcome lyric direction\n\nAuthoritative for content and tone on this outcome. The craft rules in the system prompt remain the floor; this is the outcome-specific layer.\n\n${overlay}\n\n`
+    : ''
 
-# Outcome (the song's emotional target)
+  return `# Outcome (the song's emotional target)
 
 The hooks you write must embody and pay off the **emotional target** below.
 Treat the emotional target as the controlling intent — every hook should land
-inside that feeling. The musical specs (tempo / mode / instrumentation / era)
-are constraints the song will be produced within; let them inform the
-diction, density, and image vocabulary of the hook.
+inside that feeling. The musical specs (tempo / mode / dynamics / instrumentation)
+are constraints the song will be produced within; let them inform the diction,
+density, and image vocabulary of the hook.
 
-${outcomeDescriptor}
+${outcomeBlock}
 
-${lyricGuidance ? `# Lyric guidance for this outcome\n\nThis is authored guidance specific to the **${emotionalTarget}** outcome. Treat it as authoritative on diction, imagery, and what to avoid for this emotional target.\n\n${lyricGuidance}\n\n` : ''}${icp.client?.brandLyricGuidelines ? `# Brand lyric guidelines\n\n${icp.client.brandLyricGuidelines}\n\n` : ''}${approvedExemplars.length > 0 ? `# Approved hooks for this ICP + Outcome — anchor on these
+${brandBlock}${overlayBlock}# Task
 
-These hooks were chosen as good fits for this exact ICP and outcome. They reflect the editorial taste — concreteness, register, image vocabulary, mouth-feel. **Write more in this voice.** Match their level of specificity, their relationship to the brand, and the kind of scene they paint. Vary the *structure* (sentence type, tense, POV) but stay inside the same emotional and aesthetic space.
+Write ${opts.n} new hook candidates for this outcome. Apply the structural
+variance, scene test, and diction rules from the system prompt${overlay ? ', and the per-outcome direction above' : ''}.
 
-${approvedExemplars.map((t) => `- "${t}"`).join('\n')}
-
-` : ''}${rejectedSamples.length > 0 ? `# Rejected hooks — avoid this shape
-
-These hooks were rejected for this ICP + outcome. Each line includes the reason it was rejected when one was captured. Read the reason as the boundary of what doesn't fit — do not write anything that triggers the same problem.
-
-${rejectedSamples.map((h) => h.reason ? `- "${h.text}" — reason: ${h.reason}` : `- "${h.text}"`).join('\n')}
-
-` : ''}${remainingHooks.length > 0 ? `# Other existing hooks (do not repeat verbatim)
-
-${remainingHooks.map((h) => `- "${h.text}" (${h.status})`).join('\n')}
-
-` : ''}# Task
-
-Write ${opts.n} new hook candidates for this ICP + Outcome.${approvedExemplars.length > 0 ? ' Anchor on the approved hooks above — match their voice and concreteness.' : ''} Apply the structural variance, scene test, and diction rules from the system prompt.${rejectedSamples.length > 0 ? ' Stay outside the shape of the rejected hooks listed above.' : ''}
-
-Output JSON only.`
-
-  const existingHookTexts = existingHooks.map((h) => h.text)
-  return { systemPrompt: prompt.promptText, userMessage, existingHookTexts }
-}
-
-const OUTCOME_PROMPT_SYSTEM = `You generate hook lines for songs. The user will provide a creative brief.
-
-Return JSON only, no prose, no markdown fences:
-
-{ "hooks": [ { "text": "...", "vocal_gender": null }, ... ] }
-
-vocal_gender values: "male", "female", "duet", or null (gender-neutral, the default for most hooks).
-`.trim()
-
-async function draftHooksFromOutcomePrompt(opts: {
-  hookPrompt: string
-  icpId: string
-  outcomeId: string
-  n: number
-}): Promise<DraftHooksResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
-  const client = new Anthropic({ apiKey })
-
-  const existingHooks = await prisma.hook.findMany({
-    where: { icpId: opts.icpId, outcomeId: opts.outcomeId },
-    select: { text: true },
-    orderBy: { createdAt: 'desc' },
-    take: 200,
-  })
-  const existingHookTexts = existingHooks.map((h) => h.text)
-
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 4000,
-    system: [{ type: 'text', text: OUTCOME_PROMPT_SYSTEM, cache_control: { type: 'ephemeral' } }],
-    messages: [{ role: 'user', content: opts.hookPrompt }],
-    tools: [EMIT_HOOKS_TOOL],
-    tool_choice: { type: 'tool', name: 'emit_hooks' },
-  })
-
-  const toolUse = response.content.find((b: any) => b.type === 'tool_use' && (b as any).name === 'emit_hooks') as any
-  if (!toolUse) throw new Error('Hook drafter did not emit tool_use')
-  const parsed = toolUse.input as { hooks: unknown }
-  if (!Array.isArray(parsed.hooks)) throw new Error('Drafter output missing hooks array')
-
-  const allowed: HookVocalGender[] = ['male', 'female', 'duet', null]
-  const hooks: DraftedHook[] = parsed.hooks
-    .map((row): DraftedHook | null => {
-      if (typeof row === 'string') {
-        const t = row.trim()
-        return t ? { text: t, vocalGender: null } : null
-      }
-      if (row && typeof row === 'object') {
-        const r = row as { text?: unknown; vocal_gender?: unknown }
-        const text = typeof r.text === 'string' ? r.text.trim() : ''
-        if (!text) return null
-        const rawGender = (r as any).vocal_gender
-        const vocalGender =
-          rawGender === 'male' || rawGender === 'female' || rawGender === 'duet' ? rawGender : null
-        if (!allowed.includes(vocalGender)) return null
-        return { text, vocalGender }
-      }
-      return null
-    })
-    .filter((h): h is DraftedHook => h !== null)
-
-  const existingTrigrams = new Set<string>()
-  for (const t of existingHookTexts) {
-    for (const tg of extractTrigrams(t)) existingTrigrams.add(tg)
-  }
-  const deduped = hooks.filter((h) => !sharesTooManyTrigrams(h.text, existingTrigrams))
-
-  return { hooks: deduped, rawText: JSON.stringify(parsed), promptUsed: opts.hookPrompt }
+Output JSON only via the emit_hooks tool.`
 }
 
 export async function draftHooks(opts: {
@@ -371,37 +211,24 @@ export async function draftHooks(opts: {
   outcomeId: string
   n: number
 }): Promise<DraftHooksResult> {
-  // Check for per-outcome hookPrompt first — if set, use it as the complete
-  // prompt with no ICP context injection.
-  const outcome = await prisma.outcome.findUniqueOrThrow({
-    where: { id: opts.outcomeId },
-    select: { outcomeKey: true },
-  })
-  const factor = await prisma.outcomeLyricFactor.findUnique({
-    where: { outcomeKey: outcome.outcomeKey },
-    select: { hookPrompt: true },
-  })
-  if (factor?.hookPrompt?.trim()) {
-    return draftHooksFromOutcomePrompt({ hookPrompt: factor.hookPrompt, ...opts })
-  }
-
-  // Legacy path: ICP-entangled prompt with complex context building
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
   const client = new Anthropic({ apiKey })
 
-  const { systemPrompt, userMessage, existingHookTexts } = await buildHookDrafterContext(opts)
+  const userMessage = await buildUserMessage(opts)
 
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 2000,
-    system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+    system: [{ type: 'text', text: HOOK_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: userMessage }],
     tools: [EMIT_HOOKS_TOOL],
     tool_choice: { type: 'tool', name: 'emit_hooks' },
   })
 
-  const toolUse = response.content.find((b: any) => b.type === 'tool_use' && (b as any).name === 'emit_hooks') as any
+  const toolUse = response.content.find(
+    (b: any) => b.type === 'tool_use' && (b as any).name === 'emit_hooks',
+  ) as any
   if (!toolUse) throw new Error('Hook drafter did not emit tool_use')
   const parsed = toolUse.input as { hooks: unknown }
   if (!Array.isArray(parsed.hooks)) throw new Error('Drafter output missing hooks array')
@@ -427,12 +254,5 @@ export async function draftHooks(opts: {
     })
     .filter((h): h is DraftedHook => h !== null)
 
-  const existingTrigrams = new Set<string>()
-  for (const t of existingHookTexts) {
-    for (const tg of extractTrigrams(t)) existingTrigrams.add(tg)
-  }
-
-  const deduped = hooks.filter((h) => !sharesTooManyTrigrams(h.text, existingTrigrams))
-
-  return { hooks: deduped, rawText: JSON.stringify(parsed), promptUsed: systemPrompt }
+  return { hooks, rawText: JSON.stringify(parsed), userMessage }
 }

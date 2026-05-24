@@ -14,7 +14,7 @@ For the load-bearing rules that apply across these subsystems (Outcome-prepend w
 | `proto-bernie/` | Earlier Bernie variant kept for comparison; not in the production path. | — |
 | `decomposer/` | Reference-track analysis — turns a track into a structured `StyleAnalysis`. Feeds Mars. | `decompose` ([decomposer/decomposer.ts](decomposer/decomposer.ts)) |
 | `arranger/` | Injects arrangement section markers (`[verse]`, `[chorus]`, etc.) into Bernie's lyric output before Suno. | `injectArrangement` ([arranger/arranger.ts](arranger/arranger.ts)) |
-| `hooks/` | Hook writer — drafts hooks for an ICP. Surfaces in Dash; consumed by `/admin/icps/:id/hook-writer/run`. | `draftHooks` ([hooks/drafter.ts](hooks/drafter.ts)) |
+| `hooks/` | Hook writer — drafts hooks for an (ICP, Outcome). Universal craft system prompt + per-outcome behavioral overlay from `OutcomeLyricFactor.templateText`. No ICP psychographics injected. Consumed by `/admin/icps/:id/hook-writer/run`. | `draftHooks` ([hooks/drafter.ts](hooks/drafter.ts)) |
 | `ref-tracks/` | Reference-track ingest + dedupe. | — |
 
 ## Playback + scheduling

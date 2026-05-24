@@ -162,7 +162,6 @@ export interface OutcomeLyricFactorRow {
   displayTitle: string | null
   version: number
   templateText: string
-  hookPrompt: string | null
   notes: string | null
   updatedAt: string | null
 }
@@ -1171,8 +1170,8 @@ export const api = {
     req<OutcomeRowFull>(`/admin/outcomes/${id}/supersede`, { method: 'POST' }, token),
   outcomeLyricFactors: (token: string) =>
     req<OutcomeLyricFactorRow[]>('/admin/outcome-lyric-factors', {}, token),
-  saveOutcomeLyricFactor: (outcomeKey: string, body: { templateText?: string; hookPrompt?: string | null; notes?: string | null }, token: string) =>
-    req<{ outcomeKey: string; templateText: string; hookPrompt: string | null; notes: string | null; updatedAt: string }>(
+  saveOutcomeLyricFactor: (outcomeKey: string, body: { templateText?: string; notes?: string | null }, token: string) =>
+    req<{ outcomeKey: string; templateText: string; notes: string | null; updatedAt: string }>(
       `/admin/outcome-lyric-factors/${outcomeKey}`,
       { method: 'PUT', body: JSON.stringify(body) },
       token,
@@ -1215,25 +1214,12 @@ export const api = {
     token: string,
   ) =>
     req<{ created: number }>(`/admin/icps/${icpId}/hooks/bulk`, { method: 'POST', body: JSON.stringify(body) }, token),
-  hookWriterPrompt: (icpId: string, token: string) =>
-    req<{
-      latest: { id: string; icpId: string; promptText: string; version: number; updatedAt: string }
-      history: { id: string; icpId: string; version: number; promptText: string; notes: string | null; createdAt: string }[]
-    }>(`/admin/icps/${icpId}/hook-writer-prompt`, {}, token),
-  saveHookWriterPrompt: (icpId: string, promptText: string, notes: string | null, token: string) =>
-    req<{ id: string; icpId: string; promptText: string; version: number }>(`/admin/icps/${icpId}/hook-writer-prompt`, { method: 'PUT', body: JSON.stringify({ promptText, notes }) }, token),
   retireHookPreview: (id: string, token: string) =>
     req<{ hookId: string; status: string; inFlightSongSeeds: number; activeLineageRows: number; warning: string | null }>(`/admin/hooks/${id}/retire-preview`, {}, token),
   retireHook: (id: string, force: boolean, token: string) =>
     req<HookRowFull>(`/admin/hooks/${id}/retire`, { method: 'POST', body: JSON.stringify({ force }) }, token),
   draftHooks: (icpId: string, body: { outcomeId: string; n: number }, token: string) =>
     req<{ hooks: DraftedHook[] }>(`/admin/icps/${icpId}/hook-writer/run`, { method: 'POST', body: JSON.stringify(body) }, token),
-  hookDrafterContext: (icpId: string, outcomeId: string, n: number, token: string) =>
-    req<{ systemPrompt: string; userMessage: string }>(
-      `/admin/icps/${icpId}/hook-writer/context?outcomeId=${encodeURIComponent(outcomeId)}&n=${n}`,
-      {},
-      token,
-    ),
 
   // --- Playback ---
 

@@ -18,7 +18,6 @@ import { LyricBanList } from './panels/engine/LyricBanList.js'
 import { OutcomeFactorPrompt } from './panels/engine/OutcomeFactorPrompt.js'
 import { OutcomeLyricFactor } from './panels/engine/OutcomeLyricFactor.js'
 import { ReferenceTrackPrompt } from './panels/engine/ReferenceTrackPrompt.js'
-import { HookDrafterPrompt } from './panels/engine/HookDrafterPrompt.js'
 import { FormArchetypes } from './panels/engine/FormArchetypes.js'
 import { IcpEditor } from './panels/brand/IcpEditor.js'
 import { ClientDetail } from './panels/brand/ClientDetail.js'
@@ -60,7 +59,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Outcome Library', 'Style Rules', 'Dry Run'],
     description: '' },
   { key: 'engine', label: 'Prompts & Rules', short: 'Prompts & Rules', icon: Settings,
-    cards: ['Hook Prompts', 'Hook Drafter (legacy)', 'Decomposition', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Mars Prompts', 'Form Archetypes', 'Reference Track Suggester'],
+    cards: ['Hook Prompts', 'Decomposition', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Mars Prompts', 'Form Archetypes', 'Reference Track Suggester'],
     description: '' },
   { key: 'catalogue', label: 'Library', short: 'Library', icon: Music2,
     cards: ['Song Browser', 'Flagged Review', 'Pool Depth', 'Free Tier Outcomes'],
@@ -290,7 +289,6 @@ function EngineRouter({ cards }: { cards: string[] }) {
         })}
       </div>
       {active === 'Hook Prompts' && <OutcomeLyricFactor />}
-      {active === 'Hook Drafter (legacy)' && <HookDrafterPrompt />}
       {active === 'Decomposition' && <DecomposerRules />}
       {active === 'Style Exclusion Rules' && <FailureRules />}
       {active === 'Lyric Ban List' && <LyricBanList />}

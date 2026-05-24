@@ -32,7 +32,7 @@ import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 import { runEno } from '../lib/eno/eno.js'
 import { FREE_TIER_ICP_ID, FREE_TIER_AD_STORE_ID, FREE_TIER_CLIENT_ID } from '../lib/freeTier.js'
 import { downloadAndUploadFromUrl, uploadBuffer } from '../lib/r2.js'
-import { draftHooks, getOrSeedHookWriterPrompt, buildHookDrafterContext } from '../lib/hooks/drafter.js'
+import { draftHooks } from '../lib/hooks/drafter.js'
 import { suggestReferenceTracks } from '../lib/ref-tracks/suggester.js'
 import { uniqueStoreSlug } from '../lib/account.js'
 import { resolvePreview } from '../lib/ref-tracks/preview.js'
@@ -1585,15 +1585,17 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       displayTitle: o.displayTitle,
       version: o.version,
       templateText: factorByKey.get(o.outcomeKey)?.templateText ?? '',
-      hookPrompt: factorByKey.get(o.outcomeKey)?.hookPrompt ?? null,
       notes: factorByKey.get(o.outcomeKey)?.notes ?? null,
       updatedAt: factorByKey.get(o.outcomeKey)?.updatedAt?.toISOString() ?? null,
     }))
   })
 
+  // hookPrompt field is deprecated (no longer read by the drafter as of
+  // 2026-05-24 refactor); templateText is now the single per-outcome
+  // behavioral overlay. Field stays in schema for migration safety; this
+  // route stops accepting writes to it.
   const OutcomeLyricFactorBody = z.object({
     templateText: z.string().optional(),
-    hookPrompt: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),
   })
 
@@ -1602,22 +1604,19 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const outcomeKey = (req.params as any).outcomeKey as string
     const parsed = OutcomeLyricFactorBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    // Confirm the outcome family exists.
     const exists = await prisma.outcome.findFirst({ where: { outcomeKey }, select: { id: true } })
     if (!exists) return reply.code(404).send({ error: 'unknown_outcome' })
     const updateData: Record<string, unknown> = { updatedById: op.accountId }
     if (parsed.data.templateText !== undefined) updateData.templateText = parsed.data.templateText
-    if (parsed.data.hookPrompt !== undefined) updateData.hookPrompt = parsed.data.hookPrompt
     if (parsed.data.notes !== undefined) updateData.notes = parsed.data.notes ?? null
     const row = await prisma.outcomeLyricFactor.upsert({
       where: { outcomeKey },
       update: updateData,
-      create: { outcomeKey, templateText: parsed.data.templateText ?? '', hookPrompt: parsed.data.hookPrompt ?? null, notes: parsed.data.notes ?? null, updatedById: op.accountId },
+      create: { outcomeKey, templateText: parsed.data.templateText ?? '', notes: parsed.data.notes ?? null, updatedById: op.accountId },
     })
     return {
       outcomeKey: row.outcomeKey,
       templateText: row.templateText,
-      hookPrompt: row.hookPrompt,
       notes: row.notes,
       updatedAt: row.updatedAt.toISOString(),
     }
@@ -2199,47 +2198,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     reject: z.union([z.boolean(), z.object({ reason: z.string().max(280).optional() })]).optional(),
   })
 
-  // ----- Hook Drafter (per-ICP prompt + LLM run) -----
-
-  app.get('/icps/:id/hook-writer-prompt', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
-    const icpId = (req.params as any).id as string
-    const latest = await getOrSeedHookWriterPrompt(icpId)
-    const history = await prisma.hookWriterPromptVersion.findMany({
-      where: { icpId },
-      orderBy: { version: 'desc' },
-      take: 50,
-    })
-    return { latest, history }
-  })
-
-  const HookWriterPromptBody = z.object({ promptText: z.string().min(1), notes: z.string().nullable().optional() })
-
-  app.put('/icps/:id/hook-writer-prompt', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
-    const icpId = (req.params as any).id as string
-    const parsed = HookWriterPromptBody.safeParse(req.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const result = await prisma.$transaction(async (tx) => {
-      const existing = await tx.hookWriterPrompt.findUnique({ where: { icpId } })
-      const nextVersion = (existing?.version ?? 0) + 1
-      const updated = await tx.hookWriterPrompt.upsert({
-        where: { icpId },
-        create: { icpId, promptText: parsed.data.promptText, version: nextVersion, updatedById: op.accountId },
-        update: { promptText: parsed.data.promptText, version: nextVersion, updatedById: op.accountId },
-      })
-      await tx.hookWriterPromptVersion.create({
-        data: {
-          icpId, version: nextVersion,
-          promptText: parsed.data.promptText,
-          notes: parsed.data.notes ?? null,
-          createdById: op.accountId,
-        },
-      })
-      return updated
-    })
-    return result
-  })
+  // ----- Hook Drafter -----
+  // Architecture: universal craft system prompt + per-outcome behavioral overlay
+  // via OutcomeLyricFactor.templateText. No per-ICP prompt customization
+  // (removed 2026-05-24 — all 12 per-ICP rows were identical to the seed).
+  // See apps/server/src/lib/hooks/drafter.ts.
 
   const DraftHooksBody = z.object({
     outcomeId: z.string().uuid(),
@@ -2256,22 +2219,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       return { hooks: result.hooks }
     } catch (e: any) {
       return reply.code(502).send({ error: 'drafter_failed', message: e.message ?? 'unknown' })
-    }
-  })
-
-  // Returns the system + user message that would be sent to Claude for the
-  // given (ICP, Outcome, n). Read-only — does not call the model.
-  app.get('/icps/:id/hook-writer/context', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
-    const icpId = (req.params as any).id as string
-    const q = req.query as { outcomeId?: string; n?: string }
-    if (!q.outcomeId) return reply.code(400).send({ error: 'bad_query', message: 'outcomeId required' })
-    const n = Math.max(1, Math.min(20, Number(q.n ?? 5) || 5))
-    try {
-      const ctx = await buildHookDrafterContext({ icpId, outcomeId: q.outcomeId, n })
-      return ctx
-    } catch (e: any) {
-      return reply.code(502).send({ error: 'context_build_failed', message: e.message ?? 'unknown' })
     }
   })
 

@@ -28,8 +28,8 @@ export function OutcomeLyricFactor() {
     () => (rows && activeKey ? rows.find((r) => r.outcomeKey === activeKey) ?? null : null),
     [rows, activeKey],
   )
-  const draftValue = active ? (drafts[active.outcomeKey] ?? active.hookPrompt ?? '') : ''
-  const savedValue = active?.hookPrompt ?? ''
+  const draftValue = active ? (drafts[active.outcomeKey] ?? active.templateText ?? '') : ''
+  const savedValue = active?.templateText ?? ''
   const dirty = !!active && draftValue !== savedValue
 
   const save = async () => {
@@ -37,10 +37,10 @@ export function OutcomeLyricFactor() {
     const token = getToken(); if (!token) return
     setBusy(active.outcomeKey); setErr(null)
     try {
-      await api.saveOutcomeLyricFactor(active.outcomeKey, { hookPrompt: draftValue || null }, token)
+      await api.saveOutcomeLyricFactor(active.outcomeKey, { templateText: draftValue }, token)
       setDrafts((d) => { const n = { ...d }; delete n[active.outcomeKey]; return n })
       await reload()
-      toast.success(`saved hook prompt for ${outcomeLabel(active)}`)
+      toast.success(`saved lyric direction for ${outcomeLabel(active)}`)
     } catch (e: any) { setErr(e.message); toast.error(e.message ?? 'failed to save') }
     finally { setBusy(null) }
   }
@@ -48,7 +48,7 @@ export function OutcomeLyricFactor() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textDim, lineHeight: 1.5 }}>
-        Per-outcome prompt sent directly to the LLM when drafting hooks. The entire prompt — no ICP data is injected.
+        Per-outcome lyric direction injected into the hook drafter (and downstream consumers). Layered on top of the universal craft system prompt; defines the outcome-specific behavioral overlay. No ICP data is injected.
       </div>
 
       {err && <div style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</div>}
@@ -69,8 +69,8 @@ export function OutcomeLyricFactor() {
           }}>
             {rows.map((r) => {
               const on = r.outcomeKey === activeKey
-              const hasPrompt = (drafts[r.outcomeKey] ?? r.hookPrompt ?? '').trim().length > 0
-              const isDirty = drafts[r.outcomeKey] !== undefined && drafts[r.outcomeKey] !== (r.hookPrompt ?? '')
+              const hasPrompt = (drafts[r.outcomeKey] ?? r.templateText ?? '').trim().length > 0
+              const isDirty = drafts[r.outcomeKey] !== undefined && drafts[r.outcomeKey] !== (r.templateText ?? '')
               return (
                 <button
                   key={r.outcomeKey}
@@ -110,7 +110,7 @@ export function OutcomeLyricFactor() {
                 value={draftValue}
                 onChange={(e) => setDrafts({ ...drafts, [active.outcomeKey]: e.target.value })}
                 rows={24}
-                placeholder="Paste the complete hook generation prompt for this outcome…"
+                placeholder="Per-outcome lyric direction (sensory seeds, anti-clustering rules, spread vectors, do-not list)…"
                 style={{
                   width: '100%', boxSizing: 'border-box',
                   background: T.bg, color: T.text,
@@ -139,7 +139,7 @@ export function OutcomeLyricFactor() {
             </div>
           ) : (
             <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>
-              pick an outcome above to edit its hook prompt
+              pick an outcome above to edit its lyric direction
             </div>
           )}
         </>

@@ -96,8 +96,6 @@ async function preflightCleanup() {
       await prisma.songSeed.deleteMany({ where: { icpId: i.id } })
       await prisma.songSeedBatch.deleteMany({ where: { icpId: i.id } })
       await prisma.hook.deleteMany({ where: { icpId: i.id } })
-      await prisma.hookWriterPromptVersion.deleteMany({ where: { icpId: i.id } })
-      await prisma.hookWriterPrompt.deleteMany({ where: { icpId: i.id } })
       await prisma.referenceTrack.deleteMany({ where: { icpId: i.id } })
       await prisma.iCP.delete({ where: { id: i.id } }).catch(() => {})
     }
@@ -132,8 +130,6 @@ async function teardown() {
     await prisma.songSeed.deleteMany({ where: { icpId: testIcpId } })
     await prisma.songSeedBatch.deleteMany({ where: { icpId: testIcpId } })
     await prisma.hook.deleteMany({ where: { icpId: testIcpId } })
-    await prisma.hookWriterPromptVersion.deleteMany({ where: { icpId: testIcpId } })
-    await prisma.hookWriterPrompt.deleteMany({ where: { icpId: testIcpId } })
     await prisma.referenceTrack.deleteMany({ where: { icpId: testIcpId } })
     await prisma.iCP.delete({ where: { id: testIcpId } }).catch(() => {})
   }
@@ -262,28 +258,6 @@ async function main() {
     } catch (e: any) {
       if (!e.message.includes('409')) throw e
     }
-  })
-
-  await step('hook drafter prompt — write v1', async () => {
-    const r = await api<any>('PUT', `/admin/icps/${testIcpId}/hook-writer-prompt`, {
-      promptText: 'E2E v1 prompt body.', notes: 'first version',
-    })
-    assert(r.version >= 1, 'no version returned')
-    return `v${r.version}`
-  })
-
-  await step('hook drafter prompt — write v2 (versioning increments)', async () => {
-    const r = await api<any>('PUT', `/admin/icps/${testIcpId}/hook-writer-prompt`, {
-      promptText: 'E2E v2 prompt body.', notes: 'reworded opener',
-    })
-    assert(r.version >= 2, `expected v2+, got v${r.version}`)
-  })
-
-  await step('hook drafter prompt — GET returns latest + history (≥2)', async () => {
-    const r = await api<any>('GET', `/admin/icps/${testIcpId}/hook-writer-prompt`)
-    assert(r.latest, 'no latest')
-    assert(Array.isArray(r.history) && r.history.length >= 2, `expected ≥2 history, got ${r.history?.length}`)
-    return `latest v${r.latest.version} · ${r.history.length} versions in history`
   })
 
   await step('GET /admin/hooks/:id/retire-preview', async () => {
