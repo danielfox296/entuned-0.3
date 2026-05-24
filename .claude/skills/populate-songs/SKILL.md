@@ -1,289 +1,376 @@
 ---
 name: populate-songs
-description: Populate a library in Dash (dash.entuned.co) by round-tripping prompts to Suno and pasting the share link back. Use when Daniel asks to fill out a library, generate songs for a store/entity, or "run Dash → Suno → Dash" loop.
+description: Round-trip queued SongSeeds through Suno (dash.entuned.co → suno.com → dash.entuned.co). For each queued prompt: inject the lyrics/style/exclusions/title/vocal into a Suno tab, click Create, wait for both takes to render, paste the two URLs back into the Dash seed row, click "accept takes". Server downloads + re-hosts the audio on R2. Use when Daniel asks to "fill the library", "run populate-songs", "generate songs for X", "make final songs", or after `make-song-seeds` produces queued prompts. Required because Suno has no API — the browser is the only interface.
 ---
 
 # populate-songs
 
-Round-trip song generation: read all queued prompts from Dash, generate in Suno, accept URLs back into Dash.
+The third and final stage of the generation pipeline:
+
+```
+draft-hooks  →  make-song-seeds  →  populate-songs (YOU ARE HERE)
+   (CLI)         (CLI)               (browser, Suno web UI)
+```
+
+This is the only stage that needs a browser. The previous two run over `railway ssh`.
 
 ## Tools
 
-- **Chrome MCP** (`mcp__Claude_in_Chrome__*`) for all browser actions. Both Dash and Suno are pre-logged-in.
-- Load Chrome MCP tools at the start of each session via ToolSearch before doing anything.
-- Use `browser_batch` for visual coordinate clicks when JS `.click()` silently no-ops (see friction notes).
+- **Chrome MCP** (`mcp__Claude_in_Chrome__*`) — both Dash (`dash.entuned.co`) and Suno (`suno.com/create`) are pre-logged-in.
+- Load Chrome MCP tools via ToolSearch at the start of each context segment.
+- Use `browser_batch` heavily — most steps batch cleanly into one round trip per tab.
 
-## Suno mode
+## How the round trip works
 
-The lyrics/style input mode is called **"Advanced"** in Suno v5.5 (previously "Custom"). Click the "Advanced" button in the top bar to activate it. Textareas won't be present in Simple mode.
+```
+Dash (read prompt)  →  Suno tab (inject + Create)  →  wait ~75-90s
+                                                        ↓
+Dash (accept takes) ←  Suno tab (read 2 UUIDs)  ←  generation completes
+       ↓
+Server downloads + uploads to R2 + sets SongSeed.status='accepted'
+```
+
+Each prompt produces 2 takes (Suno's default). Both UUIDs go into the Dash seed row's `take 1` / `take 2` URL inputs; one click on "accept takes" triggers server-side R2 download for both.
 
 ## Tab count
 
-| Queue size | Tabs | Batches | ~Time |
-|---|---|---|---|
-| 1–2 | 2 | 1 | ~2 min |
-| 3–4 | 4 | 1 | ~2 min |
-| 5–8 | 4 | 2 | ~4 min |
-| 9+ | 4 | ceil(N/4) | ~2 min/batch |
+| Queue size | Tabs | ~Time per batch |
+|---|---|---|
+| 1–2 | 1 | ~3 min |
+| 3–4 | 4 | ~3 min |
+| 5–8 | 4 | ~3 min × ceil(N/4) |
+| 9+ | 4 | ~3 min × ceil(N/4) |
 
 **Default to 4 tabs.** Suno Pro has no rate limiting at 4 parallel. Open all 4 before touching Dash.
 
-## Session setup (do this once, upfront)
+---
 
-### Step 1 — Open 4 Suno tabs
+## Step 0 — Open N Suno tabs + navigate
 
 ```js
-// You'll have one existing tab. Open 3 more:
-// tabs_create_mcp × 3, navigate each to https://suno.com/create
+// tabs_create_mcp × N, then for each:
+// navigate to https://suno.com/create
 ```
 
-Note tab IDs: A, B, C, D.
+Wait ~4s after the last navigate for all tabs to render.
 
-### Step 2 — Click Advanced + set sliders on all 4 tabs
+## Step 1 — Per Suno tab: Advanced mode + More Options + sliders
 
-Do each tab sequentially (sliders are per-tab state):
+Suno v5.5 hides the sliders behind a collapsed "More Options" panel inside Advanced mode. Per tab:
 
 ```js
-// On each tab:
-Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Advanced')?.click();
+// Activate Advanced (if not already) + expand More Options
+const adv = Array.from(document.querySelectorAll('button'))
+  .find(b => b.textContent.trim() === 'Advanced' && b.getAttribute('data-selected') !== 'true');
+adv?.click();
+const moreOpt = Array.from(document.querySelectorAll('div, span'))
+  .find(el => el.textContent.trim() === 'More Options' && el.children.length === 0);
+moreOpt?.click();
 ```
 
-Then set **Weirdness to 75%** and **Style Influence to 62%** on each tab. These must be set in **two separate JS calls per slider** — batching both in one setTimeout causes both to target the same input:
+Then set **Weirdness = 61** and **Style Influence = 61** (the default values Daniel ships with).
+
+### Slider routine — JS-only (works in non-focused tabs)
+
+The keystroke-based routine (`cmd+a → type → Return`) only commits values in the **focused** tab. For multi-tab work, only this React-setter routine is reliable:
 
 ```js
-// Call 1 — open Weirdness input (pctEls[0] = Weirdness, pctEls[1] = Style Influence)
-const pctEls = Array.from(document.querySelectorAll('*')).filter(el =>
-  el.children.length === 0 && el.textContent.trim().match(/^\d+%$/)
-);
+// Two-call pattern per slider. Call 1: open the inline editor.
+const pctEls = Array.from(document.querySelectorAll('*'))
+  .filter(el => el.children.length === 0 && el.textContent.trim().match(/^\d+%$/));
+// pctEls[0] = Weirdness, pctEls[1] = Style Influence
 pctEls[0].dispatchEvent(new MouseEvent('dblclick', {bubbles: true}));
+```
 
-// Call 2 — set value
-function setReactValue(el, value) {
-  const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
-  Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);
+```js
+// Call 2 (after ~1s): find the now-focused input, set value, commit.
+function setRV(el, v) {
+  const proto = window.HTMLInputElement.prototype;
+  Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, v);
   el.dispatchEvent(new Event('input', {bubbles: true}));
   el.dispatchEvent(new Event('change', {bubbles: true}));
+  el.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', keyCode: 13, bubbles: true}));
+  el.blur();
 }
-const inp = Array.from(document.querySelectorAll('input[type="text"]')).find(i => i.placeholder === '');
-setReactValue(inp, '75');
-inp.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter',keyCode:13,bubbles:true}));
-inp.dispatchEvent(new KeyboardEvent('keypress',{key:'Enter',keyCode:13,bubbles:true}));
-inp.dispatchEvent(new KeyboardEvent('keyup',  {key:'Enter',keyCode:13,bubbles:true}));
-inp.blur();
-// Repeat for pctEls[1] → '62'
+const inp = Array.from(document.querySelectorAll('input'))
+  .find(i => i.type === 'text' && i.placeholder === '' && /^\d+$/.test(i.value));
+if (inp) setRV(inp, '61');
 ```
 
-Verify: both % labels show correct values before continuing.
+Repeat the two-call pattern for `pctEls[1]` (Style Influence) with value `61`.
 
-### Step 3 — Front-load ALL Dash prompt reads
+**Verify:** in a third call, query `pctEls` again — both labels should read `"61%"`.
 
-**Read every queued prompt into `window.__prompts` on the Dash tab before injecting anything into Suno.** This eliminates mid-inject tab-switching.
+---
+
+## Step 2 — Dash: switch to the target Client/Location/ICP
+
+Open Dash in its own tab: `https://dash.entuned.co/#workflows`
+
+The Workflows panel has 3 page-level `<select>` dropdowns at the top: **CLIENT**, **LOCATION**, **ICP**. They cascade — Location options populate after Client is set, ICP options after Location.
 
 ```js
-// In Dash — Song Creation Queue
-window.__prompts = [];
+function setSel(sel, val) {
+  const nv = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+  nv.call(sel, val);
+  sel.dispatchEvent(new Event('change', {bubbles: true}));
+}
+const sels = Array.from(document.querySelectorAll('select'));
+// sels[0] = Client, sels[1] = Location, sels[2] = ICP
+const opt = Array.from(sels[0].options).find(o => o.textContent.trim() === 'Untuckit');
+setSel(sels[0], opt.value);
+// wait ~1s for Location options to populate, then sels[1], same pattern
+// wait ~1s for ICP options to populate, then sels[2], same pattern
 ```
 
-For each prompt row in the queue, click to open modal, read all 5 fields, close, store:
+## Step 3 — Click the Pipeline sub-tab
 
 ```js
-// Read fields
-const tas = document.querySelectorAll('textarea');
-// tas[0]=lyrics, tas[1]=style, tas[2]=exclusions, tas[3]=title, tas[4]=gender
-window.__prompts.push({
+Array.from(document.querySelectorAll('button'))
+  .find(b => b.textContent.trim() === 'Pipeline')?.click();
+```
+
+The bottom of the Pipeline panel shows `N prompts queued — click to review` followed by a list of queued seed rows.
+
+---
+
+## Per-prompt loop
+
+For each Suno tab (1 to N), pick one prompt from the Dash queue and run:
+
+### 1. Open the seed row in Dash
+
+Each row has the hook text + outcome + ref track. Find the row by its title (e.g., `Just Need This`):
+
+```js
+const target = 'Just Need This';
+const row = Array.from(document.querySelectorAll('div'))
+  .filter(el => el.textContent.includes(target) && el.textContent.length < 200 && getComputedStyle(el).cursor === 'pointer')
+  .sort((a, b) => b.textContent.length - a.textContent.length)[0];
+row?.click();
+```
+
+Wait ~2s for modal to render.
+
+### 2. Read all fields from the modal
+
+The modal contains 3 textareas (lyrics / style / style-exclusions), 3 inputs (title + 2 take-URL slots), and 1 select (vocal gender). Page-level `<select>`s (the client/location/ICP at top) also exist — scope queries to the modal:
+
+```js
+// Find the modal container by walking up from the "Song Prompt" heading
+const heading = Array.from(document.querySelectorAll('*'))
+  .find(el => el.children.length === 0 && el.textContent.trim() === 'Song Prompt');
+let modal = heading;
+while (modal && modal.tagName !== 'BODY') {
+  if (modal.querySelectorAll('textarea').length >= 3 && modal.querySelector('select')) break;
+  modal = modal.parentElement;
+}
+
+const tas = modal.querySelectorAll('textarea');
+// NOTE: querySelectorAll('input[type="text"]') returns [] because Dash's React
+// doesn't set type as an HTML attribute. Use input + filter by .type prop:
+const titleI = Array.from(modal.querySelectorAll('input'))
+  .find(i => i.type === 'text' && !i.placeholder.startsWith('take'));
+const genSel = modal.querySelector('select');
+
+window.__prompts = window.__prompts || {};
+window.__prompts[N] = {  // N = the index of the Suno tab this prompt goes to
   lyrics: tas[0].value,
   style: tas[1].value,
   exclusions: tas[2].value,
-  title: tas[3].value,
-  gender: tas[4].value
-});
-// Close modal
-Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('✕'))?.click();
+  title: titleI.value,
+  gender: genSel.value,  // 'male' | 'female' | 'instrumental' | ''
+};
 ```
 
-Repeat for all prompts you intend to generate this batch (up to 4 = one full tab cycle).
+**Long fields (>800 chars) get truncated in the JS-tool response.** Read them in chunks in follow-up calls: `window.__prompts[N].lyrics.slice(800)`, etc. The full text is stored in `window.__prompts` even when the response truncates.
 
-> **Lyrics and style can be long.** If a field value is truncated in the JS response, read the tail with `tas[0].value.slice(700)` in a second call and concatenate before storing.
+### 3. Close the Dash modal
 
----
-
-## The loop
-
-### Inject batch (after all prompts are read into `window.__prompts`)
-
-For each tab A/B/C/D, inject `__prompts[0]`, `__prompts[1]`, etc. No Dash tab-switching needed — all data is in `window.__prompts`.
-
-**Inject pattern (React-safe):**
 ```js
-function setReactValue(el, value) {
+Array.from(document.querySelectorAll('button'))
+  .find(b => b.textContent.trim() === 'close ✕')?.click();
+```
+
+### 4. Inject into the matching Suno tab
+
+The Suno modal has 4 textareas. Only the first 2 are used; ignore the other 2 (song-idea / sound-description):
+
+```js
+const p = window.__prompts[N];  // values must be inlined as JS literals; window state doesn't cross origins
+function setRV(el, v) {
   const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
-  Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);
+  Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, v);
   el.dispatchEvent(new Event('input', {bubbles: true}));
   el.dispatchEvent(new Event('change', {bubbles: true}));
 }
-const p = window.__prompts[N]; // N = 0,1,2,3
 const tas = document.querySelectorAll('textarea');
-setReactValue(tas[0], p.lyrics);
-setReactValue(tas[1], p.style);
-const exclInput = Array.from(document.querySelectorAll('input')).find(i => i.placeholder === 'Exclude styles');
-setReactValue(exclInput, p.exclusions);
-const titleInput = Array.from(document.querySelectorAll('input')).filter(i => i.placeholder === 'Song Title (Optional)').at(-1);
-setReactValue(titleInput, p.title);
+setRV(tas[0], p.lyrics);
+setRV(tas[1], p.style);
+const exclI = Array.from(document.querySelectorAll('input')).find(i => i.placeholder === 'Exclude styles');
+setRV(exclI, p.exclusions);
+const titleI = Array.from(document.querySelectorAll('input'))
+  .filter(i => i.placeholder === 'Song Title (Optional)').at(-1);
+setRV(titleI, p.title);
 
-// Vocal toggle — use direct .click() ONLY (no fiber click — causes double-submit)
-// gender=male → Male; gender=female → Female; gender=instrumental/unknown + non-empty lyrics → Male; gender=instrumental + empty lyrics → Instrumental
-const vocal = p.gender === 'female' ? 'Female' : 'Male';
-const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === vocal);
-if (btn) btn.click();
+// Vocal toggle — pick label per gender rules below
+const vocalLabel = p.gender === 'female' ? 'Female' : (p.gender === 'instrumental' && !p.lyrics.trim() ? 'Instrumental' : 'Male');
+const vBtn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === vocalLabel);
+const wasSelected = vBtn?.getAttribute('data-selected') === 'true';
+if (!wasSelected) vBtn?.click();
 ```
 
-### Create (two-call pattern per tab)
+**Cross-origin caveat:** `window.__prompts` on the Dash tab is NOT readable from Suno tabs. The values for each prompt must be inlined into the inject JS as string literals. Use template literals (backticks) for the lyric — they handle newlines and apostrophes natively. Beware: backticks and `${` in the source require escaping; in practice the lyric content rarely contains either.
 
-**Call 1** injects fields + sets vocal (above).
+### Vocal toggle rules
 
-**Call 2** verifies vocal is selected (`data-selected` lags React render — must check in a SEPARATE JS call), then clicks Create:
-```js
-// Verify vocal — data-selected only reflects state after React re-renders (separate call)
-const maleBtn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Male');
-const femaleBtn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Female');
-const vocalOk = maleBtn?.getAttribute('data-selected') === 'true' || femaleBtn?.getAttribute('data-selected') === 'true';
-// If vocalOk is false, call btn.click() once more and check again in next call before proceeding
-
-// Click Create — use .click() only, never fiber click (fiber + .click() = double-submit = 4+ variants)
-Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Create')?.click();
-```
-
-After clicking, **confirm via sidebar scan** (not the Create button's disabled state — it transitions too fast to catch reliably). In a third call, run the fiber URL scan: if the song title appears in the sidebar, Create fired.
-
-If Create silently no-op'd (sidebar unchanged after ~5s), take a screenshot to check for overlays/panels blocking the button, then retry `.click()`.
-
-### Wait (~90s)
-
-Schedule **one wakeup for 90s** for the whole batch — songs typically finish in under 2 min. Wakeup prompt needs: tab IDs, prompt titles, that's it.
-
-### Accept batch
-
-On wakeup, for each tab:
-
-1. Get top-2 URLs — verify titles match what you submitted. **Always use fiber scan** — Suno's Filters(3) sidebar filter hides cross-tab songs from `href` attribute queries, but fiber scan catches everything regardless of filter state:
-
-   **Fiber scan (always use this):**
-   ```js
-   const uuids=new Set();const texts={};const statuses={};
-   document.querySelectorAll('*').forEach(el=>{const key=Object.keys(el).find(k=>k.startsWith('__reactFiber')||k.startsWith('__reactProps'));if(!key)return;const fiber=el[key];if(!fiber)return;const props=fiber.memoizedProps||fiber;const href=props?.href||props?.to;if(href&&typeof href==='string'&&href.includes('/song/')){const m=href.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);if(m){uuids.add(m[0]);const li=el.closest('li');texts[m[0]]=(li?.textContent||el.textContent||'').trim().slice(0,50);statuses[m[0]]=li?.querySelector('[class*="spin"]')?'spinning':'done';}}});
-   Array.from(uuids).filter(u=>texts[u].includes('YOUR_SONG_TITLE')).map(u=>({uuid:u,status:statuses[u]}))
-   ```
-
-   Filter by title to get only this tab's songs. Accept top-2 `done` UUIDs.
-
-2. In Dash: open the matching prompt row → find take inputs via `find` tool → paste URLs via `form_input` → click "accept takes" → close modal.
-
-3. Repeat for all tabs in the batch.
-
-If any tab is still spinning on wakeup, reschedule 60s for just that tab.
-
----
-
-## Vocal toggle rules
-
-| Dash gender | Lyrics | → Suno |
+| Dash `gender` | Lyrics | → Suno button |
 |---|---|---|
 | `male` | any | Male |
 | `female` | any | Female |
 | `instrumental` | non-empty | Male |
 | `instrumental` | empty | Instrumental |
-| `unknown` / anything else | non-empty | Male |
-| `unknown` / anything else | empty | Instrumental |
+| `''` / `unknown` / anything else | non-empty | Male |
+| `''` / `unknown` / anything else | empty | Instrumental |
 
-**Suno requires exactly one of {Male, Female, Instrumental} to have `data-selected="true"` — if none is selected, Create silently no-ops.**
+Suno requires exactly one of {Male, Female, Instrumental} to have `data-selected="true"`. If none is selected, Create silently no-ops. **Vocal buttons are toggles** — clicking the already-selected gender DESELECTS it. Always check `data-selected` before clicking.
+
+### 5. Verify vocal in a separate call (React lag)
+
+React's `data-selected` attribute reflects state from the previous render. Verify in a follow-up call:
+
+```js
+Array.from(document.querySelectorAll('button'))
+  .filter(b => ['Male', 'Female', 'Instrumental'].includes(b.textContent.trim()))
+  .map(b => ({label: b.textContent.trim(), sel: b.getAttribute('data-selected')}));
+```
+
+If the target gender shows `sel === 'true'`, ready to fire Create.
+
+### 6. Click Create
+
+```js
+Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Create')?.click();
+```
+
+When firing Create across multiple tabs, do it in a single `browser_batch` with one javascript_tool per tab. All 4 Creates fire reliably; no race conditions observed.
 
 ---
 
-## Captcha handling
+## Wait
 
-Stop immediately. Ask Daniel before retrying.
+Schedule one ~75-90s wakeup for the whole batch. Songs typically finish in under 90s.
+
+## Per-tab collect URLs
+
+When the wait finishes, for each Suno tab:
+
+### 1. Force the tab to render its sidebar
+
+**Sidebar virtualization:** non-focused Suno tabs do NOT render the sidebar songs list in the DOM. A JS query for songs on a background tab returns just nav links (~19 items, no song entries). Bring the tab into focus first — a `screenshot` call activates the tab and forces render:
+
+```
+computer.screenshot(tabId: <suno tab>)
+```
+
+### 2. Click "Show new clips" if present
+
+When new clips arrive while a tab is in the background, Suno shows a `Show new clips ↑ N` notification badge instead of auto-appending them to the sidebar. Click it:
+
+```js
+const sn = Array.from(document.querySelectorAll('button'))
+  .find(b => /show new clips/i.test(b.textContent));
+sn?.click();
+```
+
+The button only appears when there are new unrendered clips for this tab.
+
+### 3. Scan for the title
+
+```js
+Array.from(document.querySelectorAll('a'))
+  .filter(a => a.textContent.trim() === '<TITLE>')
+  .map(a => ({
+    uuid: a.href.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0],
+    href: a.href,
+  }));
+```
+
+This returns both takes. Title-matching beats `a[href*="/song/"]` because spinning cards have `<a>` text content even when the href hasn't transitioned to `/song/UUID` yet.
+
+If you get fewer than 2 takes, the generation isn't done yet. Wait another 30s and re-query (after another screenshot to keep the tab focused).
 
 ---
+
+## Accept in Dash
+
+For each prompt with 2 captured UUIDs, in the Dash tab:
+
+```js
+// 1. Click the row to open the modal
+const target = '<TITLE>';
+const row = Array.from(document.querySelectorAll('div'))
+  .filter(el => el.textContent.includes(target) && el.textContent.length < 200 && getComputedStyle(el).cursor === 'pointer')
+  .sort((a, b) => b.textContent.length - a.textContent.length)[0];
+row?.click();
+```
+
+Wait ~2s.
+
+```js
+// 2. Set both take URLs + click accept-takes
+function setRV(el, v) {
+  const proto = window.HTMLInputElement.prototype;
+  Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, v);
+  el.dispatchEvent(new Event('input', {bubbles: true}));
+  el.dispatchEvent(new Event('change', {bubbles: true}));
+}
+const t1 = document.querySelector('input[placeholder^="take 1"]');
+const t2 = document.querySelector('input[placeholder^="take 2"]');
+setRV(t1, 'https://suno.com/song/<UUID_1>');
+setRV(t2, 'https://suno.com/song/<UUID_2>');
+Array.from(document.querySelectorAll('button'))
+  .find(b => b.textContent.trim() === 'accept takes')?.click();
+```
+
+Wait ~4s. The modal auto-closes; the queue count decrements; the outcome card's "accepted" badge increments.
+
+### Verification
+
+Don't rely on `document.querySelector('Song Prompt heading')` going null — there's a small animation window where it lingers. The reliable signals:
+
+1. **Queue count decreases** by 1 (top of Pipeline: `N prompts queued — click to review`)
+2. **Outcome card's "accepted" badge** increments by 1
+3. **DB ground truth:**
+
+```bash
+railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
+  const p = new m.PrismaClient();
+  const s = await p.songSeed.findFirst({
+    where: { title: \"<TITLE>\" },
+    include: { lineageRows: { include: { song: true } } },
+    orderBy: { createdAt: \"desc\" }
+  });
+  console.log({status: s.status, lineageCount: s.lineageRows.length, r2Filled: s.lineageRows.every(lr => !!lr.song?.r2Url)});
+  await p.\$disconnect();
+})'"
+```
+
+Successful end state: `status: 'accepted'`, `lineageCount: 2`, `r2Filled: true`. R2 upload typically completes within ~2-5 seconds of `accept takes`.
+
+---
+
+## Friction surviving from past sessions
+
+These are the bites worth keeping in mind:
+
+1. **Captcha → STOP.** Suno occasionally shows a captcha. Don't try to bypass — stop and ask Daniel.
+2. **Long lyrics chunk-read.** JS-tool responses truncate at ~1000 chars. For lyrics > 800 chars, read in chunks: `field.slice(0, 800)` then `field.slice(800)`. The full value is in the DOM regardless of response truncation.
+3. **Each Suno tab has independent slider state.** Setting Weirdness 61 on tab A does NOT propagate to tabs B/C/D. Run Step 1 on every tab.
+4. **Style strings already obey Suno's 1000-char cap.** make-song-seeds writes styles within that limit; don't need to slice further.
+5. **Sidebar Filters(3).** Suno's sidebar may show "Filters (3)" active, but the title-match `<a>` query bypasses it.
+6. **Account-wide sidebar.** All Suno tabs see the same account-wide song list. When scanning tab N's sidebar, filter by title to disambiguate from songs generated on other tabs.
 
 ## Done condition
 
-All queued prompts have accepted Suno URLs. Report: N songs added, ICP(s) affected, any failures.
-
----
-
-## Friction notes
-
-1. **Create silently no-ops with no vocal selected.** Always verify toggle before clicking Create.
-
-2. **Dash gender="instrumental" with non-empty lyrics means Male**, not instrumental. The seeder writes this for fully-voiced songs.
-
-3. **React state is stale within the same JS turn.** Inject in Call 1, verify vocal (`data-selected`) + Create in Call 2. If `data-selected` still shows `false` in Call 2, call `btn.click()` again and verify in Call 3 before firing Create.
-
-4. **Lyrics + style often exceed the JS response truncation limit (~2KB).** Read long fields in two calls: `tas[0].value.slice(0, 700)` then `tas[0].value.slice(700)`.
-
-5. **Style text is outcome-templated, not per-hook.** Multiple prompts in the same outcome share most of the style string. Expected behavior.
-
-6. **Modal placeholder-based queries are stable; ref IDs are not.** Re-find inputs by placeholder on each modal open.
-
-7. **Modal stays open after "accept takes"** — shows "downloading…" forever. Close it manually.
-
-8. **Each Suno tab has independent vocal toggle state.** Set and verify per-tab.
-
-9. **All Suno tabs share one account-wide sidebar.** `slice(0,2)` on tab A returns the 2 newest account-wide, not tab-A-specific. Confirm titles match before accepting.
-
-10. **Create button disabled state is unreliable.** The button transitions too fast to catch with a follow-up JS call. Confirm Create fired by running the fiber URL scan and checking the song title appears in the sidebar.
-
-11. **Queue display can be stale after accept.** If a prompt stays visible after accepting, open it — a green "accepted" badge means it worked. Click the refresh button to force queue to re-render. Don't re-accept blindly.
-
-12. **Sliders must be set in separate JS calls.** Batching Weirdness + Style Influence dblclick+set in one setTimeout causes both to target the same newly-appeared input. Set Weirdness (verify 75%), then set Style Influence (verify 62%).
-
-13. **Never use fiber click for Create or vocal buttons.** Direct `.click()` works. Using both `.click()` AND fiber click on the same button in sequence causes double-submit → 4+ variants per prompt instead of 2.
-
-14. **Queue row exact text match required.** `children.length === 3` is not unique — the "Create Song Prompt" div also has 3 children. Use: `el.textContent.trim() === "SongTitleRef Track — SongOutcome"` to target the correct row.
-
-15. **All style strings should be truncated to 1000 chars.** Gary/Terrell styles routinely exceed 1000 chars. Always `.slice(0, 1000)` before injecting into the style textarea.
-
-16. **Sidebar Filters(3) hides songs from other tabs.** When Suno has active sidebar filters, `a.href` attribute queries return only filtered songs. Always use fiber scan to get URLs — it bypasses all filter state.
-
-17. **(2026-05-03) Fiber URL scan returns 0 hrefs on freshly-opened Suno tabs.** Suno v5.5 changed sidebar rendering — `__reactFiber*` href traversal returns empty on new tabs even when songs are visible. Direct `a[href*="/song/"]` query works reliably and bypasses filter state too (contradicts note 16). Use `Array.from(document.querySelectorAll('a[href*="/song/"]'))` as primary, drop fiber scan unless that fails.
-
-18. **(2026-05-03) Vocal buttons are TOGGLES, not radio.** Clicking already-selected gender DESELECTS it (Male=true → click Male → Male=false → Create silently no-ops). Inject helper MUST check `data-selected` before clicking — only click if not already in target state. Pseudo:
-    ```js
-    const isSelected = desiredBtn?.getAttribute('data-selected') === 'true';
-    if (!isSelected) desiredBtn?.click();
-    ```
-
-19. **(2026-05-03) Single Create can silently no-op even with vocal verified.** Especially after a previous accept on the same tab, JS `.click()` on Create may register but generation never starts. Mitigations (in order of preference):
-    - **Vocal-toggle trick**: click Female (deselects Male), then click Male (re-selects). Forces React state tick. Then Create fires reliably.
-    - **Coordinate click on Create button** at its visible position is more reliable than JS .click().
-    - **Last resort**: fire Create twice with ~5s gap. Accept ONLY top 2 takes (will produce 4 takes total).
-    - Verify after ~10s: scan sidebar for new UUIDs matching expected title. If 0, retry with vocal-toggle trick.
-
-20. **(2026-05-03) Suno session title bleed.** Re-using a tab without page reload, Suno may generate songs with the PREVIOUS title even though form fields show new title. Symptom: form has "Yes to This" but Suno spawns "I Don't Think Twice" cards. Workaround: vocal-toggle trick may help; otherwise reload tab and re-set sliders.
-
-21. **(2026-05-03) Accept-takes button click — coordinate click is required.** JS `.click()` on the "accept takes" button silently no-ops. Even `dispatchEvent` of MouseEvent doesn't reliably fire it. Use `computer.left_click([x, y])` at the button's visible coordinate (~`[1163, 547]` at standard window size). Sequence:
-    1. Click row to open modal
-    2. setReactValue both take URLs
-    3. `t1.scrollIntoView({block: 'center'})` (take inputs sit BELOW lyrics/style — modal needs scrolling)
-    4. Wait 1-2s
-    5. **Coordinate-click** the accept-takes button
-    6. Wait 4-6s
-    7. Verify `document.body.textContent.includes('Song Entries')` — confirms accept worked
-
-22. **(2026-05-03) "More Options" panel hides sliders.** Suno v5.5 puts Weirdness/Style Influence behind a collapsed `<div>More Options</div>`. Click the deepest text-content match to expand:
-    ```js
-    const moreOpt = Array.from(document.querySelectorAll('div, span'))
-      .find(el => el.textContent.trim() === 'More Options' && el.children.length === 0);
-    moreOpt?.click();
-    ```
-    Then sliders become queryable.
-
-23. **(2026-05-03) Cross-origin: window.__prompts on Dash is NOT readable from Suno tabs.** `window.postMessage`, `BroadcastChannel`, `localStorage` all blocked by origin isolation. Must read each prompt from Dash, build inject call as JS literal with embedded text, send to Suno tab. Per prompt: ~5 reads (lyrics chunks + style chunks + meta) + 1 inject + 1 create = 7 calls.
-
-24. **(2026-05-03) JS response truncates ~1000 chars.** Earlier note 4 said ~2KB; observed truncation is closer to 950-1050 chars. Read long fields in 800-char chunks: `field.slice(0, 800)` then `field.slice(800)`.
-
-25. **(2026-05-03) Filter strings missing matches in title-search.** When filtering sidebar UUIDs by title via `t.includes(matchTitle)`, sometimes matches return 0 even though screenshot shows the cards. Cause unknown — possibly DOM order vs visual order mismatch (sidebar renders newest-first visually but DOM iterates in different order). Workaround: query without filter and look at the full top-N list; cards with target title are usually at top.
-
-26. **(2026-05-03) "Song Entries" check is the reliable accept verification.** Don't trust badge text changes or queue refresh — those lag. After accept-takes click + wait, query `document.body.textContent.includes('Song Entries')`. If true, accepted. If false, retry accept.
-
-27. **(2026-05-03) Slider setting works in 2 calls (not 3 as note 12 implies).** Confirmed: `pctEls[i].dispatchEvent(dblclick)` in call 1, then `setReactValue(input, value) + Enter dispatch + blur` in call 2. Verify with a 3rd call after 1s wait.
+All queued prompts that this batch targeted have `status='accepted'` + `r2Url` populated on both lineage rows. Report: N prompts accepted, ICP(s) affected, any failures.
