@@ -96,8 +96,8 @@ const ARCHETYPES: ArchetypeSeed[] = [
     defaultWeight: 1,
     eraWeights: {
       ranges: [
-        { minYear: 1975, maxYear: 1985, weight: 2 },
-        { minYear: 2010, weight: 2 },
+        { minYear: 1975, maxYear: 1985, weight: 1.5 },
+        { minYear: 2010, weight: 1.5 },
       ],
     },
   },
@@ -117,7 +117,7 @@ const ARCHETYPES: ArchetypeSeed[] = [
     defaultWeight: 1,
     eraWeights: {
       ranges: [
-        { minYear: 1965, maxYear: 1979, weight: 2 },
+        { minYear: 1965, maxYear: 1979, weight: 1.5 },
       ],
     },
   },

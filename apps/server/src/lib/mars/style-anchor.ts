@@ -25,7 +25,14 @@ import { capStyle } from './cap.js'
 // Un-pinned alias — picks up minor model improvements automatically. Pin via
 // MARS_ANCHOR_MODEL env if reproducibility matters for a given experiment.
 const MODEL = process.env.MARS_ANCHOR_MODEL ?? 'claude-haiku-4-5'
-const ANCHOR_VERSION = 1
+// v2 — affect-ban discipline ported from the router system prompt. v1 was
+// leaking literary/affect words ("bedroom pop intimacy", "earnest", etc.)
+// into the corrections list, where Suno doesn't ground on them and the
+// outcome layer was already supposed to own mood/affect. Also added an
+// explicit dedup-by-stem rule for sub_attractors after observing
+// "fingerpicking, fingerstyle guitar, folk guitar, acoustic guitar lead"
+// near-duplicates eating the negative-style cap.
+const ANCHOR_VERSION = 2
 const STYLE_HARD_CAP = 250
 
 interface AnchorPick {
@@ -51,6 +58,12 @@ Hard rules:
 - Sub-attractors target the genre's internal centroid drifts, not generic Suno contamination (a separate layer handles generic contamination).
 - Decade comes from track metadata, never inferred from genre.
 - If the track decomposition genuinely doesn't fit any clean genre cluster, output the closest tag and compensate with more sub_attractors.
+
+LANGUAGE DISCIPLINE — applies to CORRECTIONS and SUB_ATTRACTORS:
+- SUNO-READABLE LANGUAGE ONLY. Allowed: vocal registers (tenor, baritone, alto, soprano, falsetto, head/chest voice), techniques (fingerpicked, strummed, slapped, palm-muted, swept), mic positions (close-mic, room-mic, distant), production methods (lo-fi, polished, tape, DAW, dry, wet, reverb-soaked, phased, compressed), instrument names, harmonic terms (modal, diatonic, chromatic, extended chords), tempo terms (mid-tempo, uptempo, downtempo), subgenre tags.
+- NO AFFECT / LITERARY WORDS anywhere. Mood is owned by the outcome layer — your output never carries it. Forbidden in any slot: "intimacy", "tender", "warm", "earnest", "doleful", "plaintive", "communal", "literary", "aspirational", "hymnal", "pastoral", "menacing", "uplifting", "melancholy", "joyful", "dark-as-mood", "bright-as-mood", "soulful", "raw-as-affect", and any other word naming a feeling rather than a technique. If your only way to describe a sub-element is an affect word, OMIT it — the layer below handles mood.
+- NO METAPHOR. "Cinematic", "painterly", "dreamlike", "sun-drenched", "hazy" all out.
+- DEDUP BY STEM. In sub_attractors, never list near-synonyms of the same thing. "Fingerpicked guitar" and "fingerstyle guitar" and "acoustic guitar lead" all target the same Suno centroid — pick ONE. "Folk-rock electric guitar" and "folk guitar" — pick ONE. Use the most specific phrasing once.
 
 Return a single JSON object with these exact keys: { "anchor": "...", "corrections": ["..."], "sub_attractors": ["...", "..."] }. No prose. No code fences.`
 

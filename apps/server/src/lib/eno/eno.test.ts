@@ -5,6 +5,7 @@ import {
   extractGenreBrief,
   extractModeHint,
   modeCompatible,
+  stripFlavorAnnotations,
   OUTCOME_TEMPO_TOLERANCE_BPM,
 } from './eno.js'
 import type { StyleAnalysis } from '@prisma/client'
@@ -172,5 +173,37 @@ describe('modeCompatible', () => {
   it('passes when outcomeMode mentions both — no clear ask', () => {
     expect(modeCompatible('major', 'major or minor')).toBe(true)
     expect(modeCompatible('minor', 'major or minor')).toBe(true)
+  })
+})
+
+describe('stripFlavorAnnotations', () => {
+  it('strips flavor parens like "(groove establishes)"', () => {
+    expect(stripFlavorAnnotations('[Intro] (groove establishes), [Verse 1]'))
+      .toBe('[Intro], [Verse 1]')
+  })
+
+  it('strips multi-clause flavor parens', () => {
+    expect(stripFlavorAnnotations('[Verse 1], [Chorus], [Tag] (half-time, hook only, sustained)'))
+      .toBe('[Verse 1], [Chorus], [Tag]')
+  })
+
+  it('preserves "(optional)" annotations — they carry lyric-time semantics', () => {
+    const input = '[Intro] (optional), [Verse 1], [Pre-Chorus] (optional), [Chorus]'
+    expect(stripFlavorAnnotations(input)).toBe(input)
+  })
+
+  it('preserves "(optional)" while stripping flavor in the same string', () => {
+    expect(stripFlavorAnnotations('[Intro] (groove establishes), [Verse 1], [Pre-Chorus] (optional), [Chorus]'))
+      .toBe('[Intro], [Verse 1], [Pre-Chorus] (optional), [Chorus]')
+  })
+
+  it('strips em-dash-laden flavor (intro_driven case)', () => {
+    expect(stripFlavorAnnotations('[Intro] (extended — sets the mood for ~8-12 bars before any vocal), [Verse 1]'))
+      .toBe('[Intro], [Verse 1]')
+  })
+
+  it('leaves vanilla section lists untouched', () => {
+    expect(stripFlavorAnnotations('[Verse 1], [Verse 2], [Bridge], [Verse 3]'))
+      .toBe('[Verse 1], [Verse 2], [Bridge], [Verse 3]')
   })
 })

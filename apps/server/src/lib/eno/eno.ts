@@ -15,8 +15,27 @@ import { generateLyrics, type GenreBrief, type OutcomeBrief } from '../bernie/be
 import { injectArrangement, type ArrangementSections } from '../arranger/arranger.js'
 import { resolveOutcomeParams } from '../variance/variance.js'
 import { extractVocalGender, type VocalGender } from '../mars/vocal-gender.js'
-import { pickFormArchetype } from './form-archetype.js'
+import { pickFormArchetype, type FormArchetypeChoice } from './form-archetype.js'
 import type { StyleAnalysis } from '@prisma/client'
+
+/**
+ * Strip flavor parens from a formArchetype sectionList while preserving the
+ * "(optional)" annotation, which carries lyric-time semantics (Bernie reads
+ * it as "this section may be included").
+ *
+ * Examples:
+ *   "[Intro] (groove establishes), [Verse 1]"  →  "[Intro], [Verse 1]"
+ *   "[Pre-Chorus] (optional), [Chorus]"        →  "[Pre-Chorus] (optional), [Chorus]"
+ *   "[Tag] (half-time, hook only, sustained)"  →  "[Tag]"
+ */
+export function stripFlavorAnnotations(sectionList: string): string {
+  return sectionList
+    .replace(/\((?!optional\))[^)]*\)/g, '')
+    .replace(/[ \t]+,/g, ',')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+$/gm, '')
+    .trim()
+}
 
 export const OUTCOME_FACTOR_PROMPT_SEED = '{mood}, {tempo_bpm}bpm, {mode}' // prepended to style string. Mood is required on Outcome and leads the prefix as the affect anchor. Tokens {dynamics} {instrumentation} still resolve for backward compat with old templates but are deprecated — they were stamping genre-mismatched instrument lists onto every track and using rules-v8 banned vocab.
 
@@ -184,11 +203,22 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
     // section list (V/C/V/C/Bridge/FC, AABA, VCVC, etc.) — Bernie writes lyrics into
     // whatever shape the selector picks. Selector falls back to the legacy default
     // when the DB has no active archetypes, so behavior is safe pre-seed.
-    const formArchetype = await pickFormArchetype({
+    const formArchetypeRaw = await pickFormArchetype({
       outcomeKey: outcome.outcomeKey,
       arrangementSections: arrangementSections ?? null,
       referenceYear: refTrack.year ?? null,
     })
+    // Flavor parentheticals in `sectionList` (e.g., "[Intro] (groove establishes)",
+    // "[Tag] (half-time, hook only, sustained)") were being copied verbatim into
+    // Bernie's lyrics output as backing-vocal text — per EDIT_CRAFT_BLOCK,
+    // parentheses around lyric text means "sung as backing vocals." Strip those
+    // before passing to Bernie. Keep "(optional)" because it carries lyric-time
+    // semantics ("this section may be included"). Authoritative descriptive
+    // context still flows through `shapeNote` unchanged.
+    const formArchetype: FormArchetypeChoice = {
+      ...formArchetypeRaw,
+      sectionList: stripFlavorAnnotations(formArchetypeRaw.sectionList),
+    }
 
     // Genre brief from the reference track's StyleAnalysis. Mars's anchor tag is
     // the most genre-accurate signal when present; otherwise fall back to the

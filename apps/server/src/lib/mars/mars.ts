@@ -52,7 +52,60 @@ export interface MarsOptions {
  * Merge anchor-strategy sub-attractors into the rule-fired negative-style output.
  * Anchor additions go FIRST so they survive truncation — they're the most
  * strategically chosen for this specific track's centroid drifts.
+ *
+ * Dedup logic:
+ *   1. Exact-case-insensitive dedup (cheap, catches "Folk Guitar" / "folk guitar").
+ *   2. Stem-overlap dedup — if a candidate's content words are a subset of
+ *      something already in the merged list, drop the candidate. Catches
+ *      "fingerpicking" vs "fingerpicked guitar" vs "fingerstyle guitar"
+ *      where the anchor LLM emits three near-synonyms for one Suno centroid.
+ *      Conservative: 2+ shared content words OR full subset of content words.
  */
+export function _contentWordsForTest(s: string): Set<string> {
+  return contentWords(s)
+}
+export function _mergeNegativeStyleForTest(existing: string, additions: string[]): string {
+  return mergeNegativeStyle(existing, additions)
+}
+
+function contentWords(s: string): Set<string> {
+  // Split on non-letter chars, drop stopwords + short joiners. Hyphens split too
+  // so "folk-rock" → {"folk","rock"}. Each surviving word is truncated to its
+  // first 6 chars to crudely fold morphological variants ("fingerpicked",
+  // "fingerpicking", "fingerstyle" → all → "finger"; "acoustic", "acoustically"
+  // → "acoust"). 6 chars is empirically the right balance — wide enough to
+  // fold inflected forms, narrow enough not to collide unrelated stems.
+  return new Set(
+    s
+      .toLowerCase()
+      .split(/[^a-z]+/)
+      .filter((w) => w.length >= 3 && !STEM_STOPWORDS.has(w))
+      .map((w) => w.slice(0, 6)),
+  )
+}
+
+const STEM_STOPWORDS = new Set([
+  'and', 'the', 'with', 'for', 'into', 'out', 'lead', 'style',
+])
+
+function isStemSubsumed(candidate: string, accepted: string[]): boolean {
+  const cWords = contentWords(candidate)
+  if (cWords.size === 0) return false
+  for (const a of accepted) {
+    const aWords = contentWords(a)
+    if (aWords.size === 0) continue
+    let shared = 0
+    for (const w of cWords) if (aWords.has(w)) shared++
+    // Full subset: every content word in the candidate is already in the
+    // accepted phrase. "fingerpicking" ⊆ "fingerpicking guitar" → drop.
+    if (shared === cWords.size) return true
+    // Partial overlap: 2+ shared content words signals the same Suno centroid.
+    // "folk-rock electric guitar" vs "folk guitar" — 2 shared, drop.
+    if (shared >= 2) return true
+  }
+  return false
+}
+
 function mergeNegativeStyle(existing: string, additions: string[]): string {
   if (additions.length === 0) return existing
   const trimmedAdditions = additions.map((s) => s.trim()).filter(Boolean)
@@ -62,6 +115,7 @@ function mergeNegativeStyle(existing: string, additions: string[]): string {
   for (const t of [...trimmedAdditions, ...existingTerms]) {
     const key = t.toLowerCase()
     if (seen.has(key)) continue
+    if (isStemSubsumed(t, merged)) continue
     seen.add(key)
     merged.push(t)
   }
