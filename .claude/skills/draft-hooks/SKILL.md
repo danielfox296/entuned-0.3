@@ -9,6 +9,20 @@ Browser-free hook drafting. Replaces the manual Dash flow ("Workflows → Hook W
 
 The artifact produced is **byte-identical** to what the browser writes: same `prisma.hook.create` shape, same `status='approved'`, same `approvedById`/`approvedAt`. The HTTP route's only added work is Zod validation + auth — both are operator-owned concerns this skill handles at the script layer.
 
+## railway ssh escaping rules (read this first)
+
+Every script in this skill is shell-wrapped like:
+```
+railway ssh "cd /app && node -e '<JS-here>'"
+```
+
+Three quoting layers nest: outer `"..."` (shell arg) → inner `'...'` (node -e arg) → `\"` (JS string literals). Two `$` rules:
+
+- **`\$` (escaped)** when you want the JS code to use `$` — e.g., `await p.\$disconnect()`. Without the backslash, the shell would substitute `$disconnect` as an empty env var.
+- **`$VAR` (unescaped)** when you want the shell to substitute a variable you set in the same line — e.g., `\"$ICP_ID\"` inserts the value of `$ICP_ID` from your local shell.
+
+Prisma model names are **camelCase with lowercased acronyms**: `prisma.iCP` (not `prisma.ICP`), `prisma.hook`, `prisma.account`.
+
 ## When to use
 
 Triggers (auto-fire — no need to ask permission):
@@ -64,18 +78,19 @@ Cache this value for the rest of the skill session.
 
 ## Step 1 — Pre-flight check
 
-For each (icpId, outcomeId) target, count existing approved hooks and decide whether drafting is needed:
+For each (icpId, outcomeId) target, count approved hooks AND in-flight consumption. The right metric for "should I draft more" is `available = approved - inflight` — the count of approved hooks that `make-song-seeds` could still consume:
 
 ```bash
 railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
   const p=new m.PrismaClient();
-  const c=await p.hook.count({where:{icpId:\"<ICP>\",outcomeId:\"<OUTCOME>\",status:\"approved\"}});
-  console.log(\"approved hooks:\",c);
+  const approved=await p.hook.count({where:{icpId:\"<ICP>\",outcomeId:\"<OUTCOME>\",status:\"approved\"}});
+  const inflight=await p.songSeed.count({where:{hook:{icpId:\"<ICP>\",outcomeId:\"<OUTCOME>\"},status:{in:[\"assembling\",\"queued\",\"accepted\"]}}});
+  console.log({approved, inflight, available: approved - inflight});
   await p.\$disconnect();
 })'"
 ```
 
-A reasonable target is **8–12 approved hooks per (ICP × outcome)** for healthy `make-song-seeds` headroom. If already above target, ask Daniel before topping up — he may not want more.
+A reasonable target is **8–12 available hooks per (ICP × outcome)** for healthy `make-song-seeds` headroom. If `available` is already above target, ask Daniel before topping up — he may not want more.
 
 ## Step 2 — Call the drafter + persist
 
@@ -137,7 +152,7 @@ If any hooks look obviously off (gimmicky rhyme schemes, product-imagery leaks, 
 
 ## What this skill does NOT do
 
-- Does not seed the Suno prompt queue. That's `make-song-seeds` (which calls `runEno` → produces `SongSeed` rows ready for `make-final-songs`).
+- Does not seed the Suno prompt queue. That's `make-song-seeds` (which calls `runEno` → produces `SongSeed` rows ready for `populate-songs`).
 - Does not write to the hook drafter's prompt tables. Use Dash → Prompts & Rules → Hook Prompts for that.
 - Does not delete or retire hooks. Hooks accumulate; rotate manually if a target gets stale.
 
@@ -145,7 +160,7 @@ If any hooks look obviously off (gimmicky rhyme schemes, product-imagery leaks, 
 
 After this completes, the next step in the pipeline is:
 ```
-draft-hooks  →  make-song-seeds  →  make-final-songs (browser, Suno)
+draft-hooks  →  make-song-seeds  →  populate-songs (browser, Suno)
 ```
 
 Tell Daniel the count of approved hooks now available per (ICP × outcome) so he knows whether to proceed straight to `make-song-seeds`.

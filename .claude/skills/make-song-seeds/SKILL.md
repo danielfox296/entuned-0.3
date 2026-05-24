@@ -1,13 +1,27 @@
 ---
 name: make-song-seeds
-description: Run Eno (the per-seed orchestrator — Mars style + Bernie lyrics + form archetype + outcome prepend) for one or more (ICP × outcome × n) tuples without opening a browser. Produces `SongSeed` rows in the `queued` state, ready for `make-final-songs`. Use when Daniel says "make song seeds for X", "seed N for [outcome]", "fill the song queue", or "queue up some prompts for [ICP]." Browser-free — runs against the prod server over `railway ssh`. Requires approved hooks; if pool is empty, run `draft-hooks` first.
+description: Run Eno (the per-seed orchestrator — Mars style + Bernie lyrics + form archetype + outcome prepend) for one or more (ICP × outcome × n) tuples without opening a browser. Produces `SongSeed` rows in the `queued` state, ready for `populate-songs`. Use when Daniel says "make song seeds for X", "seed N for [outcome]", "fill the song queue", or "queue up some prompts for [ICP]." Browser-free — runs against the prod server over `railway ssh`. Requires approved hooks; if pool is empty, run `draft-hooks` first.
 ---
 
 # make-song-seeds
 
-Browser-free `runEno` invocation. Replaces the manual Dash flow ("Workflows → Hook → Prompt → click outcome card → seed N") with one `railway ssh` call per (ICP × outcome).
+Browser-free `runEno` invocation. Replaces the manual Dash flow ("Workflows → Pipeline → click outcome card → build N") with one `railway ssh` call per (ICP × outcome).
 
 The artifacts produced are **byte-identical** to what the browser writes: same `runEno()` call, same `SongSeedBatch` row with full provenance (icpId, outcomeId, requestedN, producedN, reason, triggeredBy, triggeredByUser, pipeline, startedAt, finishedAt), same `SongSeed` rows with hook/refTrack/outcome IDs + style + negativeStyle + lyrics + all version snapshots (lyricDraftPromptVersion, lyricEditPromptVersion, styleTemplateVersion, outcomeFactorPromptVersion, marsPromptVersion, hookWriterPromptVersion, formArchetypeVersion, arrangementTemplateVersion).
+
+## railway ssh escaping rules (read this first)
+
+Every script in this skill is shell-wrapped like:
+```
+railway ssh "cd /app && node -e '<JS-here>'"
+```
+
+Three quoting layers nest: outer `"..."` (shell arg) → inner `'...'` (node -e arg) → `\"` (JS string literals). Two `$` rules:
+
+- **`\$` (escaped)** when you want the JS code to use `$` — e.g., `await p.\$disconnect()`. Without the backslash, the shell would substitute `$disconnect` as an empty env var.
+- **`$VAR` (unescaped)** when you want the shell to substitute a variable you set in the same line — e.g., `\"$ICP_ID\"` inserts the value of `$ICP_ID` from your local shell.
+
+Prisma model names are **camelCase with lowercased acronyms**: `prisma.iCP` (not `prisma.ICP`), `prisma.hook`, `prisma.songSeed`, `prisma.account`.
 
 ## When to use
 
@@ -16,12 +30,12 @@ Triggers (auto-fire — no need to ask permission):
 - "seed N for [outcome]"
 - "queue up some prompts for [ICP]"
 - "fill the song queue"
-- `make-final-songs` reported the queue is short — call this first
+- `populate-songs` reported the queue is short — call this first
 - The Dash Pool Depth panel shows a critical (ICP × outcome) cell
 
 Do NOT use for:
 - Generating hooks — that's `draft-hooks`
-- Pushing seeds to Suno + accepting takes — that's `make-final-songs` (browser, Chrome MCP)
+- Pushing seeds to Suno + accepting takes — that's `populate-songs` (browser, Chrome MCP)
 - Editing Mars / Bernie / Outcome prompts — those are Dash → Prompts & Rules panels
 
 ## Resolve targets from ARGUMENTS
@@ -65,14 +79,14 @@ Cache for the session.
 
 ## Step 1 — Pre-flight check
 
-For each target, verify there's hook headroom (`runEno` will return `pool_exhausted_hooks` otherwise):
+For each target, verify there's hook headroom (`runEno` will return `pool_exhausted_hooks` otherwise). The right metric is `available = approved - inflight` (this matches the calc `draft-hooks` uses):
 
 ```bash
 railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
   const p=new m.PrismaClient();
   const approved=await p.hook.count({where:{icpId:\"<ICP>\",outcomeId:\"<OUTCOME>\",status:\"approved\"}});
-  const used=await p.songSeed.count({where:{hook:{icpId:\"<ICP>\",outcomeId:\"<OUTCOME>\"},status:{in:[\"assembling\",\"queued\",\"accepted\"]}}});
-  console.log({approved, used, available: approved - used});
+  const inflight=await p.songSeed.count({where:{hook:{icpId:\"<ICP>\",outcomeId:\"<OUTCOME>\"},status:{in:[\"assembling\",\"queued\",\"accepted\"]}}});
+  console.log({approved, inflight, available: approved - inflight});
   await p.\$disconnect();
 })'"
 ```
@@ -110,9 +124,12 @@ import(\"./dist/lib/eno/eno.js\").then(async e => {
     triggeredByUser: \"$TRIGGERED_BY_USER\",
   });
   console.log(JSON.stringify(result, null, 2));
+  process.exit(0);
 })
 '"
 ```
+
+The explicit `process.exit(0)` matters — runEno uses the long-lived shared prisma client (no per-call `$disconnect`), so without it the Node process can hang past completion until something kills it.
 
 Result shape:
 ```
@@ -169,7 +186,7 @@ Present the dump to Daniel formatted (markdown headings, code-fence the lyrics).
 ## Step 4 — Decide next move
 
 Outcomes from the batch dump:
-- **All seeds look good** → ready for `make-final-songs`
+- **All seeds look good** → ready for `populate-songs`
 - **One or two need rework** → delete the bad ones (`prisma.songSeed.delete({ where: { id, status: 'queued' } })`) and re-run with `n: <count>` to top up
 - **Whole batch shows a systemic problem** (lyric rule violation, style contradiction, etc.) → don't ship to Suno; tell Daniel what the systemic issue is and propose a prompt fix (Bernie via Dash → Lyric Prompts, or Mars via Dash → Mars Prompts)
 
@@ -180,14 +197,14 @@ Outcomes from the batch dump:
 | `pool_exhausted_hooks` | No approved hooks remaining for the (ICP × outcome) | Run `draft-hooks` first |
 | `pool_exhausted_reference_tracks_outcome_tempo_<bpm>` | No approved + decomposed refs within ±7bpm of the outcome | Either widen the decomposed ref pool, decompose new candidate tracks, or pick an outcome with closer-tempo refs |
 | `producedN < requestedN`, `reason: pool_exhausted` | Ran dry partway through the batch | The seeds that DID produce are valid — keep them, surface the gap |
-| `OUTCOME_FACTOR_PROMPT_SEED` is null on the outcome row | Bernie / outcome prepend can't fire | Open in Dash → Outcomes → Outcome Library — the row is misconfigured |
+| `Cannot read properties of null` on `outcome.tempoBpm`/`outcome.mode`/`outcome.mood` | The Outcome row is missing fields the OutcomeFactorPrompt prepend needs | Open in Dash → Outcomes → Outcome Library — the row is misconfigured. Tempo, mode, mood are all required. |
 | Repeated `runEno` calls produce same hook order across calls | Hook picker uses `createdAt asc` for selection within tied scores — the same approved hook will get picked first every time until it's consumed. Expected behavior. | Not a bug — finish consuming the pool or rotate |
 | Same ref picked N times in a single batch | The eligible ref pool (post-BPM filter) is narrow; the picker spreads with random tiebreak but small pools have small spreads | Decompose more refs at that tempo |
 
 ## What this skill does NOT do
 
 - Does not generate hooks. Use `draft-hooks` first.
-- Does not push seeds to Suno or accept takes. Use `make-final-songs` (browser, Chrome MCP).
+- Does not push seeds to Suno or accept takes. Use `populate-songs` (browser, Chrome MCP).
 - Does not retire / delete existing seeds beyond cleanup of bad ones in step 4.
 - Does not edit any prompt. Operator-editable prompts live in Dash → Prompts & Rules.
 
@@ -195,11 +212,11 @@ Outcomes from the batch dump:
 
 After this completes:
 ```
-draft-hooks  →  make-song-seeds (YOU ARE HERE)  →  make-final-songs (browser, Suno)
+draft-hooks  →  make-song-seeds (YOU ARE HERE)  →  populate-songs (browser, Suno)
 ```
 
 Tell Daniel:
 - Batch ID
 - Produced count
 - Anything flagged in step 3
-- Whether the queue is now ready for `make-final-songs`
+- Whether the queue is now ready for `populate-songs`
