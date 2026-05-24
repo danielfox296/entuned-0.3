@@ -3,6 +3,8 @@ import {
   bpmCompatible,
   vocalGenderCompatible,
   extractGenreBrief,
+  extractModeHint,
+  modeCompatible,
   OUTCOME_TEMPO_TOLERANCE_BPM,
 } from './eno.js'
 import type { StyleAnalysis } from '@prisma/client'
@@ -112,5 +114,63 @@ describe('extractGenreBrief', () => {
     expect(brief.grooveCharacter).toContain('syncopated')
     expect(brief.grooveCharacter).toContain('behind-the-beat')
     expect(brief.harmonicCharacter).toContain('modal interchange')
+  })
+})
+
+describe('extractModeHint', () => {
+  it('returns null for empty/missing text', () => {
+    expect(extractModeHint(null)).toBeNull()
+    expect(extractModeHint(undefined)).toBeNull()
+    expect(extractModeHint('')).toBeNull()
+  })
+
+  it('extracts major from unambiguous major-mode prose', () => {
+    expect(extractModeHint('major-key diatonic, mid-tempo')).toBe('major')
+    expect(extractModeHint('bright major chords throughout')).toBe('major')
+    expect(extractModeHint('Major scale tonality')).toBe('major')
+  })
+
+  it('extracts minor from unambiguous minor-mode prose', () => {
+    expect(extractModeHint('minor blues, behind-the-beat')).toBe('minor')
+    expect(extractModeHint('Minor mode, syncopated')).toBe('minor')
+    expect(extractModeHint('natural minor scale')).toBe('minor')
+  })
+
+  it('returns null when both major and minor appear (ambiguous)', () => {
+    expect(extractModeHint('opens in major, shifts to minor at the bridge')).toBeNull()
+  })
+
+  it('returns null when neither token appears (modal / unspecified)', () => {
+    expect(extractModeHint('modal dorian, swung pocket')).toBeNull()
+    expect(extractModeHint('chromatic passing chords, jazz-inflected')).toBeNull()
+  })
+})
+
+describe('modeCompatible', () => {
+  it('passes when refMode is unknown — conservative gate', () => {
+    expect(modeCompatible(null, 'major')).toBe(true)
+    expect(modeCompatible(null, 'minor')).toBe(true)
+    expect(modeCompatible(null, 'modal dorian')).toBe(true)
+  })
+
+  it('passes when outcomeMode does not clearly name a key', () => {
+    expect(modeCompatible('major', 'modal')).toBe(true)
+    expect(modeCompatible('minor', 'dorian')).toBe(true)
+    expect(modeCompatible('major', '')).toBe(true)
+  })
+
+  it('matches major-to-major and minor-to-minor', () => {
+    expect(modeCompatible('major', 'major')).toBe(true)
+    expect(modeCompatible('minor', 'minor')).toBe(true)
+  })
+
+  it('rejects when refMode and outcomeMode disagree', () => {
+    expect(modeCompatible('major', 'minor')).toBe(false)
+    expect(modeCompatible('minor', 'major')).toBe(false)
+  })
+
+  it('passes when outcomeMode mentions both — no clear ask', () => {
+    expect(modeCompatible('major', 'major or minor')).toBe(true)
+    expect(modeCompatible('minor', 'major or minor')).toBe(true)
   })
 })

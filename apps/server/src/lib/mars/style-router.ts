@@ -17,7 +17,10 @@
 //   4. harmonic_tempo  — harmonic color + tempo feel (numeric BPM lives elsewhere)
 //   5. production      — concrete texture (tape hiss, room bleed), not abstract mood
 //   6. rhythm_feel     — only if non-obvious for the genre, else empty
-//   7. mood            — ONE word, no synonyms
+//
+// Mood used to be a 7th slot here. Removed in router v2 — the outcome-factor
+// prepend already owns mood and a duplicate router mood produced contradictions
+// in the final style string. The outcome wins on mood; the router stays mood-blind.
 //
 // Output shape matches assembleStylePortion (a single string). Mars's other concerns
 // (negative style, vocal gender, exclusion rules) are unchanged.
@@ -29,7 +32,11 @@ import { stripForSuno } from './sanitize.js'
 // Un-pinned alias — picks up minor model improvements automatically. Pin via
 // MARS_ROUTER_MODEL env if reproducibility matters for a given experiment.
 const MODEL = process.env.MARS_ROUTER_MODEL ?? 'claude-haiku-4-5'
-const ROUTER_VERSION = 1
+// v2 removes the `mood` slot. Mood is owned exclusively by the outcome-factor
+// prepend (eno.applyOutcomeFactorPrompt) — having the router emit a *second*
+// mood word produced two-mood contradictions in the final style string
+// ("chill, 78bpm, major, …, melancholy"). The outcome wins on mood.
+const ROUTER_VERSION = 2
 const HARD_CAP = 250
 
 function decadeFromYear(year: number): string {
@@ -58,24 +65,25 @@ interface RouterSlots {
   harmonic_tempo: string
   production: string
   rhythm_feel: string
-  mood: string
 }
 
-const SYSTEM_PROMPT = `You are a Suno-prompt slotter. You receive a musicological decomposition of a single reference track and produce 7 short slot strings that compose into a Suno style field.
+const SYSTEM_PROMPT = `You are a Suno-prompt slotter. You receive a musicological decomposition of a single reference track and produce 6 short slot strings that compose into a Suno style field.
 
 Suno is a music-generation model. It grounds well on technical, genre-tag, and gear vocabulary. It does NOT ground on literary or affect-laden adjectives. Your job is to translate the decomposer's prose (which often contains both) into the Suno-readable subset only, with strict per-slot discipline.
+
+Mood is set elsewhere by the outcome — DO NOT emit any mood word, affect word, or feeling adjective in any slot. If the decomposer's prose contains affect, demote to neutral technical language or omit.
 
 # Hard rules
 
 1. EXTRACTIVE OR DEMOTE. Every content word you emit must either (a) appear in the source decomposition or Track metadata, or (b) be a direct technical synonym for a literary term in the source (e.g., source says "doleful croon" → emit "tenor lead" or "baritone lead" if register is given; if no register is given, drop the affect entirely and emit "male lead"). NEVER infer era from genre — use the decade from Track metadata verbatim.
 
-2. SUNO-READABLE LANGUAGE ONLY in slots 1-6. Allowed: vocal registers (tenor, baritone, alto, soprano, falsetto, head voice, chest voice), techniques (fingerpicked, strummed, slapped, picked, brushed, swept, palm-muted), mic positions (close-mic, room-mic, distant), production methods (lo-fi, polished, home-recorded, tape, DAW, dry, wet, reverb-soaked, phased, compressed), specific subgenre + decade (e.g., "late-2000s indie folk"), instrument names, harmonic terms (modal, diatonic, chromatic, major-key, minor-key, extended chords), tempo terms (mid-tempo, uptempo, downtempo). FORBIDDEN: literary affect (doleful, plaintive, surefooted, earnest, communal, literary, aspirational, hymnal, pastoral, fairy-tale, liturgical, conversational, intimate-as-affect), metaphor (cinematic, painterly, dreamlike), aesthetic posture words (sophisticated, refined, raw-as-affect). If a literary term has no clear technical substitute, OMIT it.
+2. SUNO-READABLE LANGUAGE ONLY. Allowed: vocal registers (tenor, baritone, alto, soprano, falsetto, head voice, chest voice), techniques (fingerpicked, strummed, slapped, picked, brushed, swept, palm-muted), mic positions (close-mic, room-mic, distant), production methods (lo-fi, polished, home-recorded, tape, DAW, dry, wet, reverb-soaked, phased, compressed), specific subgenre + decade (e.g., "late-2000s indie folk"), instrument names, harmonic terms (modal, diatonic, chromatic, major-key, minor-key, extended chords), tempo terms (mid-tempo, uptempo, downtempo). FORBIDDEN: literary affect (doleful, plaintive, surefooted, earnest, communal, literary, aspirational, hymnal, pastoral, fairy-tale, liturgical, conversational, intimate-as-affect), mood/affect words of any kind (melancholy, uplifting, menacing, tender, joyful, dark, bright, warm-as-mood — these belong to the outcome, not the router), metaphor (cinematic, painterly, dreamlike), aesthetic posture words (sophisticated, refined, raw-as-affect). If a literary or affect term has no clear technical substitute, OMIT it.
 
 3. ONE DESCRIPTOR PER SLOT. NO COMMAS inside any slot value. Each slot is a single short phrase. If you find yourself stacking with commas, you are violating this rule — pick the single most Suno-actionable phrase and discard the rest.
 
 4. NO temporal/arrangement language in any slot. Words like "builds", "drops", "enters", "fades", "bridge", "verse", "outro", "stripped" do not belong here.
 
-# The 7 slots and their hard ceilings
+# The 6 slots and their hard ceilings
 
 vocal (≤30 chars, no commas): register + ONE technical qualifier. Example: "tenor male lead", "falsetto male", "baritone with vibrato". If source gives no register, emit "male lead" / "female lead". DO NOT use "croon", "doleful", "plaintive", "earnest" here.
 genre_era (≤30 chars, no commas): subgenre + decade. Example: "late-2000s indie folk", "mid-2010s neo-soul". One subgenre. No "hymnal", "pastoral", "literary".
@@ -83,11 +91,10 @@ heroes (≤35 chars, no commas): 1-2 instruments joined by "and". Example: "fing
 harmonic_tempo (≤35 chars, no commas): harmonic color + tempo feel as one phrase. Example: "modal diatonic mid-tempo", "chromatic extended chords mid-tempo".
 production (≤30 chars, no commas): one production texture. Example: "dry close-mic with room bleed", "phased stereo bass". One concrete texture.
 rhythm_feel (≤20 chars, no commas): ONLY if source calls out a non-obvious rhythm character (swung, behind-the-beat, on-the-grid). Else empty string "".
-mood (≤12 chars): ONE word. Example: "melancholy", "uplifting", "menacing", "tender".
 
 # Output
 
-Return a single JSON object with exactly these keys: vocal, genre_era, heroes, harmonic_tempo, production, rhythm_feel, mood. No prose. No code fences. All values are strings (rhythm_feel may be empty).`
+Return a single JSON object with exactly these keys: vocal, genre_era, heroes, harmonic_tempo, production, rhythm_feel. No prose. No code fences. All values are strings (rhythm_feel may be empty).`
 
 export interface RouterContext {
   /** Track release year — authoritative for era anchoring. */
@@ -123,7 +130,7 @@ function buildUserMessage(d: StyleAnalysis, ctx: RouterContext): string {
 }
 
 function validate(s: any): asserts s is RouterSlots {
-  const required = ['vocal', 'genre_era', 'heroes', 'harmonic_tempo', 'production', 'rhythm_feel', 'mood']
+  const required = ['vocal', 'genre_era', 'heroes', 'harmonic_tempo', 'production', 'rhythm_feel']
   for (const k of required) {
     if (typeof s?.[k] !== 'string') throw new Error(`Router output missing or non-string slot: ${k}`)
   }
@@ -137,7 +144,6 @@ function composeStyle(slots: RouterSlots): string {
     slots.harmonic_tempo,
     slots.production,
     slots.rhythm_feel,
-    slots.mood,
   ]
   const joined = ordered
     .map((s) => s.trim())
@@ -184,7 +190,7 @@ export async function routeStylePortion(
       {
         name: 'emit_slots',
         description:
-          'Emit the 7 routed slot strings that compose into the Suno style field.',
+          'Emit the 6 routed slot strings that compose into the Suno style field. Mood is set by the outcome layer — do not emit a mood word.',
         input_schema: {
           type: 'object',
           properties: {
@@ -198,7 +204,6 @@ export async function routeStylePortion(
               description:
                 'Empty string if the source does not call out a non-obvious rhythm character.',
             },
-            mood: { type: 'string' },
           },
           required: [
             'vocal',
@@ -207,7 +212,6 @@ export async function routeStylePortion(
             'harmonic_tempo',
             'production',
             'rhythm_feel',
-            'mood',
           ],
         },
       },
