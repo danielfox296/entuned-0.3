@@ -1,10 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   bpmCompatible,
-  vocalGenderCompatible,
   extractGenreBrief,
-  extractModeHint,
-  modeCompatible,
   stripFlavorAnnotations,
   OUTCOME_TEMPO_TOLERANCE_BPM,
 } from './eno.js'
@@ -41,32 +38,11 @@ describe('bpmCompatible — outcome tempo gate', () => {
   })
 })
 
-describe('vocalGenderCompatible', () => {
-  it('excludes instrumental refs regardless of hook gender', () => {
-    expect(vocalGenderCompatible('instrumental', null)).toBe(false)
-    expect(vocalGenderCompatible('instrumental', 'male')).toBe(false)
-    expect(vocalGenderCompatible('instrumental', 'female')).toBe(false)
-    expect(vocalGenderCompatible('instrumental', 'duet')).toBe(false)
-  })
-
-  it('null hook gender accepts any vocal ref', () => {
-    expect(vocalGenderCompatible('male', null)).toBe(true)
-    expect(vocalGenderCompatible('female', null)).toBe(true)
-    expect(vocalGenderCompatible('duet', null)).toBe(true)
-  })
-
-  it('hook duet only accepts duet refs', () => {
-    expect(vocalGenderCompatible('duet', 'duet')).toBe(true)
-    expect(vocalGenderCompatible('male', 'duet')).toBe(false)
-    expect(vocalGenderCompatible('female', 'duet')).toBe(false)
-  })
-
-  it('hook male accepts male and duet refs', () => {
-    expect(vocalGenderCompatible('male', 'male')).toBe(true)
-    expect(vocalGenderCompatible('duet', 'male')).toBe(true)
-    expect(vocalGenderCompatible('female', 'male')).toBe(false)
-  })
-})
+// vocalGenderCompatible tests removed 2026-05-23 — the vocal-gender gate
+// was removed from pickReferenceTrack. Hook.vocalGender still drives Suno
+// via the populate-songs vocal toggle; it just no longer narrows the ref
+// pool. Ref tracks with any vocal lead (including instrumental) are now
+// eligible because Bernie writes the lyrics, not the ref.
 
 describe('extractGenreBrief', () => {
   const baseAnalysis: StyleAnalysis = {
@@ -118,63 +94,12 @@ describe('extractGenreBrief', () => {
   })
 })
 
-describe('extractModeHint', () => {
-  it('returns null for empty/missing text', () => {
-    expect(extractModeHint(null)).toBeNull()
-    expect(extractModeHint(undefined)).toBeNull()
-    expect(extractModeHint('')).toBeNull()
-  })
-
-  it('extracts major from unambiguous major-mode prose', () => {
-    expect(extractModeHint('major-key diatonic, mid-tempo')).toBe('major')
-    expect(extractModeHint('bright major chords throughout')).toBe('major')
-    expect(extractModeHint('Major scale tonality')).toBe('major')
-  })
-
-  it('extracts minor from unambiguous minor-mode prose', () => {
-    expect(extractModeHint('minor blues, behind-the-beat')).toBe('minor')
-    expect(extractModeHint('Minor mode, syncopated')).toBe('minor')
-    expect(extractModeHint('natural minor scale')).toBe('minor')
-  })
-
-  it('returns null when both major and minor appear (ambiguous)', () => {
-    expect(extractModeHint('opens in major, shifts to minor at the bridge')).toBeNull()
-  })
-
-  it('returns null when neither token appears (modal / unspecified)', () => {
-    expect(extractModeHint('modal dorian, swung pocket')).toBeNull()
-    expect(extractModeHint('chromatic passing chords, jazz-inflected')).toBeNull()
-  })
-})
-
-describe('modeCompatible', () => {
-  it('passes when refMode is unknown — conservative gate', () => {
-    expect(modeCompatible(null, 'major')).toBe(true)
-    expect(modeCompatible(null, 'minor')).toBe(true)
-    expect(modeCompatible(null, 'modal dorian')).toBe(true)
-  })
-
-  it('passes when outcomeMode does not clearly name a key', () => {
-    expect(modeCompatible('major', 'modal')).toBe(true)
-    expect(modeCompatible('minor', 'dorian')).toBe(true)
-    expect(modeCompatible('major', '')).toBe(true)
-  })
-
-  it('matches major-to-major and minor-to-minor', () => {
-    expect(modeCompatible('major', 'major')).toBe(true)
-    expect(modeCompatible('minor', 'minor')).toBe(true)
-  })
-
-  it('rejects when refMode and outcomeMode disagree', () => {
-    expect(modeCompatible('major', 'minor')).toBe(false)
-    expect(modeCompatible('minor', 'major')).toBe(false)
-  })
-
-  it('passes when outcomeMode mentions both — no clear ask', () => {
-    expect(modeCompatible('major', 'major or minor')).toBe(true)
-    expect(modeCompatible('minor', 'major or minor')).toBe(true)
-  })
-})
+// extractModeHint and modeCompatible tests removed 2026-05-23 — the mode
+// gate was removed from pickReferenceTrack. A song is not a single mode;
+// chord progressions mix major and minor chords, and inferring a song-level
+// mode from text was lossy. Outcome.mode reaches Suno via the
+// OutcomeFactorPrompt prepend — that's the only place mode signaling
+// belongs.
 
 describe('stripFlavorAnnotations', () => {
   it('strips flavor parens like "(groove establishes)"', () => {

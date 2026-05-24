@@ -14,7 +14,9 @@ import { marsAssemble, type StyleBuilderName } from '../mars/mars.js'
 import { generateLyrics, type GenreBrief, type OutcomeBrief } from '../bernie/bernie.js'
 import { injectArrangement, type ArrangementSections } from '../arranger/arranger.js'
 import { resolveOutcomeParams } from '../variance/variance.js'
-import { extractVocalGender, type VocalGender } from '../mars/vocal-gender.js'
+// vocal-gender import removed 2026-05-23 — Hook.vocalGender now flows
+// directly to Suno via the populate-songs vocal toggle, not via ref-track
+// filtering. Hook.vocalGender remains for that purpose; see pickAvailableHook.
 import { pickFormArchetype, type FormArchetypeChoice } from './form-archetype.js'
 import type { StyleAnalysis } from '@prisma/client'
 
@@ -139,16 +141,10 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
   const outcome = await prisma.outcome.findUnique({ where: { id: outcomeId } })
   if (!outcome) return { ok: false, reason: 'outcome_not_found' }
 
-  const pickResult = await pickReferenceTrack(icpId, hook.vocalGender, outcome.tempoBpm, outcome.mode)
+  const pickResult = await pickReferenceTrack(icpId, outcome.tempoBpm)
   if (!pickResult.ok) {
     if (pickResult.reason === 'no_outcome_tempo_match') {
       return { ok: false, reason: `pool_exhausted_reference_tracks_outcome_tempo_${outcome.tempoBpm}` }
-    }
-    if (pickResult.reason === 'no_outcome_mode_match') {
-      return { ok: false, reason: `pool_exhausted_reference_tracks_outcome_mode_${outcome.mode}` }
-    }
-    if (pickResult.reason === 'no_vocal_gender_match' && hook.vocalGender) {
-      return { ok: false, reason: `pool_exhausted_reference_tracks_for_hook_vocal_gender_${hook.vocalGender}` }
     }
     return { ok: false, reason: 'pool_exhausted_reference_tracks' }
   }
@@ -383,66 +379,35 @@ export async function pickAvailableHook(icpId: string, outcomeId: string): Promi
 
 export type RefTrackWithAnalysis = Awaited<ReturnType<typeof prisma.referenceTrack.findFirstOrThrow<{ include: { styleAnalysis: true } }>>>
 
-// True if a ref track's vocal lead is compatible with the hook's vocal-gender
-// constraint. Null hookGender = unconstrained (any vocal track passes; only
-// instrumentals are excluded). Set hookGender = strict match required.
-export function vocalGenderCompatible(refGender: VocalGender, hookGender: HookVocalGender): boolean {
-  if (refGender === 'instrumental') return false
-  if (!hookGender) return true
-  if (hookGender === 'duet') return refGender === 'duet'
-  // Hook 'male' or 'female' — match same primary gender, plus duets which contain that voice.
-  return refGender === hookGender || refGender === 'duet'
-}
-
 // Outcome → ref tempo gate. Refs without a decomposed BPM pass through
 // (lazy backfill on re-decompose); refs with a BPM must be within ±7 of the
 // outcome's tempo. See schema/05-reference-track-decomposition.md
 // "The BPM doctrine, restated".
+//
+// Tempo is the ONLY ref-track gate. Two former gates were removed (2026-05-23):
+//   - Vocal gender: Hook.vocalGender drives Suno's vocal toggle directly in
+//     populate-songs; the ref track's vocal lead is informational, not
+//     steering. Filtering on it just narrowed the pool without changing
+//     Suno's vocal output. Instrumental refs are also accepted now — Bernie
+//     writes the lyrics, the ref is for stylistic anchoring only.
+//   - Mode (major/minor): a song's mode isn't a single property — most songs
+//     have chord progressions that mix major and minor chords. Inferring a
+//     song-level mode from text was lossy and noisy. The outcome's mode
+//     reaches Suno via the OutcomeFactorPrompt prepend; that's where mode
+//     signaling belongs.
 export const OUTCOME_TEMPO_TOLERANCE_BPM = 7
 export function bpmCompatible(refBpm: number | null | undefined, outcomeTempoBpm: number): boolean {
   if (refBpm == null) return true
   return Math.abs(refBpm - outcomeTempoBpm) <= OUTCOME_TEMPO_TOLERANCE_BPM
 }
 
-// Mode hint extraction. StyleAnalysis has no structured mode field; major/minor
-// is mentioned (or not) in the freeform harmonic_and_groove + vocal text. Returns
-// 'major' or 'minor' only when one token appears unambiguously; null otherwise
-// (ambiguous, modal, or simply unspecified). Conservative by design — we only
-// want to reject a ref when the contradiction is obvious.
-const MAJOR_RE = /\bmajor[- ]?(?:key|scale|tonality|mode|chord(?:s)?)?\b/i
-const MINOR_RE = /\bminor[- ]?(?:key|scale|tonality|mode|chord(?:s)?)?\b/i
-export function extractModeHint(text: string | null | undefined): 'major' | 'minor' | null {
-  if (!text) return null
-  const hasMajor = MAJOR_RE.test(text)
-  const hasMinor = MINOR_RE.test(text)
-  if (hasMajor && !hasMinor) return 'major'
-  if (hasMinor && !hasMajor) return 'minor'
-  return null
-}
-
-// Outcome → ref mode gate. Conservative: passes when either side is unknown,
-// only rejects when both the outcome mode and the ref mode are clearly named
-// and they disagree. Modal/dorian/etc. on either side defaults to pass —
-// Suno doesn't steer modally anyway, so blocking those would over-filter.
-export function modeCompatible(refMode: 'major' | 'minor' | null, outcomeMode: string): boolean {
-  if (refMode == null) return true
-  const lower = outcomeMode.toLowerCase()
-  const outcomeWantsMajor = /\bmajor\b/.test(lower)
-  const outcomeWantsMinor = /\bminor\b/.test(lower)
-  if (outcomeWantsMajor && !outcomeWantsMinor) return refMode === 'major'
-  if (outcomeWantsMinor && !outcomeWantsMajor) return refMode === 'minor'
-  return true
-}
-
 export type PickRefResult =
   | { ok: true; ref: RefTrackWithAnalysis }
-  | { ok: false; reason: 'no_approved_with_analysis' | 'no_vocal_gender_match' | 'no_outcome_tempo_match' | 'no_outcome_mode_match' }
+  | { ok: false; reason: 'no_approved_with_analysis' | 'no_outcome_tempo_match' }
 
 export async function pickReferenceTrack(
   icpId: string,
-  hookGender: HookVocalGender,
   outcomeTempoBpm: number,
-  outcomeMode?: string,
 ): Promise<PickRefResult> {
   // useCount alone doesn't spread bursts: it only increments on operator
   // accept (admin.ts), so every iteration of a burst sees the same snapshot
@@ -459,37 +424,12 @@ export async function pickReferenceTrack(
   })
   if (tracks.length === 0) return { ok: false, reason: 'no_approved_with_analysis' }
 
-  // Filter 1: vocal-gender compatibility. Exclude instrumentals universally;
-  // also exclude refs whose vocal lead doesn't match the hook's constraint.
-  const vocalCompatible = tracks.filter((t) => {
-    if (!t.styleAnalysis) return false
-    const vocalText = [t.styleAnalysis.vocalCharacter, t.styleAnalysis.vocalArrangement]
-      .filter(Boolean)
-      .join(' · ')
-    const refGender = extractVocalGender(vocalText)
-    return vocalGenderCompatible(refGender, hookGender)
-  })
-  if (vocalCompatible.length === 0) return { ok: false, reason: 'no_vocal_gender_match' }
-
-  // Filter 2: outcome tempo compatibility (±7bpm). Refs whose StyleAnalysis
+  // Filter: outcome tempo compatibility (±7bpm). Refs whose StyleAnalysis
   // has no decomposed BPM pass through — they get filtered on next decompose.
-  const tempoCompatible = vocalCompatible.filter((t) => bpmCompatible(t.styleAnalysis?.bpm, outcomeTempoBpm))
+  const tempoCompatible = tracks.filter((t) => bpmCompatible(t.styleAnalysis?.bpm, outcomeTempoBpm))
   if (tempoCompatible.length === 0) return { ok: false, reason: 'no_outcome_tempo_match' }
 
-  // Filter 3: outcome mode compatibility. Conservative — only rejects when
-  // both sides clearly name a key and they disagree. Modal/dorian/unspecified
-  // refs pass through; the prepend handles mode signaling for Suno.
-  const modeFiltered = outcomeMode
-    ? tempoCompatible.filter((t) => {
-        const refMode = extractModeHint(
-          [t.styleAnalysis?.harmonicAndGroove, t.styleAnalysis?.vibePitch].filter(Boolean).join(' · '),
-        )
-        return modeCompatible(refMode, outcomeMode)
-      })
-    : tempoCompatible
-  if (modeFiltered.length === 0) return { ok: false, reason: 'no_outcome_mode_match' }
-
-  const scored = modeFiltered.map((t) => {
+  const scored = tempoCompatible.map((t) => {
     const inFlight = t.songSeeds.filter(
       (s) => s.status === 'assembling' || s.status === 'queued' || s.status === 'accepted',
     ).length
