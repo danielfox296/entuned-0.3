@@ -115,7 +115,13 @@ railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
 })'"
 ```
 
-A reasonable target is **8–12 available hooks per (ICP × outcome)** for healthy `make-song-seeds` headroom. If `available` is already above target, ask Daniel before topping up — he may not want more.
+A reasonable target is **8–12 available hooks per (ICP × outcome)** for healthy `make-song-seeds` headroom.
+
+**Decision gate** (apply per target, do not auto-draft past the threshold):
+
+- `available < 8` → drafting is warranted; proceed.
+- `8 ≤ available ≤ 15` → top-up is reasonable; proceed.
+- `available > 15` → **STOP. Do NOT auto-draft.** Surface to Daniel: "Pool at `<N>` available for `<outcome>`; target is 8–12. Top up anyway?" Wait for explicit confirmation. Drafting into a saturated pool wastes Anthropic API calls (most drafts will trigger trigram dedup and return `drafted: 0`), and the saturated phrasing doesn't get refreshed by adding more — only by retiring stale hooks.
 
 ## Step 2 — Call the drafter + persist
 
@@ -174,6 +180,10 @@ If any hooks look obviously off (gimmicky rhyme schemes, product-imagery leaks, 
 | `drafted: 0` after the call | All drafts collided with existing hooks (trigram dedup) | Hook pool is saturated with similar phrasings — Daniel should rotate / retire some, or tune the outcome's `OutcomeLyricFactor.hookPrompt` to push the drafter into a fresher region |
 | `drafted: N`, `persisted: 0` (with no Prisma error) | Shouldn't happen — `createMany` with `skipDuplicates: false` either persists or throws | Investigate; should never silently lose hooks |
 | `outcome not found` from `draftHooks` | Outcome row doesn't exist or is superseded | Re-resolve the outcomeId — display vs title vs key |
+| `Unknown file extension '.ts' for ./dist/lib/hooks/drafter.js` | Missing `--import tsx` flag on `node` | Use `node --import tsx -e '...'` for the drafter call. Plain `node -e` works for simple Prisma queries but not for code that imports TS source. |
+| `Cannot use import statement outside a module` | Either wrong node version or `--import tsx` missing | Check node version on prod container (should be 20+) and confirm `--import tsx` is in the command |
+| Shell parse error on `'...)'` or `"..."` | Triple-quote escaping broke; usually an apostrophe in an inlined value | Move the value into an env var: `MY_VAR='value'` in the shell line, then reference as `\"$MY_VAR\"` inside the inner JS. Avoid hand-escaping apostrophes. |
+| `prisma.ICP is not a function` or similar | Wrong model casing | Prisma model accessors are **camelCase with lowercased acronyms**: `prisma.iCP`, `prisma.hook`, `prisma.songSeed`, `prisma.referenceTrack`. Not `prisma.ICP`. Re-check the schema if unsure. |
 
 ## What this skill does NOT do
 

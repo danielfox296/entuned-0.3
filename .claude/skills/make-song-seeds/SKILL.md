@@ -116,7 +116,11 @@ railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
 })'"
 ```
 
-If `available < n`, surface to Daniel — recommend running `draft-hooks` first, then retry. Don't blindly proceed at a reduced `n`; that's silent under-production.
+**Decision gate** (apply per target):
+
+- `available >= n` → proceed.
+- `available < n` but `> 0` → **STOP. Do NOT auto-proceed at reduced `n`.** That's silent under-production. Surface to Daniel: "Available `<N>` < requested `<n>` for `<outcome>`. Run `draft-hooks` to top up, or proceed at reduced n=`<available>`?" Wait for explicit confirmation.
+- `available == 0` → **STOP.** Surface and recommend `draft-hooks` first. `runEno` would just return `pool_exhausted_hooks` immediately.
 
 Also worth a quick ref-track sanity check at the outcome's tempo (the only ref-track gate now):
 
@@ -135,7 +139,12 @@ If `eligibleAtBpm < 3`, expect ref-pile-up (same track picked multiple times). S
 
 ## Step 2 — Run Eno
 
-One `railway ssh` per (ICP × outcome). Inline the IDs and `n`:
+One `railway ssh` per (ICP × outcome). **Two requirements baked into the template below — do NOT omit either:**
+
+1. **`node --import tsx -e`** (not plain `node -e`). runEno imports TS source from `./dist/lib/eno/eno.js`; plain node fails with `Unknown file extension '.ts'`.
+2. **`process.exit(0)`** at the end of the inner async function. runEno uses the long-lived shared prisma client (no per-call `$disconnect`); without explicit exit, the Node process hangs past completion until something kills it (you'll see your CLI freeze for minutes).
+
+Use this exact template:
 
 ```bash
 ICP_ID="..."; OUTCOME_ID="..."; N=3; TRIGGERED_BY_USER="<daniel-account-id>"
@@ -153,8 +162,6 @@ import(\"./dist/lib/eno/eno.js\").then(async e => {
 })
 '"
 ```
-
-The explicit `process.exit(0)` matters — runEno uses the long-lived shared prisma client (no per-call `$disconnect`), so without it the Node process can hang past completion until something kills it.
 
 Result shape:
 ```
@@ -210,21 +217,36 @@ Present the dump to Daniel formatted (markdown headings, code-fence the lyrics).
 
 ## Step 4 — Decide next move
 
-Outcomes from the batch dump:
-- **All seeds look good** → ready for `populate-songs`
-- **One or two need rework** → delete the bad ones (`prisma.songSeed.delete({ where: { id, status: 'queued' } })`) and re-run with `n: <count>` to top up
-- **Whole batch shows a systemic problem** (lyric rule violation, style contradiction, etc.) → don't ship to Suno; tell Daniel what the systemic issue is and propose a prompt fix (Bernie via Dash → Lyric Prompts, or Mars via Dash → Mars Prompts)
+After Step 3's dump, classify the batch using these explicit criteria. **Do not auto-proceed to `populate-songs` if the batch falls into category B or C — surface to Daniel first.**
+
+**Category A — all seeds clean: auto-proceed.** Hand off to `populate-songs`. Criteria (all must hold):
+
+- Every seed has sung-line count ≥ 18 (chorus-based forms)
+- No stage-direction parens (e.g., `(ukulele groove, 4 bars)`, `(fade on groove)`)
+- No product/retail imagery (shirt, seam, shelf, rack, fitting, aisle, etc. — full ban list in [lyric-craft-rules.ts](../../../apps/server/src/lib/bernie/lyric-craft-rules.ts))
+- No ref picked more than once across the batch (if there's enough ref pool)
+- No lyric draft prompt's `cliché_phrases` or `cliché_shapes` patterns (the wisdom-imparting register, transformation arcs, unnamed-revelation tropes)
+
+**Category B — 1-2 seeds need rework, rest look clean: STOP and ask Daniel.** Don't auto-delete. Surface the bad seeds with the specific issue, propose `prisma.songSeed.delete({ where: { id, status: "queued" } })` for each, and ask Daniel to confirm before deleting + re-running.
+
+**Category C — whole batch shows a systemic problem: STOP, don't ship to Suno.** Examples: every bridge is a thesis bridge; every seed dropped >30% first-person pronouns; every seed has a stage-direction paren. Surface the pattern to Daniel and propose the prompt fix (Bernie/Mars/OutcomeFactor — see Dash → Prompts & Rules). Systemic issues mean the latest prompt version has a regression; bumping a new prompt version is cheaper than burning Suno renders on a known-broken batch.
+
+If you can't decide between B and C, default to **STOP and ask Daniel** rather than auto-proceeding. The cost of a wrong B→A escalation (ship a couple of bad songs) is higher than the cost of a wrong C→B classification (ask one extra question).
 
 ## Failure modes
 
 | Symptom | What it means | Fix |
 |---|---|---|
+| Node process hangs after `runEno` output prints | Missing `process.exit(0)` in the inner async function | Add `process.exit(0)` after `console.log(JSON.stringify(result, ...))`. runEno uses the shared prisma client and won't auto-disconnect. See Step 2 template. |
+| `Unknown file extension '.ts' for ./dist/lib/eno/eno.js` | Plain `node -e` instead of `node --import tsx -e` | Use `node --import tsx -e '...'` for the runEno call. See Step 2 template. |
 | `pool_exhausted_hooks` | No approved hooks remaining for the (ICP × outcome) | Run `draft-hooks` first |
 | `pool_exhausted_reference_tracks_outcome_tempo_<bpm>` | No approved + decomposed refs within ±7bpm of the outcome | Either widen the decomposed ref pool, decompose new candidate tracks, or pick an outcome with closer-tempo refs |
-| `producedN < requestedN`, `reason: pool_exhausted` | Ran dry partway through the batch | The seeds that DID produce are valid — keep them, surface the gap |
+| `producedN < requestedN`, `reason: pool_exhausted` | Ran dry partway through the batch | The seeds that DID produce are valid — keep them, surface the gap. Do NOT auto-rerun to fill the missing N; surface to Daniel first. |
 | `Cannot read properties of null` on `outcome.tempoBpm`/`outcome.mode`/`outcome.mood` | The Outcome row is missing fields the OutcomeFactorPrompt prepend needs | Open in Dash → Outcomes → Outcome Library — the row is misconfigured. Tempo, mode, mood are all required. |
 | Repeated `runEno` calls produce same hook order across calls | Hook picker uses `createdAt asc` for selection within tied scores — the same approved hook will get picked first every time until it's consumed. Expected behavior. | Not a bug — finish consuming the pool or rotate |
 | Same ref picked N times in a single batch | The eligible ref pool (post-BPM filter) is narrow; the picker spreads with random tiebreak but small pools have small spreads | Decompose more refs at that tempo |
+| Shell parse error on `'...)'` or `"..."` in the runEno script | Triple-quote escaping broke; usually an apostrophe in an inlined value | Move the value into an env var: `MY_VAR='value'` in the shell line, then reference as `\"$MY_VAR\"` inside the inner JS. Avoid hand-escaping apostrophes inside JS string literals — they're the most common shell-parse-error source. |
+| `prisma.ICP is not a function` or similar | Wrong model casing | Prisma accessors are **camelCase with lowercased acronyms**: `prisma.iCP`, `prisma.hook`, `prisma.songSeed`, `prisma.referenceTrack`, `prisma.account`. Not `prisma.ICP`. |
 
 ## What this skill does NOT do
 
