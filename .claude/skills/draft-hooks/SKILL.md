@@ -30,34 +30,59 @@ Triggers (auto-fire — no need to ask permission):
 - "write hooks for [outcome]"
 - "generate hooks for [ICP]"
 - "fill the hook pool for X"
-- "Gary needs hooks for Brand Match"
+- "the hook pool for [client/location/icp × outcome] is empty"
 - `make-song-seeds` reported `pool_exhausted_hooks` for a target — call this first, then retry
 
 Do NOT use for:
 - Editing the hook drafter prompt itself — that's `Dash → Prompts & Rules → Hook Prompts` (a separate per-outcome `OutcomeLyricFactor.hookPrompt` row, or per-ICP `HookWriterPrompt` row for the legacy ICP-entangled path)
 - Rejecting / retiring existing hooks — that's an admin route call, not this skill
 
-## Resolve targets from ARGUMENTS
+## Step 0 — Resolve targets (REQUIRED)
 
-`ARGUMENTS` should specify (or imply) one or more `(icpId, outcomeId, n)` tuples. Resolve from human names if needed:
+`ARGUMENTS` must specify all three of `client`, `location`, `icp` (or pass IDs directly via `client_id` / `store_id` / `icp_id`), plus `outcomes` (csv of `Outcome.title`). No name-guessing, no silent defaults. If anything is missing or ambiguous, fail loudly with the candidate list — never pick.
+
+Canonical rule + rationale: [GENERATION.md](../../../../../GENERATION.md) → "Canonical target resolution". Memory pins: `feedback_pipeline_target_specification`, `project_free_tier_vs_song_builder`.
 
 ```bash
-# Map ICP name → id
-railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
-  const p=new m.PrismaClient();
-  const icps=await p.iCP.findMany({where:{name:{contains:\"<NAME>\",mode:\"insensitive\"}},include:{client:true}});
-  console.log(icps.map(i=>({id:i.id,name:i.name,client:i.client?.companyName})));
-  await p.\$disconnect();
-})'"
+CLIENT="*Free Tier Song Builder*"
+LOCATION="Free"
+ICP_NAME="Free Tier"
+OUTCOMES_CSV="Chill,Steady,Upbeat"
 
-# Map outcome title → id
-railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
-  const p=new m.PrismaClient();
-  const outs=await p.outcome.findMany({where:{supersededAt:null,title:{contains:\"<TITLE>\",mode:\"insensitive\"}},select:{id:true,title:true,displayTitle:true}});
-  console.log(outs);
+railway ssh "cd /app && node -e '
+import(\"@prisma/client\").then(async m=>{
+  const p = new m.PrismaClient();
+  const fail = (stage, info) => { console.error(JSON.stringify({stage, ...info})); process.exit(1); };
+
+  const clients = await p.client.findMany({ where: { companyName: { equals: \"$CLIENT\", mode: \"insensitive\" } } });
+  if (clients.length !== 1) fail(\"client\", { candidates: clients.map(c => c.companyName) });
+
+  const stores = await p.store.findMany({
+    where: { clientId: clients[0].id, name: { equals: \"$LOCATION\", mode: \"insensitive\" } },
+    include: { icpLinks: { include: { icp: true } } },
+  });
+  if (stores.length !== 1) {
+    const all = await p.store.findMany({ where: { clientId: clients[0].id }, select: { name: true } });
+    fail(\"location\", { candidates: all.map(s => s.name) });
+  }
+
+  const matches = stores[0].icpLinks.filter(l => l.icp.name.toLowerCase() === \"$ICP_NAME\".toLowerCase());
+  if (matches.length !== 1) fail(\"icp\", { candidates: stores[0].icpLinks.map(l => l.icp.name) });
+
+  const wanted = \"$OUTCOMES_CSV\".split(\",\").map(s => s.trim()).filter(Boolean);
+  const outs = await p.outcome.findMany({
+    where: { supersededAt: null, title: { in: wanted, mode: \"insensitive\" } },
+    select: { id: true, title: true },
+  });
+  if (outs.length !== wanted.length) fail(\"outcomes\", { missing: wanted.filter(t => !outs.find(o => o.title.toLowerCase() === t.toLowerCase())) });
+
+  console.log(JSON.stringify({ clientId: clients[0].id, storeId: stores[0].id, icpId: matches[0].icp.id, outcomes: outs }));
   await p.\$disconnect();
-})'"
+})
+'"
 ```
+
+Capture the JSON output → set `CLIENT_ID`, `STORE_ID`, `ICP_ID`, plus an outcome map for the loop below.
 
 Default `n` is **5** unless Daniel specifies. Cap at 20 (the Zod limit in the admin route).
 
@@ -129,7 +154,7 @@ import(\"./dist/lib/hooks/drafter.js\").then(async d => {
 - The trigram dedup vs existing hooks for the same (ICP × outcome)
 - Any vocal-gender normalization the drafter prompt requires
 
-The script then persists them with `status='approved'` (matching the Dash "approve all drafts" workflow). If Daniel wants drafts-for-review-first rather than auto-approve, persist with `status: 'draft'` + omit `approvedAt`/`approvedById`. **Default is auto-approve** because that's what the existing browser-driven `seed-hooks` skill does at the end of its flow.
+The script then persists them with `status='approved'` (matching the Dash "approve all drafts" workflow). If Daniel wants drafts-for-review-first rather than auto-approve, persist with `status: 'draft'` + omit `approvedAt`/`approvedById`. **Default is auto-approve** because that matches the Dash Hook Writing UX (operator hits "approve all" after every draft pass).
 
 ## Step 3 — Show Daniel the result
 

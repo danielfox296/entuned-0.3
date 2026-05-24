@@ -20,6 +20,14 @@ This is the only stage that needs a browser. The previous two run over `railway 
 - Load Chrome MCP tools via ToolSearch at the start of each context segment.
 - Use `browser_batch` heavily — most steps batch cleanly into one round trip per tab.
 
+## Step 0 — Resolve targets (REQUIRED)
+
+`ARGUMENTS` must specify `client`, `location`, `icp` (or IDs directly). No name-guessing, no silent defaults. If anything is missing or ambiguous, fail loudly with the candidate list — never pick.
+
+Canonical rule + cascade: [GENERATION.md](../../../../../GENERATION.md) → "Canonical target resolution". Memory pins: `feedback_pipeline_target_specification`, `project_free_tier_vs_song_builder`.
+
+Run the cascade via `railway ssh` (same form as `draft-hooks` Step 0) to capture `CLIENT_ID`, `STORE_ID`, `ICP_ID` and the **exact `Client.companyName` / `Store.name` / `ICP.name` strings**. The Dash dropdowns in Step 2 match by exact text, so the resolved names go into those `<select>` queries verbatim.
+
 ## How the round trip works
 
 ```
@@ -109,6 +117,8 @@ Open Dash in its own tab: `https://dash.entuned.co/#workflows`
 
 The Workflows panel has 3 page-level `<select>` dropdowns at the top: **CLIENT**, **LOCATION**, **ICP**. They cascade — Location options populate after Client is set, ICP options after Location.
 
+Use the resolved Client / Location / ICP names from Step 0 verbatim — these are the exact strings the Dash `<option>` text contains.
+
 ```js
 function setSel(sel, val) {
   const nv = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
@@ -117,10 +127,10 @@ function setSel(sel, val) {
 }
 const sels = Array.from(document.querySelectorAll('select'));
 // sels[0] = Client, sels[1] = Location, sels[2] = ICP
-const opt = Array.from(sels[0].options).find(o => o.textContent.trim() === 'Untuckit');
+const opt = Array.from(sels[0].options).find(o => o.textContent.trim() === '<CLIENT_NAME>');
 setSel(sels[0], opt.value);
-// wait ~1s for Location options to populate, then sels[1], same pattern
-// wait ~1s for ICP options to populate, then sels[2], same pattern
+// wait ~1s for Location options to populate, then sels[1] with '<LOCATION_NAME>'
+// wait ~1s for ICP options to populate, then sels[2] with '<ICP_NAME>'
 ```
 
 ## Step 3 — Click the Pipeline sub-tab

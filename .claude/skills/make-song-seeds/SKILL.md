@@ -38,27 +38,52 @@ Do NOT use for:
 - Pushing seeds to Suno + accepting takes — that's `populate-songs` (browser, Chrome MCP)
 - Editing Mars / Bernie / Outcome prompts — those are Dash → Prompts & Rules panels
 
-## Resolve targets from ARGUMENTS
+## Step 0 — Resolve targets (REQUIRED)
 
-`ARGUMENTS` should specify (or imply) one or more `(icpId, outcomeId, n)` tuples. If only human names are given, resolve via:
+`ARGUMENTS` must specify all three of `client`, `location`, `icp` (or IDs directly), plus `outcomes` (csv of `Outcome.title`). No name-guessing, no silent defaults. If anything is missing or ambiguous, fail loudly with the candidate list — never pick.
+
+Canonical rule + rationale: [GENERATION.md](../../../../../GENERATION.md) → "Canonical target resolution". Memory pins: `feedback_pipeline_target_specification`, `project_free_tier_vs_song_builder`.
 
 ```bash
-# ICP lookup
-railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
-  const p=new m.PrismaClient();
-  const icps=await p.iCP.findMany({where:{name:{contains:\"<NAME>\",mode:\"insensitive\"}},include:{client:true}});
-  console.log(icps.map(i=>({id:i.id,name:i.name,client:i.client?.companyName})));
-  await p.\$disconnect();
-})'"
+CLIENT="*Free Tier Song Builder*"
+LOCATION="Free"
+ICP_NAME="Free Tier"
+OUTCOMES_CSV="Chill,Steady,Upbeat"
 
-# Outcome lookup (use title — Outcome.title is the stable internal name; displayTitle is operator-facing)
-railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
-  const p=new m.PrismaClient();
-  const outs=await p.outcome.findMany({where:{supersededAt:null,OR:[{title:{contains:\"<X>\",mode:\"insensitive\"}},{displayTitle:{contains:\"<X>\",mode:\"insensitive\"}}]},select:{id:true,title:true,displayTitle:true,mode:true,tempoBpm:true}});
-  console.log(outs);
+railway ssh "cd /app && node -e '
+import(\"@prisma/client\").then(async m=>{
+  const p = new m.PrismaClient();
+  const fail = (stage, info) => { console.error(JSON.stringify({stage, ...info})); process.exit(1); };
+
+  const clients = await p.client.findMany({ where: { companyName: { equals: \"$CLIENT\", mode: \"insensitive\" } } });
+  if (clients.length !== 1) fail(\"client\", { candidates: clients.map(c => c.companyName) });
+
+  const stores = await p.store.findMany({
+    where: { clientId: clients[0].id, name: { equals: \"$LOCATION\", mode: \"insensitive\" } },
+    include: { icpLinks: { include: { icp: true } } },
+  });
+  if (stores.length !== 1) {
+    const all = await p.store.findMany({ where: { clientId: clients[0].id }, select: { name: true } });
+    fail(\"location\", { candidates: all.map(s => s.name) });
+  }
+
+  const matches = stores[0].icpLinks.filter(l => l.icp.name.toLowerCase() === \"$ICP_NAME\".toLowerCase());
+  if (matches.length !== 1) fail(\"icp\", { candidates: stores[0].icpLinks.map(l => l.icp.name) });
+
+  const wanted = \"$OUTCOMES_CSV\".split(\",\").map(s => s.trim()).filter(Boolean);
+  const outs = await p.outcome.findMany({
+    where: { supersededAt: null, title: { in: wanted, mode: \"insensitive\" } },
+    select: { id: true, title: true, mode: true, tempoBpm: true },
+  });
+  if (outs.length !== wanted.length) fail(\"outcomes\", { missing: wanted.filter(t => !outs.find(o => o.title.toLowerCase() === t.toLowerCase())) });
+
+  console.log(JSON.stringify({ clientId: clients[0].id, storeId: stores[0].id, icpId: matches[0].icp.id, outcomes: outs }));
   await p.\$disconnect();
-})'"
+})
+'"
 ```
+
+Capture the JSON output → set `CLIENT_ID`, `STORE_ID`, `ICP_ID`, plus an outcome map (with tempo) for the loop below.
 
 Default `n` is **3** for a sanity-check run, **5** for a real fill. Cap at 20 (Zod limit in the admin route). For multi-target fills, run them sequentially (parallel would compete on hook + ref pool).
 

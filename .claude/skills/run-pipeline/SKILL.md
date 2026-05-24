@@ -1,30 +1,27 @@
 ---
 name: run-pipeline
-description: Full music generation pipeline for any client/store/ICP — from empty pool to songs in Dash. Bootstraps the ICP if needed (default outcome, reference tracks, decompose, hooks), then runs Hook→Prompt and populate-songs. Use when Daniel says "fill the library", "run the pipeline", or "generate songs for X" — works for both curated ICPs (Gary @ UNTUCKit) and ICPs created via the app surface (app.entuned.co self-serve intake).
+description: Full music generation pipeline for any client/store/ICP — from empty pool to songs in Dash. Bootstraps the ICP if needed (default outcome, reference tracks, decompose), then orchestrates draft-hooks → make-song-seeds → populate-songs. Use when Daniel says "fill the library", "run the pipeline", or "generate songs for X" — works for both curated ICPs and ICPs created via the app surface (app.entuned.co self-serve intake).
 ---
 
 # run-pipeline
 
-Runs the complete music generation pipeline end-to-end:
+Orchestrator. Runs the complete music generation pipeline end-to-end by delegating to the 3 stage-specific skills:
 
 ```
-[Bootstrap] → Hook Writing → Hook→Prompt → Suno generation → Dash library
-              (seed-hooks)                  (populate-songs)
+[Bootstrap]  →  draft-hooks  →  make-song-seeds  →  populate-songs
+ (browser +     (browser-free)   (browser-free)     (Chrome MCP, Suno)
+ API fetch)     railway ssh      railway ssh        suno.com web UI
 ```
 
-The skill resolves the target client / store / ICP from `ARGUMENTS`. Both curated ICPs (Gary @ UNTUCKit) and self-serve ICPs (created via `app.entuned.co` intake) work the same way — Dash is the source of truth for both.
+Stages 1 and 2 run browser-free over `railway ssh`. Only Stage 3 (Suno round-trip) needs a browser. The bootstrap step uses Dash for reference-track suggestion and parallel API fetches for decompose.
 
-## Resolve targets from ARGUMENTS
+## Step 0 — Resolve targets (REQUIRED)
 
-`ARGUMENTS` should specify (or imply):
-- `clientId`, `storeId`, `icpId` — the three IDs the workflow filters on
-- `icpName` for human-readable logging
-- Optional: a target outcome (otherwise: use the store's `defaultOutcomeId`, or fall back to "Convert Browsers" if none set)
+`ARGUMENTS` must specify all three of `client`, `location`, `icp` (or IDs directly), plus the target `outcomes` (csv of `Outcome.title`) and optional `n` per outcome. No name-guessing, no silent defaults. If anything is missing or ambiguous, fail loudly with the candidate list — never pick.
 
-If only a name is given, query Dash for the IDs:
-- `GET /admin/clients` → find `companyName`
-- `GET /admin/stores` → find by `clientId`
-- The ICP list comes from `client.icps` or `store.icps` in detail GETs
+Canonical rule + cascade: [GENERATION.md](../../../../../GENERATION.md) → "Canonical target resolution". Memory pins: `feedback_pipeline_target_specification`, `project_free_tier_vs_song_builder`.
+
+Run the cascade via `railway ssh` (same form as `draft-hooks` Step 0) to capture `CLIENT_ID`, `STORE_ID`, `ICP_ID`, and the resolved `Outcome` map. Pass these IDs through to each delegated skill — don't re-resolve at each stage.
 
 ## Tools
 
@@ -111,71 +108,44 @@ Poll `window.__decResults` until count matches. ~33 tracks decomposes in ~135s. 
 
 > Track suggestion volumes are too high — typical run returns 33 candidates and the "approve all" button takes them all. Most are never used. Future: add a curation step that scores against ICP psychographic vector and accepts top ~12.
 
-### Step 0c — Voice notes — SKIP
+### Step 0c — Voice notes — N/A
 
-GENERATION.md mentions `corporateIcp.voiceNotes` / `storeIcp.voiceNotes` — that field does NOT exist in the current schema. The psychographic ICP fields (`values`, `desires`, `unexpressedDesires`, `turnOffs`, `fears`) carry that role now. No action needed.
+There is no `voiceNotes` field in the schema. The psychographic ICP fields (`values`, `desires`, `unexpressedDesires`, `turnOffs`, `fears`) carry that role.
 
 ## Step 1 — Assess current state
 
-After bootstrap (or if ICP was already provisioned), navigate to Workflows → Launch Checklist and read which gates are still red. For a single-ICP test, check:
-- Marissa's hook count under Workflows → Hook Writing
-- Marissa's reference track count under Workflows → Reference Tracks
-- Marissa's pool count for default outcome under Library → Pool Depth (sort by `icp`)
+After bootstrap (or if ICP was already provisioned), check pool headroom against the targets in ARGUMENTS. For each `(ICP × outcome)` combo, query:
 
-## Step 2 — Hook Writing
-
-Workflows → Hook Writing → click the target outcome card → "generate 5 drafts".
-
-Then approve all 5 via API in one batch (faster than UI clicks):
-```js
-const ICP_ID = '...'; const headers = { 'authorization': 'Bearer ' + localStorage.getItem('entuned.admin.token') };
-const hooks = await (await fetch(`https://api.entuned.co/admin/icps/${ICP_ID}/hooks`, { headers })).json();
-const drafts = hooks.filter(h => h.status === 'draft');
-await Promise.all(drafts.map(h => fetch(`https://api.entuned.co/admin/hooks/${h.id}/approve`, { method:'POST', headers, body:'{}' })));
-```
-
-For a fuller library, generate hooks for each outcome you want covered (each call is cheap).
-
-## Step 3 — Hook → Prompt (seed-builder)
-
-Workflows → Hook → Prompt → click the target outcome card → "seed N for [Outcome]". This invokes the Eno seed builder which produces full Suno prompts (lyrics + style + exclusions + title) tied to specific reference tracks. Takes ~30-60s for 5.
-
-Verify in DB:
 ```bash
-GET /admin/song-seeds?icpId=...&status=queued
+railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
+  const p = new m.PrismaClient();
+  const approved = await p.hook.count({ where: { icpId: \"$ICP_ID\", outcomeId: \"$OUTCOME_ID\", status: \"approved\" } });
+  const inflight = await p.songSeed.count({ where: { hook: { icpId: \"$ICP_ID\", outcomeId: \"$OUTCOME_ID\" }, status: { in: [\"assembling\", \"queued\", \"accepted\"] } } });
+  const queued = await p.songSeed.count({ where: { hook: { icpId: \"$ICP_ID\", outcomeId: \"$OUTCOME_ID\" }, status: \"queued\" } });
+  console.log({ approvedHooks: approved, availableHooks: approved - inflight, queuedSeeds: queued });
+  await p.\$disconnect();
+})'"
 ```
 
-## Step 3.5 — Seed coverage gate (REQUIRED before populate-songs)
+Decide per-combo: skip if pool already healthy, otherwise advance to Step 2.
 
-**Never start populate-songs until this gate is green for every requested ICP × outcome combo.**
+## Step 2 — Draft hooks (delegate to `draft-hooks`)
 
-Even if Daniel says "seeds are already queued," run this check — the queue is often partial.
+For each `(ICP × outcome)` where `availableHooks < n`: invoke the `draft-hooks` skill with the resolved `ICP_ID`, `OUTCOME_ID`, and target `n`. See [draft-hooks/SKILL.md](../draft-hooks/SKILL.md).
 
-For each (icpId, outcomeId) pair in ARGUMENTS:
+`draft-hooks` calls `draftHooks()` over `railway ssh`, trigram-dedups, persists with `status='approved'`. No browser needed.
 
-```js
-// Run from Dash tab
-const h = {'authorization': 'Bearer ' + localStorage.getItem('entuned.admin.token')};
-const r = await fetch(`https://api.entuned.co/admin/song-seeds?icpId=ICP_ID&status=queued&limit=1`, {headers: h});
-const d = await r.json();
-// d.total === 0 → missing seeds for this combo
-```
+## Step 3 — Make song seeds (delegate to `make-song-seeds`)
 
-Build a coverage matrix: list every (ICP, outcome) combo, note queued seed count. Any combo with 0 seeds is a gap.
+For each `(ICP × outcome)` where `queuedSeeds < n`: invoke the `make-song-seeds` skill with the resolved `ICP_ID`, `OUTCOME_ID`, and target `n`. See [make-song-seeds/SKILL.md](../make-song-seeds/SKILL.md).
 
-**For each gap:**
-1. Check if that ICP already has approved hooks for the outcome:
-   ```js
-   const hooks = await (await fetch(`https://api.entuned.co/admin/icps/ICP_ID/hooks`, {headers: h})).json();
-   const approved = hooks.filter(h => h.status === 'approved' && h.outcomeId === OUTCOME_ID);
-   ```
-   If `approved.length === 0`: run Step 2 (Hook Writing) for that ICP × outcome first.
+`make-song-seeds` calls `runEno()` over `railway ssh` — produces full Suno prompts (lyrics + style + exclusions + title) tied to specific reference tracks. Each batch dumps the seeds for sanity check before Stage 4. No browser needed.
 
-2. Then run Step 3 (Hook → Prompt) for that ICP × outcome to produce queued seeds.
+## Step 3.5 — Coverage gate (REQUIRED before populate-songs)
 
-3. Re-query the queue to confirm seeds now exist before moving on.
+**Never start `populate-songs` until every requested `(ICP × outcome)` has `queuedSeeds ≥ 1`.**
 
-Do NOT proceed to Step 4 with any zero-seed combo. A partial queue produces partial results and silent coverage gaps.
+Re-run the Step 1 query for every combo in ARGUMENTS. Any combo with 0 queued seeds is a gap — loop back to Step 2 or Step 3 for that combo. A partial queue produces partial results and silent coverage gaps.
 
 ## Step 4 — Suno generation (populate-songs)
 
