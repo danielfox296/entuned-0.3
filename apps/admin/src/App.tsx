@@ -32,6 +32,7 @@ import { PoolDepth } from './panels/catalogue/PoolDepth.js'
 import { SongBrowser } from './panels/catalogue/SongBrowser.js'
 import { FlaggedReview } from './panels/catalogue/FlaggedReview.js'
 import { FreeTierOutcomes } from './panels/catalogue/FreeTierOutcomes.js'
+import { SongRepair } from './panels/catalogue/SongRepair.js'
 import { WorkflowRouter } from './panels/workflow/WorkflowRouter.js'
 import { RetentionDashboard } from './panels/monitoring/RetentionDashboard.js'
 import { PlayerReliability } from './panels/monitoring/PlayerReliability.js'
@@ -62,7 +63,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Hook Prompts', 'Decomposition', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Mars Prompts', 'Form Archetypes', 'Reference Track Suggester'],
     description: '' },
   { key: 'catalogue', label: 'Library', short: 'Library', icon: Music2,
-    cards: ['Song Browser', 'Flagged Review', 'Pool Depth', 'Free Tier Outcomes'],
+    cards: ['Song Browser', 'Flagged Review', 'Pool Depth', 'Free Tier Outcomes', 'Song Repair'],
     description: '' },
   { key: 'salesdata', label: 'Sales Data', short: 'Sales Data', icon: ShoppingCart,
     cards: ['Ingest'],
@@ -501,6 +502,7 @@ function CatalogueRouter({ cards }: { cards: string[] }) {
       {active === 'Song Browser' && <SongBrowser />}
       {active === 'Flagged Review' && <FlaggedReview />}
       {active === 'Free Tier Outcomes' && <FreeTierOutcomes />}
+      {active === 'Song Repair' && <SongRepair />}
     </div>
   )
 }

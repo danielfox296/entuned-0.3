@@ -921,6 +921,28 @@ export interface ReliabilitySummaryResponse {
   stores: ReliabilityStoreRow[]
 }
 
+export interface BrokenSongRow {
+  songId: string
+  r2Url: string
+  r2ObjectKey: string
+  byteSize: number
+  uploadedAt: string
+  title: string | null
+  songSeedId: string | null
+  icpId: string | null
+  icpName: string | null
+  lineageRowIds: string[]
+}
+
+export interface RepairedSongRow {
+  id: string
+  r2Url: string
+  r2ObjectKey: string
+  byteSize: number
+  contentType: string
+  uploadedAt: string
+}
+
 // --- API methods ---
 
 export const api = {
@@ -1391,6 +1413,17 @@ export const api = {
     const fd = new FormData()
     for (const f of files) fd.append('files', f)
     return upload<{ songSeed: SongSeedRow; lineageRows: any[] }>(`/admin/song-seeds/${id}/accept-files`, fd, token)
+  },
+
+  // --- Song repair (rehydrate Songs whose r2 object is empty / corrupt) ---
+  brokenSongs: (token: string) =>
+    req<BrokenSongRow[]>('/admin/songs/broken', {}, token),
+  repairSong: (id: string, sourceUrl: string, token: string) =>
+    req<RepairedSongRow>(`/admin/songs/${id}/repair`, { method: 'POST', body: JSON.stringify({ sourceUrl }) }, token),
+  repairSongFile: (id: string, file: File, token: string) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return upload<RepairedSongRow>(`/admin/songs/${id}/repair-file`, fd, token)
   },
 
   // --- Retention ---

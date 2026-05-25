@@ -31,7 +31,7 @@ import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 import { runEno } from '../lib/eno/eno.js'
 import { FREE_TIER_ICP_ID, FREE_TIER_AD_STORE_ID, FREE_TIER_CLIENT_ID } from '../lib/freeTier.js'
-import { downloadAndUploadFromUrl, uploadBuffer } from '../lib/r2.js'
+import { downloadAndUploadFromUrl, uploadBuffer, MIN_AUDIO_BYTES } from '../lib/r2.js'
 import { draftHooks } from '../lib/hooks/drafter.js'
 import { suggestReferenceTracks } from '../lib/ref-tracks/suggester.js'
 import { uniqueStoreSlug } from '../lib/account.js'
@@ -3366,6 +3366,110 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       }
       return reply.code(500).send({ error: 'accept_failed', message: e.message ?? 'unknown' })
     }
+  })
+
+  // GET /admin/songs/broken — Songs with byte_size < MIN_AUDIO_BYTES that still
+  // have ≥1 active LineageRow pointing at them. These are the rows that surface
+  // src_unsupported / MEDIA_ERR_SRC_NOT_SUPPORTED in the player. Powers the
+  // Dash Song Repair panel.
+  app.get('/songs/broken', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const rows = await prisma.song.findMany({
+      where: { byteSize: { lt: BigInt(MIN_AUDIO_BYTES) }, lineageRows: { some: { active: true } } },
+      select: {
+        id: true, r2Url: true, r2ObjectKey: true, byteSize: true, uploadedAt: true,
+        lineageRows: {
+          where: { active: true },
+          select: {
+            id: true,
+            icpId: true,
+            icp: { select: { name: true } },
+            songSeed: { select: { id: true, title: true } },
+          },
+        },
+      },
+      orderBy: { uploadedAt: 'desc' },
+    })
+    return rows.map((s) => ({
+      songId: s.id,
+      r2Url: s.r2Url,
+      r2ObjectKey: s.r2ObjectKey,
+      byteSize: Number(s.byteSize),
+      uploadedAt: s.uploadedAt.toISOString(),
+      title: s.lineageRows[0]?.songSeed?.title ?? null,
+      songSeedId: s.lineageRows[0]?.songSeed?.id ?? null,
+      icpId: s.lineageRows[0]?.icpId ?? null,
+      icpName: s.lineageRows[0]?.icp?.name ?? null,
+      lineageRowIds: s.lineageRows.map((l) => l.id),
+    }))
+  })
+
+  // POST /admin/songs/:id/repair — replace the audio bytes behind a Song by
+  // re-downloading from a fresh source URL (typically Suno) and overwriting the
+  // existing R2 object at the same r2ObjectKey. Preserves Song.id, r2Url, all
+  // LineageRow references, and play history. Use this to fix Songs whose accept
+  // captured a 0-byte / partial render before the r2.ts size guards landed.
+  //
+  // Goes through the same downloadAndUploadFromUrl as accept, so the floor /
+  // content-type / Content-Length guards apply — a still-rendering source URL
+  // returns 502 r2_upload_failed and leaves the existing object untouched.
+  const RepairBody = z.object({ sourceUrl: z.string().url() })
+
+  app.post('/songs/:id/repair', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = RepairBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+
+    const song = await prisma.song.findUnique({ where: { id }, select: { id: true, r2ObjectKey: true } })
+    if (!song) return reply.code(404).send({ error: 'not_found' })
+
+    let obj: { url: string; key: string; byteSize: number; contentType: string }
+    try {
+      obj = await downloadAndUploadFromUrl(parsed.data.sourceUrl, song.r2ObjectKey)
+    } catch (e: any) {
+      return reply.code(502).send({ error: 'r2_upload_failed', message: e.message ?? 'unknown' })
+    }
+
+    const updated = await prisma.song.update({
+      where: { id },
+      data: { byteSize: BigInt(obj.byteSize), contentType: obj.contentType, uploadedAt: new Date() },
+      select: { id: true, r2Url: true, r2ObjectKey: true, byteSize: true, contentType: true, uploadedAt: true },
+    })
+    return { ...updated, byteSize: Number(updated.byteSize) }
+  })
+
+  // POST /admin/songs/:id/repair-file — multipart alternative when operator has
+  // the mp3 locally (e.g. downloaded from Suno). Single file in the request.
+  app.post('/songs/:id/repair-file', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const song = await prisma.song.findUnique({ where: { id }, select: { id: true, r2ObjectKey: true } })
+    if (!song) return reply.code(404).send({ error: 'not_found' })
+
+    let buf: Buffer | null = null
+    for await (const part of req.files()) {
+      buf = await part.toBuffer()
+      break
+    }
+    if (!buf) return reply.code(400).send({ error: 'no_file' })
+    if (buf.length < MIN_AUDIO_BYTES) {
+      return reply.code(502).send({ error: 'r2_upload_failed', message: `uploaded ${buf.length} bytes, below ${MIN_AUDIO_BYTES}-byte floor` })
+    }
+
+    let obj
+    try {
+      obj = await uploadBuffer(song.r2ObjectKey, buf, 'audio/mpeg')
+    } catch (e: any) {
+      return reply.code(502).send({ error: 'r2_upload_failed', message: e.message ?? 'unknown' })
+    }
+
+    const updated = await prisma.song.update({
+      where: { id },
+      data: { byteSize: BigInt(obj.byteSize), contentType: obj.contentType, uploadedAt: new Date() },
+      select: { id: true, r2Url: true, r2ObjectKey: true, byteSize: true, contentType: true, uploadedAt: true },
+    })
+    return { ...updated, byteSize: Number(updated.byteSize) }
   })
 
   app.put('/decompositions/:id', async (req, reply) => {

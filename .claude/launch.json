@@ -8,6 +8,19 @@
       "port": 5178
     },
     {
+      "name": "entuned-0.3-admin-local",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "admin", "dev"],
+      "port": 5178,
+      "env": { "VITE_API_URL": "http://localhost:3000" }
+    },
+    {
+      "name": "entuned-0.3-server",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "server", "dev"],
+      "port": 3000
+    },
+    {
       "name": "dashboard",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "dashboard", "dev"],
