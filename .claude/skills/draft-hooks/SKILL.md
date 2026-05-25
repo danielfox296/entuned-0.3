@@ -121,7 +121,7 @@ A reasonable target is **8–12 available hooks per (ICP × outcome)** for healt
 
 - `available < 8` → drafting is warranted; proceed.
 - `8 ≤ available ≤ 15` → top-up is reasonable; proceed.
-- `available > 15` → **STOP. Do NOT auto-draft.** Surface to Daniel: "Pool at `<N>` available for `<outcome>`; target is 8–12. Top up anyway?" Wait for explicit confirmation. Drafting into a saturated pool wastes Anthropic API calls (most drafts will trigger trigram dedup and return `drafted: 0`), and the saturated phrasing doesn't get refreshed by adding more — only by retiring stale hooks.
+- `available > 15` → skip drafting for this target. Print one line: "Pool already at `<N>` available for `<outcome>` — skipping draft." Drafting into a saturated pool wastes Anthropic API calls (most drafts trigger trigram dedup and return `drafted: 0`). No prompt — just skip and move on. If the user explicitly invoked draft-hooks for a saturated target, override by passing an explicit `force=true` argument.
 
 ## Step 2 — Call the drafter + persist
 

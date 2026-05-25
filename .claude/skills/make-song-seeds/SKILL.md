@@ -116,11 +116,11 @@ railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
 })'"
 ```
 
-**Decision gate** (apply per target):
+**Decision gate** (apply per target, auto-resolve — no operator stops):
 
-- `available >= n` → proceed.
-- `available < n` but `> 0` → **STOP. Do NOT auto-proceed at reduced `n`.** That's silent under-production. Surface to Daniel: "Available `<N>` < requested `<n>` for `<outcome>`. Run `draft-hooks` to top up, or proceed at reduced n=`<available>`?" Wait for explicit confirmation.
-- `available == 0` → **STOP.** Surface and recommend `draft-hooks` first. `runEno` would just return `pool_exhausted_hooks` immediately.
+- `available >= n` → proceed at full `n`.
+- `available < n` but `> 0` → auto-top-up: run `draft-hooks` with `n = (n - available) + 5` for that target, then re-check and proceed. Print one-line note for the transcript ("topped up hooks for <outcome>"); don't ask.
+- `available == 0` → auto-top-up: run `draft-hooks` with `n` for that target, then proceed. Same one-line note.
 
 Also worth a quick ref-track sanity check at the outcome's tempo (the only ref-track gate now):
 
@@ -215,23 +215,20 @@ Present the dump to Daniel formatted (markdown headings, code-fence the lyrics).
 - Product/retail imagery — shirt / seam / shelf / rack / fitting / aisle
 - Same ref picked >1 time across the batch — pool-depth issue (see step 1 pre-flight)
 
-## Step 4 — Decide next move
+## Step 4 — Auto-proceed (no discretionary gates)
 
-After Step 3's dump, classify the batch using these explicit criteria. **Do not auto-proceed to `populate-songs` if the batch falls into category B or C — surface to Daniel first.**
+After Step 3's dump, **auto-proceed to `populate-songs`**. Flag any issues you see in the dump for Daniel's awareness, but do not stop. The pipeline runs end-to-end without per-batch operator approval.
 
-**Category A — all seeds clean: auto-proceed.** Hand off to `populate-songs`. Criteria (all must hold):
+What to print (one line per seed at most) so Daniel can spot-check from the transcript:
 
-- Every seed has sung-line count ≥ 18 (chorus-based forms)
-- No stage-direction parens (e.g., `(ukulele groove, 4 bars)`, `(fade on groove)`)
-- No product/retail imagery (shirt, seam, shelf, rack, fitting, aisle, etc. — full ban list in [lyric-craft-rules.ts](../../../apps/server/src/lib/bernie/lyric-craft-rules.ts))
-- No ref picked more than once across the batch (if there's enough ref pool)
-- No lyric draft prompt's `cliché_phrases` or `cliché_shapes` patterns (the wisdom-imparting register, transformation arcs, unnamed-revelation tropes)
+- Sung-line count if below 18 (chorus-based forms expect ≥18)
+- Stage-direction parens detected (e.g., `(ukulele groove, 4 bars)`, `(fade on groove)`) — distinct from vocal ad-libs like `(ooh)`, `(yeah)`, `(dale)` which are legitimate
+- Product/retail imagery hits — use bounded word regex `\b(shirt|seam|shelf|rack|fitting|aisle)\b`; substring matches (e.g., "track" containing "rack") are false positives, ignore them
+- Same ref picked >1× across the batch
 
-**Category B — 1-2 seeds need rework, rest look clean: STOP and ask Daniel.** Don't auto-delete. Surface the bad seeds with the specific issue, propose `prisma.songSeed.delete({ where: { id, status: "queued" } })` for each, and ask Daniel to confirm before deleting + re-running.
+These are informational. Even if all four conditions trigger, continue to `populate-songs`. The cost of one bad song reaching R2 is lower than the cost of a stop-and-wait cycle.
 
-**Category C — whole batch shows a systemic problem: STOP, don't ship to Suno.** Examples: every bridge is a thesis bridge; every seed dropped >30% first-person pronouns; every seed has a stage-direction paren. Surface the pattern to Daniel and propose the prompt fix (Bernie/Mars/OutcomeFactor — see Dash → Prompts & Rules). Systemic issues mean the latest prompt version has a regression; bumping a new prompt version is cheaper than burning Suno renders on a known-broken batch.
-
-If you can't decide between B and C, default to **STOP and ask Daniel** rather than auto-proceeding. The cost of a wrong B→A escalation (ship a couple of bad songs) is higher than the cost of a wrong C→B classification (ask one extra question).
+Only stop the pipeline if `runEno` itself returned `producedN: 0` (zero seeds produced) — there's nothing to ship.
 
 ## Failure modes
 
@@ -241,7 +238,7 @@ If you can't decide between B and C, default to **STOP and ask Daniel** rather t
 | `Unknown file extension '.ts' for ./dist/lib/eno/eno.js` | Plain `node -e` instead of `node --import tsx -e` | Use `node --import tsx -e '...'` for the runEno call. See Step 2 template. |
 | `pool_exhausted_hooks` | No approved hooks remaining for the (ICP × outcome) | Run `draft-hooks` first |
 | `pool_exhausted_reference_tracks_outcome_tempo_<bpm>` | No approved + decomposed refs within ±7bpm of the outcome | Either widen the decomposed ref pool, decompose new candidate tracks, or pick an outcome with closer-tempo refs |
-| `producedN < requestedN`, `reason: pool_exhausted` | Ran dry partway through the batch | The seeds that DID produce are valid — keep them, surface the gap. Do NOT auto-rerun to fill the missing N; surface to Daniel first. |
+| `producedN < requestedN`, `reason: pool_exhausted` | Ran dry partway through the batch | The seeds that DID produce are valid — keep them, surface the gap in passing, continue to `populate-songs` with whatever produced. |
 | `Cannot read properties of null` on `outcome.tempoBpm`/`outcome.mode`/`outcome.mood` | The Outcome row is missing fields the OutcomeFactorPrompt prepend needs | Open in Dash → Outcomes → Outcome Library — the row is misconfigured. Tempo, mode, mood are all required. |
 | Repeated `runEno` calls produce same hook order across calls | Hook picker uses `createdAt asc` for selection within tied scores — the same approved hook will get picked first every time until it's consumed. Expected behavior. | Not a bug — finish consuming the pool or rotate |
 | Same ref picked N times in a single batch | The eligible ref pool (post-BPM filter) is narrow; the picker spreads with random tiebreak but small pools have small spreads | Decompose more refs at that tempo |
