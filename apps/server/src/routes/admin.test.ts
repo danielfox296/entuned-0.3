@@ -83,6 +83,12 @@ vi.mock('../db.js', () => {
       update: vi.fn(),
       delete: vi.fn(),
     },
+    styleTemplate: {
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      aggregate: vi.fn(),
+      create: vi.fn(),
+    },
     $transaction: vi.fn(async (cb: (tx: any) => unknown) => cb(mock)),
   }
   return { prisma: mock }
@@ -1322,6 +1328,129 @@ describe('admin routes — mars axis rules', () => {
     const app = await buildTestApp(adminRoutes)
     const res = await app.inject({
       method: 'GET', url: '/mars-axis-rules',
+      headers: { authorization: 'Bearer non-admin-test-token' },
+    })
+    expect(res.statusCode).toBe(403)
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// StyleTemplate — structured config for Mars legacy style assembly.
+// Operator picks decomposition fields + char cap; route auto-generates the
+// human-readable templateText summary. Append-only versioned (no PUT/DELETE).
+// ════════════════════════════════════════════════════════════════════════════
+
+const styleTemplateFindMany = prisma.styleTemplate.findMany as ReturnType<typeof vi.fn>
+const styleTemplateAggregate = prisma.styleTemplate.aggregate as ReturnType<typeof vi.fn>
+const styleTemplateCreate = prisma.styleTemplate.create as ReturnType<typeof vi.fn>
+
+function makeStyleTemplateRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'st-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    version: 1,
+    fields: ['vibePitch', 'eraProductionSignature'],
+    charCap: 950,
+    templateText: 'fields: [vibePitch, eraProductionSignature] · cap: 950',
+    notes: null,
+    createdAt: new Date('2026-05-25T12:00:00Z'),
+    createdById: null,
+    ...overrides,
+  }
+}
+
+describe('admin routes — style template', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    freeTierAllowedMock.mockResolvedValue(true)
+    seedAdminAccount()
+  })
+
+  it('GET /style-template returns latest + history + the available-fields catalog', async () => {
+    styleTemplateFindMany.mockResolvedValue([makeStyleTemplateRow({ version: 2 }), makeStyleTemplateRow({ id: 'st-2', version: 1 })])
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({ method: 'GET', url: '/style-template', headers: AUTH })
+
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.latest.version).toBe(2)
+    expect(body.history).toHaveLength(2)
+    expect(body.availableFields).toContain('vibePitch')
+    expect(body.availableFields).toContain('harmonicAndGroove')
+  })
+
+  it('POST /style-template creates a new version, auto-incrementing + summarizing templateText', async () => {
+    styleTemplateAggregate.mockResolvedValue({ _max: { version: 3 } })
+    styleTemplateCreate.mockResolvedValue(makeStyleTemplateRow({ version: 4 }))
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/style-template', headers: AUTH,
+      payload: {
+        fields: ['vibePitch', 'eraProductionSignature', 'instrumentationPalette'],
+        charCap: 800,
+        notes: 'Dropping standout to save chars',
+      },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(styleTemplateCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        version: 4,
+        fields: ['vibePitch', 'eraProductionSignature', 'instrumentationPalette'],
+        charCap: 800,
+        templateText: 'fields: [vibePitch, eraProductionSignature, instrumentationPalette] · cap: 800',
+        notes: 'Dropping standout to save chars',
+        createdById: 'op-admin-001',
+      }),
+    })
+  })
+
+  it('POST /style-template returns 400 on empty fields array', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/style-template', headers: AUTH,
+      payload: { fields: [], charCap: 800 },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toBe('bad_body')
+    expect(styleTemplateCreate).not.toHaveBeenCalled()
+  })
+
+  it('POST /style-template returns 400 with unknown_fields when payload includes an unknown field key', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/style-template', headers: AUTH,
+      payload: { fields: ['vibePitch', 'imaginaryField'], charCap: 800 },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toBe('unknown_fields')
+    expect(res.json().unknown).toEqual(['imaginaryField'])
+    expect(styleTemplateCreate).not.toHaveBeenCalled()
+  })
+
+  it('POST /style-template returns 400 on charCap out of allowed range', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/style-template', headers: AUTH,
+      payload: { fields: ['vibePitch'], charCap: 50 },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toBe('bad_body')
+    expect(styleTemplateCreate).not.toHaveBeenCalled()
+  })
+
+  it('returns 401 without auth', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({ method: 'GET', url: '/style-template' })
+    expect(res.statusCode).toBe(401)
+  })
+
+  it('returns 403 when not admin', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'GET', url: '/style-template',
       headers: { authorization: 'Bearer non-admin-test-token' },
     })
     expect(res.statusCode).toBe(403)

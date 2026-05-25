@@ -128,7 +128,7 @@ export async function marsAssemble(
   opts: MarsOptions = {},
 ): Promise<MarsOutput> {
   const builder = opts.styleBuilder ?? ((process.env.STYLE_BUILDER ?? 'router') as StyleBuilderName)
-  const styleLegacy = assembleStylePortion({ decomposition: styleAnalysis as any })
+  const styleLegacy = await assembleStylePortion({ decomposition: styleAnalysis as any })
 
   let style: string
   let styleTemplateVersion: number
@@ -151,7 +151,7 @@ export async function marsAssemble(
     }
   } else {
     style = styleLegacy
-    styleTemplateVersion = getStyleTemplateVersion()
+    styleTemplateVersion = await getStyleTemplateVersion()
   }
 
   const { negativeStyle: ruleFiredNeg, firedRuleIds } = await buildNegativeStyle(styleAnalysis as any)

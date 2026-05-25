@@ -42,6 +42,7 @@ import { LIFECYCLE_TEMPLATES, TEMPLATES, type TemplateName } from '../email-temp
 import { EDITABLE_TEMPLATE_NAMES } from '../email-templates/seeds.js'
 import { runOneLifecycleDrip, runLifecycleEmails, type LifecycleDripName } from '../lib/lifecycleEmails.js'
 import { runPauseAutoResume } from '../lib/pauseAutoResume.js'
+import { STYLE_TEMPLATE_AVAILABLE_FIELDS, summarizeTemplate } from '../lib/mars/style-template-v1.js'
 import { runCompExpiryCron } from '../lib/compExpiry.js'
 import { effectiveTier, compIsActive, tierRank, applyTierChange, type Tier } from '../lib/tier.js'
 import {
@@ -102,7 +103,14 @@ const StyleExclusionRuleBody = z.object({
   note: z.string().nullable().optional(),
 })
 
-const StyleTemplatePostBody = z.object({ templateText: z.string().min(1), notes: z.string().optional() })
+// StyleTemplate body is structured: the operator chooses which decomposition
+// fields go into Mars's legacy style portion + the char cap. templateText is
+// auto-generated server-side for human-readable history.
+const StyleTemplatePostBody = z.object({
+  fields: z.array(z.string()).min(1),
+  charCap: z.number().int().min(100).max(2000),
+  notes: z.string().optional(),
+})
 
 const OutcomePrependPostBody = z.object({ templateText: z.string(), notes: z.string().optional() })
 
@@ -228,22 +236,42 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
-  // ----- StyleTemplate (text/provenance only — logic is code) -----
+  // ----- StyleTemplate (structured config for Mars legacy style assembly) -----
+  // Operator picks which decomposition fields compose into the style portion + cap.
+  // Append-only versioned. Latest row wins at runtime — see lib/mars/style-template-v1.ts.
 
   app.get('/style-template', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const all = await prisma.styleTemplate.findMany({ orderBy: { version: 'desc' } })
-    return { latest: all[0] ?? null, history: all }
+    return {
+      latest: all[0] ?? null,
+      history: all,
+      availableFields: [...STYLE_TEMPLATE_AVAILABLE_FIELDS],
+    }
   })
 
   app.post('/style-template', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const parsed = StyleTemplatePostBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    // Reject unknown field names — keeps assembly defensive and surfaces typos.
+    const unknown = parsed.data.fields.filter(
+      (f) => !(STYLE_TEMPLATE_AVAILABLE_FIELDS as readonly string[]).includes(f),
+    )
+    if (unknown.length > 0) {
+      return reply.code(400).send({ error: 'unknown_fields', unknown, available: STYLE_TEMPLATE_AVAILABLE_FIELDS })
+    }
     const max = await prisma.styleTemplate.aggregate({ _max: { version: true } })
     const next = (max._max.version ?? 0) + 1
     const row = await prisma.styleTemplate.create({
-      data: { version: next, templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, createdById: op.accountId },
+      data: {
+        version: next,
+        fields: parsed.data.fields,
+        charCap: parsed.data.charCap,
+        templateText: summarizeTemplate(parsed.data.fields, parsed.data.charCap),
+        notes: parsed.data.notes ?? null,
+        createdById: op.accountId,
+      },
     })
     return row
   })

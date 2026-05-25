@@ -120,6 +120,8 @@ export interface LyricBanEntryRow {
 export interface StyleTemplateRow {
   id: string
   version: number
+  fields: string[]
+  charCap: number
   templateText: string
   notes: string | null
   createdAt: string
@@ -1100,9 +1102,9 @@ export const api = {
     req<{ ok: true }>(`/admin/mars-axis-rules/${id}`, { method: 'DELETE' }, token),
 
   styleTemplate: (token: string) =>
-    req<{ latest: StyleTemplateRow | null; history: StyleTemplateRow[] }>('/admin/style-template', {}, token),
-  saveStyleTemplate: (templateText: string, notes: string | undefined, token: string) =>
-    req<StyleTemplateRow>('/admin/style-template', { method: 'POST', body: JSON.stringify({ templateText, notes }) }, token),
+    req<{ latest: StyleTemplateRow | null; history: StyleTemplateRow[]; availableFields: string[] }>('/admin/style-template', {}, token),
+  saveStyleTemplate: (body: { fields: string[]; charCap: number; notes?: string }, token: string) =>
+    req<StyleTemplateRow>('/admin/style-template', { method: 'POST', body: JSON.stringify(body) }, token),
   outcomeFactorPrompt: (token: string) =>
     req<{ latest: OutcomeFactorPromptRow | null; history: OutcomeFactorPromptRow[] }>('/admin/outcome-factor-prompt', {}, token),
   saveOutcomeFactorPrompt: (templateText: string, notes: string | undefined, token: string) =>

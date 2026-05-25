@@ -399,9 +399,17 @@ model StyleAnalysis {
 
 // ---------- Card 12 Mars (StyleTemplate + StyleExclusionRule) ----------
 
+// Mars legacy style-template config — operator-editable field selection + cap
+// that drives `assembleStylePortion` (apps/server/src/lib/mars/style-template-v1.ts).
+// Migrated from hardcoded constants on 2026-05-25 per the no-prompt-content-in-code rule.
+// Append-only versioned; latest active row wins at runtime. `templateText` is
+// retained as a freeform changelog/note field (auto-summarized server-side on POST
+// so the GET surface still shows a human-readable representation).
 model StyleTemplate {
   id           String   @id @default(uuid()) @db.Uuid
   version      Int      @unique
+  fields       String[] @default([])
+  charCap      Int      @default(950) @map("char_cap")
   templateText String   @map("template_text")
   notes        String?
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
