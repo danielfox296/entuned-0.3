@@ -4,7 +4,7 @@
 
 import type { StyleAnalysis, StyleExclusionRule } from '@prisma/client'
 import { prisma } from '../../db.js'
-import { ALWAYS_FIRE_CONTAMINATION, buildAxisExclusions } from './negative-style-axes.js'
+import { getAlwaysFireContamination, buildAxisExclusions } from './negative-style-axes.js'
 
 const DECOMPOSITION_FIELD_KEYS = [
   'vibePitch',
@@ -76,10 +76,11 @@ export async function buildNegativeStyle(styleAnalysis: StyleAnalysis): Promise<
   }
 
   // Always-fire contamination words — Suno mis-triggers on these regardless of context.
-  fragments.push(ALWAYS_FIRE_CONTAMINATION.join(', '))
+  const alwaysFire = await getAlwaysFireContamination()
+  if (alwaysFire.length > 0) fragments.push(alwaysFire.join(', '))
 
   // 5-axis builder — opposite genre/instruments/vocal/mood/production + adjacent contamination.
-  const axes = buildAxisExclusions(styleAnalysis)
+  const axes = await buildAxisExclusions(styleAnalysis)
   if (axes.fragments.length > 0) {
     fragments.push(axes.fragments.join(', '))
   }

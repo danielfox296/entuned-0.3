@@ -125,6 +125,48 @@ export interface StyleTemplateRow {
   createdAt: string
 }
 
+export interface GenreCraftRuleRow {
+  id: string
+  familyName: string
+  tags: string[]
+  densityGuidance: string
+  rhymeGuidance: string
+  lineStructureGuidance: string
+  voiceGuidance: string
+  typographyGuidance: string
+  sortOrder: number
+  isActive: boolean
+  notes: string | null
+  updatedAt: string
+}
+
+export type MarsContaminationCategory = 'always_fire' | 'modern_drift' | 'modern_family'
+
+export interface MarsContaminationTermRow {
+  id: string
+  category: MarsContaminationCategory
+  term: string
+  sortOrder: number
+  isActive: boolean
+  notes: string | null
+  updatedAt: string
+}
+
+export type MarsAxisType = 'genre' | 'vocal' | 'mood' | 'production'
+
+export interface MarsAxisRuleRow {
+  id: string
+  axisType: MarsAxisType
+  label: string
+  matchTerms: string[]
+  opposites: string[]
+  secondaryOpposites: string[]
+  sortOrder: number
+  isActive: boolean
+  notes: string | null
+  updatedAt: string
+}
+
 export type PoolStatus = 'critical' | 'thin' | 'ok'
 
 export interface PoolDepthCell {
@@ -1029,6 +1071,33 @@ export const api = {
     req<LyricBanEntryRow>(`/admin/lyric-ban-entries/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   deleteLyricBanEntry: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/lyric-ban-entries/${id}`, { method: 'DELETE' }, token),
+
+  genreCraftRules: (token: string) =>
+    req<GenreCraftRuleRow[]>('/admin/genre-craft-rules', {}, token),
+  createGenreCraftRule: (body: Omit<GenreCraftRuleRow, 'id' | 'updatedAt'>, token: string) =>
+    req<GenreCraftRuleRow>('/admin/genre-craft-rules', { method: 'POST', body: JSON.stringify(body) }, token),
+  updateGenreCraftRule: (id: string, body: Omit<GenreCraftRuleRow, 'id' | 'updatedAt'>, token: string) =>
+    req<GenreCraftRuleRow>(`/admin/genre-craft-rules/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+  deleteGenreCraftRule: (id: string, token: string) =>
+    req<{ ok: true }>(`/admin/genre-craft-rules/${id}`, { method: 'DELETE' }, token),
+
+  marsContaminationTerms: (token: string) =>
+    req<MarsContaminationTermRow[]>('/admin/mars-contamination-terms', {}, token),
+  createMarsContaminationTerm: (body: Omit<MarsContaminationTermRow, 'id' | 'updatedAt'>, token: string) =>
+    req<MarsContaminationTermRow>('/admin/mars-contamination-terms', { method: 'POST', body: JSON.stringify(body) }, token),
+  updateMarsContaminationTerm: (id: string, body: Omit<MarsContaminationTermRow, 'id' | 'updatedAt'>, token: string) =>
+    req<MarsContaminationTermRow>(`/admin/mars-contamination-terms/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+  deleteMarsContaminationTerm: (id: string, token: string) =>
+    req<{ ok: true }>(`/admin/mars-contamination-terms/${id}`, { method: 'DELETE' }, token),
+
+  marsAxisRules: (token: string) =>
+    req<MarsAxisRuleRow[]>('/admin/mars-axis-rules', {}, token),
+  createMarsAxisRule: (body: Omit<MarsAxisRuleRow, 'id' | 'updatedAt'>, token: string) =>
+    req<MarsAxisRuleRow>('/admin/mars-axis-rules', { method: 'POST', body: JSON.stringify(body) }, token),
+  updateMarsAxisRule: (id: string, body: Omit<MarsAxisRuleRow, 'id' | 'updatedAt'>, token: string) =>
+    req<MarsAxisRuleRow>(`/admin/mars-axis-rules/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+  deleteMarsAxisRule: (id: string, token: string) =>
+    req<{ ok: true }>(`/admin/mars-axis-rules/${id}`, { method: 'DELETE' }, token),
 
   styleTemplate: (token: string) =>
     req<{ latest: StyleTemplateRow | null; history: StyleTemplateRow[] }>('/admin/style-template', {}, token),

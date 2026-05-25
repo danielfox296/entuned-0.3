@@ -1,11 +1,18 @@
 // Genre-conditioned lyric craft rules for Bernie-v2.
 //
-// Maps genre families to lyric craft overrides that replace the pop-default
-// guidance in the draft prompt. Unknown genres return null → Bernie-v2 falls
-// back to the same pop defaults as Eno-1.
+// Maps genre families to lyric craft overrides that supersede the default
+// pop structural guidance in the draft prompt. Unknown genres return null →
+// Bernie falls back to the pop defaults from the system prompt.
 //
-// Pure data — no LLM, no DB. Hardcoded initially; promote to DB-backed
-// (like LyricBanEntry) if operator-editable genre tuning becomes valuable.
+// DB-backed via the `genre_craft_rules` table. Operators edit live in
+// Dash → Prompts & Rules → Genre Craft Rules. The const seed below is
+// bootstrap-only — it populates the table on cold-start (first deploy / fresh
+// dev DB) and is never consulted at runtime once rows exist.
+//
+// Migrated from a hardcoded `GENRE_FAMILIES` array on 2026-05-25 per the
+// no-prompt-content-in-code rule (see apps/server/CLAUDE.md Load-bearing rules).
+
+import { prisma } from '../../db.js'
 
 export interface GenreCraftOverrides {
   familyName: string
@@ -16,12 +23,13 @@ export interface GenreCraftOverrides {
   typographyGuidance: string
 }
 
-interface GenreFamily {
+interface SeedFamily {
   tags: string[]
   overrides: GenreCraftOverrides
 }
 
-const GENRE_FAMILIES: GenreFamily[] = [
+// Cold-start seed only. Live data is in `genre_craft_rules`; edit there.
+export const GENRE_FAMILIES_SEED: SeedFamily[] = [
   {
     tags: [
       'hip-hop', 'hip hop', 'rap', 'trap', 'boom-bap', 'boom bap',
@@ -62,7 +70,7 @@ const GENRE_FAMILIES: GenreFamily[] = [
 - Bridge: contrast scheme — if verses are ABAB, bridge might be AABB or free.
 - Country rewards perfect rhymes on strong words. Slant rhymes work in verses but choruses want clean landings.`,
       lineStructureGuidance: `Even line counts (4 or 8 per section). Country is structured — the form is part of the tradition. Lines are medium-length; long enough to tell a story beat, short enough to sing clean. Avoid run-on lines.`,
-      voiceGuidance: `Conversational storytelling. The singer is talking to someone — a lover, a bartender, themselves in the rearview mirror. Concrete imagery: truck beds, screen doors, county roads, Friday nights. Specific places and objects, not abstract emotions. The brand message lives inside the story, never as a thesis statement.`,
+      voiceGuidance: `Conversational storytelling. The singer is talking to someone — a lover, a bartender, themselves in the rearview mirror. Concrete imagery: truck beds, screen doors, two-lane highways at dusk, Friday nights. Specific places and objects, not abstract emotions. The brand message lives inside the story, never as a thesis statement.`,
       typographyGuidance: `Performance typography for country:
 - Parentheses = harmony vocal or call-back: "(mmhmm)", "(that's right)". Very sparse.
 - Em dash = conversational pause, like trailing off mid-thought.
@@ -146,19 +154,83 @@ function normalizeTag(tag: string): string {
   return tag.toLowerCase().replace(/[^a-z0-9&\s-]/g, '').trim()
 }
 
-const TAG_INDEX = new Map<string, GenreCraftOverrides>()
-for (const family of GENRE_FAMILIES) {
-  for (const tag of family.tags) {
-    TAG_INDEX.set(normalizeTag(tag), family.overrides)
+interface ActiveRuleRow {
+  familyName: string
+  tags: string[]
+  densityGuidance: string
+  rhymeGuidance: string
+  lineStructureGuidance: string
+  voiceGuidance: string
+  typographyGuidance: string
+}
+
+/** One-shot cold-start: if `genre_craft_rules` is empty, seed it from
+ *  GENRE_FAMILIES_SEED. Idempotent — runs at most once per process. */
+let seedAttempted = false
+async function seedIfEmpty(): Promise<void> {
+  if (seedAttempted) return
+  seedAttempted = true
+  const count = await prisma.genreCraftRule.count()
+  if (count > 0) return
+  for (let i = 0; i < GENRE_FAMILIES_SEED.length; i++) {
+    const f = GENRE_FAMILIES_SEED[i]
+    await prisma.genreCraftRule.create({
+      data: {
+        familyName: f.overrides.familyName,
+        tags: f.tags,
+        densityGuidance: f.overrides.densityGuidance,
+        rhymeGuidance: f.overrides.rhymeGuidance,
+        lineStructureGuidance: f.overrides.lineStructureGuidance,
+        voiceGuidance: f.overrides.voiceGuidance,
+        typographyGuidance: f.overrides.typographyGuidance,
+        sortOrder: i,
+        notes: 'Auto-seeded from GENRE_FAMILIES_SEED (cold-start).',
+      },
+    })
   }
 }
 
-export function getGenreCraftOverrides(genreTag: string): GenreCraftOverrides | null {
+async function loadActiveRules(): Promise<ActiveRuleRow[]> {
+  await seedIfEmpty()
+  const rows = await prisma.genreCraftRule.findMany({
+    where: { isActive: true },
+    orderBy: { sortOrder: 'asc' },
+  })
+  return rows.map((r) => ({
+    familyName: r.familyName,
+    tags: r.tags,
+    densityGuidance: r.densityGuidance,
+    rhymeGuidance: r.rhymeGuidance,
+    lineStructureGuidance: r.lineStructureGuidance,
+    voiceGuidance: r.voiceGuidance,
+    typographyGuidance: r.typographyGuidance,
+  }))
+}
+
+export async function getGenreCraftOverrides(genreTag: string): Promise<GenreCraftOverrides | null> {
   const normalized = normalizeTag(genreTag)
-  const direct = TAG_INDEX.get(normalized)
+  if (!normalized) return null
+
+  const rules = await loadActiveRules()
+  const index = new Map<string, GenreCraftOverrides>()
+  for (const r of rules) {
+    const overrides: GenreCraftOverrides = {
+      familyName: r.familyName,
+      densityGuidance: r.densityGuidance,
+      rhymeGuidance: r.rhymeGuidance,
+      lineStructureGuidance: r.lineStructureGuidance,
+      voiceGuidance: r.voiceGuidance,
+      typographyGuidance: r.typographyGuidance,
+    }
+    for (const tag of r.tags) {
+      index.set(normalizeTag(tag), overrides)
+    }
+  }
+
+  const direct = index.get(normalized)
   if (direct) return direct
 
-  for (const [key, overrides] of TAG_INDEX) {
+  for (const [key, overrides] of index) {
     if (normalized.includes(key) || key.includes(normalized)) return overrides
   }
 

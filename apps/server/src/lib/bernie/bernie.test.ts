@@ -5,6 +5,7 @@ vi.mock('../../db.js', () => ({
     lyricDraftPrompt: { findFirst: vi.fn(), create: vi.fn() },
     lyricEditPrompt: { findFirst: vi.fn(), create: vi.fn() },
     lyricBanEntry: { findMany: vi.fn() },
+    genreCraftRule: { count: vi.fn(), findMany: vi.fn(), create: vi.fn() },
   },
 }))
 
@@ -22,6 +23,20 @@ import { prisma } from '../../db.js'
 const draftFindFirst = prisma.lyricDraftPrompt.findFirst as ReturnType<typeof vi.fn>
 const editFindFirst = prisma.lyricEditPrompt.findFirst as ReturnType<typeof vi.fn>
 const banFindMany = prisma.lyricBanEntry.findMany as ReturnType<typeof vi.fn>
+const genreCraftCount = prisma.genreCraftRule.count as ReturnType<typeof vi.fn>
+const genreCraftFindMany = prisma.genreCraftRule.findMany as ReturnType<typeof vi.fn>
+
+const HIP_HOP_RULE = {
+  familyName: 'hip-hop',
+  tags: ['hip-hop', 'hip hop', 'rap'],
+  densityGuidance: 'Dense bars with internal rhymes.',
+  rhymeGuidance: 'Multisyllabic rhymes, slant rhymes valid.',
+  lineStructureGuidance: '8 or 16 bars per verse.',
+  voiceGuidance: 'Declarative, narrative, observational.',
+  typographyGuidance: 'Sparse parens for ad-libs.',
+  isActive: true,
+  sortOrder: 0,
+}
 
 function toolUseResponse(title: string, lyrics: string) {
   return {
@@ -37,6 +52,8 @@ describe('generateLyrics — hard ban block injection', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key'
     draftFindFirst.mockResolvedValue({ version: 1, promptText: 'draft system prompt' })
     editFindFirst.mockResolvedValue({ version: 1, promptText: 'edit system prompt' })
+    genreCraftCount.mockResolvedValue(1)
+    genreCraftFindMany.mockResolvedValue([HIP_HOP_RULE])
   })
 
   it('injects DB ban words into BOTH draft and edit user messages with FORBIDDEN framing', async () => {
@@ -89,6 +106,8 @@ describe('generateLyrics — genre brief injection', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key'
     draftFindFirst.mockResolvedValue({ version: 1, promptText: 'draft system prompt' })
     editFindFirst.mockResolvedValue({ version: 1, promptText: 'edit system prompt' })
+    genreCraftCount.mockResolvedValue(1)
+    genreCraftFindMany.mockResolvedValue([HIP_HOP_RULE])
     banFindMany.mockResolvedValue([])
   })
 
@@ -179,6 +198,8 @@ describe('generateLyrics — outcome brief injection', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key'
     draftFindFirst.mockResolvedValue({ version: 1, promptText: 'draft system prompt' })
     editFindFirst.mockResolvedValue({ version: 1, promptText: 'edit system prompt' })
+    genreCraftCount.mockResolvedValue(1)
+    genreCraftFindMany.mockResolvedValue([HIP_HOP_RULE])
     banFindMany.mockResolvedValue([])
   })
 

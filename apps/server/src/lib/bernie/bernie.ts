@@ -135,7 +135,7 @@ Form note: ${input.formArchetype.shapeNote}
     : ''
 
   const genreContext = input.genreBrief ? formatGenreContext(input.genreBrief) : ''
-  const genreOverrides = input.genreBrief ? getGenreCraftOverrides(input.genreBrief.genreTag) : null
+  const genreOverrides = input.genreBrief ? await getGenreCraftOverrides(input.genreBrief.genreTag) : null
   const genreCraftBlock = genreOverrides ? `\n${formatGenreCraftBlock(genreOverrides)}\n` : ''
   const outcomeBrief = input.outcomeBrief ? formatOutcomeBrief(input.outcomeBrief) : ''
 

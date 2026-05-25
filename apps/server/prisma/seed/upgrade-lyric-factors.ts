@@ -1,3 +1,23 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// DEPRECATED — HISTORICAL BUMP/UPGRADE SCRIPT (2026-05-25)
+//
+// This script lives on for audit/historical reference. DO NOT use this pattern
+// for new prompt or rule changes.
+//
+// The Bernie prompts, OutcomeLyricFactor templates, GenreCraftRule rows, and
+// Mars contamination/axis rules are all live-editable from Dash → Prompts &
+// Rules. Operators iterate without code deploys; the DB is the source of truth.
+// Code-side bump scripts caused two specific failure modes:
+//   1) Rule content drifts away from what Dash shows (the file remains as
+//      written even after operators edit the DB row).
+//   2) Hidden self-conflict — content in bump scripts is not audited against
+//      lyric_ban_entries the way Dash-visible rules are, leading to prompts
+//      that simultaneously ban a term and recommend it.
+//
+// See apps/server/CLAUDE.md Load-bearing rules → "No prompt/rule content in
+// code" for the rationale.
+// ═══════════════════════════════════════════════════════════════════════════
+
 // Upgrade outcome lyric factor prompts to break phrase-level ruts.
 // See HANDOFF-lyric-repetition.md for the root-cause analysis.
 //

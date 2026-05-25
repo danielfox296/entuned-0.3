@@ -713,6 +713,79 @@ model OutcomeLyricFactor {
   @@map("outcome_lyric_factors")
 }
 
+// ---------- GenreCraftRule ----------
+// Per-genre-family lyric craft overlay. Bernie's draft pass loads the matching
+// family for the reference track's genre tag and prepends the overrides
+// (density, rhyme, line structure, voice, typography) onto the user message.
+// Migrated from hardcoded src/lib/bernie/genre-craft-rules.ts on 2026-05-25
+// per the rule: no prompt/rule content in code. Editable in Dash → Genre Craft Rules.
+model GenreCraftRule {
+  id                    String   @id @default(uuid()) @db.Uuid
+  familyName            String   @unique @map("family_name")
+  tags                  String[] @default([])
+  densityGuidance       String   @map("density_guidance")
+  rhymeGuidance         String   @map("rhyme_guidance")
+  lineStructureGuidance String   @map("line_structure_guidance")
+  voiceGuidance         String   @map("voice_guidance")
+  typographyGuidance    String   @map("typography_guidance")
+  sortOrder             Int      @default(0) @map("sort_order")
+  isActive              Boolean  @default(true) @map("is_active")
+  notes                 String?
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedById           String?  @map("updated_by") @db.Uuid
+
+  @@index([isActive])
+  @@map("genre_craft_rules")
+}
+
+// ---------- MarsContaminationTerm ----------
+// Flat term lists used by Mars's negative-style builder. Three categories:
+//   - always_fire: Suno mis-triggers regardless of context ("live", "arena")
+//   - modern_drift: contamination suppressed when the track is in the modern family
+//   - modern_family: genre-tag terms that mark "modern" (suppresses modern_drift)
+// Migrated from hardcoded src/lib/mars/negative-style-axes.ts on 2026-05-25
+// per the no-prompt-content-in-code rule. Editable in Dash → Style Axes.
+model MarsContaminationTerm {
+  id        String   @id @default(uuid()) @db.Uuid
+  category  String
+  term      String
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([category, term])
+  @@index([category, isActive])
+  @@map("mars_contamination_terms")
+}
+
+// ---------- MarsAxisRule ----------
+// Per-axis opposite-style mapping for Mars's buildAxisExclusions. axisType is
+// one of 'genre', 'vocal', 'mood', 'production'. matchTerms triggers the rule
+// (case-insensitive word-boundary); opposites are added to negative_style.
+// Genre rows additionally populate secondaryOpposites (opposite instruments).
+// Migrated from hardcoded src/lib/mars/negative-style-axes.ts on 2026-05-25
+// per the no-prompt-content-in-code rule. Editable in Dash → Style Axes.
+model MarsAxisRule {
+  id                 String   @id @default(uuid()) @db.Uuid
+  axisType           String   @map("axis_type")
+  label              String
+  matchTerms         String[] @default([]) @map("match_terms")
+  opposites          String[] @default([])
+  secondaryOpposites String[] @default([]) @map("secondary_opposites")
+  sortOrder          Int      @default(0) @map("sort_order")
+  isActive           Boolean  @default(true) @map("is_active")
+  notes              String?
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([axisType, label])
+  @@index([axisType, isActive])
+  @@map("mars_axis_rules")
+}
+
 // ---------- Card 8 Dayparting (ScheduleSlot) ----------
 
 model ScheduleSlot {

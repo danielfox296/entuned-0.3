@@ -116,6 +116,38 @@ const LyricBanEntryBody = z.object({
   note: z.string().nullable().optional(),
 })
 
+const GenreCraftRuleBody = z.object({
+  familyName: z.string().min(1),
+  tags: z.array(z.string()).default([]),
+  densityGuidance: z.string(),
+  rhymeGuidance: z.string(),
+  lineStructureGuidance: z.string(),
+  voiceGuidance: z.string(),
+  typographyGuidance: z.string(),
+  sortOrder: z.number().int().default(0),
+  isActive: z.boolean().default(true),
+  notes: z.string().nullable().optional(),
+})
+
+const MarsContaminationTermBody = z.object({
+  category: z.enum(['always_fire', 'modern_drift', 'modern_family']),
+  term: z.string().min(1),
+  sortOrder: z.number().int().default(0),
+  isActive: z.boolean().default(true),
+  notes: z.string().nullable().optional(),
+})
+
+const MarsAxisRuleBody = z.object({
+  axisType: z.enum(['genre', 'vocal', 'mood', 'production']),
+  label: z.string().min(1),
+  matchTerms: z.array(z.string()).default([]),
+  opposites: z.array(z.string()).default([]),
+  secondaryOpposites: z.array(z.string()).default([]),
+  sortOrder: z.number().int().default(0),
+  isActive: z.boolean().default(true),
+  notes: z.string().nullable().optional(),
+})
+
 export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- MusicologicalRules -----
 
@@ -413,6 +445,168 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const id = (req.params as any).id as string
     try {
       await prisma.lyricBanEntry.delete({ where: { id } })
+      return { ok: true }
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
+    }
+  })
+
+  // ----- GenreCraftRule (per-genre-family lyric craft overlays) -----
+
+  app.get('/genre-craft-rules', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const rows = await prisma.genreCraftRule.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { familyName: 'asc' }],
+    })
+    return rows
+  })
+
+  app.post('/genre-craft-rules', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = GenreCraftRuleBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.genreCraftRule.create({
+        data: { ...parsed.data, notes: parsed.data.notes ?? null, updatedById: op.accountId },
+      })
+      return row
+    } catch (e: any) {
+      if (e?.code === 'P2002') return reply.code(409).send({ error: 'duplicate', message: 'familyName already exists' })
+      throw e
+    }
+  })
+
+  app.put('/genre-craft-rules/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = GenreCraftRuleBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.genreCraftRule.update({
+        where: { id },
+        data: { ...parsed.data, notes: parsed.data.notes ?? null, updatedById: op.accountId },
+      })
+      return row
+    } catch (e: any) {
+      if (e?.code === 'P2025') return reply.code(404).send({ error: 'not_found' })
+      if (e?.code === 'P2002') return reply.code(409).send({ error: 'duplicate', message: 'familyName already exists' })
+      throw e
+    }
+  })
+
+  app.delete('/genre-craft-rules/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    try {
+      await prisma.genreCraftRule.delete({ where: { id } })
+      return { ok: true }
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
+    }
+  })
+
+  // ----- MarsContaminationTerm (always_fire / modern_drift / modern_family) -----
+
+  app.get('/mars-contamination-terms', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const rows = await prisma.marsContaminationTerm.findMany({
+      orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }, { term: 'asc' }],
+    })
+    return rows
+  })
+
+  app.post('/mars-contamination-terms', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = MarsContaminationTermBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.marsContaminationTerm.create({
+        data: { ...parsed.data, notes: parsed.data.notes ?? null },
+      })
+      return row
+    } catch (e: any) {
+      if (e?.code === 'P2002') return reply.code(409).send({ error: 'duplicate', message: 'category + term already exists' })
+      throw e
+    }
+  })
+
+  app.put('/mars-contamination-terms/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = MarsContaminationTermBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.marsContaminationTerm.update({
+        where: { id },
+        data: { ...parsed.data, notes: parsed.data.notes ?? null },
+      })
+      return row
+    } catch (e: any) {
+      if (e?.code === 'P2025') return reply.code(404).send({ error: 'not_found' })
+      if (e?.code === 'P2002') return reply.code(409).send({ error: 'duplicate', message: 'category + term already exists' })
+      throw e
+    }
+  })
+
+  app.delete('/mars-contamination-terms/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    try {
+      await prisma.marsContaminationTerm.delete({ where: { id } })
+      return { ok: true }
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
+    }
+  })
+
+  // ----- MarsAxisRule (per-axis opposite-style mapping) -----
+
+  app.get('/mars-axis-rules', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const rows = await prisma.marsAxisRule.findMany({
+      orderBy: [{ axisType: 'asc' }, { sortOrder: 'asc' }, { label: 'asc' }],
+    })
+    return rows
+  })
+
+  app.post('/mars-axis-rules', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = MarsAxisRuleBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.marsAxisRule.create({
+        data: { ...parsed.data, notes: parsed.data.notes ?? null },
+      })
+      return row
+    } catch (e: any) {
+      if (e?.code === 'P2002') return reply.code(409).send({ error: 'duplicate', message: 'axisType + label already exists' })
+      throw e
+    }
+  })
+
+  app.put('/mars-axis-rules/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    const parsed = MarsAxisRuleBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.marsAxisRule.update({
+        where: { id },
+        data: { ...parsed.data, notes: parsed.data.notes ?? null },
+      })
+      return row
+    } catch (e: any) {
+      if (e?.code === 'P2025') return reply.code(404).send({ error: 'not_found' })
+      if (e?.code === 'P2002') return reply.code(409).send({ error: 'duplicate', message: 'axisType + label already exists' })
+      throw e
+    }
+  })
+
+  app.delete('/mars-axis-rules/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as any).id as string
+    try {
+      await prisma.marsAxisRule.delete({ where: { id } })
       return { ok: true }
     } catch {
       return reply.code(404).send({ error: 'not_found' })
