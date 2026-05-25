@@ -1,49 +1,29 @@
-import { useState } from 'react'
+// Lyric draft prompt — Bernie's single-pass system prompt.
+//
+// The former "edit" toggle was retired 2026-05-25 when Bernie collapsed to a
+// single-pass drafter and the Professor module took over post-draft craft
+// finishing. The lyric_edit_prompts table is retained for historical
+// SongSeed provenance but is no longer read at runtime.
+
 import { api, getToken } from '../../api.js'
 import type { LyricPromptRow } from '../../api.js'
-import { T } from '@entuned/tokens'
-import { VersionedPromptEditor, S } from '../../ui/index.js'
-
-type Kind = 'draft' | 'edit'
+import { VersionedPromptEditor } from '../../ui/index.js'
 
 export function LyricPrompts() {
-  const [kind, setKind] = useState<Kind>('draft')
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: S.lg }}>
-      <div style={{ display: 'flex', gap: 4 }}>
-        {(['draft', 'edit'] as const).map((k) => (
-          <button
-            key={k}
-            onClick={() => setKind(k)}
-            style={{
-              background: kind === k ? T.surfaceRaised : 'transparent',
-              border: `1px solid ${kind === k ? T.accent : T.border}`,
-              color: kind === k ? T.accent : T.textMuted,
-              padding: '6px 14px', borderRadius: S.r4,
-              fontFamily: T.sans, fontSize: S.small, cursor: 'pointer',
-            }}
-          >{k}</button>
-        ))}
-      </div>
-
-      {/* Re-mount on kind change so VersionedPromptEditor reloads cleanly. */}
-      <VersionedPromptEditor
-        key={kind}
-        title={`Lyric Prompt — ${kind}`}
-        subtitle=""
-        load={async () => {
-          const token = getToken(); if (!token) throw new Error('not signed in')
-          const r = await api.lyricPrompts(token)
-          return { latest: r[kind].latest, history: r[kind].history }
-        }}
-        textFrom={(latest: LyricPromptRow | null) => latest?.promptText ?? ''}
-        save={async (text, notes) => {
-          const token = getToken(); if (!token) throw new Error('not signed in')
-          if (kind === 'draft') await api.saveDraftPrompt(text, notes, token)
-          else await api.saveEditPrompt(text, notes, token)
-        }}
-      />
-    </div>
+    <VersionedPromptEditor
+      title="Lyric Prompt — Draft"
+      subtitle="Bernie's single-pass system prompt. Post-draft craft finishing is the Professor's job — edit that under the Professor panel."
+      load={async () => {
+        const token = getToken(); if (!token) throw new Error('not signed in')
+        const r = await api.lyricPrompts(token)
+        return { latest: r.draft.latest, history: r.draft.history }
+      }}
+      textFrom={(latest: LyricPromptRow | null) => latest?.promptText ?? ''}
+      save={async (text, notes) => {
+        const token = getToken(); if (!token) throw new Error('not signed in')
+        await api.saveDraftPrompt(text, notes, token)
+      }}
+    />
   )
 }

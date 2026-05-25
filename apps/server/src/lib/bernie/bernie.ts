@@ -1,14 +1,16 @@
-// Bernie — two-pass lyric generator.
-//   Pass 1 (draft): writes a first draft around the hook using LyricDraftPrompt as system,
-//     with genre context + genre-family craft overrides when a GenreBrief is supplied.
-//   Pass 2 (edit):  rewrites the draft for brand voice + playability using LyricEditPrompt.
-// Both prompts are DB-backed; `getOrSeed*` cold-starts v1 from the seed text in
-// `bernie/seeds.ts` so the migration window is invisible. The Submission row
-// captures both prompt versions for full provenance.
+// Bernie — single-pass lyric drafter.
+//   Writes lyrics around the hook using LyricDraftPrompt as system, with
+//   genre context + genre-family craft overrides when a GenreBrief is supplied.
+//
+// Retired 2026-05-25: the former two-pass shape (draft + LyricEditPrompt
+// polish) collapsed into a single DRAFT-only pass when the Professor module
+// took over post-draft craft finishing. EDIT v10's non-craft concerns
+// (performance typography, parens discipline, tempo-aware shape, product
+// imagery rule, anti-wisdom pre-choruses) were folded into DRAFT v19; craft
+// finishing now lives in lib/professor. The `lyric_edit_prompts` table is
+// retained for historical SongSeed provenance but no longer read at runtime.
 
 import Anthropic from '@anthropic-ai/sdk'
-import { prisma } from '../../db.js'
-import { EDIT_PROMPT_SEED } from './seeds.js'
 import type { ArrangementSections } from '../arranger/arranger.js'
 import type { FormArchetypeChoice } from '../eno/form-archetype.js'
 import { formatArrangementBrief, getOrSeedDraftPrompt } from './_helpers.js'
@@ -70,9 +72,7 @@ export interface BernieInput {
 export interface BernieOutput {
   title: string
   lyrics: string
-  draft: { title: string; lyrics: string }
   draftPromptVersion: number
-  editPromptVersion: number
 }
 
 function formatGenreContext(brief: GenreBrief): string {
@@ -95,34 +95,13 @@ Mode: ${brief.mode}
 `
 }
 
-async function getOrSeedEditPrompt(): Promise<{ version: number; promptText: string }> {
-  const row = await prisma.lyricEditPrompt.findFirst({ orderBy: { version: 'desc' } })
-  if (row) return { version: row.version, promptText: row.promptText }
-  const seeded = await prisma.lyricEditPrompt.create({
-    data: { version: 1, promptText: EDIT_PROMPT_SEED, notes: 'Auto-seeded v1' },
-  })
-  return { version: seeded.version, promptText: seeded.promptText }
-}
-
-function countOccurrences(haystack: string, needle: string): number {
-  if (!needle) return 0
-  let count = 0
-  let idx = 0
-  while ((idx = haystack.indexOf(needle, idx)) !== -1) {
-    count++
-    idx += needle.length
-  }
-  return count
-}
-
 export async function generateLyrics(input: BernieInput): Promise<BernieOutput> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
   const client = new Anthropic({ apiKey })
 
-  const [draftPrompt, editPrompt, hardBanBlock] = await Promise.all([
+  const [draftPrompt, hardBanBlock] = await Promise.all([
     getOrSeedDraftPrompt(),
-    getOrSeedEditPrompt(),
     formatHardBanBlock(),
   ])
 
@@ -162,60 +141,9 @@ ${formBrief ? `${formBrief}\n` : ''}${genreContext ? `${genreContext}\n` : ''}${
   const draft = draftToolUse.input as { title: string; lyrics: string }
   if (!draft.title || !draft.lyrics) throw new Error('Bernie draft output missing title or lyrics')
 
-  // Pass 2 — edit.
-  // Form, arrangement, genre context, and outcome brief are intentionally
-  // OMITTED from the edit user-message: the draft already encoded section
-  // structure, genre craft, and emotional tenor into the lyrics, and the
-  // editor's job is polish, not re-architecture. Re-injecting that context
-  // here just pays tokens for input the editor doesn't act on.
-  const editUserMessage = `Hook (must remain verbatim in every instance the draft used it — choruses, verse-end refrains, tag, whatever the form dictates):
-"${input.hookText}"
-
-${input.brandLyricGuidelines ? `Brand lyric guidelines:\n${input.brandLyricGuidelines}\n\n` : ''}${hardBanBlock ? `${hardBanBlock}\n\n` : ''}Draft to polish:
-
-Title: ${draft.title}
-
-${draft.lyrics}
-
-Polish the lyrics per the editor instructions. Preserve the hook verbatim. Output the JSON only.`
-
-  const editResponse = await client.messages.create({
-    model: MODEL,
-    max_tokens: 2000,
-    system: [{ type: 'text', text: editPrompt.promptText, cache_control: { type: 'ephemeral' } }],
-    messages: [{ role: 'user', content: editUserMessage }],
-    tools: [EMIT_LYRICS_TOOL],
-    tool_choice: { type: 'tool', name: 'emit_lyrics' },
-  })
-  const editToolUse = editResponse.content.find((b: any) => b.type === 'tool_use' && (b as any).name === 'emit_lyrics') as any
-  if (!editToolUse) throw new Error('Bernie edit pass did not emit tool_use')
-  const final = editToolUse.input as { title: string; lyrics: string }
-  if (!final.title || !final.lyrics) throw new Error('Bernie edit output missing title or lyrics')
-
-  // Hook preservation invariant: the polished output must contain the hook verbatim
-  // in every chorus instance the draft had. Counting handles [Chorus] + [Final Chorus]:
-  // the editor is allowed to vary non-hook lines in [Final Chorus], but must not drop
-  // or paraphrase the hook line itself.
-  const draftHookCount = countOccurrences(draft.lyrics, input.hookText)
-  const finalHookCount = countOccurrences(final.lyrics, input.hookText)
-  if (finalHookCount < Math.max(1, draftHookCount)) {
-    // Fall back to the draft if the editor lost any hook instance. The alternative is
-    // shipping lyrics with a missing or paraphrased chorus hook, which violates the
-    // chorus contract.
-    return {
-      title: draft.title,
-      lyrics: draft.lyrics,
-      draft,
-      draftPromptVersion: draftPrompt.version,
-      editPromptVersion: editPrompt.version,
-    }
-  }
-
   return {
-    title: final.title,
-    lyrics: final.lyrics,
-    draft,
+    title: draft.title,
+    lyrics: draft.lyrics,
     draftPromptVersion: draftPrompt.version,
-    editPromptVersion: editPrompt.version,
   }
 }

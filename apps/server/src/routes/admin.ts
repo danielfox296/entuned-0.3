@@ -386,17 +386,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return row
   })
 
-  app.post('/lyric-prompts/edit', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
-    const parsed = LyricPromptPostBody.safeParse(req.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const max = await prisma.lyricEditPrompt.aggregate({ _max: { version: true } })
-    const next = (max._max.version ?? 0) + 1
-    const row = await prisma.lyricEditPrompt.create({
-      data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.accountId },
-    })
-    return row
-  })
+  // POST /lyric-prompts/edit was retired 2026-05-25 when Bernie collapsed to a
+  // single-pass drafter (Professor module replaced the edit pass). The GET above
+  // still returns historical edit-prompt versions for browsing, but new writes
+  // would have no runtime effect — drop the handler so the API doesn't lie.
 
   // ----- Hook Drafter prompt (universal craft prompt for hook generation) -----
   // Mirrors /lyric-prompts shape. Cold-start v1 happens in lib/hooks/drafter.ts.

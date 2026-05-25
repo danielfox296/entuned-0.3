@@ -271,7 +271,6 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
         outcomeFactorPromptVersion: outcomeFactorPrompt.version,
         styleTemplateVersion: mars.styleTemplateVersion,
         lyricDraftPromptVersion: lyricsRaw.draftPromptVersion,
-        lyricEditPromptVersion: lyricsRaw.editPromptVersion,
         professorPersonaVersion: professor.personaVersion,
         lyricPreProfessor: lyricsRaw.lyrics,
         professorChangeLog: professor.changeLog.length > 0 ? JSON.stringify(professor.changeLog) : null,

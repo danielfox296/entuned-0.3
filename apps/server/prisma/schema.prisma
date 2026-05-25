@@ -445,6 +445,12 @@ model LyricDraftPrompt {
   @@map("lyric_draft_prompts")
 }
 
+// LyricEditPrompt — RETIRED 2026-05-25. Bernie collapsed to a single-pass
+// drafter when the Professor module took over post-draft craft finishing;
+// EDIT v10's non-craft concerns were folded into LyricDraftPrompt v19. The
+// table and historical rows are retained for old SongSeed provenance
+// (lyricEditPromptVersion column) but are no longer read at runtime — no
+// loader fetches from this table and no admin route POSTs to it.
 model LyricEditPrompt {
   id          String   @id @default(uuid()) @db.Uuid
   version     Int      @unique
