@@ -29,7 +29,7 @@ export function OnboardProfile() {
       await api.saveOnboardProfile(body)
       const { stores } = await api.meStores()
       const store = primaryStore(stores)
-      window.location.href = store ? `${PLAYER_URL}/${store.slug}` : PLAYER_URL
+      window.location.href = store ? `${PLAYER_URL}/${store.slug}` : '/'
     } catch {
       setError(content.error)
     } finally {

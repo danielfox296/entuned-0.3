@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
-import { LoginScreen } from "./screens/LoginScreen.js";
 import { PlayerScreen } from "./screens/PlayerScreen.js";
 import { clearSession, loadSession, type Session } from "./lib/storage.js";
 import { api } from "./api.js";
+
+// Where to bounce a session-less visitor. The player has no recovery UI of
+// its own — credentials and password reset live on app.entuned.co.
+const APP_URL = "https://app.entuned.co/";
 
 // Read the URL path; trim slashes; an empty result means root (operator-mode entry).
 function urlSlug(): string | null {
@@ -70,9 +73,12 @@ export function App() {
       : null;
   }
 
-  // Operator mode (existing path): localStorage-persisted session, login screen if missing.
+  // Operator mode: localStorage-persisted session. If missing, bounce to
+  // app.entuned.co — that's where credentials, magic-link, and password reset
+  // live. Keeps the player surface free of auth recovery UI.
   if (!operatorSession) {
-    return <LoginScreen onAuthed={setOperatorSession} />;
+    window.location.replace(APP_URL);
+    return <div style={shellStyle}>Redirecting…</div>;
   }
   return (
     <PlayerScreen
