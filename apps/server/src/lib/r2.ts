@@ -44,24 +44,33 @@ export async function uploadBuffer(key: string, body: Buffer, contentType: strin
 }
 
 /**
- * Resolve a Suno share/song page URL to a direct CDN audio URL.
+ * Resolve a Suno share/song page URL into the ordered list of CDN audio URLs
+ * to attempt. Direct (non-suno.com) URLs return as a one-element list.
  *
- * As of 2026-05, Suno serves audio via two paths:
- *   - Newer tracks: https://audiopipe.suno.ai/?item_id=<uuid>&format=mp3
- *   - Older tracks: https://cdn1.suno.ai/<uuid>.mp3
+ * Suno serves audio via two paths and either can fail:
+ *   - https://audiopipe.suno.ai/?item_id=<uuid>&format=mp3
+ *     Sometimes returns 200 OK with an empty body (observed 2026-05-25)
+ *     even when the take is fully rendered. HEAD also 405s — not useful
+ *     as a pre-flight check.
+ *   - https://cdn1.suno.ai/<uuid>.mp3
+ *     Historically 403'd for fresh tracks; appears reliable now. Direct S3.
  *
- * audiopipe is the more reliable endpoint (covers both); cdn1 returns 403
- * for many recently-generated tracks. We try audiopipe first, fall back
- * to cdn1. Direct (non-suno.com) URLs are returned unchanged.
+ * We try audiopipe first (matches prior behavior; covers any cases where it
+ * works and cdn1 doesn't), then cdn1 as the safety net. The download path
+ * runs every candidate through the same byte-floor / content-type guards.
  */
-async function resolveAudioUrl(url: string): Promise<string> {
-  if (!/suno\.com\/(s\/|song\/)/i.test(url)) return url
+async function resolveAudioCandidates(url: string): Promise<string[]> {
+  if (!/suno\.com\/(s\/|song\/)/i.test(url)) return [url]
   // Follow redirects to reach the canonical /song/<uuid> URL.
   const res = await fetch(url, { method: 'HEAD', headers: { 'User-Agent': 'Mozilla/5.0' }, redirect: 'follow' })
   const finalUrl = res.url
   const m = finalUrl.match(/\/song\/([0-9a-f-]{36})/i)
   if (!m) throw new Error(`could not extract Suno song UUID from ${url} (resolved to ${finalUrl})`)
-  return `https://audiopipe.suno.ai/?item_id=${m[1]}&format=mp3`
+  const uuid = m[1]
+  return [
+    `https://audiopipe.suno.ai/?item_id=${uuid}&format=mp3`,
+    `https://cdn1.suno.ai/${uuid}.mp3`,
+  ]
 }
 
 // Minimum byte size for a real Suno take. Empirically every accepted MP3 is
@@ -74,10 +83,13 @@ export const MIN_AUDIO_BYTES = 50_000
 
 /**
  * Download a remote audio file (or Suno share link) and upload to R2.
- * Suno share/song page URLs are auto-resolved to the CDN audio URL.
- * Always stores as audio/mpeg.
+ * Suno share/song page URLs are auto-resolved to the CDN audio URLs (plural
+ * — see resolveAudioCandidates). Tries each candidate in order, accepting
+ * the first one that passes the audio-integrity guards. Always stores as
+ * audio/mpeg.
  *
- * Hard guards (any failure throws — caller returns 502 r2_upload_failed):
+ * Per-candidate guards (each must pass for that candidate to be accepted;
+ * if all candidates fail, throws — caller returns 502 r2_upload_failed):
  *   - response status must be 2xx
  *   - Content-Type, if present, must start with `audio/`
  *   - Content-Length, if present, must be ≥ MIN_AUDIO_BYTES
@@ -86,11 +98,24 @@ export const MIN_AUDIO_BYTES = 50_000
  *
  * The size + content-type guards exist because audiopipe.suno.ai returns
  * `200 OK` with an empty body when a take is accepted before it finishes
- * rendering. Without these, the server silently writes 0-byte objects to R2
- * and the player surfaces `MEDIA_ERR_SRC_NOT_SUPPORTED` to users.
+ * rendering — and sometimes also for fully-rendered takes. Without these,
+ * the server silently writes 0-byte objects to R2 and the player surfaces
+ * `MEDIA_ERR_SRC_NOT_SUPPORTED` to users.
  */
 export async function downloadAndUploadFromUrl(sourceUrl: string, key: string): Promise<UploadedObject> {
-  const audioUrl = await resolveAudioUrl(sourceUrl)
+  const candidates = await resolveAudioCandidates(sourceUrl)
+  const errors: string[] = []
+  for (const audioUrl of candidates) {
+    try {
+      return await downloadAndValidate(audioUrl, key)
+    } catch (e: any) {
+      errors.push(`${audioUrl} → ${e.message ?? String(e)}`)
+    }
+  }
+  throw new Error(`all audio sources failed: ${errors.join(' | ')}`)
+}
+
+async function downloadAndValidate(audioUrl: string, key: string): Promise<UploadedObject> {
   const res = await fetch(audioUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } })
   if (!res.ok) throw new Error(`download failed: ${res.status} ${res.statusText}`)
 

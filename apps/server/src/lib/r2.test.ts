@@ -117,4 +117,63 @@ describe('downloadAndUploadFromUrl — guards against half-rendered Suno takes',
     const out = await downloadAndUploadFromUrl('https://example.com/audio.mp3', 'k')
     expect(out.byteSize).toBe(audio.length)
   })
+
+  // Regression: 2026-05-25. For some Suno UUIDs, audiopipe.suno.ai returns
+  // 200 OK / Content-Type: audio/mp3 with an empty body even though the take
+  // is fully rendered and cdn1.suno.ai serves the real MP3 fine. The resolver
+  // returns BOTH endpoints as candidates and the download loop falls back.
+  describe('Suno share URL → multi-candidate fallback', () => {
+    const SHARE_URL = 'https://suno.com/s/9PYPnD9vab0Jboex'
+    const UUID = '3ab33558-9e7b-4528-8b58-28a87ca189c7'
+    const SONG_PAGE_URL = `https://suno.com/song/${UUID}?sh=9PYPnD9vab0Jboex`
+    const AUDIOPIPE = `https://audiopipe.suno.ai/?item_id=${UUID}&format=mp3`
+    const CDN1 = `https://cdn1.suno.ai/${UUID}.mp3`
+
+    // Builds a fetch mock that routes per URL: HEAD on suno.com resolves the
+    // share link; GET on audio URLs returns whatever the caller specifies.
+    function fetchRouter(audio: Partial<Record<string, ReturnType<typeof mockResponse>>>) {
+      return vi.fn(async (url: string, init?: RequestInit) => {
+        if (init?.method === 'HEAD' && url === SHARE_URL) {
+          return { ...mockResponse({}), url: SONG_PAGE_URL } as Response
+        }
+        const resp = audio[url]
+        if (!resp) throw new Error(`unmocked fetch: ${url}`)
+        return resp
+      })
+    }
+
+    it('falls back to cdn1 when audiopipe returns 200 OK with an empty body', async () => {
+      const audio = bigAudioBuffer()
+      vi.stubGlobal('fetch', fetchRouter({
+        [AUDIOPIPE]: mockResponse({ headers: { 'content-type': 'audio/mp3' }, body: new Uint8Array(0) }),
+        [CDN1]: mockResponse({ headers: { 'content-type': 'audio/mp3', 'content-length': String(audio.length) }, body: audio }),
+      }))
+
+      const out = await downloadAndUploadFromUrl(SHARE_URL, 'song-seeds/x/take-1.mp3')
+      expect(out.byteSize).toBe(audio.length)
+      expect(out.url).toBe('https://pub-test.r2.dev/song-seeds/x/take-1.mp3')
+    })
+
+    it('throws an aggregated error when every candidate fails', async () => {
+      vi.stubGlobal('fetch', fetchRouter({
+        [AUDIOPIPE]: mockResponse({ headers: { 'content-type': 'audio/mp3' }, body: new Uint8Array(0) }),
+        [CDN1]: mockResponse({ status: 403, statusText: 'Forbidden' }),
+      }))
+
+      await expect(downloadAndUploadFromUrl(SHARE_URL, 'k')).rejects.toThrow(/all audio sources failed/)
+      await expect(downloadAndUploadFromUrl(SHARE_URL, 'k')).rejects.toThrow(/audiopipe\.suno\.ai/)
+      await expect(downloadAndUploadFromUrl(SHARE_URL, 'k')).rejects.toThrow(/cdn1\.suno\.ai/)
+    })
+
+    it('uses audiopipe when it succeeds (prior behavior preserved)', async () => {
+      const audio = bigAudioBuffer()
+      vi.stubGlobal('fetch', fetchRouter({
+        [AUDIOPIPE]: mockResponse({ headers: { 'content-type': 'audio/mp3', 'content-length': String(audio.length) }, body: audio }),
+        // cdn1 intentionally not mocked — if the loop reaches it the test fails.
+      }))
+
+      const out = await downloadAndUploadFromUrl(SHARE_URL, 'k')
+      expect(out.byteSize).toBe(audio.length)
+    })
+  })
 })
