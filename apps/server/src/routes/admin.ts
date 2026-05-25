@@ -118,6 +118,20 @@ const ReferenceTrackPromptPostBody = z.object({ templateText: z.string().min(1),
 
 const LyricPromptPostBody = z.object({ promptText: z.string().min(1), notes: z.string().optional() })
 
+const ProfessorModulePostBody = z.object({
+  name: z.string().min(1),
+  body: z.string().min(1),
+  active: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+})
+
+const ProfessorModulePatchBody = z.object({
+  name: z.string().min(1).optional(),
+  body: z.string().min(1).optional(),
+  active: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+})
+
 const LyricBanEntryBody = z.object({
   category: z.enum(['overused_word', 'cliche_phrase', 'cliche_shape']),
   text: z.string().min(1),
@@ -403,6 +417,78 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.accountId },
     })
     return row
+  })
+
+  // ----- The Professor (finishing editor for song lyrics) -----
+  // Persona is a versioned system prompt (same shape as lyric-prompts).
+  // Modules are a CRUD'd curriculum list. Cold-start of both happens in
+  // lib/professor/_helpers.ts on first call from Eno.
+
+  app.get('/professor/persona', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const all = await prisma.professorPersona.findMany({ orderBy: { version: 'desc' } })
+    return { latest: all[0] ?? null, history: all }
+  })
+
+  app.post('/professor/persona', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = LyricPromptPostBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const max = await prisma.professorPersona.aggregate({ _max: { version: true } })
+    const next = (max._max.version ?? 0) + 1
+    const row = await prisma.professorPersona.create({
+      data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.accountId },
+    })
+    return row
+  })
+
+  app.get('/professor/modules', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const rows = await prisma.professorModule.findMany({ orderBy: { sortOrder: 'asc' } })
+    return rows
+  })
+
+  app.post('/professor/modules', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = ProfessorModulePostBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    // Default new modules to the end of the active list so they don't preempt
+    // existing ordering. Operators can drag-reorder afterward.
+    const max = await prisma.professorModule.aggregate({ _max: { sortOrder: true } })
+    const nextSort = parsed.data.sortOrder ?? ((max._max.sortOrder ?? 0) + 10)
+    const row = await prisma.professorModule.create({
+      data: {
+        name: parsed.data.name,
+        body: parsed.data.body,
+        active: parsed.data.active ?? true,
+        sortOrder: nextSort,
+      },
+    })
+    return row
+  })
+
+  app.patch('/professor/modules/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as { id: string }).id
+    const parsed = ProfessorModulePatchBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.professorModule.update({ where: { id }, data: parsed.data })
+      return row
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
+    }
+  })
+
+  app.delete('/professor/modules/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as { id: string }).id
+    try {
+      await prisma.professorModule.delete({ where: { id } })
+      return { ok: true }
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
+    }
   })
 
   // ----- BPM lookup prompt (Haiku + web_search) -----

@@ -101,6 +101,19 @@ vi.mock('../db.js', () => {
       aggregate: vi.fn(),
       create: vi.fn(),
     },
+    professorPersona: {
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      aggregate: vi.fn(),
+      create: vi.fn(),
+    },
+    professorModule: {
+      findMany: vi.fn(),
+      aggregate: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    },
     $transaction: vi.fn(async (cb: (tx: any) => unknown) => cb(mock)),
   }
   return { prisma: mock }
@@ -1599,5 +1612,155 @@ describe('admin routes — bpm lookup prompt', () => {
       headers: { authorization: 'Bearer non-admin-test-token' },
     })
     expect(res.statusCode).toBe(403)
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// The Professor — persona (versioned, lyric-prompts shape) + modules (CRUD list).
+// ════════════════════════════════════════════════════════════════════════════
+
+const personaFindMany = prisma.professorPersona.findMany as ReturnType<typeof vi.fn>
+const personaAggregate = prisma.professorPersona.aggregate as ReturnType<typeof vi.fn>
+const personaCreate = prisma.professorPersona.create as ReturnType<typeof vi.fn>
+
+const moduleFindMany = prisma.professorModule.findMany as ReturnType<typeof vi.fn>
+const moduleAggregate = prisma.professorModule.aggregate as ReturnType<typeof vi.fn>
+const moduleCreate = prisma.professorModule.create as ReturnType<typeof vi.fn>
+const moduleUpdate = prisma.professorModule.update as ReturnType<typeof vi.fn>
+const moduleDelete = prisma.professorModule.delete as ReturnType<typeof vi.fn>
+
+function makeModuleRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'pm-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    name: 'Concrete embodiment',
+    body: 'Principle: ... LLM failure: ... Correction: ...',
+    active: true,
+    sortOrder: 10,
+    createdAt: new Date('2026-05-25T12:00:00Z'),
+    updatedAt: new Date('2026-05-25T12:00:00Z'),
+    ...overrides,
+  }
+}
+
+describe('admin routes — professor persona', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    freeTierAllowedMock.mockResolvedValue(true)
+    seedAdminAccount()
+  })
+
+  it('GET /professor/persona returns latest + history', async () => {
+    personaFindMany.mockResolvedValue([makePromptRow({ version: 3 }), makePromptRow({ id: 'pr-1', version: 1 })])
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({ method: 'GET', url: '/professor/persona', headers: AUTH })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json().latest.version).toBe(3)
+    expect(res.json().history).toHaveLength(2)
+  })
+
+  it('POST /professor/persona creates v_next', async () => {
+    personaAggregate.mockResolvedValue({ _max: { version: 7 } })
+    personaCreate.mockResolvedValue(makePromptRow({ version: 8 }))
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/professor/persona', headers: AUTH,
+      payload: { promptText: 'new persona', notes: 'tighter restraint clause' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(personaCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ version: 8, promptText: 'new persona', createdById: 'op-admin-001' }),
+    })
+  })
+
+  it('POST /professor/persona rejects empty promptText', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/professor/persona', headers: AUTH,
+      payload: { promptText: '' },
+    })
+    expect(res.statusCode).toBe(400)
+    expect(personaCreate).not.toHaveBeenCalled()
+  })
+
+  it('returns 401 without auth', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({ method: 'GET', url: '/professor/persona' })
+    expect(res.statusCode).toBe(401)
+  })
+})
+
+describe('admin routes — professor modules', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    freeTierAllowedMock.mockResolvedValue(true)
+    seedAdminAccount()
+  })
+
+  it('GET /professor/modules returns all rows by sortOrder', async () => {
+    moduleFindMany.mockResolvedValue([
+      makeModuleRow({ sortOrder: 10 }),
+      makeModuleRow({ id: 'pm-2', name: 'Inanimate agency', sortOrder: 20 }),
+    ])
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({ method: 'GET', url: '/professor/modules', headers: AUTH })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toHaveLength(2)
+    expect(moduleFindMany).toHaveBeenCalledWith({ orderBy: { sortOrder: 'asc' } })
+  })
+
+  it('POST /professor/modules creates with computed sortOrder when omitted', async () => {
+    moduleAggregate.mockResolvedValue({ _max: { sortOrder: 80 } })
+    moduleCreate.mockResolvedValue(makeModuleRow({ sortOrder: 90 }))
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/professor/modules', headers: AUTH,
+      payload: { name: 'New module', body: 'Principle: ...' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(moduleCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ name: 'New module', sortOrder: 90, active: true }),
+    })
+  })
+
+  it('PATCH /professor/modules/:id updates fields', async () => {
+    moduleUpdate.mockResolvedValue(makeModuleRow({ active: false }))
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'PATCH', url: '/professor/modules/pm-1', headers: AUTH,
+      payload: { active: false },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(moduleUpdate).toHaveBeenCalledWith({ where: { id: 'pm-1' }, data: { active: false } })
+  })
+
+  it('PATCH /professor/modules/:id returns 404 on unknown id', async () => {
+    moduleUpdate.mockRejectedValue(new Error('not found'))
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'PATCH', url: '/professor/modules/missing', headers: AUTH,
+      payload: { active: false },
+    })
+    expect(res.statusCode).toBe(404)
+  })
+
+  it('DELETE /professor/modules/:id removes the row', async () => {
+    moduleDelete.mockResolvedValue(makeModuleRow())
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({ method: 'DELETE', url: '/professor/modules/pm-1', headers: AUTH })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ ok: true })
+    expect(moduleDelete).toHaveBeenCalledWith({ where: { id: 'pm-1' } })
+  })
+
+  it('returns 401 without auth', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({ method: 'GET', url: '/professor/modules' })
+    expect(res.statusCode).toBe(401)
   })
 })

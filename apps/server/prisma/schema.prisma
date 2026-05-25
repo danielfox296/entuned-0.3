@@ -535,6 +535,40 @@ model HookDrafterPrompt {
   @@map("hook_drafter_prompts")
 }
 
+// The Professor — finishing editor for song lyrics. Runs as a third pass
+// between Bernie (draft + edit, brand voice + playability) and the arranger
+// (section-marker injection). Reads the post-Bernie lyric through a tunable
+// craft curriculum and brings it to final standard while preserving the
+// writer's voice and the song's structure.
+//
+// `ProfessorPersona` mirrors the LyricDraftPrompt / StyleAnchorPrompt shape:
+// append-only, single-row-per-version, latest wins at runtime.
+// `ProfessorModule` is the curriculum — a list of craft principles edited via
+// Dash CRUD (not versioned individually; tracked via updatedAt).
+model ProfessorPersona {
+  id          String   @id @default(uuid()) @db.Uuid
+  version     Int      @unique
+  promptText  String   @map("prompt_text")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by") @db.Uuid
+
+  @@map("professor_personas")
+}
+
+model ProfessorModule {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  body      String   @map("body")
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([active, sortOrder])
+  @@map("professor_modules")
+}
+
 model HookWriterPrompt {
   id          String   @id @default(uuid()) @db.Uuid
   icpId       String   @unique @map("icp_id") @db.Uuid
@@ -631,6 +665,9 @@ model SongSeed {
   styleTemplateVersion       Int?     @map("style_template_version")
   lyricDraftPromptVersion    Int?     @map("lyric_draft_prompt_version")
   lyricEditPromptVersion     Int?     @map("lyric_edit_prompt_version")
+  professorPersonaVersion    Int?     @map("professor_persona_version")
+  lyricPreProfessor          String?  @map("lyric_pre_professor") // post-Bernie, pre-Professor lyric (audit window)
+  professorChangeLog         String?  @map("professor_change_log") // JSON-serialized array of brief tags from the Professor's per-change audit
   arrangementTemplateVersion Int?     @map("arrangement_template_version")
   resolvedTempoBpm           Int?     @map("resolved_tempo_bpm")
   resolvedMode               String?  @map("resolved_mode")

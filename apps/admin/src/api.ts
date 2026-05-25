@@ -263,6 +263,23 @@ export interface ReferenceTrackPromptRow {
   createdAt: string
 }
 
+export interface ProfessorModuleRow {
+  id: string
+  name: string
+  body: string
+  active: boolean
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ProfessorModuleDraft {
+  name: string
+  body: string
+  active?: boolean
+  sortOrder?: number
+}
+
 export interface SuggestReferenceTracksResult {
   createdCount: number
   promptVersion: number
@@ -1142,6 +1159,20 @@ export const api = {
     req<{ latest: LyricPromptRow | null; history: LyricPromptRow[] }>('/admin/bpm-lookup-prompt', {}, token),
   saveBpmLookupPrompt: (promptText: string, notes: string | undefined, token: string) =>
     req<LyricPromptRow>('/admin/bpm-lookup-prompt', { method: 'POST', body: JSON.stringify({ promptText, notes }) }, token),
+
+  // The Professor — persona (versioned) + curriculum modules (CRUD list).
+  professorPersona: (token: string) =>
+    req<{ latest: LyricPromptRow | null; history: LyricPromptRow[] }>('/admin/professor/persona', {}, token),
+  saveProfessorPersona: (promptText: string, notes: string | undefined, token: string) =>
+    req<LyricPromptRow>('/admin/professor/persona', { method: 'POST', body: JSON.stringify({ promptText, notes }) }, token),
+  professorModules: (token: string) =>
+    req<ProfessorModuleRow[]>('/admin/professor/modules', {}, token),
+  createProfessorModule: (body: ProfessorModuleDraft, token: string) =>
+    req<ProfessorModuleRow>('/admin/professor/modules', { method: 'POST', body: JSON.stringify(body) }, token),
+  updateProfessorModule: (id: string, body: Partial<ProfessorModuleDraft>, token: string) =>
+    req<ProfessorModuleRow>(`/admin/professor/modules/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, token),
+  deleteProfessorModule: (id: string, token: string) =>
+    req<{ ok: true }>(`/admin/professor/modules/${id}`, { method: 'DELETE' }, token),
 
   // Mars system prompts (anchor + router) — DB-backed, same shape as lyric prompts.
   marsPrompts: (token: string) =>

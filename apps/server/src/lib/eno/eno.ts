@@ -12,6 +12,7 @@
 import { prisma } from '../../db.js'
 import { marsAssemble, type StyleBuilderName } from '../mars/mars.js'
 import { generateLyrics, type GenreBrief, type OutcomeBrief } from '../bernie/bernie.js'
+import { runProfessor } from '../professor/professor.js'
 import { injectArrangement, type ArrangementSections } from '../arranger/arranger.js'
 import { resolveOutcomeParams } from '../variance/variance.js'
 // vocal-gender import removed 2026-05-23 — Hook.vocalGender now flows
@@ -240,10 +241,22 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
       outcomeBrief,
     })
 
+    // Professor pass — finishing editor that reads the post-Bernie lyric
+    // through a tunable craft curriculum (specificity, inanimate agency,
+    // scene continuity, etc.) and brings it to final standard. Runs BEFORE
+    // arrangement injection so the curriculum sees raw lyric text without
+    // the [Section | tag] noise. Internally falls back to the input lyric
+    // if the hook is dropped, section markers go missing, or the API call
+    // fails — the Professor must never block seed generation.
+    const professor = await runProfessor({
+      draftLyrics: lyricsRaw.lyrics,
+      hookText: hook.text,
+    })
+
     // Always run injectArrangement: even when arrangementSections is null, the
     // arranger performs the chorus-escalation pass (rename final [Chorus] to
     // [Final Chorus], add gang-vocal cues) so every track gets an energy arc.
-    const finalLyrics = injectArrangement(lyricsRaw.lyrics, arrangementSections ?? {})
+    const finalLyrics = injectArrangement(professor.lyrics, arrangementSections ?? {})
 
     await prisma.songSeed.update({
       where: { id: songSeed.id },
@@ -259,6 +272,9 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
         styleTemplateVersion: mars.styleTemplateVersion,
         lyricDraftPromptVersion: lyricsRaw.draftPromptVersion,
         lyricEditPromptVersion: lyricsRaw.editPromptVersion,
+        professorPersonaVersion: professor.personaVersion,
+        lyricPreProfessor: lyricsRaw.lyrics,
+        professorChangeLog: professor.changeLog.length > 0 ? JSON.stringify(professor.changeLog) : null,
         arrangementTemplateVersion: arrangementSections ? arrangementVersion : null,
         resolvedTempoBpm: resolved.tempoBpm,
         resolvedMode: resolved.mode,
