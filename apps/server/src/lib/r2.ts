@@ -64,18 +64,50 @@ async function resolveAudioUrl(url: string): Promise<string> {
   return `https://audiopipe.suno.ai/?item_id=${m[1]}&format=mp3`
 }
 
+// Minimum byte size for a real Suno take. Empirically every accepted MP3 is
+// 3-5 MB; the floor is set well below that so we reject empty / partial
+// renders without false-positiving on a legitimately short take. Existing
+// zero-byte rows in prod came in at exactly Content-Length 0, but a partially
+// streamed body could land anywhere up to a few KB before the connection
+// drops — 50_000 is the chosen floor.
+export const MIN_AUDIO_BYTES = 50_000
+
 /**
  * Download a remote audio file (or Suno share link) and upload to R2.
  * Suno share/song page URLs are auto-resolved to the CDN audio URL.
  * Always stores as audio/mpeg.
+ *
+ * Hard guards (any failure throws — caller returns 502 r2_upload_failed):
+ *   - response status must be 2xx
+ *   - Content-Type, if present, must start with `audio/`
+ *   - Content-Length, if present, must be ≥ MIN_AUDIO_BYTES
+ *   - body must not start with `<` (HTML/XML)
+ *   - final buffer size must be ≥ MIN_AUDIO_BYTES
+ *
+ * The size + content-type guards exist because audiopipe.suno.ai returns
+ * `200 OK` with an empty body when a take is accepted before it finishes
+ * rendering. Without these, the server silently writes 0-byte objects to R2
+ * and the player surfaces `MEDIA_ERR_SRC_NOT_SUPPORTED` to users.
  */
 export async function downloadAndUploadFromUrl(sourceUrl: string, key: string): Promise<UploadedObject> {
   const audioUrl = await resolveAudioUrl(sourceUrl)
   const res = await fetch(audioUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } })
   if (!res.ok) throw new Error(`download failed: ${res.status} ${res.statusText}`)
+
+  const contentType = res.headers.get('content-type')
+  if (contentType && !/^audio\//i.test(contentType)) {
+    throw new Error(`unexpected content-type ${contentType} — source may still be rendering`)
+  }
+  const declaredLength = res.headers.get('content-length')
+  if (declaredLength !== null && Number(declaredLength) < MIN_AUDIO_BYTES) {
+    throw new Error(`content-length ${declaredLength} below ${MIN_AUDIO_BYTES}-byte floor — source may still be rendering`)
+  }
+
   const arrayBuffer = await res.arrayBuffer()
   const buf = Buffer.from(arrayBuffer)
-  // Detect HTML/XML magic bytes — a blocked or expired URL returns markup.
   if (buf[0] === 0x3c) throw new Error('URL returned HTML/XML, not audio — link may have expired')
+  if (buf.length < MIN_AUDIO_BYTES) {
+    throw new Error(`downloaded ${buf.length} bytes, below ${MIN_AUDIO_BYTES}-byte floor — source may still be rendering`)
+  }
   return uploadBuffer(key, buf, 'audio/mpeg')
 }

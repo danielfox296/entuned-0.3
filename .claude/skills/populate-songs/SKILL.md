@@ -284,6 +284,8 @@ echo "all done"
 
 Each call returns JSON with the updated `songSeed` (status should be `"accepted"`) and a `lineageRows[]` array with 2 entries, each containing an `r2Url`. **Verify `HTTP 200` and `r2Url` populated on every lineage row** — these are the URLs Daniel listens to.
 
+**If any accept returns `502 r2_upload_failed`** with a message about "still rendering" / "below floor" / "content-length 0", the server's audio-integrity guard fired: that take wasn't actually ready on Suno's CDN at the moment of accept. Wait 30–60s (background `sleep`) and re-POST that single seed. Do NOT retry instantly — the take is still spinning. The guard exists because the prior failure mode was silent: 0-byte R2 objects accepted, then every free-tier user hit `MEDIA_ERR_SRC_NOT_SUPPORTED` in the player. Trust the 502; don't try to work around it.
+
 ## Step 9 — Return R2 URLs to the user
 
 Collect every `lineageRows[].r2Url` from the Step 8 responses and report grouped by song. Format example:
@@ -308,6 +310,7 @@ End the report with `N/N accepted · 0 failures · drafted with lyric-draft v<X>
 | `sleep 90` blocked by harness | Long leading sleeps are blocked | Use `Bash(command: "sleep 90 && echo done", run_in_background: true)` and wait for task-notification |
 | Vocal button shows neither `true` nor `false` after inject | React lag | Verify in a separate javascript_tool call (must be a different call from the inject) before clicking Create |
 | `accept` returns 404 on r2Url | Take was still rendering at the moment of accept | Re-screenshot to check if duration now shown, then re-POST accept |
+| `accept` returns `502 r2_upload_failed` | Server's audio-integrity guard fired (empty/short body or non-audio content-type from audiopipe.suno.ai — take wasn't rendered) | Wait 30–60s, re-POST that seed. Do not bypass — guard exists to prevent 0-byte R2 objects. |
 | `accept` returns 409 `hook_already_accepted` | Previous SongSeed for the same hook already accepted | Skip — the hook can only back one accepted song; either rotate the hook or delete the old SongSeed |
 | Suno captcha | Suno occasionally requires human verification | **STOP.** Don't try to bypass. Report to Daniel. |
 | `accept` returns 401 | Bearer token missing/expired | Re-grab `localStorage.getItem('entuned.admin.token')` from the Dash tab; tokens last ~weeks but can be invalidated |
