@@ -183,21 +183,42 @@ ${clicheShapes.map((s) => `- ${s}`).join('\n')}
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 7) HARD-BAN block — strict-language version of the overused words list, for
-// runtime injection into the draft + edit user messages. The seeded NO-GO block
-// in the system prompt is soft ("pattern-recognition red flags") to preserve
-// craft judgment on edge cases; this block is the hard "forbidden, never use"
-// gate. The two co-exist on purpose: operators add hard bans (e.g. brand names
-// to avoid, on-the-nose theme words) via Dash → lyric_ban_entries, and those
-// need stricter enforcement than the original AI-cliché flags. Returns empty
-// string when there are no overused-word entries so callers don't inject an
-// empty header.
+// 7) HARD-BAN block — strict-language version of the full ban list (overused
+// words + cliché phrases + cliché shapes), for runtime injection into the draft
+// + edit user messages. The seeded NO-GO block in the system prompt is soft
+// ("pattern-recognition red flags") to preserve craft judgment on edge cases;
+// this block is the hard "forbidden, never use" gate. The two co-exist on
+// purpose: operators add hard bans (e.g. brand names to avoid, on-the-nose
+// theme words, cliché phrases that keep leaking) via Dash → lyric_ban_entries,
+// and those need stricter enforcement than the original AI-cliché flags. All
+// three categories are enforced with FORBIDDEN-level framing — a cliché phrase
+// or shape entry is not a soft advisory. Returns empty string only when every
+// category is empty, so callers don't inject an empty header.
 // ──────────────────────────────────────────────────────────────────────────────
 export async function formatHardBanBlock(): Promise<string> {
-  const { overusedWords } = await loadBanEntries()
-  if (overusedWords.length === 0) return ''
-  return `FORBIDDEN WORDS — these must not appear in the output, in any morphological form (plural, possessive, all conjugations, hyphenated compounds). If a draft line would naturally include one, replace with concrete sensory imagery rather than a synonym swap. This is a hard constraint, not a stylistic preference:
-${overusedWords.join(', ')}.`
+  const { overusedWords, clichePhrases, clicheShapes } = await loadBanEntries()
+  if (overusedWords.length === 0 && clichePhrases.length === 0 && clicheShapes.length === 0) return ''
+
+  const sections: string[] = [
+    `FORBIDDEN — the items below must not appear in the output. This is a hard constraint, not a stylistic preference. When a draft line would naturally include one, replace with concrete sensory imagery rather than a synonym swap.`,
+  ]
+
+  if (overusedWords.length > 0) {
+    sections.push(`Forbidden words (apply to all morphological forms — plural, possessive, all conjugations, hyphenated compounds):
+${overusedWords.join(', ')}.`)
+  }
+
+  if (clichePhrases.length > 0) {
+    sections.push(`Forbidden phrases (must not appear verbatim or as near-paraphrase):
+${clichePhrases.map((p) => `- ${p}`).join('\n')}`)
+  }
+
+  if (clicheShapes.length > 0) {
+    sections.push(`Forbidden shapes (sentence templates — any variant filling these slots is equally forbidden):
+${clicheShapes.map((s) => `- ${s}`).join('\n')}`)
+  }
+
+  return sections.join('\n\n')
 }
 
 /** Synchronous fallback using hardcoded lists (for cold-start / seed prompts). */

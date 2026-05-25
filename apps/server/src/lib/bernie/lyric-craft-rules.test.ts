@@ -45,9 +45,12 @@ describe('formatHardBanBlock', () => {
     vi.clearAllMocks()
   })
 
-  it('returns empty string when no overused-word entries exist', async () => {
+  it('returns empty string only when every category is empty', async () => {
+    // Empty DB triggers loadBanEntries() fallback to hardcoded constants, which
+    // are non-empty — so the only way to get empty output is a DB with rows
+    // but none in any of the three known categories. Mock that explicitly.
     findMany.mockResolvedValue([
-      { category: 'cliche_phrase', text: 'You complete me' },
+      { category: 'unknown_category', text: 'ignored' },
     ])
     const result = await formatHardBanBlock()
     expect(result).toBe('')
@@ -59,19 +62,63 @@ describe('formatHardBanBlock', () => {
       { category: 'overused_word', text: 'midnight' },
     ])
     const result = await formatHardBanBlock()
-    expect(result).toContain('FORBIDDEN WORDS')
+    expect(result).toContain('FORBIDDEN')
     expect(result).toContain('hard constraint')
+    expect(result).toContain('Forbidden words')
     expect(result).toContain('coffee')
     expect(result).toContain('midnight')
     expect(result).toMatch(/morphological form|plural|conjugation/i)
   })
 
+  it('renders cliché-phrase entries under FORBIDDEN framing', async () => {
+    findMany.mockResolvedValue([
+      { category: 'cliche_phrase', text: 'porch light' },
+      { category: 'cliche_phrase', text: 'my skin' },
+    ])
+    const result = await formatHardBanBlock()
+    expect(result).toContain('FORBIDDEN')
+    expect(result).toContain('hard constraint')
+    expect(result).toContain('Forbidden phrases')
+    expect(result).toContain('porch light')
+    expect(result).toContain('my skin')
+  })
+
+  it('renders cliché-shape entries under FORBIDDEN framing', async () => {
+    findMany.mockResolvedValue([
+      { category: 'cliche_shape', text: '"I\'m so [emotion] without you"' },
+      { category: 'cliche_shape', text: '"My heart is [adjective]"' },
+    ])
+    const result = await formatHardBanBlock()
+    expect(result).toContain('FORBIDDEN')
+    expect(result).toContain('hard constraint')
+    expect(result).toContain('Forbidden shapes')
+    expect(result).toContain('[emotion] without you')
+    expect(result).toContain('My heart is [adjective]')
+  })
+
+  it('combines all three categories in a single block when all are present', async () => {
+    findMany.mockResolvedValue([
+      { category: 'overused_word', text: 'collar' },
+      { category: 'cliche_phrase', text: 'porch light' },
+      { category: 'cliche_shape', text: '"I\'m so [emotion]"' },
+    ])
+    const result = await formatHardBanBlock()
+    expect(result).toContain('Forbidden words')
+    expect(result).toContain('collar')
+    expect(result).toContain('Forbidden phrases')
+    expect(result).toContain('porch light')
+    expect(result).toContain('Forbidden shapes')
+    expect(result).toContain('[emotion]')
+  })
+
   it('uses hardcoded fallback list when DB is empty', async () => {
     findMany.mockResolvedValue([])
     const result = await formatHardBanBlock()
-    expect(result).toContain('FORBIDDEN WORDS')
-    // Sample a couple of hardcoded entries
+    expect(result).toContain('FORBIDDEN')
+    // Sample entries from each hardcoded category
     expect(result).toContain(OVERUSED_WORDS[0])
     expect(result).toContain(OVERUSED_WORDS[OVERUSED_WORDS.length - 1])
+    expect(result).toContain(AI_CLICHE_PHRASES[0])
+    expect(result).toContain(AI_CLICHE_SHAPES[0])
   })
 })

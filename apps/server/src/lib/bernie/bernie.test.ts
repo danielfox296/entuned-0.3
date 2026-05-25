@@ -53,7 +53,7 @@ describe('generateLyrics — hard ban block injection', () => {
     genreCraftFindMany.mockResolvedValue([HIP_HOP_RULE])
   })
 
-  it('injects DB ban words into the draft user message with FORBIDDEN framing', async () => {
+  it('injects DB overused-word entries into the draft user message with FORBIDDEN framing', async () => {
     banFindMany.mockResolvedValue([
       { category: 'overused_word', text: 'coffee' },
     ])
@@ -63,22 +63,50 @@ describe('generateLyrics — hard ban block injection', () => {
 
     expect(messagesCreate).toHaveBeenCalledTimes(1)
     const draftUserMsg = messagesCreate.mock.calls[0][0].messages[0].content as string
-    expect(draftUserMsg).toContain('FORBIDDEN WORDS')
+    expect(draftUserMsg).toContain('FORBIDDEN')
     expect(draftUserMsg).toContain('coffee')
   })
 
-  it('omits the ban block when DB has no overused-word entries', async () => {
-    // Return rows from non-overused categories so loadBanEntries doesn't fall back to its hardcoded
-    // default list — proves the FORBIDDEN block is conditional on present overused-word data.
+  it('injects DB cliche_phrase entries into the draft user message with FORBIDDEN framing', async () => {
     banFindMany.mockResolvedValue([
-      { category: 'cliche_phrase', text: 'You complete me' },
+      { category: 'cliche_phrase', text: 'porch light' },
     ])
     messagesCreate.mockResolvedValue(toolUseResponse('T', '[Chorus]\nhook here\n'))
 
     await generateLyrics({ hookText: 'hook here' })
 
     const draftUserMsg = messagesCreate.mock.calls[0][0].messages[0].content as string
-    expect(draftUserMsg).not.toContain('FORBIDDEN WORDS')
+    expect(draftUserMsg).toContain('FORBIDDEN')
+    expect(draftUserMsg).toContain('Forbidden phrases')
+    expect(draftUserMsg).toContain('porch light')
+  })
+
+  it('injects DB cliche_shape entries into the draft user message with FORBIDDEN framing', async () => {
+    banFindMany.mockResolvedValue([
+      { category: 'cliche_shape', text: '"My heart is [adjective]"' },
+    ])
+    messagesCreate.mockResolvedValue(toolUseResponse('T', '[Chorus]\nhook here\n'))
+
+    await generateLyrics({ hookText: 'hook here' })
+
+    const draftUserMsg = messagesCreate.mock.calls[0][0].messages[0].content as string
+    expect(draftUserMsg).toContain('FORBIDDEN')
+    expect(draftUserMsg).toContain('Forbidden shapes')
+    expect(draftUserMsg).toContain('[adjective]')
+  })
+
+  it('omits the ban block only when every category is empty', async () => {
+    // Rows in an unknown category — none of the three known categories receive any entries,
+    // proving the FORBIDDEN block is conditional on present ban data of *any* category.
+    banFindMany.mockResolvedValue([
+      { category: 'unknown_category', text: 'ignored' },
+    ])
+    messagesCreate.mockResolvedValue(toolUseResponse('T', '[Chorus]\nhook here\n'))
+
+    await generateLyrics({ hookText: 'hook here' })
+
+    const draftUserMsg = messagesCreate.mock.calls[0][0].messages[0].content as string
+    expect(draftUserMsg).not.toContain('FORBIDDEN')
   })
 })
 
