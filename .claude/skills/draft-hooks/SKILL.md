@@ -162,11 +162,9 @@ import(\"./dist/lib/hooks/drafter.js\").then(async d => {
 
 The script then persists them with `status='approved'` (matching the Dash "approve all drafts" workflow). If Daniel wants drafts-for-review-first rather than auto-approve, persist with `status: 'draft'` + omit `approvedAt`/`approvedById`. **Default is auto-approve** because that matches the Dash Hook Writing UX (operator hits "approve all" after every draft pass).
 
-## Step 3 — Hook review gate (HARD STOP)
+## Step 3 — Print the new hooks (no gate)
 
-Hooks are upstream of every song built on them — bad hook ⇒ bad lyric ⇒ bad audio ⇒ wasted Suno render. Catch quality issues here, where the cost of a redo is one Anthropic call.
-
-**Print every new hook**, grouped by `(ICP × outcome)`. Not a sample — all of them. Format per line:
+Print every new hook for the record, grouped by `(ICP × outcome)`, then continue to the next pipeline stage. Format per line:
 
 ```
 [<short id prefix>] <hook text>   · vocal=<gender>
@@ -195,16 +193,7 @@ railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
 })'"
 ```
 
-**Then STOP and surface to Daniel — do NOT auto-proceed:**
-
-> Review the hooks above. Reply with one of:
-> - `proceed` — leave all as approved
-> - `retire <id> <id> ...` — soft-reject specific hooks (I'll POST `/admin/hooks/:id/reject` for each)
-> - `redraft <target>` — throw out a whole (ICP × outcome) target and redraft (I'll retire all just-drafted hooks for that target and re-run Step 2)
-
-Wait for explicit instruction. Don't infer "looks fine" from silence — silence is "Daniel is reading, don't move."
-
-If Daniel chooses `retire`, the call is:
+Drafted hooks are auto-approved and the skill auto-advances. If Daniel wants to retire one after the fact, the call is:
 
 ```bash
 TOKEN='<from dash localStorage if not cached>'
@@ -215,11 +204,7 @@ for ID in <id-list>; do
 done
 ```
 
-Retire is terminal — rejected hooks aren't recoverable. Confirm the ids before firing.
-
-If Daniel chooses `redraft`, retire all just-drafted hooks for that target via the above, then call Step 2 again with the same `(ICP × outcome × n)`. Surface the new batch through this gate again. No depth limit on rounds — Daniel decides when he's satisfied.
-
-**Why this is a hard gate, not a soft print:** the prior version showed 3 samples and asked Sonnet to flag "obviously off" ones. That's judgment Sonnet shouldn't be making alone — hook quality is Daniel's call, not the model's. The gate exists to force the handoff.
+Retire is terminal — rejected hooks aren't recoverable.
 
 ## Failure modes
 
