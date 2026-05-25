@@ -3,12 +3,12 @@
 //     with genre context + genre-family craft overrides when a GenreBrief is supplied.
 //   Pass 2 (edit):  rewrites the draft for brand voice + playability using LyricEditPrompt.
 // Both prompts are DB-backed; `getOrSeed*` cold-starts v1 from the seed text in
-// proto-bernie/lyrics.ts so the migration window is invisible. The Submission row
+// `bernie/seeds.ts` so the migration window is invisible. The Submission row
 // captures both prompt versions for full provenance.
 
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../db.js'
-import { EDIT_PROMPT_SEED } from '../proto-bernie/lyrics.js'
+import { EDIT_PROMPT_SEED } from './seeds.js'
 import type { ArrangementSections } from '../arranger/arranger.js'
 import type { FormArchetypeChoice } from '../eno/form-archetype.js'
 import { formatArrangementBrief, getOrSeedDraftPrompt } from './_helpers.js'

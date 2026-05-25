@@ -22,6 +22,8 @@ import { FormArchetypes } from './panels/engine/FormArchetypes.js'
 import { GenreCraftRules } from './panels/engine/GenreCraftRules.js'
 import { MarsStyleAxes } from './panels/engine/MarsStyleAxes.js'
 import { StyleTemplate } from './panels/engine/StyleTemplate.js'
+import { HookDrafterPrompt } from './panels/engine/HookDrafterPrompt.js'
+import { BpmLookupPrompt } from './panels/engine/BpmLookupPrompt.js'
 import { IcpEditor } from './panels/brand/IcpEditor.js'
 import { ClientDetail } from './panels/brand/ClientDetail.js'
 import { StoreEditor } from './panels/brand/StoreEditor.js'
@@ -63,7 +65,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Outcome Library', 'Style Rules', 'Dry Run'],
     description: '' },
   { key: 'engine', label: 'Prompts & Rules', short: 'Prompts & Rules', icon: Settings,
-    cards: ['Hook Prompts', 'Decomposition', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Genre Craft Rules', 'Mars Prompts', 'Mars Style Axes', 'Style Template', 'Form Archetypes', 'Reference Track Suggester'],
+    cards: ['Hook Prompts', 'Hook Drafter Prompt', 'Decomposition', 'BPM Lookup Prompt', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Genre Craft Rules', 'Mars Prompts', 'Mars Style Axes', 'Style Template', 'Form Archetypes', 'Reference Track Suggester'],
     description: '' },
   { key: 'catalogue', label: 'Library', short: 'Library', icon: Music2,
     cards: ['Song Browser', 'Flagged Review', 'Pool Depth', 'Free Tier Outcomes', 'Song Repair'],
@@ -301,6 +303,8 @@ function EngineRouter({ cards }: { cards: string[] }) {
       {active === 'Mars Prompts' && <MarsPrompts />}
       {active === 'Mars Style Axes' && <MarsStyleAxes />}
       {active === 'Style Template' && <StyleTemplate />}
+      {active === 'Hook Drafter Prompt' && <HookDrafterPrompt />}
+      {active === 'BPM Lookup Prompt' && <BpmLookupPrompt />}
       {active === 'Form Archetypes' && <FormArchetypes />}
       {active === 'Reference Track Suggester' && <ReferenceTrackPrompt />}
     </div>

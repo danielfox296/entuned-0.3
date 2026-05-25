@@ -11,10 +11,14 @@
 // unconfident sources.
 
 import Anthropic from '@anthropic-ai/sdk'
+import { prisma } from '../../db.js'
 
 const MODEL = process.env.BPM_LOOKUP_MODEL ?? 'claude-haiku-4-5-20251001'
 
-const SYSTEM_PROMPT = `
+// Cold-start seed only. Live prompt lives in `bpm_lookup_prompts` (DB), editable
+// from Dash → Prompts & Rules → BPM Lookup. After getOrSeedBpmLookupPrompt()
+// inserts v1, this const is never read at runtime.
+export const BPM_LOOKUP_SYSTEM_PROMPT_SEED = `
 You look up the BPM (beats per minute) for a specific song using web search.
 
 Rules:
@@ -77,7 +81,7 @@ Look up the BPM and call emit_bpm.`
     model: MODEL,
     max_tokens: 400,
     temperature: 0.1,
-    system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+    system: [{ type: 'text', text: (await getOrSeedBpmLookupPrompt()).promptText, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: userMessage }],
     tools: [
       EMIT_BPM_TOOL,
@@ -112,4 +116,21 @@ export function normalizeBpm(raw: unknown): number | null {
 export function normalizeConfidence(raw: unknown): 'low' | 'medium' | 'high' {
   if (raw === 'low' || raw === 'medium' || raw === 'high') return raw
   return 'low'
+}
+
+/** DB-backed prompt loader. Mirrors getOrSeedHookDrafterPrompt: inserts v1
+ *  from BPM_LOOKUP_SYSTEM_PROMPT_SEED when the table is empty, then always
+ *  reads the latest version. The TS const is never read at runtime after
+ *  first deploy. */
+export async function getOrSeedBpmLookupPrompt(): Promise<{ version: number; promptText: string }> {
+  const row = await prisma.bpmLookupPrompt.findFirst({ orderBy: { version: 'desc' } })
+  if (row) return { version: row.version, promptText: row.promptText }
+  const seeded = await prisma.bpmLookupPrompt.create({
+    data: {
+      version: 1,
+      promptText: BPM_LOOKUP_SYSTEM_PROMPT_SEED,
+      notes: 'Auto-seeded v1 (migrated from TS const BPM_LOOKUP_SYSTEM_PROMPT_SEED).',
+    },
+  })
+  return { version: seeded.version, promptText: seeded.promptText }
 }

@@ -5,6 +5,7 @@ vi.mock('../../db.js', () => ({
     iCP: { findUniqueOrThrow: vi.fn() },
     outcome: { findUniqueOrThrow: vi.fn() },
     outcomeLyricFactor: { findUnique: vi.fn() },
+    hookDrafterPrompt: { findFirst: vi.fn(), create: vi.fn() },
   },
 }))
 
@@ -16,12 +17,13 @@ vi.mock('@anthropic-ai/sdk', () => {
   return { default: MockAnthropic }
 })
 
-import { buildUserMessage, draftHooks, HOOK_SYSTEM_PROMPT, EMIT_HOOKS_TOOL } from './drafter.js'
+import { buildUserMessage, draftHooks, HOOK_SYSTEM_PROMPT_SEED, EMIT_HOOKS_TOOL } from './drafter.js'
 import { prisma } from '../../db.js'
 
 const icpFind = prisma.iCP.findUniqueOrThrow as ReturnType<typeof vi.fn>
 const outcomeFind = prisma.outcome.findUniqueOrThrow as ReturnType<typeof vi.fn>
 const factorFind = prisma.outcomeLyricFactor.findUnique as ReturnType<typeof vi.fn>
+const hookDrafterPromptFind = prisma.hookDrafterPrompt.findFirst as ReturnType<typeof vi.fn>
 
 const ICP_ID = '11111111-1111-1111-1111-111111111111'
 const OUTCOME_ID = '22222222-2222-2222-2222-222222222222'
@@ -151,36 +153,36 @@ describe('buildUserMessage', () => {
   })
 })
 
-describe('HOOK_SYSTEM_PROMPT', () => {
+describe('HOOK_SYSTEM_PROMPT_SEED', () => {
   it('contains the universal craft sections', () => {
-    expect(HOOK_SYSTEM_PROMPT).toContain('## What a great hook is')
-    expect(HOOK_SYSTEM_PROMPT).toContain('## What a weak hook is')
-    expect(HOOK_SYSTEM_PROMPT).toContain('## Mouth-feel')
-    expect(HOOK_SYSTEM_PROMPT).toContain('## Banned diction')
-    expect(HOOK_SYSTEM_PROMPT).toContain('## Structural variance')
-    expect(HOOK_SYSTEM_PROMPT).toContain('## Vocal-gender tagging')
-    expect(HOOK_SYSTEM_PROMPT).toContain('## Output')
+    expect(HOOK_SYSTEM_PROMPT_SEED).toContain('## What a great hook is')
+    expect(HOOK_SYSTEM_PROMPT_SEED).toContain('## What a weak hook is')
+    expect(HOOK_SYSTEM_PROMPT_SEED).toContain('## Mouth-feel')
+    expect(HOOK_SYSTEM_PROMPT_SEED).toContain('## Banned diction')
+    expect(HOOK_SYSTEM_PROMPT_SEED).toContain('## Structural variance')
+    expect(HOOK_SYSTEM_PROMPT_SEED).toContain('## Vocal-gender tagging')
+    expect(HOOK_SYSTEM_PROMPT_SEED).toContain('## Output')
   })
 
   it('lets the per-outcome direction be authoritative on content', () => {
-    expect(HOOK_SYSTEM_PROMPT).toContain('per-outcome lyric direction')
-    expect(HOOK_SYSTEM_PROMPT).toContain('authoritative on content and tone')
+    expect(HOOK_SYSTEM_PROMPT_SEED).toContain('per-outcome lyric direction')
+    expect(HOOK_SYSTEM_PROMPT_SEED).toContain('authoritative on content and tone')
   })
 
   it('includes the 2010s-cliché shape bans (Trust the X / Sometimes Y / It is not X)', () => {
-    expect(HOOK_SYSTEM_PROMPT).toContain('Trust the [noun]')
-    expect(HOOK_SYSTEM_PROMPT).toContain('Sometimes [generality]')
-    expect(HOOK_SYSTEM_PROMPT).toContain("It's not [X] — it's [Y]")
+    expect(HOOK_SYSTEM_PROMPT_SEED).toContain('Trust the [noun]')
+    expect(HOOK_SYSTEM_PROMPT_SEED).toContain('Sometimes [generality]')
+    expect(HOOK_SYSTEM_PROMPT_SEED).toContain("It's not [X] — it's [Y]")
   })
 
   it('includes the permanent "good with that" ban', () => {
-    expect(HOOK_SYSTEM_PROMPT).toContain('good with that, just the way you are')
+    expect(HOOK_SYSTEM_PROMPT_SEED).toContain('good with that, just the way you are')
   })
 
   it('includes the three-things-a-hook-does framing (names a thing / describes a moment / speaks a direct behavior)', () => {
-    expect(HOOK_SYSTEM_PROMPT).toMatch(/Names a thing/i)
-    expect(HOOK_SYSTEM_PROMPT).toMatch(/Describes a moment/i)
-    expect(HOOK_SYSTEM_PROMPT).toMatch(/Speaks a direct behavior/i)
+    expect(HOOK_SYSTEM_PROMPT_SEED).toMatch(/Names a thing/i)
+    expect(HOOK_SYSTEM_PROMPT_SEED).toMatch(/Describes a moment/i)
+    expect(HOOK_SYSTEM_PROMPT_SEED).toMatch(/Speaks a direct behavior/i)
   })
 })
 
@@ -206,15 +208,18 @@ describe('draftHooks', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     process.env.ANTHROPIC_API_KEY = 'test-key'
+    // Seed the DB-backed hook drafter prompt so the loader short-circuits to
+    // the existing row (avoids hitting prisma.create in the mock).
+    hookDrafterPromptFind.mockResolvedValue({ version: 1, promptText: HOOK_SYSTEM_PROMPT_SEED })
   })
 
-  it('calls Anthropic with HOOK_SYSTEM_PROMPT and the built user message', async () => {
+  it('calls Anthropic with HOOK_SYSTEM_PROMPT_SEED and the built user message', async () => {
     setupFixtures({})
     messagesCreate.mockResolvedValue(toolUseResponse([{ text: 'a hook here' }]))
     await draftHooks({ icpId: ICP_ID, outcomeId: OUTCOME_ID, n: 5 })
     expect(messagesCreate).toHaveBeenCalledTimes(1)
     const call = messagesCreate.mock.calls[0][0]
-    expect(call.system[0].text).toBe(HOOK_SYSTEM_PROMPT)
+    expect(call.system[0].text).toBe(HOOK_SYSTEM_PROMPT_SEED)
     expect(call.messages[0].content).toContain('Emotional target: Dwell Extension')
     expect(call.tools).toEqual([EMIT_HOOKS_TOOL])
     expect(call.tool_choice).toEqual({ type: 'tool', name: 'emit_hooks' })

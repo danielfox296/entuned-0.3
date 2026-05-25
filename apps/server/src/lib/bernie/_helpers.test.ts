@@ -13,7 +13,7 @@ vi.mock('../../db.js', () => ({
 
 import { formatArrangementBrief, getOrSeedDraftPrompt, parseLyricJson } from './_helpers.js'
 import { prisma } from '../../db.js'
-import { DRAFT_PROMPT_SEED } from '../proto-bernie/lyrics.js'
+import { DRAFT_PROMPT_SEED } from './seeds.js'
 import type { ArrangementSections } from '../arranger/arranger.js'
 
 describe('formatArrangementBrief', () => {

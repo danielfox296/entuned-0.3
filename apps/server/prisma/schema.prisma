@@ -501,6 +501,40 @@ model LyricBanEntry {
 
 // ---------- Card 10 Hook Writer Prompt (per-ICP) ----------
 
+// BPM lookup — global versioned system prompt for `lib/decomposer/bpm-lookup.ts`.
+// Powers the BPM-only backfill endpoint (Haiku + web_search). Migrated from
+// hardcoded SYSTEM_PROMPT on 2026-05-25. Editable in Dash → Prompts & Rules →
+// BPM Lookup.
+model BpmLookupPrompt {
+  id          String   @id @default(uuid()) @db.Uuid
+  version     Int      @unique
+  promptText  String   @map("prompt_text")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by") @db.Uuid
+
+  @@map("bpm_lookup_prompts")
+}
+
+// Hook Drafter — global versioned system prompt for `lib/hooks/drafter.ts`.
+// Mirrors LyricDraftPrompt / StyleAnchorPrompt: append-only, latest version wins
+// at runtime. Migrated from hardcoded HOOK_SYSTEM_PROMPT on 2026-05-25 per the
+// no-prompt-content-in-code rule. Editable in Dash → Prompts & Rules → Hook Drafter.
+//
+// Note: the older HookWriterPrompt / HookWriterPromptVersion tables below are
+// orphaned (per-ICP customization that was never wired). Kept for now to avoid
+// a destructive migration; the live drafter prompt lives here.
+model HookDrafterPrompt {
+  id          String   @id @default(uuid()) @db.Uuid
+  version     Int      @unique
+  promptText  String   @map("prompt_text")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by") @db.Uuid
+
+  @@map("hook_drafter_prompts")
+}
+
 model HookWriterPrompt {
   id          String   @id @default(uuid()) @db.Uuid
   icpId       String   @unique @map("icp_id") @db.Uuid

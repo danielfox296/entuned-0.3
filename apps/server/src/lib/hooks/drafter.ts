@@ -22,7 +22,11 @@ import { OVERUSED_WORDS } from '../bernie/lyric-craft-rules.js'
 
 const MODEL = process.env.HOOK_DRAFTER_MODEL ?? 'claude-sonnet-4-6'
 
-export const HOOK_SYSTEM_PROMPT = `
+// Cold-start seed only. Live prompt lives in `hook_drafter_prompts` (DB);
+// editable from Dash → Prompts & Rules → Hook Drafter. On first run after
+// migration, getOrSeedHookDrafterPrompt() inserts this as v1. After that the
+// const is never consulted at runtime.
+export const HOOK_SYSTEM_PROMPT_SEED = `
 You write hook lines for a brand's in-store music. A hook becomes the chorus — sung verbatim every time it appears. The lyricist writes verses + bridge around it later. Your job is to write the line the whole song hangs on.
 
 The user message will include the outcome's emotional target (tempo, mode, behavioral intent) and per-outcome lyric direction. Treat the per-outcome direction as authoritative on content and tone — this system prompt defines the craft rules that apply to every hook regardless of outcome.
@@ -140,7 +144,7 @@ export interface DraftedHook {
 export interface DraftHooksResult {
   hooks: DraftedHook[]
   rawText: string
-  /** The full user message sent (system prompt is HOOK_SYSTEM_PROMPT). */
+  /** The full user message sent (system prompt is the latest HookDrafterPrompt DB row). */
   userMessage: string
 }
 
@@ -220,7 +224,7 @@ export async function draftHooks(opts: {
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 2000,
-    system: [{ type: 'text', text: HOOK_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+    system: [{ type: 'text', text: (await getOrSeedHookDrafterPrompt()).promptText, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: userMessage }],
     tools: [EMIT_HOOKS_TOOL],
     tool_choice: { type: 'tool', name: 'emit_hooks' },
@@ -255,4 +259,21 @@ export async function draftHooks(opts: {
     .filter((h): h is DraftedHook => h !== null)
 
   return { hooks, rawText: JSON.stringify(parsed), userMessage }
+}
+
+/** DB-backed prompt loader. Mirrors getOrSeedAnchorPrompt / getOrSeedRouterPrompt:
+ *  inserts v1 from HOOK_SYSTEM_PROMPT_SEED when the table is empty, then always
+ *  reads the latest version on subsequent calls. The TS const is never read at
+ *  runtime after first deploy. */
+export async function getOrSeedHookDrafterPrompt(): Promise<{ version: number; promptText: string }> {
+  const row = await prisma.hookDrafterPrompt.findFirst({ orderBy: { version: 'desc' } })
+  if (row) return { version: row.version, promptText: row.promptText }
+  const seeded = await prisma.hookDrafterPrompt.create({
+    data: {
+      version: 1,
+      promptText: HOOK_SYSTEM_PROMPT_SEED,
+      notes: 'Auto-seeded v1 (migrated from TS const HOOK_SYSTEM_PROMPT_SEED).',
+    },
+  })
+  return { version: seeded.version, promptText: seeded.promptText }
 }

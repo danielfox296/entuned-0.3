@@ -2,7 +2,7 @@
 // focused on the two-pass orchestration.
 
 import { prisma } from '../../db.js'
-import { DRAFT_PROMPT_SEED } from '../proto-bernie/lyrics.js'
+import { DRAFT_PROMPT_SEED } from './seeds.js'
 import type { ArrangementSections } from '../arranger/arranger.js'
 
 const SECTION_ORDER = ['intro', 'verse', 'pre_chorus', 'chorus', 'bridge', 'outro'] as const

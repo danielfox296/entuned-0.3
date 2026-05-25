@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+vi.mock('../../db.js', () => ({
+  prisma: {
+    bpmLookupPrompt: { findFirst: vi.fn(), create: vi.fn() },
+  },
+}))
+
 const messagesCreate = vi.fn()
 vi.mock('@anthropic-ai/sdk', () => {
   class MockAnthropic {
@@ -8,7 +14,10 @@ vi.mock('@anthropic-ai/sdk', () => {
   return { default: MockAnthropic }
 })
 
-import { lookupBpm, normalizeBpm, normalizeConfidence } from './bpm-lookup.js'
+import { lookupBpm, normalizeBpm, normalizeConfidence, BPM_LOOKUP_SYSTEM_PROMPT_SEED } from './bpm-lookup.js'
+import { prisma } from '../../db.js'
+
+const bpmPromptFind = prisma.bpmLookupPrompt.findFirst as ReturnType<typeof vi.fn>
 
 function emitBpmResponse(bpm: number | null, confidence: string) {
   return {
@@ -61,6 +70,7 @@ describe('lookupBpm', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     process.env.ANTHROPIC_API_KEY = 'test-key'
+    bpmPromptFind.mockResolvedValue({ version: 1, promptText: BPM_LOOKUP_SYSTEM_PROMPT_SEED })
   })
 
   it('returns the model-emitted bpm + confidence', async () => {

@@ -384,6 +384,48 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return row
   })
 
+  // ----- Hook Drafter prompt (universal craft prompt for hook generation) -----
+  // Mirrors /lyric-prompts shape. Cold-start v1 happens in lib/hooks/drafter.ts.
+
+  app.get('/hook-drafter-prompt', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const all = await prisma.hookDrafterPrompt.findMany({ orderBy: { version: 'desc' } })
+    return { latest: all[0] ?? null, history: all }
+  })
+
+  app.post('/hook-drafter-prompt', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = LyricPromptPostBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const max = await prisma.hookDrafterPrompt.aggregate({ _max: { version: true } })
+    const next = (max._max.version ?? 0) + 1
+    const row = await prisma.hookDrafterPrompt.create({
+      data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.accountId },
+    })
+    return row
+  })
+
+  // ----- BPM lookup prompt (Haiku + web_search) -----
+  // Cold-start v1 happens in lib/decomposer/bpm-lookup.ts.
+
+  app.get('/bpm-lookup-prompt', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const all = await prisma.bpmLookupPrompt.findMany({ orderBy: { version: 'desc' } })
+    return { latest: all[0] ?? null, history: all }
+  })
+
+  app.post('/bpm-lookup-prompt', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = LyricPromptPostBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const max = await prisma.bpmLookupPrompt.aggregate({ _max: { version: true } })
+    const next = (max._max.version ?? 0) + 1
+    const row = await prisma.bpmLookupPrompt.create({
+      data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.accountId },
+    })
+    return row
+  })
+
   // ----- Mars system prompts (anchor + router) -----
   // DB-backed system prompts for the two LLM-driven Mars style builders.
   // Same shape as /lyric-prompts. Schema SSOT:

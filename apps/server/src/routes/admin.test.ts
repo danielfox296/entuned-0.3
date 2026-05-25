@@ -89,6 +89,18 @@ vi.mock('../db.js', () => {
       aggregate: vi.fn(),
       create: vi.fn(),
     },
+    hookDrafterPrompt: {
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      aggregate: vi.fn(),
+      create: vi.fn(),
+    },
+    bpmLookupPrompt: {
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      aggregate: vi.fn(),
+      create: vi.fn(),
+    },
     $transaction: vi.fn(async (cb: (tx: any) => unknown) => cb(mock)),
   }
   return { prisma: mock }
@@ -1451,6 +1463,139 @@ describe('admin routes — style template', () => {
     const app = await buildTestApp(adminRoutes)
     const res = await app.inject({
       method: 'GET', url: '/style-template',
+      headers: { authorization: 'Bearer non-admin-test-token' },
+    })
+    expect(res.statusCode).toBe(403)
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// HookDrafterPrompt + BpmLookupPrompt — append-only versioned single-prompt
+// routes, mirroring the existing /lyric-prompts shape.
+// ════════════════════════════════════════════════════════════════════════════
+
+const hookDrafterFindMany = prisma.hookDrafterPrompt.findMany as ReturnType<typeof vi.fn>
+const hookDrafterAggregate = prisma.hookDrafterPrompt.aggregate as ReturnType<typeof vi.fn>
+const hookDrafterCreate = prisma.hookDrafterPrompt.create as ReturnType<typeof vi.fn>
+
+const bpmFindMany = prisma.bpmLookupPrompt.findMany as ReturnType<typeof vi.fn>
+const bpmAggregate = prisma.bpmLookupPrompt.aggregate as ReturnType<typeof vi.fn>
+const bpmCreate = prisma.bpmLookupPrompt.create as ReturnType<typeof vi.fn>
+
+function makePromptRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'pr-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    version: 1,
+    promptText: 'You write hook lines for a brand...',
+    notes: null,
+    createdAt: new Date('2026-05-25T12:00:00Z'),
+    createdById: null,
+    ...overrides,
+  }
+}
+
+describe('admin routes — hook drafter prompt', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    freeTierAllowedMock.mockResolvedValue(true)
+    seedAdminAccount()
+  })
+
+  it('GET /hook-drafter-prompt returns latest + history', async () => {
+    hookDrafterFindMany.mockResolvedValue([makePromptRow({ version: 2 }), makePromptRow({ id: 'pr-1', version: 1 })])
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({ method: 'GET', url: '/hook-drafter-prompt', headers: AUTH })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json().latest.version).toBe(2)
+    expect(res.json().history).toHaveLength(2)
+  })
+
+  it('POST /hook-drafter-prompt creates v_next + stamps createdById', async () => {
+    hookDrafterAggregate.mockResolvedValue({ _max: { version: 4 } })
+    hookDrafterCreate.mockResolvedValue(makePromptRow({ version: 5 }))
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/hook-drafter-prompt', headers: AUTH,
+      payload: { promptText: 'new craft rules', notes: 'softer mouth-feel section' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(hookDrafterCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        version: 5, promptText: 'new craft rules', notes: 'softer mouth-feel section',
+        createdById: 'op-admin-001',
+      }),
+    })
+  })
+
+  it('POST /hook-drafter-prompt returns 400 on empty promptText', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/hook-drafter-prompt', headers: AUTH,
+      payload: { promptText: '' },
+    })
+    expect(res.statusCode).toBe(400)
+    expect(hookDrafterCreate).not.toHaveBeenCalled()
+  })
+
+  it('returns 401 without auth', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({ method: 'GET', url: '/hook-drafter-prompt' })
+    expect(res.statusCode).toBe(401)
+  })
+
+  it('returns 403 when not admin', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'GET', url: '/hook-drafter-prompt',
+      headers: { authorization: 'Bearer non-admin-test-token' },
+    })
+    expect(res.statusCode).toBe(403)
+  })
+})
+
+describe('admin routes — bpm lookup prompt', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    freeTierAllowedMock.mockResolvedValue(true)
+    seedAdminAccount()
+  })
+
+  it('GET /bpm-lookup-prompt returns latest + history', async () => {
+    bpmFindMany.mockResolvedValue([makePromptRow({ version: 3 })])
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({ method: 'GET', url: '/bpm-lookup-prompt', headers: AUTH })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json().latest.version).toBe(3)
+  })
+
+  it('POST /bpm-lookup-prompt creates v_next', async () => {
+    bpmAggregate.mockResolvedValue({ _max: { version: 1 } })
+    bpmCreate.mockResolvedValue(makePromptRow({ version: 2 }))
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/bpm-lookup-prompt', headers: AUTH,
+      payload: { promptText: 'You look up the BPM…' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(bpmCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ version: 2, promptText: 'You look up the BPM…' }),
+    })
+  })
+
+  it('returns 401 without auth', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({ method: 'GET', url: '/bpm-lookup-prompt' })
+    expect(res.statusCode).toBe(401)
+  })
+
+  it('returns 403 when not admin', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'GET', url: '/bpm-lookup-prompt',
       headers: { authorization: 'Bearer non-admin-test-token' },
     })
     expect(res.statusCode).toBe(403)

@@ -1131,6 +1131,18 @@ export const api = {
   saveEditPrompt: (promptText: string, notes: string | undefined, token: string) =>
     req<LyricPromptRow>('/admin/lyric-prompts/edit', { method: 'POST', body: JSON.stringify({ promptText, notes }) }, token),
 
+  // Hook Drafter universal craft prompt — DB-backed, same shape as a single lyric prompt.
+  hookDrafterPrompt: (token: string) =>
+    req<{ latest: LyricPromptRow | null; history: LyricPromptRow[] }>('/admin/hook-drafter-prompt', {}, token),
+  saveHookDrafterPrompt: (promptText: string, notes: string | undefined, token: string) =>
+    req<LyricPromptRow>('/admin/hook-drafter-prompt', { method: 'POST', body: JSON.stringify({ promptText, notes }) }, token),
+
+  // BPM lookup system prompt — DB-backed.
+  bpmLookupPrompt: (token: string) =>
+    req<{ latest: LyricPromptRow | null; history: LyricPromptRow[] }>('/admin/bpm-lookup-prompt', {}, token),
+  saveBpmLookupPrompt: (promptText: string, notes: string | undefined, token: string) =>
+    req<LyricPromptRow>('/admin/bpm-lookup-prompt', { method: 'POST', body: JSON.stringify({ promptText, notes }) }, token),
+
   // Mars system prompts (anchor + router) — DB-backed, same shape as lyric prompts.
   marsPrompts: (token: string) =>
     req<{ anchor: { latest: LyricPromptRow | null; history: LyricPromptRow[] }; router: { latest: LyricPromptRow | null; history: LyricPromptRow[] } }>('/admin/mars-prompts', {}, token),
