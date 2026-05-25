@@ -62,6 +62,27 @@ vi.mock('../db.js', () => {
     clientMembership: {
       create: vi.fn(),
     },
+    genreCraftRule: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    },
+    marsContaminationTerm: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    },
+    marsAxisRule: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    },
     $transaction: vi.fn(async (cb: (tx: any) => unknown) => cb(mock)),
   }
   return { prisma: mock }
@@ -884,5 +905,425 @@ describe('admin routes — attach owner', () => {
 
     expect(res.statusCode).toBe(403)
     expect(clientFindUnique).not.toHaveBeenCalled()
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// GenreCraftRule CRUD — DB-backed lyric craft overlays editable in Dash.
+// Mirrors LyricBanEntry shape (list / create / update / delete with admin auth).
+// ════════════════════════════════════════════════════════════════════════════
+
+const genreFindMany = prisma.genreCraftRule.findMany as ReturnType<typeof vi.fn>
+const genreCreate = prisma.genreCraftRule.create as ReturnType<typeof vi.fn>
+const genreUpdate = prisma.genreCraftRule.update as ReturnType<typeof vi.fn>
+const genreDelete = prisma.genreCraftRule.delete as ReturnType<typeof vi.fn>
+
+const GENRE_RULE_ID = 'gcr-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+
+function makeGenreRule(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: GENRE_RULE_ID,
+    familyName: 'hip-hop',
+    tags: ['hip-hop', 'rap'],
+    densityGuidance: 'Dense bars.',
+    rhymeGuidance: 'Multisyllabic rhymes.',
+    lineStructureGuidance: '8 or 16 bars.',
+    voiceGuidance: 'Declarative.',
+    typographyGuidance: 'Sparse parens.',
+    sortOrder: 0,
+    isActive: true,
+    notes: null,
+    createdAt: new Date('2026-05-25T12:00:00Z'),
+    updatedAt: new Date('2026-05-25T12:00:00Z'),
+    updatedById: null,
+    ...overrides,
+  }
+}
+
+function genreRulePayload(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    familyName: 'hip-hop',
+    tags: ['hip-hop', 'rap'],
+    densityGuidance: 'Dense bars.',
+    rhymeGuidance: 'Multisyllabic rhymes.',
+    lineStructureGuidance: '8 or 16 bars.',
+    voiceGuidance: 'Declarative.',
+    typographyGuidance: 'Sparse parens.',
+    sortOrder: 0,
+    isActive: true,
+    notes: null,
+    ...overrides,
+  }
+}
+
+describe('admin routes — genre craft rules', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    freeTierAllowedMock.mockResolvedValue(true)
+    seedAdminAccount()
+  })
+
+  it('GET /genre-craft-rules returns all rules ordered by sortOrder then familyName', async () => {
+    genreFindMany.mockResolvedValue([makeGenreRule(), makeGenreRule({ id: 'gcr-2', familyName: 'country', sortOrder: 1 })])
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({ method: 'GET', url: '/genre-craft-rules', headers: AUTH })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toHaveLength(2)
+    expect(genreFindMany).toHaveBeenCalledWith({
+      orderBy: [{ sortOrder: 'asc' }, { familyName: 'asc' }],
+    })
+  })
+
+  it('POST /genre-craft-rules creates a rule and stamps updatedById from the operator', async () => {
+    genreCreate.mockResolvedValue(makeGenreRule())
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/genre-craft-rules', headers: AUTH, payload: genreRulePayload(),
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(genreCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        familyName: 'hip-hop',
+        updatedById: 'op-admin-001',
+      }),
+    })
+  })
+
+  it('POST /genre-craft-rules returns 400 on missing required fields', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/genre-craft-rules', headers: AUTH,
+      payload: { familyName: '', densityGuidance: 'x' },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toBe('bad_body')
+    expect(genreCreate).not.toHaveBeenCalled()
+  })
+
+  it('POST /genre-craft-rules returns 409 on duplicate familyName', async () => {
+    genreCreate.mockRejectedValue(Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }))
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/genre-craft-rules', headers: AUTH, payload: genreRulePayload(),
+    })
+
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('duplicate')
+  })
+
+  it('PUT /genre-craft-rules/:id updates the rule', async () => {
+    genreUpdate.mockResolvedValue(makeGenreRule({ familyName: 'country' }))
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'PUT', url: `/genre-craft-rules/${GENRE_RULE_ID}`,
+      headers: AUTH, payload: genreRulePayload({ familyName: 'country' }),
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(genreUpdate).toHaveBeenCalledWith({
+      where: { id: GENRE_RULE_ID },
+      data: expect.objectContaining({ familyName: 'country', updatedById: 'op-admin-001' }),
+    })
+  })
+
+  it('PUT /genre-craft-rules/:id returns 404 when the row is missing', async () => {
+    genreUpdate.mockRejectedValue(Object.assign(new Error('Record not found'), { code: 'P2025' }))
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'PUT', url: `/genre-craft-rules/${GENRE_RULE_ID}`,
+      headers: AUTH, payload: genreRulePayload(),
+    })
+
+    expect(res.statusCode).toBe(404)
+  })
+
+  it('DELETE /genre-craft-rules/:id removes the row', async () => {
+    genreDelete.mockResolvedValue(makeGenreRule())
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'DELETE', url: `/genre-craft-rules/${GENRE_RULE_ID}`, headers: AUTH,
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ ok: true })
+    expect(genreDelete).toHaveBeenCalledWith({ where: { id: GENRE_RULE_ID } })
+  })
+
+  it('returns 401 without a Bearer token', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({ method: 'GET', url: '/genre-craft-rules' })
+    expect(res.statusCode).toBe(401)
+    expect(genreFindMany).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 when the operator is not admin', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'GET', url: '/genre-craft-rules',
+      headers: { authorization: 'Bearer non-admin-test-token' },
+    })
+    expect(res.statusCode).toBe(403)
+    expect(genreFindMany).not.toHaveBeenCalled()
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// MarsContaminationTerm CRUD — flat term lists (always_fire / modern_drift /
+// modern_family) editable in Dash → Mars Style Axes.
+// ════════════════════════════════════════════════════════════════════════════
+
+const contamFindMany = prisma.marsContaminationTerm.findMany as ReturnType<typeof vi.fn>
+const contamCreate = prisma.marsContaminationTerm.create as ReturnType<typeof vi.fn>
+const contamUpdate = prisma.marsContaminationTerm.update as ReturnType<typeof vi.fn>
+const contamDelete = prisma.marsContaminationTerm.delete as ReturnType<typeof vi.fn>
+
+const CONTAM_ID = 'mct-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+
+function makeContamRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: CONTAM_ID,
+    category: 'always_fire',
+    term: 'live',
+    sortOrder: 0,
+    isActive: true,
+    notes: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  }
+}
+
+describe('admin routes — mars contamination terms', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    freeTierAllowedMock.mockResolvedValue(true)
+    seedAdminAccount()
+  })
+
+  it('GET /mars-contamination-terms returns rows ordered by category then sortOrder then term', async () => {
+    contamFindMany.mockResolvedValue([makeContamRow(), makeContamRow({ id: 'mct-2', category: 'modern_drift', term: 'autotune' })])
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({ method: 'GET', url: '/mars-contamination-terms', headers: AUTH })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toHaveLength(2)
+    expect(contamFindMany).toHaveBeenCalledWith({
+      orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }, { term: 'asc' }],
+    })
+  })
+
+  it('POST /mars-contamination-terms creates a row with valid category enum', async () => {
+    contamCreate.mockResolvedValue(makeContamRow())
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/mars-contamination-terms', headers: AUTH,
+      payload: { category: 'always_fire', term: 'live', sortOrder: 0, isActive: true, notes: null },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(contamCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ category: 'always_fire', term: 'live' }),
+    })
+  })
+
+  it('POST /mars-contamination-terms returns 400 on invalid category', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/mars-contamination-terms', headers: AUTH,
+      payload: { category: 'bogus', term: 'live' },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toBe('bad_body')
+    expect(contamCreate).not.toHaveBeenCalled()
+  })
+
+  it('POST /mars-contamination-terms returns 409 on duplicate category+term', async () => {
+    contamCreate.mockRejectedValue(Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }))
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/mars-contamination-terms', headers: AUTH,
+      payload: { category: 'always_fire', term: 'live' },
+    })
+
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('duplicate')
+  })
+
+  it('PUT /mars-contamination-terms/:id updates the row', async () => {
+    contamUpdate.mockResolvedValue(makeContamRow({ term: 'arena' }))
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'PUT', url: `/mars-contamination-terms/${CONTAM_ID}`,
+      headers: AUTH, payload: { category: 'always_fire', term: 'arena' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(contamUpdate).toHaveBeenCalledWith({
+      where: { id: CONTAM_ID },
+      data: expect.objectContaining({ term: 'arena' }),
+    })
+  })
+
+  it('DELETE /mars-contamination-terms/:id removes the row', async () => {
+    contamDelete.mockResolvedValue(makeContamRow())
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'DELETE', url: `/mars-contamination-terms/${CONTAM_ID}`, headers: AUTH,
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ ok: true })
+  })
+
+  it('returns 401 without auth', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({ method: 'GET', url: '/mars-contamination-terms' })
+    expect(res.statusCode).toBe(401)
+  })
+
+  it('returns 403 when not admin', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'GET', url: '/mars-contamination-terms',
+      headers: { authorization: 'Bearer non-admin-test-token' },
+    })
+    expect(res.statusCode).toBe(403)
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// MarsAxisRule CRUD — per-axis opposite-style rules editable in Dash.
+// ════════════════════════════════════════════════════════════════════════════
+
+const axisFindMany = prisma.marsAxisRule.findMany as ReturnType<typeof vi.fn>
+const axisCreate = prisma.marsAxisRule.create as ReturnType<typeof vi.fn>
+const axisUpdate = prisma.marsAxisRule.update as ReturnType<typeof vi.fn>
+const axisDelete = prisma.marsAxisRule.delete as ReturnType<typeof vi.fn>
+
+const AXIS_ID = 'mar-cccccccc-cccc-cccc-cccc-cccccccccccc'
+
+function makeAxisRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: AXIS_ID,
+    axisType: 'genre',
+    label: 'rock-metal',
+    matchTerms: ['rock', 'metal'],
+    opposites: ['orchestral', 'ambient'],
+    secondaryOpposites: ['ukulele', 'harp'],
+    sortOrder: 0,
+    isActive: true,
+    notes: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  }
+}
+
+describe('admin routes — mars axis rules', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    freeTierAllowedMock.mockResolvedValue(true)
+    seedAdminAccount()
+  })
+
+  it('GET /mars-axis-rules returns rows ordered by axisType then sortOrder then label', async () => {
+    axisFindMany.mockResolvedValue([makeAxisRow(), makeAxisRow({ id: 'mar-2', axisType: 'vocal', label: 'breathy' })])
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({ method: 'GET', url: '/mars-axis-rules', headers: AUTH })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toHaveLength(2)
+    expect(axisFindMany).toHaveBeenCalledWith({
+      orderBy: [{ axisType: 'asc' }, { sortOrder: 'asc' }, { label: 'asc' }],
+    })
+  })
+
+  it('POST /mars-axis-rules accepts a genre rule with secondaryOpposites', async () => {
+    axisCreate.mockResolvedValue(makeAxisRow())
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/mars-axis-rules', headers: AUTH,
+      payload: {
+        axisType: 'genre', label: 'rock-metal',
+        matchTerms: ['rock', 'metal'], opposites: ['orchestral'], secondaryOpposites: ['ukulele'],
+      },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(axisCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        axisType: 'genre', label: 'rock-metal',
+        secondaryOpposites: ['ukulele'],
+      }),
+    })
+  })
+
+  it('POST /mars-axis-rules returns 400 on invalid axisType', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/mars-axis-rules', headers: AUTH,
+      payload: { axisType: 'instrumentation', label: 'foo' },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toBe('bad_body')
+    expect(axisCreate).not.toHaveBeenCalled()
+  })
+
+  it('POST /mars-axis-rules returns 409 on duplicate axisType+label', async () => {
+    axisCreate.mockRejectedValue(Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }))
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/mars-axis-rules', headers: AUTH,
+      payload: { axisType: 'genre', label: 'rock-metal' },
+    })
+
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('duplicate')
+  })
+
+  it('PUT /mars-axis-rules/:id updates the rule', async () => {
+    axisUpdate.mockResolvedValue(makeAxisRow({ label: 'punk' }))
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'PUT', url: `/mars-axis-rules/${AXIS_ID}`, headers: AUTH,
+      payload: { axisType: 'genre', label: 'punk' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(axisUpdate).toHaveBeenCalledWith({
+      where: { id: AXIS_ID },
+      data: expect.objectContaining({ label: 'punk' }),
+    })
+  })
+
+  it('DELETE /mars-axis-rules/:id removes the row', async () => {
+    axisDelete.mockResolvedValue(makeAxisRow())
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'DELETE', url: `/mars-axis-rules/${AXIS_ID}`, headers: AUTH,
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ ok: true })
+  })
+
+  it('returns 401 without auth', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({ method: 'GET', url: '/mars-axis-rules' })
+    expect(res.statusCode).toBe(401)
+  })
+
+  it('returns 403 when not admin', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'GET', url: '/mars-axis-rules',
+      headers: { authorization: 'Bearer non-admin-test-token' },
+    })
+    expect(res.statusCode).toBe(403)
   })
 })
