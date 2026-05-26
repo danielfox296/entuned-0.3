@@ -18,7 +18,7 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../db.js'
-import { OVERUSED_WORDS } from '../bernie/lyric-craft-rules.js'
+import { formatHardBanBlock } from '../bernie/lyric-craft-rules.js'
 
 const MODEL = process.env.HOOK_DRAFTER_MODEL ?? 'claude-sonnet-4-6'
 
@@ -76,9 +76,7 @@ NEVER use mood-describing adjectives in the lyric. The music's job is to convey 
 
 Specifically banned: easy, warm, settled, gentle, groove, peace, weightless, golden, afternoon glow, hazy, dreamy, magical, perfect (as emotional descriptor), soft (as mood-modifier).
 
-NEVER use the overused-AI-lyric word list (and variants): ${OVERUSED_WORDS.slice(0, 60).join(', ')}.
-
-NEVER write the phrase "good with that, just the way you are" or any close paraphrase. That phrase is permanently banned by editorial decision.
+The runtime FORBIDDEN block in the user message lists the current operator-curated ban list — overused words, cliché phrases, cliché shapes. Treat those as hard bans, not advisories. Replace with concrete sensory imagery, not synonym swaps.
 
 ## Structural variance — every batch must spread
 
@@ -153,12 +151,13 @@ export interface DraftHooksResult {
  * the system prompt + user message can be inspected in tests without firing
  * an LLM call.
  *
- * Includes: outcome title + tempo + mode + dynamics/instrumentation when
- * present, brand lyric guidelines when present, per-outcome templateText
- * (the load-bearing behavioral overlay) when present.
+ * Includes: outcome title + tempo + mode, brand lyric guidelines when
+ * present, per-outcome templateText (the load-bearing behavioral overlay)
+ * when present, runtime FORBIDDEN block from lyric_ban_entries when present.
  *
  * Does NOT include: ICP psychographics, approved-hook exemplars,
- * rejected-hook anti-anchors, existing-hook dedup list.
+ * rejected-hook anti-anchors, existing-hook dedup list, Outcome.dynamics
+ * or Outcome.instrumentation (deprecated for style; not surfaced here either).
  */
 export async function buildUserMessage(opts: { icpId: string; outcomeId: string; n: number }): Promise<string> {
   const [icp, outcome] = await Promise.all([
@@ -178,11 +177,7 @@ export async function buildUserMessage(opts: { icpId: string; outcomeId: string;
     `Emotional target: ${outcome.title}`,
     `Tempo: ${outcome.tempoBpm} bpm`,
     `Mode: ${outcome.mode}`,
-    outcome.dynamics && `Dynamics: ${outcome.dynamics}`,
-    outcome.instrumentation && `Instrumentation: ${outcome.instrumentation}`,
-  ]
-    .filter(Boolean)
-    .join('\n')
+  ].join('\n')
 
   const brandBlock = icp.client?.brandLyricGuidelines?.trim()
     ? `# Brand lyric guidelines\n\n${icp.client.brandLyricGuidelines.trim()}\n\n`
@@ -192,20 +187,23 @@ export async function buildUserMessage(opts: { icpId: string; outcomeId: string;
     ? `# Per-outcome lyric direction\n\nAuthoritative for content and tone on this outcome. The craft rules in the system prompt remain the floor; this is the outcome-specific layer.\n\n${overlay}\n\n`
     : ''
 
+  const banBlock = await formatHardBanBlock()
+  const forbiddenBlock = banBlock ? `# Hard bans\n\n${banBlock}\n\n` : ''
+
   return `# Outcome (the song's emotional target)
 
 The hooks you write must embody and pay off the **emotional target** below.
 Treat the emotional target as the controlling intent — every hook should land
-inside that feeling. The musical specs (tempo / mode / dynamics / instrumentation)
-are constraints the song will be produced within; let them inform the diction,
-density, and image vocabulary of the hook.
+inside that feeling. The musical specs (tempo / mode) are constraints the song
+will be produced within; let them inform the diction, density, and image
+vocabulary of the hook.
 
 ${outcomeBlock}
 
-${brandBlock}${overlayBlock}# Task
+${brandBlock}${overlayBlock}${forbiddenBlock}# Task
 
 Write ${opts.n} new hook candidates for this outcome. Apply the structural
-variance, scene test, and diction rules from the system prompt${overlay ? ', and the per-outcome direction above' : ''}.
+variance, scene test, and diction rules from the system prompt${overlay ? ', and the per-outcome direction above' : ''}${forbiddenBlock ? ', and the hard bans above' : ''}.
 
 Output JSON only via the emit_hooks tool.`
 }

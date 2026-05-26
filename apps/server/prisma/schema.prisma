@@ -259,7 +259,6 @@ model ICP {
   storeLinks       StoreICP[]
   hooks            Hook[]
   referenceTracks  ReferenceTrack[]
-  hookWriterPrompt HookWriterPrompt?
   lineageRows      LineageRow[]
 
   @@index([clientId])
@@ -526,10 +525,6 @@ model BpmLookupPrompt {
 // Mirrors LyricDraftPrompt / StyleAnchorPrompt: append-only, latest version wins
 // at runtime. Migrated from hardcoded HOOK_SYSTEM_PROMPT on 2026-05-25 per the
 // no-prompt-content-in-code rule. Editable in Dash → Prompts & Rules → Hook Drafter.
-//
-// Note: the older HookWriterPrompt / HookWriterPromptVersion tables below are
-// orphaned (per-ICP customization that was never wired). Kept for now to avoid
-// a destructive migration; the live drafter prompt lives here.
 model HookDrafterPrompt {
   id          String   @id @default(uuid()) @db.Uuid
   version     Int      @unique
@@ -573,33 +568,6 @@ model ProfessorModule {
 
   @@index([active, sortOrder])
   @@map("professor_modules")
-}
-
-model HookWriterPrompt {
-  id          String   @id @default(uuid()) @db.Uuid
-  icpId       String   @unique @map("icp_id") @db.Uuid
-  promptText  String   @map("prompt_text")
-  version     Int      @default(1)
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  updatedById String?  @map("updated_by") @db.Uuid
-
-  icp ICP @relation(fields: [icpId], references: [id], onDelete: Cascade)
-
-  @@map("hook_writer_prompts")
-}
-
-model HookWriterPromptVersion {
-  id          String   @id @default(uuid()) @db.Uuid
-  icpId       String   @map("icp_id") @db.Uuid
-  version     Int
-  promptText  String   @map("prompt_text")
-  notes       String?
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdById String?  @map("created_by") @db.Uuid
-
-  @@unique([icpId, version])
-  @@index([icpId, version(sort: Desc)])
-  @@map("hook_writer_prompt_versions")
 }
 
 // ---------- Card 14 Eno (OutcomeFactorPrompt, SongSeedBatch, SongSeed) ----------

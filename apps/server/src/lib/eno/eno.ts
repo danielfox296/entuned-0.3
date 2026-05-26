@@ -40,7 +40,7 @@ export function stripFlavorAnnotations(sectionList: string): string {
     .trim()
 }
 
-export const OUTCOME_FACTOR_PROMPT_SEED = '{mood}, {tempo_bpm}bpm, {mode}' // prepended to style string. Mood is required on Outcome and leads the prefix as the affect anchor. Tokens {dynamics} {instrumentation} still resolve for backward compat with old templates but are deprecated — they were stamping genre-mismatched instrument lists onto every track and using rules-v8 banned vocab.
+export const OUTCOME_FACTOR_PROMPT_SEED = '{mood}, {tempo_bpm}bpm, {mode}' // prepended to style string. Mood is required on Outcome and leads the prefix as the affect anchor.
 
 export async function getOrSeedOutcomeFactorPrompt(): Promise<{ id: string; version: number; templateText: string }> {
   const row = await prisma.outcomeFactorPrompt.findFirst({ orderBy: { version: 'desc' } })
@@ -50,14 +50,12 @@ export async function getOrSeedOutcomeFactorPrompt(): Promise<{ id: string; vers
   })
 }
 
-export function applyOutcomeFactorPrompt(stylePortion: string, outcome: { tempoBpm: number; mode: string; mood: string; dynamics: string | null; instrumentation: string | null }, templateText: string): string {
+export function applyOutcomeFactorPrompt(stylePortion: string, outcome: { tempoBpm: number; mode: string; mood: string }, templateText: string): string {
   if (!templateText.trim()) return stylePortion
   const filled = templateText
     .replace(/\{tempo_bpm\}/g, String(outcome.tempoBpm))
     .replace(/\{mode\}/g, outcome.mode)
     .replace(/\{mood\}/g, outcome.mood)
-    .replace(/\{dynamics\}/g, outcome.dynamics ?? '')
-    .replace(/\{instrumentation\}/g, outcome.instrumentation ?? '')
   return `${filled.trim()} ${stylePortion}`
 }
 
@@ -176,7 +174,7 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
     const outcomeFactorPrompt = await getOrSeedOutcomeFactorPrompt()
     const finalStyle = applyOutcomeFactorPrompt(
       mars.style,
-      { tempoBpm: resolved.tempoBpm, mode: resolved.mode, mood: outcome.mood, dynamics: outcome.dynamics, instrumentation: outcome.instrumentation },
+      { tempoBpm: resolved.tempoBpm, mode: resolved.mode, mood: outcome.mood },
       outcomeFactorPrompt.templateText,
     )
 

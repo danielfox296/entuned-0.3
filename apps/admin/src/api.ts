@@ -1141,11 +1141,10 @@ export const api = {
     return req<SuggestReferenceTracksResult>(`/admin/icps/${icpId}/suggest-reference-tracks`, init, token)
   },
 
-  // GET still returns the historical edit-prompt versions in `.edit` for browsing,
-  // but writes to /lyric-prompts/edit were retired 2026-05-25 when Bernie collapsed
-  // to a single-pass drafter (Professor module replaced the edit pass).
+  // Bernie collapsed to a single-pass drafter on 2026-05-25 (Professor module
+  // replaced the edit pass). Only the draft prompt surfaces here.
   lyricPrompts: (token: string) =>
-    req<{ draft: { latest: LyricPromptRow | null; history: LyricPromptRow[] }; edit: { latest: LyricPromptRow | null; history: LyricPromptRow[] } }>('/admin/lyric-prompts', {}, token),
+    req<{ draft: { latest: LyricPromptRow | null; history: LyricPromptRow[] } }>('/admin/lyric-prompts', {}, token),
   saveDraftPrompt: (promptText: string, notes: string | undefined, token: string) =>
     req<LyricPromptRow>('/admin/lyric-prompts/draft', { method: 'POST', body: JSON.stringify({ promptText, notes }) }, token),
 

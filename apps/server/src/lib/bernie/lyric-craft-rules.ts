@@ -1,17 +1,15 @@
 // Lyric-craft rules — overused words + AI-cliché phrases + structural defaults.
 //
-// The blocks are split between draft and edit pass so each pass only carries the
-// rules it actually needs. The draft pass focuses on shape (syllable matching,
-// rhyme-by-function, line endings, even-count defaults). The edit pass focuses on
-// polish (no-go list, replacement strategy, performance typography). This keeps
-// each system prompt well below the cache threshold and prevents the editor from
-// re-litigating structural decisions the draft already made.
+// As of 2026-05-25 Bernie is single-pass; the former edit-pass craft block and
+// soft NO-GO block helpers (formatNoGoBlock / formatNoGoBlockSync) were retired
+// with the edit pass. What remains: DRAFT_CRAFT_BLOCK (structural rules for the
+// draft), the three ban-list constants (cold-start fallback for lyric_ban_entries),
+// loadBanEntries, and formatHardBanBlock — the runtime FORBIDDEN block injected
+// into both Bernie's and the Hook Drafter's user messages.
 //
 // Sources: external Suno-prompt research (lyric-craft / overused-words / ai-cliches),
 // adapted for brand in-store music. The wordlist is trimmed to the high-frequency
-// AI-emitted offenders rather than the full source list — long flat dumps are
-// weakly conditioned at inference time, so a tighter list with sentence-level
-// patterns does more work per token.
+// AI-emitted offenders rather than the full source list.
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 1) Overused words — high-frequency AI-emitted offenders (trimmed from ~190 to
@@ -121,32 +119,8 @@ The hook becomes the chorus and is delivered verbatim every time it appears, inc
 `.trim()
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 5) EDIT-pass craft block — polish rules + performance typography. Performance
-// typography belongs in the edit pass (not draft) so the editor adds it
-// deliberately on lines that earn it, rather than the draft sprinkling it as
-// decoration.
-// ──────────────────────────────────────────────────────────────────────────────
-export const EDIT_CRAFT_BLOCK = `
-EDITING TOWARD PLAYABILITY:
-- Stronger imagery, fewer abstractions.
-- Conversational diction; no slogans, no jargon.
-- Shorter lines where lines feel cluttered.
-- Each verse landing on a phrase that sets up the chorus.
-- Within-section line consistency; between-section variation. (The draft pass should already have this — only adjust lines that visibly break it.)
-- The hook line never changes, anywhere it appears, including [Final Chorus].
-
-PERFORMANCE TYPOGRAPHY — add deliberately on lines that earn it, not decoratively:
-- ALL CAPS = emphasis or shouted delivery on that word. Use rarely.
-- Em dash "—" = longer pause than a comma.
-- Ellipsis "…" = pause / hesitation / slowdown.
-- Hyphenated word ("d-a-s-h-e-d") = sung as one continuous flow.
-- Parentheses "( )" around words = backing-vocal / call-and-response performance of those words. Square brackets "[ ]" are NEVER performed — they are direction to Suno only.
-- An extra blank line within a section = sonic pause for instrumental fill or vocal reset. Do not use blank lines for visual spacing only — they have an audible effect.
-`.trim()
-
-// ──────────────────────────────────────────────────────────────────────────────
-// 6) NO-GO block — wordlist + cliché phrases + cliché shapes. Used by the EDIT
-// pass only. Pulls from DB (lyric_ban_entries) with hardcoded fallback.
+// 5) Ban-list loader — wordlist + cliché phrases + cliché shapes from DB
+// (lyric_ban_entries), with the three TS constants above as cold-start fallback.
 // ──────────────────────────────────────────────────────────────────────────────
 import { prisma } from '../../db.js'
 
@@ -166,24 +140,8 @@ export async function loadBanEntries(): Promise<{ overusedWords: string[]; clich
   }
 }
 
-export async function formatNoGoBlock(): Promise<string> {
-  const { overusedWords, clichePhrases, clicheShapes } = await loadBanEntries()
-  return `
-NO-GO list — pattern-recognition red flags, not strict bans. When a draft line contains a flagged word OR matches a flagged shape, ask: am I describing a concrete sensory thing in a specific moment, or am I gesturing at an abstract emotion? If concrete and grounded, fine. If abstract or gestural, rewrite with specific imagery (a particular place, time, object, sensation). Do NOT swap one abstract synonym for another (don't replace "shadows" with "darkness", or "you complete me" with "you make me whole"). The fix is always specificity.
-
-Overused words (apply to plurals, possessives, all conjugations):
-${overusedWords.join(', ')}.
-
-Cliché phrases:
-${clichePhrases.map((p) => `- ${p}`).join('\n')}
-
-Cliché shapes (variants of these structures are equally clichéd):
-${clicheShapes.map((s) => `- ${s}`).join('\n')}
-`.trim()
-}
-
 // ──────────────────────────────────────────────────────────────────────────────
-// 7) HARD-BAN block — strict-language version of the full ban list (overused
+// 6) HARD-BAN block — strict-language version of the full ban list (overused
 // words + cliché phrases + cliché shapes), for runtime injection into the draft
 // + edit user messages. The seeded NO-GO block in the system prompt is soft
 // ("pattern-recognition red flags") to preserve craft judgment on edge cases;
@@ -219,20 +177,4 @@ ${clicheShapes.map((s) => `- ${s}`).join('\n')}`)
   }
 
   return sections.join('\n\n')
-}
-
-/** Synchronous fallback using hardcoded lists (for cold-start / seed prompts). */
-export function formatNoGoBlockSync(): string {
-  return `
-NO-GO list — pattern-recognition red flags, not strict bans. When a draft line contains a flagged word OR matches a flagged shape, ask: am I describing a concrete sensory thing in a specific moment, or am I gesturing at an abstract emotion? If concrete and grounded, fine. If abstract or gestural, rewrite with specific imagery (a particular place, time, object, sensation). Do NOT swap one abstract synonym for another (don't replace "shadows" with "darkness", or "you complete me" with "you make me whole"). The fix is always specificity.
-
-Overused words (apply to plurals, possessives, all conjugations):
-${OVERUSED_WORDS.join(', ')}.
-
-Cliché phrases:
-${AI_CLICHE_PHRASES.map((p) => `- ${p}`).join('\n')}
-
-Cliché shapes (variants of these structures are equally clichéd):
-${AI_CLICHE_SHAPES.map((s) => `- ${s}`).join('\n')}
-`.trim()
 }

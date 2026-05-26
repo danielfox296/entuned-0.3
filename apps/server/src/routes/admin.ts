@@ -364,13 +364,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/lyric-prompts', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
-    const [draftAll, editAll] = await Promise.all([
-      prisma.lyricDraftPrompt.findMany({ orderBy: { version: 'desc' } }),
-      prisma.lyricEditPrompt.findMany({ orderBy: { version: 'desc' } }),
-    ])
+    const draftAll = await prisma.lyricDraftPrompt.findMany({ orderBy: { version: 'desc' } })
     return {
       draft: { latest: draftAll[0] ?? null, history: draftAll },
-      edit: { latest: editAll[0] ?? null, history: editAll },
     }
   })
 
@@ -1081,8 +1077,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       // ScheduleSlot, StoreICP, StoreAssignment, TierChangeLog all cascade.
       const stores = await tx.store.deleteMany({ where: { clientId: id } })
 
-      // ICPs — LineageRow, Hook, ReferenceTrack, OutcomeLyricFactor, SongSeed,
-      // HookWriterPrompt all cascade. Songs themselves stay (shared assets).
+      // ICPs — LineageRow, Hook, ReferenceTrack, OutcomeLyricFactor, SongSeed
+      // all cascade. Songs themselves stay (shared assets).
       const icps = await tx.iCP.deleteMany({ where: { clientId: id } })
 
       // Defensive: any POSPullRuns left dangling on the client_id (shouldn't

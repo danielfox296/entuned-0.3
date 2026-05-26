@@ -6,6 +6,7 @@ vi.mock('../../db.js', () => ({
     outcome: { findUniqueOrThrow: vi.fn() },
     outcomeLyricFactor: { findUnique: vi.fn() },
     hookDrafterPrompt: { findFirst: vi.fn(), create: vi.fn() },
+    lyricBanEntry: { findMany: vi.fn() },
   },
 }))
 
@@ -24,6 +25,7 @@ const icpFind = prisma.iCP.findUniqueOrThrow as ReturnType<typeof vi.fn>
 const outcomeFind = prisma.outcome.findUniqueOrThrow as ReturnType<typeof vi.fn>
 const factorFind = prisma.outcomeLyricFactor.findUnique as ReturnType<typeof vi.fn>
 const hookDrafterPromptFind = prisma.hookDrafterPrompt.findFirst as ReturnType<typeof vi.fn>
+const banFind = prisma.lyricBanEntry.findMany as ReturnType<typeof vi.fn>
 
 const ICP_ID = '11111111-1111-1111-1111-111111111111'
 const OUTCOME_ID = '22222222-2222-2222-2222-222222222222'
@@ -76,17 +78,48 @@ function setupFixtures(opts: {
 describe('buildUserMessage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    banFind.mockResolvedValue([])
   })
 
-  it('includes the outcome emotional target, tempo, mode, dynamics, instrumentation', async () => {
+  it('includes the outcome emotional target, tempo, mode', async () => {
     setupFixtures({})
     const msg = await buildUserMessage({ icpId: ICP_ID, outcomeId: OUTCOME_ID, n: 5 })
     expect(msg).toContain('Emotional target: Dwell Extension')
     expect(msg).toContain('Tempo: 66 bpm')
     expect(msg).toContain('Mode: minor')
-    expect(msg).toContain('Dynamics: soft')
-    expect(msg).toContain('Instrumentation: fingerpicked acoustic guitar, upright bass')
     expect(msg).toContain('Write 5 new hook candidates')
+  })
+
+  it('does NOT include Outcome.dynamics or Outcome.instrumentation (deprecated for style; not surfaced to hooks)', async () => {
+    setupFixtures({})
+    const msg = await buildUserMessage({ icpId: ICP_ID, outcomeId: OUTCOME_ID, n: 5 })
+    expect(msg).not.toContain('Dynamics:')
+    expect(msg).not.toContain('Instrumentation:')
+  })
+
+  it('injects the FORBIDDEN block from lyric_ban_entries when present', async () => {
+    banFind.mockResolvedValueOnce([
+      { category: 'overused_word', text: 'glow' },
+      { category: 'cliche_phrase', text: 'good with that, just the way you are' },
+    ])
+    setupFixtures({})
+    const msg = await buildUserMessage({ icpId: ICP_ID, outcomeId: OUTCOME_ID, n: 3 })
+    expect(msg).toContain('# Hard bans')
+    expect(msg).toContain('FORBIDDEN')
+    expect(msg).toContain('glow')
+    expect(msg).toContain('good with that, just the way you are')
+    expect(msg).toContain('the hard bans above')
+  })
+
+  it('still injects FORBIDDEN block from TS constants when lyric_ban_entries is empty (cold-start fallback)', async () => {
+    // loadBanEntries() falls back to OVERUSED_WORDS / AI_CLICHE_PHRASES /
+    // AI_CLICHE_SHAPES when the DB table is empty, so the FORBIDDEN block is
+    // always present in practice — never raw-shipped without ban guidance.
+    banFind.mockResolvedValueOnce([])
+    setupFixtures({})
+    const msg = await buildUserMessage({ icpId: ICP_ID, outcomeId: OUTCOME_ID, n: 3 })
+    expect(msg).toContain('# Hard bans')
+    expect(msg).toContain('FORBIDDEN')
   })
 
   it('includes the per-outcome templateText block when present', async () => {
@@ -175,8 +208,11 @@ describe('HOOK_SYSTEM_PROMPT_SEED', () => {
     expect(HOOK_SYSTEM_PROMPT_SEED).toContain("It's not [X] — it's [Y]")
   })
 
-  it('includes the permanent "good with that" ban', () => {
-    expect(HOOK_SYSTEM_PROMPT_SEED).toContain('good with that, just the way you are')
+  it('points the model at the runtime FORBIDDEN block (ban content lives in lyric_ban_entries, not the seed)', () => {
+    expect(HOOK_SYSTEM_PROMPT_SEED).toContain('runtime FORBIDDEN block')
+    // The permanent "good with that" ban lives as a lyric_ban_entries row, not
+    // hardcoded here; the seed text must not reintroduce it.
+    expect(HOOK_SYSTEM_PROMPT_SEED).not.toContain('good with that, just the way you are')
   })
 
   it('includes the three-things-a-hook-does framing (names a thing / describes a moment / speaks a direct behavior)', () => {
@@ -211,6 +247,7 @@ describe('draftHooks', () => {
     // Seed the DB-backed hook drafter prompt so the loader short-circuits to
     // the existing row (avoids hitting prisma.create in the mock).
     hookDrafterPromptFind.mockResolvedValue({ version: 1, promptText: HOOK_SYSTEM_PROMPT_SEED })
+    banFind.mockResolvedValue([])
   })
 
   it('calls Anthropic with HOOK_SYSTEM_PROMPT_SEED and the built user message', async () => {
