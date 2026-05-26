@@ -141,11 +141,17 @@ Use a node helper to build the JS scripts safely (handles backticks, apostrophes
 ```bash
 node -e "
 const seeds = JSON.parse(require('fs').readFileSync('/tmp/seeds.json','utf-8'));
+// vocalGender on Suno is NOT a required field. Only force a button click when
+// Bernie was explicit (male / female) or when the seed is truly instrumental
+// (gender === 'instrumental' AND no lyrics). For everything else — duet,
+// instrumental-with-lyrics, unknown, '' — return null and leave Suno's vocal
+// selection alone. Suno will choose; that's correct behavior. The old default
+// of 'Male' silently mis-cast duets and instrumental-with-lyrics seeds.
 function vocalLabel(gender, lyrics) {
   if (gender === 'female') return 'Female';
   if (gender === 'male') return 'Male';
   if (gender === 'instrumental' && !lyrics.trim()) return 'Instrumental';
-  return 'Male';  // default for instrumental+lyrics, unknown+lyrics, '', etc.
+  return null;  // duet, instrumental+lyrics, unknown, '' — let Suno pick
 }
 function jsLit(s) {
   // Backtick-safe: escape backticks, backslashes, dollar-curly
@@ -162,16 +168,21 @@ for (const s of seeds) {
     + 'if (exclI) setRV(exclI, ' + jsLit(s.negativeStyle) + '); '
     + 'const titleI = Array.from(document.querySelectorAll(\"input\")).filter(i => i.placeholder === \"Song Title (Optional)\").at(-1); '
     + 'if (titleI) setRV(titleI, ' + jsLit(s.title) + '); '
-    + 'const target = \"' + vl + '\"; const other = target === \"Male\" ? \"Female\" : (target === \"Female\" ? \"Male\" : null); '
-    // FORCE vocal-toggle dance UNCONDITIONALLY — click other, then click target.
+    + 'const target = ' + (vl === null ? 'null' : ('\"' + vl + '\"')) + '; '
+    // FORCE vocal-toggle dance UNCONDITIONALLY when target is set — click other, then click target.
     // Earlier "deselect-other-if-selected, select-target-if-not-selected" was a no-op when
     // gender was unchanged from previous wave, which made Create silently fail.
-    + (vl === 'Instrumental'
+    // When target === null (duet / instrumental+lyrics / unknown), skip the toggle entirely —
+    // leave Suno's vocal selection alone.
+    + (vl === null
+        ? '/* skip vocal toggle */ '
+        : vl === 'Instrumental'
         ? 'const iBtn = Array.from(document.querySelectorAll(\"button\")).find(b => b.textContent.trim() === \"Instrumental\"); iBtn?.click(); '
-        : ('const oBtn = Array.from(document.querySelectorAll(\"button\")).find(b => b.textContent.trim() === other); oBtn?.click(); '
+        : ('const other = target === \"Male\" ? \"Female\" : \"Male\"; '
+         + 'const oBtn = Array.from(document.querySelectorAll(\"button\")).find(b => b.textContent.trim() === other); oBtn?.click(); '
          + 'const tBtn = Array.from(document.querySelectorAll(\"button\")).find(b => b.textContent.trim() === target); tBtn?.click(); '))
     + '({title: ' + jsLit(s.title) + ', vocal: target});';
-  out[s.id] = { title: s.title, vocal: vl, js };
+  out[s.id] = { title: s.title, vocal: vl ?? 'unset', js };
 }
 require('fs').writeFileSync('/tmp/inject.json', JSON.stringify(out, null, 2));
 for (const [id, v] of Object.entries(out)) console.log(v.title, '|', v.vocal);
@@ -179,6 +190,8 @@ for (const [id, v] of Object.entries(out)) console.log(v.title, '|', v.vocal);
 ```
 
 **Why the unconditional toggle dance matters:** Suno's vocal buttons are toggles — clicking the already-selected gender DESELECTS it. On a reused tab where the target gender is *the same* as the previous wave, a conditional "select-only-if-not-already-selected" recipe never fires the click, and Create silently no-ops on first press. The unconditional dance (click opposite, click target) always fires both clicks — React sees the state change, Suno enables Create, the first press works. Safe on fresh and reused tabs alike.
+
+**When `target === null` (duet / instrumental+lyrics / unknown), the toggle dance is intentionally skipped** — Suno's vocal selection is left at whatever it was, and Suno picks. Field changes via `setRV` (lyrics, style, title, exclude) still dispatch input/change events, which is usually enough for React to re-enable Create on a reused tab. If you ever see Create silently no-op specifically on a null-vocal seed in a reused tab, fire the inject's other-side click manually (`Female` if previous wave used Male, or vice versa) — that's enough to re-trigger React without re-asserting a gender.
 
 ## Step 5 — Inject + verify + Create (wave-batched)
 
