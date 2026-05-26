@@ -202,7 +202,7 @@ describe('runProfessor — cold start', () => {
 
     expect(moduleCreateMany).toHaveBeenCalledOnce()
     const call = moduleCreateMany.mock.calls[0][0]
-    expect(call.data.length).toBe(9)
+    expect(call.data.length).toBe(11)
     expect(call.data[0].name).toBe('Concrete embodiment')
   })
 })
