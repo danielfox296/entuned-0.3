@@ -132,6 +132,40 @@ const ProfessorModulePatchBody = z.object({
   sortOrder: z.number().int().optional(),
 })
 
+const MUSIC_PROFESSOR_TIERS = ['core', 'optional', 'experimental', 'untested'] as const
+
+const MusicProfessorModulePostBody = z.object({
+  name: z.string().min(1),
+  body: z.string().min(1),
+  tier: z.enum(MUSIC_PROFESSOR_TIERS).optional(),
+  active: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+})
+
+const MusicProfessorModulePatchBody = z.object({
+  name: z.string().min(1).optional(),
+  body: z.string().min(1).optional(),
+  tier: z.enum(MUSIC_PROFESSOR_TIERS).optional(),
+  active: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+})
+
+const GenreGravityRulePostBody = z.object({
+  tag: z.string().min(1),
+  gravity: z.number().int().min(1).max(10).optional(),
+  counterExclusions: z.array(z.string().min(1)).default([]),
+  notes: z.string().nullable().optional(),
+  active: z.boolean().optional(),
+})
+
+const GenreGravityRulePatchBody = z.object({
+  tag: z.string().min(1).optional(),
+  gravity: z.number().int().min(1).max(10).optional(),
+  counterExclusions: z.array(z.string().min(1)).optional(),
+  notes: z.string().nullable().optional(),
+  active: z.boolean().optional(),
+})
+
 const LyricBanEntryBody = z.object({
   category: z.enum(['overused_word', 'cliche_phrase', 'cliche_shape']),
   text: z.string().min(1),
@@ -474,6 +508,135 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const id = (req.params as { id: string }).id
     try {
       await prisma.professorModule.delete({ where: { id } })
+      return { ok: true }
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
+    }
+  })
+
+  // ----- The Music Professor (finishing editor for Mars style + negativeStyle) -----
+  // Mirrors the Lyric Professor's shape: versioned persona + CRUD curriculum.
+  // Adds a `tier` field on modules (core | optional | experimental | untested)
+  // for operator-facing severity. Cold-start of both happens in
+  // lib/music-professor/_helpers.ts on first call from Eno.
+
+  app.get('/music-professor/persona', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const all = await prisma.musicProfessorPersona.findMany({ orderBy: { version: 'desc' } })
+    return { latest: all[0] ?? null, history: all }
+  })
+
+  app.post('/music-professor/persona', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = LyricPromptPostBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const max = await prisma.musicProfessorPersona.aggregate({ _max: { version: true } })
+    const next = (max._max.version ?? 0) + 1
+    const row = await prisma.musicProfessorPersona.create({
+      data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.accountId },
+    })
+    return row
+  })
+
+  app.get('/music-professor/modules', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const rows = await prisma.musicProfessorModule.findMany({ orderBy: { sortOrder: 'asc' } })
+    return rows
+  })
+
+  app.post('/music-professor/modules', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = MusicProfessorModulePostBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const max = await prisma.musicProfessorModule.aggregate({ _max: { sortOrder: true } })
+    const nextSort = parsed.data.sortOrder ?? ((max._max.sortOrder ?? 0) + 10)
+    const row = await prisma.musicProfessorModule.create({
+      data: {
+        name: parsed.data.name,
+        body: parsed.data.body,
+        tier: parsed.data.tier ?? 'optional',
+        active: parsed.data.active ?? true,
+        sortOrder: nextSort,
+      },
+    })
+    return row
+  })
+
+  app.patch('/music-professor/modules/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as { id: string }).id
+    const parsed = MusicProfessorModulePatchBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.musicProfessorModule.update({ where: { id }, data: parsed.data })
+      return row
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
+    }
+  })
+
+  app.delete('/music-professor/modules/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as { id: string }).id
+    try {
+      await prisma.musicProfessorModule.delete({ where: { id } })
+      return { ok: true }
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
+    }
+  })
+
+  // ----- GenreGravityRule (counter-exclusion table for Music Professor module 2) -----
+  // Per-tag list of counter-exclusions to inject into negativeStyle when the
+  // tag appears in Mars's positive style. Populated from operator observations
+  // of Suno drift; starts empty and the module 2 becomes a no-op until seeded.
+
+  app.get('/genre-gravity-rules', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const rows = await prisma.genreGravityRule.findMany({ orderBy: [{ gravity: 'desc' }, { tag: 'asc' }] })
+    return rows
+  })
+
+  app.post('/genre-gravity-rules', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const parsed = GenreGravityRulePostBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.genreGravityRule.create({
+        data: {
+          tag: parsed.data.tag,
+          gravity: parsed.data.gravity ?? 5,
+          counterExclusions: parsed.data.counterExclusions,
+          notes: parsed.data.notes ?? null,
+          active: parsed.data.active ?? true,
+        },
+      })
+      return row
+    } catch (e: any) {
+      if (e?.code === 'P2002') return reply.code(409).send({ error: 'tag_already_exists' })
+      throw e
+    }
+  })
+
+  app.patch('/genre-gravity-rules/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as { id: string }).id
+    const parsed = GenreGravityRulePatchBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.genreGravityRule.update({ where: { id }, data: parsed.data })
+      return row
+    } catch (e: any) {
+      if (e?.code === 'P2002') return reply.code(409).send({ error: 'tag_already_exists' })
+      return reply.code(404).send({ error: 'not_found' })
+    }
+  })
+
+  app.delete('/genre-gravity-rules/:id', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const id = (req.params as { id: string }).id
+    try {
+      await prisma.genreGravityRule.delete({ where: { id } })
       return { ok: true }
     } catch {
       return reply.code(404).send({ error: 'not_found' })

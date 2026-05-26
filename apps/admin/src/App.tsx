@@ -25,6 +25,8 @@ import { StyleTemplate } from './panels/engine/StyleTemplate.js'
 import { HookDrafterPrompt } from './panels/engine/HookDrafterPrompt.js'
 import { BpmLookupPrompt } from './panels/engine/BpmLookupPrompt.js'
 import { Professor } from './panels/engine/Professor.js'
+import { MusicProfessor } from './panels/engine/MusicProfessor.js'
+import { GenreGravityRules } from './panels/engine/GenreGravityRules.js'
 import { IcpEditor } from './panels/brand/IcpEditor.js'
 import { ClientDetail } from './panels/brand/ClientDetail.js'
 import { StoreEditor } from './panels/brand/StoreEditor.js'
@@ -66,7 +68,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Outcome Library', 'Style Rules', 'Dry Run'],
     description: '' },
   { key: 'engine', label: 'Prompts & Rules', short: 'Prompts & Rules', icon: Settings,
-    cards: ['Hook Prompts', 'Hook Drafter Prompt', 'Decomposition', 'BPM Lookup Prompt', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Professor', 'Genre Craft Rules', 'Mars Prompts', 'Mars Style Axes', 'Style Template', 'Form Archetypes', 'Reference Track Suggester'],
+    cards: ['Hook Prompts', 'Hook Drafter Prompt', 'Decomposition', 'BPM Lookup Prompt', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Professor', 'Music Professor', 'Genre Gravity Rules', 'Genre Craft Rules', 'Mars Prompts', 'Mars Style Axes', 'Style Template', 'Form Archetypes', 'Reference Track Suggester'],
     description: '' },
   { key: 'catalogue', label: 'Library', short: 'Library', icon: Music2,
     cards: ['Song Browser', 'Flagged Review', 'Pool Depth', 'Free Tier Outcomes', 'Song Repair'],
@@ -301,6 +303,8 @@ function EngineRouter({ cards }: { cards: string[] }) {
       {active === 'Lyric Ban List' && <LyricBanList />}
       {active === 'Lyric Prompts' && <LyricPrompts />}
       {active === 'Professor' && <Professor />}
+      {active === 'Music Professor' && <MusicProfessor />}
+      {active === 'Genre Gravity Rules' && <GenreGravityRules />}
       {active === 'Genre Craft Rules' && <GenreCraftRules />}
       {active === 'Mars Prompts' && <MarsPrompts />}
       {active === 'Mars Style Axes' && <MarsStyleAxes />}

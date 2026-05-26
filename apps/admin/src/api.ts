@@ -280,6 +280,46 @@ export interface ProfessorModuleDraft {
   sortOrder?: number
 }
 
+export type MusicProfessorTier = 'core' | 'optional' | 'experimental' | 'untested'
+
+export interface MusicProfessorModuleRow {
+  id: string
+  name: string
+  body: string
+  tier: MusicProfessorTier
+  active: boolean
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MusicProfessorModuleDraft {
+  name: string
+  body: string
+  tier?: MusicProfessorTier
+  active?: boolean
+  sortOrder?: number
+}
+
+export interface GenreGravityRuleRow {
+  id: string
+  tag: string
+  gravity: number
+  counterExclusions: string[]
+  notes: string | null
+  active: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface GenreGravityRuleDraft {
+  tag: string
+  gravity?: number
+  counterExclusions: string[]
+  notes?: string | null
+  active?: boolean
+}
+
 export interface SuggestReferenceTracksResult {
   createdCount: number
   promptVersion: number
@@ -1173,6 +1213,32 @@ export const api = {
     req<ProfessorModuleRow>(`/admin/professor/modules/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, token),
   deleteProfessorModule: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/professor/modules/${id}`, { method: 'DELETE' }, token),
+
+  // The Music Professor — finishing editor for Mars style + negativeStyle.
+  // Same shape as the Lyric Professor (versioned persona + CRUD modules) with
+  // an added `tier` field on modules (core | optional | experimental | untested).
+  musicProfessorPersona: (token: string) =>
+    req<{ latest: LyricPromptRow | null; history: LyricPromptRow[] }>('/admin/music-professor/persona', {}, token),
+  saveMusicProfessorPersona: (promptText: string, notes: string | undefined, token: string) =>
+    req<LyricPromptRow>('/admin/music-professor/persona', { method: 'POST', body: JSON.stringify({ promptText, notes }) }, token),
+  musicProfessorModules: (token: string) =>
+    req<MusicProfessorModuleRow[]>('/admin/music-professor/modules', {}, token),
+  createMusicProfessorModule: (body: MusicProfessorModuleDraft, token: string) =>
+    req<MusicProfessorModuleRow>('/admin/music-professor/modules', { method: 'POST', body: JSON.stringify(body) }, token),
+  updateMusicProfessorModule: (id: string, body: Partial<MusicProfessorModuleDraft>, token: string) =>
+    req<MusicProfessorModuleRow>(`/admin/music-professor/modules/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, token),
+  deleteMusicProfessorModule: (id: string, token: string) =>
+    req<{ ok: true }>(`/admin/music-professor/modules/${id}`, { method: 'DELETE' }, token),
+
+  // GenreGravityRule — counter-exclusion table for Music Professor module 2.
+  genreGravityRules: (token: string) =>
+    req<GenreGravityRuleRow[]>('/admin/genre-gravity-rules', {}, token),
+  createGenreGravityRule: (body: GenreGravityRuleDraft, token: string) =>
+    req<GenreGravityRuleRow>('/admin/genre-gravity-rules', { method: 'POST', body: JSON.stringify(body) }, token),
+  updateGenreGravityRule: (id: string, body: Partial<GenreGravityRuleDraft>, token: string) =>
+    req<GenreGravityRuleRow>(`/admin/genre-gravity-rules/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, token),
+  deleteGenreGravityRule: (id: string, token: string) =>
+    req<{ ok: true }>(`/admin/genre-gravity-rules/${id}`, { method: 'DELETE' }, token),
 
   // Mars system prompts (anchor + router) — DB-backed, same shape as lyric prompts.
   marsPrompts: (token: string) =>

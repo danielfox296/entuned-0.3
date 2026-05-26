@@ -29,11 +29,18 @@ import {
 
 const MODEL = process.env.MUSIC_PROFESSOR_MODEL ?? process.env.PROFESSOR_MODEL ?? 'claude-sonnet-4-6'
 
-// Hard caps mirror Mars's own caps so we never push downstream past Suno's
-// limits. style cap is slightly tighter than SUNO_STYLE_CAP (1000) because
-// applyOutcomeFactorPrompt prepends ~40 chars and we leave headroom.
+// Hard caps. Positive style cap is well below SUNO_STYLE_CAP (1000) since
+// applyOutcomeFactorPrompt prepends ~40 chars and Mars's actual output runs
+// ~60 chars — even 240 leaves enormous headroom.
+//
+// Negative-style cap is INTENTIONALLY higher than Mars's NEGATIVE_STYLE_HARD_CAP
+// of 400. Mars routinely produces negativeStyle right at its cap (verified
+// 2026-05-26: 383-400 chars across recent seeds), so an MP cap equal to Mars's
+// would force fallback on every seed the moment module 1 added a single era-
+// exclusion term. We give MP ~100 chars of additive headroom. Total stays well
+// under Suno's negative-style accept-box (commonly cited 500-1000 range).
 const STYLE_HARD_CAP = 240
-const NEGATIVE_STYLE_HARD_CAP = 400
+const NEGATIVE_STYLE_HARD_CAP = 500
 
 const EMIT_POLISHED_STYLE_TOOL: Anthropic.Tool = {
   name: 'emit_polished_style',
@@ -47,7 +54,7 @@ const EMIT_POLISHED_STYLE_TOOL: Anthropic.Tool = {
       },
       negativeStyle: {
         type: 'string',
-        description: 'The polished negative style. Comma-separated tags. Hard cap 400 chars.',
+        description: 'The polished negative style. Comma-separated tags. Hard cap 500 chars.',
       },
       changeLog: {
         type: 'array',
