@@ -80,6 +80,13 @@ LLM failure: Writes for the eye — packs unsingable consonant runs, lands close
 Correction: Read each line aloud at the song's tempo. Where the tongue stumbles, rewrite. Open vowels belong on long notes; tight consonant clusters belong on short ones.`,
   },
   {
+    name: 'Landing-position compression',
+    sortOrder: 65,
+    body: `Principle: A line earns its length. At landing positions — hook lines, chorus closes, the final line of each verse — a short fragment lands harder than a complete sentence. "Bottom step creaks" sits in the listener's ear; "Bottom step creaks when I lean back" crams the same beat budget and asks the vocalist to deliver it in one breath. Verses and pre-choruses carry narrative length; landing positions cannot.
+LLM failure: Defaults to grammatically complete declarative sentences. Pads short emotional cores with explanatory clauses ("...when I lean back", "...so I knew it was time", "...like I always do"). Treats the hook the same way it treats a verse — same word count, same syntactic closure — losing the breath that makes a hook stick.
+Correction: Identify landing positions in the draft: every hook line, the final line of each chorus, the last line of each verse. For each, ask whether the meaning is complete by the midpoint. If yes, cut the trailing clause and let the fragment land. Grammatical fragments at landing positions are not run-on errors — they are breath. Em-dash or ellipsis at a trailing line is acceptable when the next move calls for a held vocal. Verses, pre-choruses, and bridges are exempt; their density is appropriate.`,
+  },
+  {
     name: 'Voice consistency',
     sortOrder: 70,
     body: `Principle: A song holds a single point of view, a single tense, and a single register unless the shift is itself the song's subject.
