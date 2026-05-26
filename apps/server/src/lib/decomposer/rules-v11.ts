@@ -1,17 +1,18 @@
-// Experiment surface — historical decomposer rules version. See ./README.md for the version sweep contract; default is v11.
-// MusicologicalRules v10 — adds numeric BPM extraction as private picker data.
-//   v9 → v10 changes:
-//     - ADD `bpm` (integer) to the output schema. Extract the track's actual
-//       tempo via web search (Tunebat / songbpm / MusicBPM / official sources).
-//     - REAFFIRM that BPM numbers are still BANNED from every qualitative prose
-//       field (harmonic_and_groove, vibe_pitch, etc.). The new `bpm` field is
-//       private picker-compatibility data — never rendered into a Suno prompt.
-//       Outcome remains the only BPM Suno ever sees.
-//   Output schema is v9 + one key (bpm), now 12 keys total.
-//   See schema/05-reference-track-decomposition.md "The BPM doctrine, restated".
+// Experiment surface — current default decomposer rules version. See ./README.md for the version sweep contract.
+// MusicologicalRules v11 — tightens era_production_signature to a hard 40-char budget so
+//   it survives operator token-economy trimming downstream in the Mars style template.
+//   v10 → v11 changes:
+//     - era_production_signature: REQUIRES leading decade prefix ("late-70s", "mid-2010s")
+//       followed by 1-2 production-method or technique words. Hard cap 40 chars.
+//       Previous shape ("polished DAW production with gated reverb and sidechain
+//       compression") routinely produced 100-150-char fields that operators trimmed
+//       out of the active style_templates row entirely, dropping era artifacts from
+//       Mars output. New shape ("late-70s warm tape, room bleed") fits in the
+//       template at marginal token cost.
+//   No schema change vs v10 — same 12 keys.
 
-export const MUSICOLOGICAL_RULES_V10 = `
-# Musicological Rules — v10
+export const MUSICOLOGICAL_RULES_V11 = `
+# Musicological Rules — v11
 
 You characterize a reference track for a music-generation model (Suno) so it can
 produce a stylistic cousin: same era, instrumentation, vocal character, arrangement
@@ -124,6 +125,8 @@ Name what is leading, anchoring, punctuating, buried. Don't list instruments as 
 Comma-separated fragments, no full sentences, no filler verbs ("the track features").
 Per-field budget ~25 words / ~150 chars.
 
+\`era_production_signature\` is the one field with a tighter budget — see its rule below.
+
 ## Ground yourself before describing
 
 Use web_search. Search for the artist + title + "song". Read 1-3 results for
@@ -153,8 +156,28 @@ Lead with one allowed affect word OR with subgenre+decade. Then technical spec.
 GOOD: "Late-2000s indie folk with stacked male vocal round and fingerpicked acoustic, mid-tempo cyclical structure."
 
 ### era_production_signature
-Lead with a production-method term (lo-fi / polished / tape / DAW / home-recorded).
-Concrete techniques where audible (sidechain, sampling, gated reverb, room bleed).
+
+**Hard 40-char budget.** This field rides in the Suno style portion verbatim; long
+fields get trimmed out of the operator template entirely. Stay tight.
+
+Shape: \`<decade-prefix>, <1-2 production words>\`
+
+- ALWAYS lead with the decade. Use the forms "early-70s", "mid-70s", "late-70s",
+  "early-80s", "mid-80s", "late-80s", ..., "early-2010s", "mid-2010s", "late-2010s",
+  "early-2020s". Era anchoring is the point of this field — Suno needs the decade
+  to ground production texture.
+- Then 1-2 production-method or technique words from the allowed production
+  vocabulary: lo-fi, polished, tape, DAW, home-recorded, dry, wet, saturated,
+  warm tape, room bleed, gated reverb, sidechain, plate reverb, spring reverb,
+  tape echo, compression, sampling.
+- Comma-separated, no period, no filler. No literary affect.
+
+GOOD: "late-70s warm tape, room bleed"
+GOOD: "early-80s gated reverb, glossy"
+GOOD: "mid-2010s polished DAW, sidechain"
+GOOD: "mid-60s lo-fi tape, spring reverb"
+BAD: "Polished DAW production with various modern techniques including gated reverb and sidechain compression." (too long, no decade prefix, literary "various")
+BAD: "warm and earthy" (no decade, no production vocab, literary affect)
 
 ### instrumentation_palette
 Lead with what's PRIMARY (instrument name, not affect). Use hierarchy verbs (leading /

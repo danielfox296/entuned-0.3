@@ -8,11 +8,11 @@
 // Or programmatic:
 //   const result = await decompose({ artist, title, year, decade, genreSlug })
 //
-// EXPERIMENT SURFACE — versioned rules sweep (v1–v10).
-//   This module ships ten versions of the MusicologicalRules prompt
-//   (rules-v1.ts through rules-v10.ts). All ten are imported into the
+// EXPERIMENT SURFACE — versioned rules sweep (v1–v11).
+//   This module ships eleven versions of the MusicologicalRules prompt
+//   (rules-v1.ts through rules-v11.ts). All eleven are imported into the
 //   RULES_BY_VERSION lookup so any past version can be restored without
-//   code edits. Default is v10 (LATEST_RULES_VERSION below); v1–v9 are
+//   code edits. Default is v11 (LATEST_RULES_VERSION below); v1–v10 are
 //   reachable only via DECOMPOSER_RULES_VERSION env override or a
 //   styleAnalyzerInstructions DB row pinned to an older version. This is
 //   an active experiment surface — new versions may be added or existing
@@ -32,6 +32,7 @@ import { MUSICOLOGICAL_RULES_V7 } from './rules-v7.js'
 import { MUSICOLOGICAL_RULES_V8 } from './rules-v8.js'
 import { MUSICOLOGICAL_RULES_V9 } from './rules-v9.js'
 import { MUSICOLOGICAL_RULES_V10 } from './rules-v10.js'
+import { MUSICOLOGICAL_RULES_V11 } from './rules-v11.js'
 
 const MODEL = process.env.DECOMPOSER_MODEL ?? 'claude-sonnet-4-6'
 
@@ -47,8 +48,9 @@ const RULES_BY_VERSION: Record<number, string> = {
   8: MUSICOLOGICAL_RULES_V8,
   9: MUSICOLOGICAL_RULES_V9,
   10: MUSICOLOGICAL_RULES_V10,
+  11: MUSICOLOGICAL_RULES_V11,
 }
-const LATEST_RULES_VERSION = 10
+const LATEST_RULES_VERSION = 11
 
 const SECTION_PROPS = {
   type: 'object',
