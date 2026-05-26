@@ -36,7 +36,7 @@ You must not introduce the word "vocal" or any vocal-gender words into positiveS
 
 Return:
 - "style" — the polished positive style. Comma-separated tags, same shape as input. Hard cap 240 chars.
-- "negativeStyle" — the polished negative style. Comma-separated tags, same shape as input. Hard cap 500 chars. (Mars's input is capped at 400, leaving ~100 chars for your additions.)
+- "negativeStyle" — the polished negative style. Comma-separated tags, same shape as input. Hard cap 700 chars. (Mars's input is capped at 400, leaving ~300 chars for additions from multiple modules.)
 - "changeLog" — for each module that triggered a change, one short tag naming it (e.g. "Era exclusion", "Genre gravity"). Max 6 entries. Empty array if no changes were made.`
 
 export interface MusicProfessorModuleSeed {

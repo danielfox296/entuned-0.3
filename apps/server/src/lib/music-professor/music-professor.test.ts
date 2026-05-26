@@ -147,7 +147,7 @@ describe('runMusicProfessor — safety fallbacks', () => {
   })
 
   it('falls back when the polished negative style overflows the cap', async () => {
-    const longNeg = 'edm, ' + 'banned tag, '.repeat(80)
+    const longNeg = 'edm, ' + 'banned tag, '.repeat(120)
     messagesCreate.mockResolvedValue(toolUseResponse(POLISHED_OK, longNeg))
 
     const out = await runMusicProfessor(SAMPLE_INPUT)

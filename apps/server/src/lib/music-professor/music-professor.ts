@@ -37,10 +37,15 @@ const MODEL = process.env.MUSIC_PROFESSOR_MODEL ?? process.env.PROFESSOR_MODEL ?
 // of 400. Mars routinely produces negativeStyle right at its cap (verified
 // 2026-05-26: 383-400 chars across recent seeds), so an MP cap equal to Mars's
 // would force fallback on every seed the moment module 1 added a single era-
-// exclusion term. We give MP ~100 chars of additive headroom. Total stays well
-// under Suno's negative-style accept-box (commonly cited 500-1000 range).
+// exclusion term.
+//
+// Bumped to 700 on 2026-05-26 after observing fallback on a soul-blues seed
+// where Module 1 (era exclusion, ~5 terms) AND Module 6 (harmonic carving,
+// ~4 terms) both wanted to fire and the combined ~120 chars of additions
+// blew past the prior 500 cap. Total stays well under Suno's negative-style
+// accept-box (commonly cited 500-1000+ range).
 const STYLE_HARD_CAP = 240
-const NEGATIVE_STYLE_HARD_CAP = 500
+const NEGATIVE_STYLE_HARD_CAP = 700
 
 const EMIT_POLISHED_STYLE_TOOL: Anthropic.Tool = {
   name: 'emit_polished_style',
@@ -54,7 +59,7 @@ const EMIT_POLISHED_STYLE_TOOL: Anthropic.Tool = {
       },
       negativeStyle: {
         type: 'string',
-        description: 'The polished negative style. Comma-separated tags. Hard cap 500 chars.',
+        description: 'The polished negative style. Comma-separated tags. Hard cap 700 chars.',
       },
       changeLog: {
         type: 'array',
