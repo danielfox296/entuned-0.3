@@ -23,6 +23,7 @@ import { routeStylePortion, getRouterVersion } from './style-router.js'
 import { buildAnchorStyle, getAnchorVersion } from './style-anchor.js'
 import { extractVocalGender, type VocalGender } from './vocal-gender.js'
 import { buildNegativeStyle, NEGATIVE_STYLE_HARD_CAP, capJoined } from './style-exclusion-rules.js'
+import { injectHarmonicPalette } from './harmonic-palette.js'
 
 export type StyleBuilderName = 'router' | 'legacy' | 'anchor'
 
@@ -38,6 +39,8 @@ export interface MarsOutput {
   styleLegacy: string
   /** Anchor metadata when builder=anchor; otherwise null. */
   anchor?: { tag: string; corrections: string[]; negativeAdditions: string[] } | null
+  /** Harmonic palette token appended by injectHarmonicPalette, or null when no GenreGravityRule matched. */
+  harmonicPalette: string | null
 }
 
 export interface MarsOptions {
@@ -164,8 +167,14 @@ export async function marsAssemble(
     .join(' · ')
   const vocalGender = extractVocalGender(vocalText)
 
+  // Genre-keyed harmonic palette injection. Deterministic. Picks one palette
+  // token from the first matching GenreGravityRule.positivePalettes and
+  // appends to positive style. No-op when nothing matches.
+  const palette = await injectHarmonicPalette(style, anchorMeta?.tag ?? null)
+  const finalStyle = palette.style
+
   return {
-    style,
+    style: finalStyle,
     negativeStyle,
     vocalGender,
     firedExclusionRuleIds: firedRuleIds,
@@ -173,5 +182,6 @@ export async function marsAssemble(
     styleBuilder: builder,
     styleLegacy,
     anchor: anchorMeta,
+    harmonicPalette: palette.palette,
   }
 }

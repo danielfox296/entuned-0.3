@@ -152,16 +152,16 @@ const MusicProfessorModulePatchBody = z.object({
 
 const GenreGravityRulePostBody = z.object({
   tag: z.string().min(1),
-  gravity: z.number().int().min(1).max(10).optional(),
   counterExclusions: z.array(z.string().min(1)).default([]),
+  positivePalettes: z.array(z.string().min(1)).default([]),
   notes: z.string().nullable().optional(),
   active: z.boolean().optional(),
 })
 
 const GenreGravityRulePatchBody = z.object({
   tag: z.string().min(1).optional(),
-  gravity: z.number().int().min(1).max(10).optional(),
   counterExclusions: z.array(z.string().min(1)).optional(),
+  positivePalettes: z.array(z.string().min(1)).optional(),
   notes: z.string().nullable().optional(),
   active: z.boolean().optional(),
 })
@@ -586,14 +586,16 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
-  // ----- GenreGravityRule (counter-exclusion table for Music Professor module 2) -----
-  // Per-tag list of counter-exclusions to inject into negativeStyle when the
-  // tag appears in Mars's positive style. Populated from operator observations
-  // of Suno drift; starts empty and the module 2 becomes a no-op until seeded.
+  // ----- GenreGravityRule (genre steering table — bidirectional) -----
+  // Per-tag rule. When Mars output contains the tag (case-insensitive substring),
+  // two independent things can fire:
+  //   - counterExclusions → Music Professor module 2 adds them to negativeStyle (LLM-mediated push-away)
+  //   - positivePalettes  → Mars injectHarmonicPalette appends one randomly to positive style (deterministic push-toward)
+  // Either field may be empty; a row may have just one direction.
 
   app.get('/genre-gravity-rules', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
-    const rows = await prisma.genreGravityRule.findMany({ orderBy: [{ gravity: 'desc' }, { tag: 'asc' }] })
+    const rows = await prisma.genreGravityRule.findMany({ orderBy: { tag: 'asc' } })
     return rows
   })
 
@@ -605,8 +607,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       const row = await prisma.genreGravityRule.create({
         data: {
           tag: parsed.data.tag,
-          gravity: parsed.data.gravity ?? 5,
           counterExclusions: parsed.data.counterExclusions,
+          positivePalettes: parsed.data.positivePalettes,
           notes: parsed.data.notes ?? null,
           active: parsed.data.active ?? true,
         },

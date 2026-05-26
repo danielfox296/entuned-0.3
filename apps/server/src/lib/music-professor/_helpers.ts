@@ -61,14 +61,14 @@ export interface GenreGravityRuleRow {
   counterExclusions: string[]
 }
 
-// Loads active genre gravity rules. No cold-start seeds — the table starts
-// empty and operators populate it from real Suno output observations
-// ("soft rock pulled toward smooth jazz again"). Empty table is a no-op
-// for the genre-gravity module.
+// Loads active genre gravity rules — counterExclusions side only (the
+// positive-palette side is handled deterministically by Mars and doesn't
+// surface in the MP prompt). Empty when no rules have counter-exclusions
+// to apply.
 export async function loadGenreGravityRules(): Promise<GenreGravityRuleRow[]> {
   return prisma.genreGravityRule.findMany({
-    where: { active: true },
-    orderBy: { gravity: 'desc' },
+    where: { active: true, counterExclusions: { isEmpty: false } },
+    orderBy: { tag: 'asc' },
     select: { tag: true, counterExclusions: true },
   })
 }

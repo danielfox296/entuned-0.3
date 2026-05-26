@@ -68,7 +68,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Outcome Library', 'Style Rules', 'Dry Run'],
     description: '' },
   { key: 'engine', label: 'Prompts & Rules', short: 'Prompts & Rules', icon: Settings,
-    cards: ['Hook Prompts', 'Hook Drafter Prompt', 'Decomposition', 'BPM Lookup Prompt', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Professor', 'Music Professor', 'Genre Gravity Rules', 'Genre Craft Rules', 'Mars Prompts', 'Mars Style Axes', 'Style Template', 'Form Archetypes', 'Reference Track Suggester'],
+    cards: ['Hook Prompts', 'Hook Drafter Prompt', 'Decomposition', 'BPM Lookup Prompt', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Professor', 'Music Professor', 'Genre Steering Rules', 'Genre Craft Rules', 'Mars Prompts', 'Mars Style Axes', 'Style Template', 'Form Archetypes', 'Reference Track Suggester'],
     description: '' },
   { key: 'catalogue', label: 'Library', short: 'Library', icon: Music2,
     cards: ['Song Browser', 'Flagged Review', 'Pool Depth', 'Free Tier Outcomes', 'Song Repair'],
@@ -304,7 +304,7 @@ function EngineRouter({ cards }: { cards: string[] }) {
       {active === 'Lyric Prompts' && <LyricPrompts />}
       {active === 'Professor' && <Professor />}
       {active === 'Music Professor' && <MusicProfessor />}
-      {active === 'Genre Gravity Rules' && <GenreGravityRules />}
+      {active === 'Genre Steering Rules' && <GenreGravityRules />}
       {active === 'Genre Craft Rules' && <GenreCraftRules />}
       {active === 'Mars Prompts' && <MarsPrompts />}
       {active === 'Mars Style Axes' && <MarsStyleAxes />}

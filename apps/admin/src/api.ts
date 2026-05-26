@@ -304,8 +304,8 @@ export interface MusicProfessorModuleDraft {
 export interface GenreGravityRuleRow {
   id: string
   tag: string
-  gravity: number
   counterExclusions: string[]
+  positivePalettes: string[]
   notes: string | null
   active: boolean
   createdAt: string
@@ -314,8 +314,8 @@ export interface GenreGravityRuleRow {
 
 export interface GenreGravityRuleDraft {
   tag: string
-  gravity?: number
   counterExclusions: string[]
+  positivePalettes: string[]
   notes?: string | null
   active?: boolean
 }
