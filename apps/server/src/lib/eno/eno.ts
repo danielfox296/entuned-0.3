@@ -13,6 +13,7 @@ import { prisma } from '../../db.js'
 import { marsAssemble, type StyleBuilderName } from '../mars/mars.js'
 import { generateLyrics, type GenreBrief, type OutcomeBrief } from '../bernie/bernie.js'
 import { runProfessor } from '../professor/professor.js'
+import { runMusicProfessor } from '../music-professor/music-professor.js'
 import { injectArrangement, type ArrangementSections } from '../arranger/arranger.js'
 import { resolveOutcomeParams } from '../variance/variance.js'
 // vocal-gender import removed 2026-05-23 — Hook.vocalGender now flows
@@ -171,9 +172,21 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
       modeWeights: outcome.modeWeights,
     })
 
+    // Music Professor pass — finishing editor for Mars's style + negativeStyle.
+    // Runs BEFORE applyOutcomeFactorPrompt so the wrap rule (tempo/mode/mood
+    // prepend) still applies cleanly on top of the polished style. Internally
+    // falls back to Mars's input if the model strips the anchor, blows past
+    // the caps, introduces banned tokens, or the API call fails — the layer
+    // must never block seed generation.
+    const musicProfessor = await runMusicProfessor({
+      style: mars.style,
+      negativeStyle: mars.negativeStyle,
+      anchorTag: mars.anchor?.tag ?? null,
+    })
+
     const outcomeFactorPrompt = await getOrSeedOutcomeFactorPrompt()
     const finalStyle = applyOutcomeFactorPrompt(
-      mars.style,
+      musicProfessor.style,
       { tempoBpm: resolved.tempoBpm, mode: resolved.mode, mood: outcome.mood },
       outcomeFactorPrompt.templateText,
     )
@@ -262,7 +275,7 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
         status: 'queued',
         style: finalStyle,
         stylePortionRaw: mars.style,
-        negativeStyle: mars.negativeStyle,
+        negativeStyle: musicProfessor.negativeStyle,
         vocalGender: mars.vocalGender,
         lyrics: finalLyrics,
         title: lyricsRaw.title,
@@ -272,6 +285,10 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
         professorPersonaVersion: professor.personaVersion,
         lyricPreProfessor: lyricsRaw.lyrics,
         professorChangeLog: professor.changeLog.length > 0 ? JSON.stringify(professor.changeLog) : null,
+        musicProfessorPersonaVersion: musicProfessor.personaVersion,
+        stylePreMusicProfessor: mars.style,
+        negativeStylePreMusicProfessor: mars.negativeStyle,
+        musicProfessorChangeLog: musicProfessor.changeLog.length > 0 ? JSON.stringify(musicProfessor.changeLog) : null,
         arrangementTemplateVersion: arrangementSections ? arrangementVersion : null,
         resolvedTempoBpm: resolved.tempoBpm,
         resolvedMode: resolved.mode,
