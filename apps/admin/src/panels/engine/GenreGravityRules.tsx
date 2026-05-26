@@ -19,16 +19,19 @@ type Editing = GenreGravityRuleDraft & {
   id?: string
   _exclusionsText?: string
   _palettesText?: string
+  _vocalsText?: string
 }
 
 const EMPTY: Editing = {
   tag: '',
   counterExclusions: [],
   positivePalettes: [],
+  vocalDescriptors: [],
   notes: '',
   active: true,
   _exclusionsText: '',
   _palettesText: '',
+  _vocalsText: '',
 }
 
 function fromRow(r: GenreGravityRuleRow): Editing {
@@ -36,10 +39,12 @@ function fromRow(r: GenreGravityRuleRow): Editing {
     tag: r.tag,
     counterExclusions: r.counterExclusions,
     positivePalettes: r.positivePalettes,
+    vocalDescriptors: r.vocalDescriptors,
     notes: r.notes ?? '',
     active: r.active,
     _exclusionsText: r.counterExclusions.join(', '),
     _palettesText: r.positivePalettes.join(', '),
+    _vocalsText: r.vocalDescriptors.join(', '),
   }
 }
 
@@ -52,10 +57,15 @@ function normalize(d: Editing): GenreGravityRuleDraft {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
+  const vocals = (d._vocalsText ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
   return {
     tag: d.tag.trim(),
     counterExclusions: exclusions,
     positivePalettes: palettes,
+    vocalDescriptors: vocals,
     notes: d.notes?.trim() ? d.notes.trim() : null,
     active: d.active ?? true,
   }
@@ -228,9 +238,13 @@ function DisplayCard({ row, onEdit, onDelete, onToggleActive, busy }: {
           <span style={{ color: T.danger, fontWeight: 600 }}>away →</span>{' '}
           {row.counterExclusions.length > 0 ? row.counterExclusions.join(', ') : <em style={{ color: T.textDim }}>(none)</em>}
         </div>
-        <div>
-          <span style={{ color: T.success, fontWeight: 600 }}>toward →</span>{' '}
+        <div style={{ marginBottom: 4 }}>
+          <span style={{ color: T.success, fontWeight: 600 }}>harmony →</span>{' '}
           {row.positivePalettes.length > 0 ? row.positivePalettes.join(', ') : <em style={{ color: T.textDim }}>(none)</em>}
+        </div>
+        <div>
+          <span style={{ color: T.gold, fontWeight: 600 }}>vocal →</span>{' '}
+          {row.vocalDescriptors.length > 0 ? row.vocalDescriptors.join(', ') : <em style={{ color: T.textDim }}>(none)</em>}
         </div>
       </div>
       {row.notes && (
@@ -250,7 +264,8 @@ function RuleCard({ draft, onChange, onSave, onCancel, busy, isNew }: {
   const set = <K extends keyof Editing>(k: K, v: Editing[K]) => onChange({ ...draft, [k]: v })
   const hasExclusions = (draft._exclusionsText ?? '').trim().length > 0
   const hasPalettes = (draft._palettesText ?? '').trim().length > 0
-  const valid = draft.tag.trim().length > 0 && (hasExclusions || hasPalettes)
+  const hasVocals = (draft._vocalsText ?? '').trim().length > 0
+  const valid = draft.tag.trim().length > 0 && (hasExclusions || hasPalettes || hasVocals)
   return (
     <div style={{
       border: `1px solid ${T.accentMuted}`, borderRadius: S.r4, padding: 16,
@@ -288,11 +303,23 @@ function RuleCard({ draft, onChange, onSave, onCancel, busy, isNew }: {
           padding: 10, resize: 'vertical', lineHeight: 1.5,
         }}
       />
-      <label style={{ fontFamily: T.sans, fontSize: S.small, color: T.success, fontWeight: 600 }}>toward (positive palettes, comma-separated — Mars picks one per song randomly)</label>
+      <label style={{ fontFamily: T.sans, fontSize: S.small, color: T.success, fontWeight: 600 }}>harmony (positive palettes, comma-separated — Mars picks one per song randomly)</label>
       <textarea
         value={draft._palettesText ?? ''}
         onChange={(e) => set('_palettesText', e.target.value)}
         placeholder="I-IV vamp, I-V pendulum, I-IV-V three-chord"
+        rows={2}
+        style={{
+          fontFamily: T.mono, fontSize: S.small, color: T.text,
+          background: T.bg, border: `1px solid ${T.border}`, borderRadius: 4,
+          padding: 10, resize: 'vertical', lineHeight: 1.5,
+        }}
+      />
+      <label style={{ fontFamily: T.sans, fontSize: S.small, color: T.gold, fontWeight: 600 }}>vocal (descriptors, comma-separated — Mars picks one per song randomly)</label>
+      <textarea
+        value={draft._vocalsText ?? ''}
+        onChange={(e) => set('_vocalsText', e.target.value)}
+        placeholder="drawl, twang, half-spoken, breathy"
         rows={2}
         style={{
           fontFamily: T.mono, fontSize: S.small, color: T.text,

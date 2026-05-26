@@ -622,6 +622,7 @@ model GenreGravityRule {
   tag               String   @unique
   counterExclusions String[] @default([]) @map("counter_exclusions")
   positivePalettes  String[] @default([]) @map("positive_palettes")
+  vocalDescriptors  String[] @default([]) @map("vocal_descriptors")
   notes             String?
   active            Boolean  @default(true)
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -708,6 +709,7 @@ model SongSeed {
   negativeStylePreMusicProfessor String? @map("negative_style_pre_music_professor") // post-Mars, pre-MusicProfessor negative style
   musicProfessorChangeLog      String? @map("music_professor_change_log") // JSON-serialized array of brief tags from the Music Professor's per-change audit
   harmonicPalette              String? @map("harmonic_palette") // palette token Mars injected from GenreGravityRule.positivePalettes (null if no rule matched)
+  vocalDescriptor              String? @map("vocal_descriptor") // vocal descriptor token Mars injected from GenreGravityRule.vocalDescriptors (null if no rule matched)
   arrangementTemplateVersion Int?     @map("arrangement_template_version")
   resolvedTempoBpm           Int?     @map("resolved_tempo_bpm")
   resolvedMode               String?  @map("resolved_mode")

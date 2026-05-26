@@ -41,6 +41,8 @@ export interface MarsOutput {
   anchor?: { tag: string; corrections: string[]; negativeAdditions: string[] } | null
   /** Harmonic palette token appended by injectHarmonicPalette, or null when no GenreGravityRule matched. */
   harmonicPalette: string | null
+  /** Vocal descriptor token appended by injectHarmonicPalette, or null when the matched rule had no vocalDescriptors. */
+  vocalDescriptor: string | null
 }
 
 export interface MarsOptions {
@@ -167,11 +169,11 @@ export async function marsAssemble(
     .join(' · ')
   const vocalGender = extractVocalGender(vocalText)
 
-  // Genre-keyed harmonic palette injection. Deterministic. Picks one palette
-  // token from the first matching GenreGravityRule.positivePalettes and
-  // appends to positive style. No-op when nothing matches.
-  const palette = await injectHarmonicPalette(style, anchorMeta?.tag ?? null)
-  const finalStyle = palette.style
+  // Genre-keyed steering injection (deterministic, no LLM). Picks one harmonic
+  // palette + one vocal descriptor from the first matching GenreGravityRule
+  // and appends both to positive style. No-op when nothing matches.
+  const steering = await injectHarmonicPalette(style, anchorMeta?.tag ?? null)
+  const finalStyle = steering.style
 
   return {
     style: finalStyle,
@@ -182,6 +184,7 @@ export async function marsAssemble(
     styleBuilder: builder,
     styleLegacy,
     anchor: anchorMeta,
-    harmonicPalette: palette.palette,
+    harmonicPalette: steering.palette,
+    vocalDescriptor: steering.vocalDescriptor,
   }
 }

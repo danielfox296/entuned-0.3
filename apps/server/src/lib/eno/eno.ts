@@ -290,6 +290,7 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
         negativeStylePreMusicProfessor: mars.negativeStyle,
         musicProfessorChangeLog: musicProfessor.changeLog.length > 0 ? JSON.stringify(musicProfessor.changeLog) : null,
         harmonicPalette: mars.harmonicPalette,
+        vocalDescriptor: mars.vocalDescriptor,
         arrangementTemplateVersion: arrangementSections ? arrangementVersion : null,
         resolvedTempoBpm: resolved.tempoBpm,
         resolvedMode: resolved.mode,

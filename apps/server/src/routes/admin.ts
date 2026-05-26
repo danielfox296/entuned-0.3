@@ -154,6 +154,7 @@ const GenreGravityRulePostBody = z.object({
   tag: z.string().min(1),
   counterExclusions: z.array(z.string().min(1)).default([]),
   positivePalettes: z.array(z.string().min(1)).default([]),
+  vocalDescriptors: z.array(z.string().min(1)).default([]),
   notes: z.string().nullable().optional(),
   active: z.boolean().optional(),
 })
@@ -162,6 +163,7 @@ const GenreGravityRulePatchBody = z.object({
   tag: z.string().min(1).optional(),
   counterExclusions: z.array(z.string().min(1)).optional(),
   positivePalettes: z.array(z.string().min(1)).optional(),
+  vocalDescriptors: z.array(z.string().min(1)).optional(),
   notes: z.string().nullable().optional(),
   active: z.boolean().optional(),
 })
@@ -609,6 +611,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           tag: parsed.data.tag,
           counterExclusions: parsed.data.counterExclusions,
           positivePalettes: parsed.data.positivePalettes,
+          vocalDescriptors: parsed.data.vocalDescriptors,
           notes: parsed.data.notes ?? null,
           active: parsed.data.active ?? true,
         },

@@ -306,6 +306,7 @@ export interface GenreGravityRuleRow {
   tag: string
   counterExclusions: string[]
   positivePalettes: string[]
+  vocalDescriptors: string[]
   notes: string | null
   active: boolean
   createdAt: string
@@ -316,6 +317,7 @@ export interface GenreGravityRuleDraft {
   tag: string
   counterExclusions: string[]
   positivePalettes: string[]
+  vocalDescriptors: string[]
   notes?: string | null
   active?: boolean
 }
