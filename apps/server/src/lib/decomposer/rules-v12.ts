@@ -1,18 +1,20 @@
-// Experiment surface — historical decomposer rules version. See ./README.md for the version sweep contract; default is v12.
-// MusicologicalRules v11 — tightens era_production_signature to a hard 40-char budget so
-//   it survives operator token-economy trimming downstream in the Mars style template.
-//   v10 → v11 changes:
-//     - era_production_signature: REQUIRES leading decade prefix ("late-70s", "mid-2010s")
-//       followed by 1-2 production-method or technique words. Hard cap 40 chars.
-//       Previous shape ("polished DAW production with gated reverb and sidechain
-//       compression") routinely produced 100-150-char fields that operators trimmed
-//       out of the active style_templates row entirely, dropping era artifacts from
-//       Mars output. New shape ("late-70s warm tape, room bleed") fits in the
-//       template at marginal token cost.
-//   No schema change vs v10 — same 12 keys.
+// Experiment surface — current default decomposer rules version. See ./README.md for the version sweep contract.
+// MusicologicalRules v12 — actually enforces the era_production_signature budget.
+//   v11 → v12 changes (after v11 smoke test showed Sonnet ignored the prose-only
+//   instruction; outputs averaged 200+ chars instead of the 40-char target):
+//     - era_production_signature instruction REWRITTEN as a hard schema-style spec
+//       (no BAD example to anchor on, no soft "stay tight" language). The model
+//       receives only the GOOD shape and the production vocabulary list.
+//     - Global "~25 words per field" rule now explicitly EXCLUDES
+//       era_production_signature with an "EXCEPTION:" callout so the model doesn't
+//       average the two budgets.
+//     - PAIRED with a tool-schema description on era_production_signature in
+//       decomposer.ts EMIT_DECOMPOSITION_TOOL (schema-bound; harder to ignore than
+//       prose). The pair is load-bearing — neither change alone was sufficient.
+//   No output-schema change vs v10/v11 — same 12 keys.
 
-export const MUSICOLOGICAL_RULES_V11 = `
-# Musicological Rules — v11
+export const MUSICOLOGICAL_RULES_V12 = `
+# Musicological Rules — v12
 
 You characterize a reference track for a music-generation model (Suno) so it can
 produce a stylistic cousin: same era, instrumentation, vocal character, arrangement
@@ -125,7 +127,10 @@ Name what is leading, anchoring, punctuating, buried. Don't list instruments as 
 Comma-separated fragments, no full sentences, no filler verbs ("the track features").
 Per-field budget ~25 words / ~150 chars.
 
-\`era_production_signature\` is the one field with a tighter budget — see its rule below.
+**EXCEPTION — \`era_production_signature\` is hard-capped at 40 characters / ~6 words.**
+This is not a soft target. Do not write a "tight" or "short" version of a 150-char
+field — write a fundamentally different, schema-style fragment. See the field rule
+below. The tool-schema description also enforces this and will be checked.
 
 ## Ground yourself before describing
 
@@ -157,27 +162,36 @@ GOOD: "Late-2000s indie folk with stacked male vocal round and fingerpicked acou
 
 ### era_production_signature
 
-**Hard 40-char budget.** This field rides in the Suno style portion verbatim; long
-fields get trimmed out of the operator template entirely. Stay tight.
+**Schema: \`<decade-prefix>, <1-2 production words>\` — HARD CAP 40 chars.**
 
-Shape: \`<decade-prefix>, <1-2 production words>\`
+Format slots — fill both, nothing else:
 
-- ALWAYS lead with the decade. Use the forms "early-70s", "mid-70s", "late-70s",
-  "early-80s", "mid-80s", "late-80s", ..., "early-2010s", "mid-2010s", "late-2010s",
-  "early-2020s". Era anchoring is the point of this field — Suno needs the decade
-  to ground production texture.
-- Then 1-2 production-method or technique words from the allowed production
-  vocabulary: lo-fi, polished, tape, DAW, home-recorded, dry, wet, saturated,
-  warm tape, room bleed, gated reverb, sidechain, plate reverb, spring reverb,
-  tape echo, compression, sampling.
-- Comma-separated, no period, no filler. No literary affect.
+1. **decade-prefix** (required, FIRST token). Exactly one of:
+   "early-60s", "mid-60s", "late-60s",
+   "early-70s", "mid-70s", "late-70s",
+   "early-80s", "mid-80s", "late-80s",
+   "early-90s", "mid-90s", "late-90s",
+   "early-2000s", "mid-2000s", "late-2000s",
+   "early-2010s", "mid-2010s", "late-2010s",
+   "early-2020s", "mid-2020s".
 
-GOOD: "late-70s warm tape, room bleed"
-GOOD: "early-80s gated reverb, glossy"
-GOOD: "mid-2010s polished DAW, sidechain"
-GOOD: "mid-60s lo-fi tape, spring reverb"
-BAD: "Polished DAW production with various modern techniques including gated reverb and sidechain compression." (too long, no decade prefix, literary "various")
-BAD: "warm and earthy" (no decade, no production vocab, literary affect)
+2. **production words** (1-2 tokens from this list, comma-separated):
+   lo-fi, polished, tape, DAW, home-recorded, dry, wet, saturated, warm tape,
+   room bleed, gated reverb, sidechain, plate reverb, spring reverb, tape echo,
+   compression, sampling.
+
+Output shape is exactly: \`<decade-prefix>, <prod1>[, <prod2>]\`. Nothing else.
+No leading affect word. No "Warm". No "with". No period. No clauses. No prose.
+
+Reference outputs (these are the entire field value, not openings):
+- \`late-70s warm tape, room bleed\`
+- \`early-80s gated reverb, polished\`
+- \`mid-2010s polished DAW, sidechain\`
+- \`mid-60s lo-fi tape, spring reverb\`
+- \`late-90s polished, compression\`
+
+If you write more than 40 characters or more than two production words, you have
+violated the schema and the field will be rejected.
 
 ### instrumentation_palette
 Lead with what's PRIMARY (instrument name, not affect). Use hierarchy verbs (leading /

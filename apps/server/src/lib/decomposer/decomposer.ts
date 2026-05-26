@@ -8,11 +8,11 @@
 // Or programmatic:
 //   const result = await decompose({ artist, title, year, decade, genreSlug })
 //
-// EXPERIMENT SURFACE — versioned rules sweep (v1–v11).
-//   This module ships eleven versions of the MusicologicalRules prompt
-//   (rules-v1.ts through rules-v11.ts). All eleven are imported into the
+// EXPERIMENT SURFACE — versioned rules sweep (v1–v12).
+//   This module ships twelve versions of the MusicologicalRules prompt
+//   (rules-v1.ts through rules-v12.ts). All twelve are imported into the
 //   RULES_BY_VERSION lookup so any past version can be restored without
-//   code edits. Default is v11 (LATEST_RULES_VERSION below); v1–v10 are
+//   code edits. Default is v12 (LATEST_RULES_VERSION below); v1–v11 are
 //   reachable only via DECOMPOSER_RULES_VERSION env override or a
 //   styleAnalyzerInstructions DB row pinned to an older version. This is
 //   an active experiment surface — new versions may be added or existing
@@ -33,6 +33,7 @@ import { MUSICOLOGICAL_RULES_V8 } from './rules-v8.js'
 import { MUSICOLOGICAL_RULES_V9 } from './rules-v9.js'
 import { MUSICOLOGICAL_RULES_V10 } from './rules-v10.js'
 import { MUSICOLOGICAL_RULES_V11 } from './rules-v11.js'
+import { MUSICOLOGICAL_RULES_V12 } from './rules-v12.js'
 
 const MODEL = process.env.DECOMPOSER_MODEL ?? 'claude-sonnet-4-6'
 
@@ -49,8 +50,9 @@ const RULES_BY_VERSION: Record<number, string> = {
   9: MUSICOLOGICAL_RULES_V9,
   10: MUSICOLOGICAL_RULES_V10,
   11: MUSICOLOGICAL_RULES_V11,
+  12: MUSICOLOGICAL_RULES_V12,
 }
-const LATEST_RULES_VERSION = 11
+const LATEST_RULES_VERSION = 12
 
 const SECTION_PROPS = {
   type: 'object',
@@ -72,7 +74,10 @@ const EMIT_DECOMPOSITION_TOOL = {
       verifiable_facts: { type: 'string' },
       confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
       vibe_pitch: { type: 'string' },
-      era_production_signature: { type: 'string' },
+      era_production_signature: {
+        type: 'string',
+        description: 'HARD CAP 40 chars. Schema: `<decade-prefix>, <1-2 production words>`. Decade-prefix is one of: early-60s, mid-60s, late-60s, early-70s, ..., early-2020s, mid-2020s (must be the FIRST token). Production words: lo-fi, polished, tape, DAW, home-recorded, dry, wet, saturated, warm tape, room bleed, gated reverb, sidechain, plate reverb, spring reverb, tape echo, compression, sampling. Examples: "late-70s warm tape, room bleed", "mid-2010s polished DAW, sidechain". No leading affect, no "Warm", no clauses, no period. v12+ only — older versions allowed prose.',
+      },
       instrumentation_palette: { type: 'string' },
       standout_element: { type: 'string' },
       arrangement_shape: { type: 'string', description: 'v1-v7 only. Drop in v8+ (information moves into arrangement_sections).' },
