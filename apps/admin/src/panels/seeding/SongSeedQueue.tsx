@@ -12,8 +12,6 @@ import { Modal, S } from '../../ui/index.js'
 import { SongSeed } from './SongSeed.js'
 import type { WorkflowContext } from '../workflow/WorkflowRouter.js'
 
-type StyleBuilder = 'router' | 'anchor' | 'legacy'
-
 type RowState =
   | 'ready'
   | 'needs_hooks'
@@ -56,16 +54,6 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
   const [lastResult, setLastResult] = useState<{ outcomeId: string; res: SeedBuilderResult } | null>(null)
   const [batchSize, setBatchSize] = useState<Record<string, number>>({})
 
-  const [styleBuilder, setStyleBuilder] = useState<StyleBuilder>(() => {
-    const saved = typeof window !== 'undefined' ? window.localStorage.getItem('songSeedQueue.styleBuilder') : null
-    if (saved === 'router' || saved === 'anchor' || saved === 'legacy') return saved
-    return 'router'
-  })
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') window.localStorage.setItem('songSeedQueue.styleBuilder', styleBuilder)
-  }, [styleBuilder])
-
   const storeIcps = store?.icps ?? []
 
   const reload = useCallback(async () => {
@@ -93,7 +81,7 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
     setErr(null)
     setLastResult(null)
     try {
-      const res = await api.runSeedBuilder({ icpId, outcomeId, n, styleBuilder }, token)
+      const res = await api.runSeedBuilder({ icpId, outcomeId, n }, token)
       setLastResult({ outcomeId, res })
       await reload()
     } catch (e: any) {
@@ -102,7 +90,7 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
     } finally {
       setBusyOutcome((b) => ({ ...b, [outcomeId]: false }))
     }
-  }, [icpId, styleBuilder, reload])
+  }, [icpId, reload])
 
   const navTo = (sub: string, pendingOutcomeId?: string) => {
     // Hand the destination panel a hint via sessionStorage so it can pre-select
@@ -157,7 +145,7 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      {/* Header: minimal totals + strategy toggle */}
+      {/* Header: minimal totals */}
       <div style={headerBar}>
         {totals && (
           <div style={{ fontSize: 13, color: T.textMuted, fontFamily: T.mono }}>
@@ -166,15 +154,6 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
           </div>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <Segmented
-            value={styleBuilder}
-            onChange={setStyleBuilder}
-            options={[
-              { value: 'router', label: 'Descriptive', help: 'Long technical description of the track. Current default.' },
-              { value: 'anchor', label: 'Anchor', help: 'Genre tag + surgical corrections + curated negative-style ("Anchor-and-Carve"). Short, genre-led.' },
-              { value: 'legacy', label: 'Raw', help: 'Concatenates the decomp prose fields with no shaping. Oldest approach.' },
-            ]}
-          />
           <button onClick={reload} style={ghostBtn}>refresh</button>
         </div>
       </div>
@@ -329,37 +308,6 @@ function Stat({ label, value, accent }: { label: string; value: number | string;
     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: T.mono }}>
       <span style={{ color: T.textDim }}>{label}</span>
       <span style={{ color: accent ? T.accent : T.textMuted }}>{value}</span>
-    </div>
-  )
-}
-
-function Segmented({ value, onChange, options }: {
-  value: StyleBuilder
-  onChange: (v: StyleBuilder) => void
-  options: { value: StyleBuilder; label: string; help?: string }[]
-}) {
-  return (
-    <div style={{
-      display: 'inline-flex', border: `1px solid ${T.border}`, borderRadius: 4,
-      background: T.surface, overflow: 'hidden',
-    }}>
-      {options.map((o, i) => {
-        const on = o.value === value
-        return (
-          <button
-            key={o.value}
-            onClick={() => onChange(o.value)}
-            title={o.help}
-            style={{
-              background: on ? T.accent : 'transparent',
-              color: on ? T.bg : T.textMuted,
-              border: 'none', padding: '6px 12px', cursor: on ? 'default' : 'pointer',
-              fontFamily: T.mono, fontSize: 12, fontWeight: on ? 600 : 400,
-              borderLeft: i > 0 ? `1px solid ${T.border}` : 'none',
-            }}
-          >{o.label}</button>
-        )
-      })}
     </div>
   )
 }

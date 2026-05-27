@@ -5,8 +5,8 @@ import { VersionedPromptEditor } from '../../ui/index.js'
 export function HookDrafterPrompt() {
   return (
     <VersionedPromptEditor
-      title="Hook Drafter Prompt"
-      subtitle="Universal craft rules for hook generation. Per-outcome direction is layered on top via OutcomeLyricFactor (Hook Prompts panel)."
+      title="System Prompt"
+      subtitle="Universal craft rules for hook generation. Per-outcome direction is layered on top via the Outcome Hook Prompt table below."
       load={async () => {
         const token = getToken(); if (!token) throw new Error('not signed in')
         const r = await api.hookDrafterPrompt(token)

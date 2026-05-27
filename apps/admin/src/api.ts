@@ -1242,13 +1242,11 @@ export const api = {
   deleteGenreGravityRule: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/genre-gravity-rules/${id}`, { method: 'DELETE' }, token),
 
-  // Mars system prompts (anchor + router) — DB-backed, same shape as lyric prompts.
-  marsPrompts: (token: string) =>
-    req<{ anchor: { latest: LyricPromptRow | null; history: LyricPromptRow[] }; router: { latest: LyricPromptRow | null; history: LyricPromptRow[] } }>('/admin/mars-prompts', {}, token),
-  saveAnchorPrompt: (promptText: string, notes: string | undefined, token: string) =>
-    req<LyricPromptRow>('/admin/mars-prompts/anchor', { method: 'POST', body: JSON.stringify({ promptText, notes }) }, token),
-  saveRouterPrompt: (promptText: string, notes: string | undefined, token: string) =>
-    req<LyricPromptRow>('/admin/mars-prompts/router', { method: 'POST', body: JSON.stringify({ promptText, notes }) }, token),
+  // Style anchor system prompt — DB-backed, same shape as lyric prompts.
+  stylePrompt: (token: string) =>
+    req<{ latest: LyricPromptRow | null; history: LyricPromptRow[] }>('/admin/style-prompt', {}, token),
+  saveStylePrompt: (promptText: string, notes: string | undefined, token: string) =>
+    req<LyricPromptRow>('/admin/style-prompt', { method: 'POST', body: JSON.stringify({ promptText, notes }) }, token),
 
   // --- Brand ---
 
@@ -1505,7 +1503,7 @@ export const api = {
     req<SongSeedDetail>(`/admin/song-seeds/${id}`, {}, token),
   updateSongSeed: (id: string, body: { lyrics?: string; style?: string; negativeStyle?: string; title?: string; vocalGender?: 'male' | 'female' | 'duet' | 'instrumental' | null }, token: string) =>
     req<SongSeedDetail>(`/admin/song-seeds/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, token),
-  runSeedBuilder: (body: { icpId: string; outcomeId: string; n: number; styleBuilder?: 'router' | 'legacy' | 'anchor' }, token: string) =>
+  runSeedBuilder: (body: { icpId: string; outcomeId: string; n: number }, token: string) =>
     req<SeedBuilderResult>('/admin/eno/run', { method: 'POST', body: JSON.stringify(body) }, token),
   songCreationQueueInventory: (icpId: string, token: string) =>
     req<SongCreationQueueInventory>(`/admin/song-creation-queue/inventory?icpId=${encodeURIComponent(icpId)}`, {}, token),

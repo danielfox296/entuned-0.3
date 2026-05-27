@@ -1,31 +1,24 @@
-// Card 12 Mars (Style Builder) — assembles the Suno style portion deterministically.
+// Card 12 Mars (Style Builder) — assembles the Suno style portion.
 // Input: a StyleAnalysis (Card 5). Song Outcome Specs live on Suno's other params,
 // not in the style portion (locked 2026-04-25 after Daniel's Suno reality check).
 //
 // Output: { style, negativeStyle, vocalGender, firedExclusionRuleIds, styleTemplateVersion }
 //
-// Three builder strategies, selectable via STYLE_BUILDER env var:
-//   - 'router'  (default) — LLM-routed extractive slot composition (style-router.ts)
-//   - 'legacy'             — pure concat of decomp prose fields (style-template-v1.ts)
-//   - 'anchor'             — Anchor-and-Carve: genre tag + surgical positives + curated
-//                            negative-style additions (style-anchor.ts). Built 2026-05-10
-//                            after live Suno testing showed genre tags are the dominant
-//                            signal and most technical vocabulary is ignored.
+// Anchor-and-Carve is the only live strategy: genre tag + surgical positives + curated
+// negative-style additions (style-anchor.ts). Adopted 2026-05-10 after live Suno testing
+// showed genre tags are the dominant signal and most technical vocabulary is ignored.
+// The legacy 'router' and 'legacy' strategies were removed 2026-05-26 once anchor became
+// the sole production path.
 //
-// All three produce the same MarsOutput shape. The anchor strategy additionally
-// contributes sub-attractors that get merged into the rule-fired negative-style output
-// so the existing protections (always-fire contamination, 5-axis exclusions, DB rules)
-// are preserved.
+// The anchor strategy contributes sub-attractors that get merged into the rule-fired
+// negative-style output so the existing protections (always-fire contamination, 5-axis
+// exclusions, DB rules) are preserved.
 
 import type { StyleAnalysis, Outcome } from '@prisma/client'
-import { assembleStylePortion, getStyleTemplateVersion } from './style-template-v1.js'
-import { routeStylePortion, getRouterVersion } from './style-router.js'
 import { buildAnchorStyle, getAnchorVersion } from './style-anchor.js'
 import { extractVocalGender, type VocalGender } from './vocal-gender.js'
 import { buildNegativeStyle, NEGATIVE_STYLE_HARD_CAP, capJoined } from './style-exclusion-rules.js'
 import { injectHarmonicPalette } from './harmonic-palette.js'
-
-export type StyleBuilderName = 'router' | 'legacy' | 'anchor'
 
 export interface MarsOutput {
   style: string
@@ -33,12 +26,8 @@ export interface MarsOutput {
   vocalGender: VocalGender
   firedExclusionRuleIds: string[]
   styleTemplateVersion: number
-  /** Which builder produced `style`. */
-  styleBuilder: StyleBuilderName
-  /** Legacy concat output, always recomputed for QC parity. Equals `style` when builder=legacy. */
-  styleLegacy: string
-  /** Anchor metadata when builder=anchor; otherwise null. */
-  anchor?: { tag: string; corrections: string[]; negativeAdditions: string[] } | null
+  /** Anchor metadata. */
+  anchor: { tag: string; corrections: string[]; negativeAdditions: string[] }
   /** Harmonic palette token appended by injectHarmonicPalette, or null when no GenreGravityRule matched. */
   harmonicPalette: string | null
   /** Vocal descriptor token appended by injectHarmonicPalette, or null when the matched rule had no vocalDescriptors. */
@@ -46,11 +35,8 @@ export interface MarsOutput {
 }
 
 export interface MarsOptions {
-  /** Track release year — passed to the router/anchor to anchor era extractively. */
+  /** Track release year — passed to the anchor builder to anchor era extractively. */
   year?: number | null
-  /** Override the global STYLE_BUILDER env var for this assembly. Lets callers (e.g.,
-   *  the operator dropdown in Dash → Song Creation Queue) pick a strategy per batch. */
-  styleBuilder?: StyleBuilderName
 }
 
 /**
@@ -132,35 +118,17 @@ export async function marsAssemble(
   _outcome?: Outcome,
   opts: MarsOptions = {},
 ): Promise<MarsOutput> {
-  const builder = opts.styleBuilder ?? ((process.env.STYLE_BUILDER ?? 'router') as StyleBuilderName)
-  const styleLegacy = await assembleStylePortion({ decomposition: styleAnalysis as any })
-
-  let style: string
-  let styleTemplateVersion: number
-  let anchorMeta: MarsOutput['anchor'] = null
-  let anchorNegativeAdditions: string[] = []
-
-  if (builder === 'router') {
-    const routed = await routeStylePortion(styleAnalysis, { year: opts.year ?? null })
-    style = routed.style
-    styleTemplateVersion = getRouterVersion()
-  } else if (builder === 'anchor') {
-    const anchored = await buildAnchorStyle(styleAnalysis, { year: opts.year ?? null })
-    style = anchored.style
-    styleTemplateVersion = getAnchorVersion()
-    anchorNegativeAdditions = anchored.negativeAdditions
-    anchorMeta = {
-      tag: anchored.anchor,
-      corrections: anchored.corrections,
-      negativeAdditions: anchored.negativeAdditions,
-    }
-  } else {
-    style = styleLegacy
-    styleTemplateVersion = await getStyleTemplateVersion()
+  const anchored = await buildAnchorStyle(styleAnalysis, { year: opts.year ?? null })
+  const style = anchored.style
+  const styleTemplateVersion = getAnchorVersion()
+  const anchorMeta: MarsOutput['anchor'] = {
+    tag: anchored.anchor,
+    corrections: anchored.corrections,
+    negativeAdditions: anchored.negativeAdditions,
   }
 
   const { negativeStyle: ruleFiredNeg, firedRuleIds } = await buildNegativeStyle(styleAnalysis as any)
-  const negativeStyle = mergeNegativeStyle(ruleFiredNeg, anchorNegativeAdditions)
+  const negativeStyle = mergeNegativeStyle(ruleFiredNeg, anchored.negativeAdditions)
 
   // Look at both vocal fields for gender hints — a track may have a male lead and a
   // female sample, only one of which gets tagged in vocal_character.
@@ -181,8 +149,6 @@ export async function marsAssemble(
     vocalGender,
     firedExclusionRuleIds: firedRuleIds,
     styleTemplateVersion,
-    styleBuilder: builder,
-    styleLegacy,
     anchor: anchorMeta,
     harmonicPalette: steering.palette,
     vocalDescriptor: steering.vocalDescriptor,

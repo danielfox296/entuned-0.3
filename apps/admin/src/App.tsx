@@ -11,22 +11,20 @@ import { T } from '@entuned/tokens'
 import { ToastProvider, useClientSelection, useStoreSelection, useIcpSelection, HeaderSelect } from './ui/index.js'
 import { useClientLogo } from './ui/clientLogo.js'
 import { DecomposerRules } from './panels/engine/DecomposerRules.js'
-import { FailureRules } from './panels/engine/FailureRules.js'
 import { LyricPrompts } from './panels/engine/LyricPrompts.js'
 import { MarsPrompts } from './panels/engine/MarsPrompts.js'
 import { LyricBanList } from './panels/engine/LyricBanList.js'
 import { OutcomeFactorPrompt } from './panels/engine/OutcomeFactorPrompt.js'
-import { OutcomeLyricFactor } from './panels/engine/OutcomeLyricFactor.js'
 import { ReferenceTrackPrompt } from './panels/engine/ReferenceTrackPrompt.js'
 import { FormArchetypes } from './panels/engine/FormArchetypes.js'
 import { GenreCraftRules } from './panels/engine/GenreCraftRules.js'
-import { MarsStyleAxes } from './panels/engine/MarsStyleAxes.js'
 import { StyleTemplate } from './panels/engine/StyleTemplate.js'
-import { HookDrafterPrompt } from './panels/engine/HookDrafterPrompt.js'
 import { BpmLookupPrompt } from './panels/engine/BpmLookupPrompt.js'
 import { Professor } from './panels/engine/Professor.js'
 import { MusicProfessor } from './panels/engine/MusicProfessor.js'
 import { GenreGravityRules } from './panels/engine/GenreGravityRules.js'
+import { Hooks } from './panels/engine/Hooks.js'
+import { StyleExclusions } from './panels/engine/StyleExclusions.js'
 import { IcpEditor } from './panels/brand/IcpEditor.js'
 import { ClientDetail } from './panels/brand/ClientDetail.js'
 import { StoreEditor } from './panels/brand/StoreEditor.js'
@@ -68,7 +66,8 @@ const GROUPS: SurfaceGroup[] = [
     cards: ['Outcome Library', 'Style Rules', 'Dry Run'],
     description: '' },
   { key: 'engine', label: 'Prompts & Rules', short: 'Prompts & Rules', icon: Settings,
-    cards: ['Hook Prompts', 'Hook Drafter Prompt', 'Decomposition', 'BPM Lookup Prompt', 'Style Exclusion Rules', 'Lyric Ban List', 'Lyric Prompts', 'Professor', 'Music Professor', 'Genre Steering Rules', 'Genre Craft Rules', 'Mars Prompts', 'Mars Style Axes', 'Style Template', 'Form Archetypes', 'Reference Track Suggester'],
+    // EngineRouter ignores `cards` and uses its own grouped structure.
+    cards: [],
     description: '' },
   { key: 'catalogue', label: 'Library', short: 'Library', icon: Music2,
     cards: ['Song Browser', 'Flagged Review', 'Pool Depth', 'Free Tier Outcomes', 'Song Repair'],
@@ -238,7 +237,7 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
 
       <div style={{ flex: 1, overflow: 'auto', padding: ownsHeader ? 0 : 28 }}>
         {group.key === 'workflows' ? <WorkflowRouter /> :
-         group.key === 'engine' ? <EngineRouter cards={group.cards} /> :
+         group.key === 'engine' ? <EngineRouter /> :
          group.key === 'brand' ? <BrandRouter cards={group.cards} /> :
          group.key === 'schedule' ? <ScheduleRouter cards={group.cards} /> :
          group.key === 'outcomes' ? <OutcomesRouter cards={group.cards} /> :
@@ -285,36 +284,120 @@ function PanelShell({ group }: { group: SurfaceGroup }) {
 }
 
 // ── Engine router ──────────────────────────────────────────────
-function EngineRouter({ cards }: { cards: string[] }) {
-  const [active, setActive] = useNavSub<string>(cards[0]!)
+// Two-level nav: top row = pipeline-stage groups; second row = subtabs within
+// the active group. Each subtab renders one panel component. Hash format is
+// `engine/<sub>` so deep-links still work — group selection follows from sub.
+
+type EnginePanel = {
+  /** Subtab label shown in the second-row tab bar. */
+  label: string
+  /** Component to render. */
+  panel: () => JSX.Element
+}
+type EngineGroup = {
+  /** Group label shown in the top-row tab bar. */
+  label: string
+  panels: EnginePanel[]
+}
+
+const ENGINE_GROUPS: EngineGroup[] = [
+  {
+    label: 'Reference Tracks',
+    panels: [
+      { label: 'Decomposition Rules', panel: () => <DecomposerRules /> },
+      { label: 'BPM Lookup', panel: () => <BpmLookupPrompt /> },
+      { label: 'Reference Track Suggester', panel: () => <ReferenceTrackPrompt /> },
+    ],
+  },
+  {
+    label: 'Hooks',
+    panels: [
+      { label: 'Hooks', panel: () => <Hooks /> },
+    ],
+  },
+  {
+    label: 'Lyrics',
+    panels: [
+      { label: 'Lyric Drafter (System)', panel: () => <LyricPrompts /> },
+      { label: 'Lyric Ban List', panel: () => <LyricBanList /> },
+      { label: 'Lyric Polish Rules', panel: () => <Professor /> },
+      { label: 'Genre Lyric Overlays', panel: () => <GenreCraftRules /> },
+    ],
+  },
+  {
+    label: 'Style',
+    panels: [
+      { label: 'Style Prompt', panel: () => <MarsPrompts /> },
+      { label: 'Style Exclusions', panel: () => <StyleExclusions /> },
+      { label: 'Style Polish Rules', panel: () => <MusicProfessor /> },
+      { label: 'Genre Style Overlays', panel: () => <GenreGravityRules /> },
+      { label: 'Song Seed Assembly', panel: () => <StyleTemplate /> },
+    ],
+  },
+  {
+    label: 'Arrangement',
+    panels: [
+      { label: 'Arrangement Formats', panel: () => <FormArchetypes /> },
+    ],
+  },
+]
+
+function EngineRouter() {
+  const firstSub = ENGINE_GROUPS[0]!.panels[0]!.label
+  const [active, setActive] = useNavSub<string>(firstSub)
+
+  // Find the group containing the active subtab. Falls back to the first group
+  // if the hash points at something we don't recognize (deleted subtab, typo).
+  const activeGroup =
+    ENGINE_GROUPS.find((g) => g.panels.some((p) => p.label === active)) ?? ENGINE_GROUPS[0]!
+  const activePanel =
+    activeGroup.panels.find((p) => p.label === active) ?? activeGroup.panels[0]!
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={subTabRowStyle}>
-        {cards.map((c) => {
-          const on = active === c
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Top row: pipeline-stage groups */}
+      <div style={engineGroupRowStyle}>
+        {ENGINE_GROUPS.map((g) => {
+          const on = g === activeGroup
           return (
-            <button key={c} onClick={() => setActive(c)} style={subTabBtnStyle(on)}>{c}</button>
+            <button
+              key={g.label}
+              onClick={() => setActive(g.panels[0]!.label)}
+              style={engineGroupBtnStyle(on)}
+            >{g.label}</button>
           )
         })}
       </div>
-      {active === 'Hook Prompts' && <OutcomeLyricFactor />}
-      {active === 'Decomposition' && <DecomposerRules />}
-      {active === 'Style Exclusion Rules' && <FailureRules />}
-      {active === 'Lyric Ban List' && <LyricBanList />}
-      {active === 'Lyric Prompts' && <LyricPrompts />}
-      {active === 'Professor' && <Professor />}
-      {active === 'Music Professor' && <MusicProfessor />}
-      {active === 'Genre Steering Rules' && <GenreGravityRules />}
-      {active === 'Genre Craft Rules' && <GenreCraftRules />}
-      {active === 'Mars Prompts' && <MarsPrompts />}
-      {active === 'Mars Style Axes' && <MarsStyleAxes />}
-      {active === 'Style Template' && <StyleTemplate />}
-      {active === 'Hook Drafter Prompt' && <HookDrafterPrompt />}
-      {active === 'BPM Lookup Prompt' && <BpmLookupPrompt />}
-      {active === 'Form Archetypes' && <FormArchetypes />}
-      {active === 'Reference Track Suggester' && <ReferenceTrackPrompt />}
+      {/* Second row: subtabs within the active group (only shown when 2+) */}
+      {activeGroup.panels.length > 1 && (
+        <div style={subTabRowStyle}>
+          {activeGroup.panels.map((p) => {
+            const on = p === activePanel
+            return (
+              <button key={p.label} onClick={() => setActive(p.label)} style={subTabBtnStyle(on)}>
+                {p.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+      <activePanel.panel />
     </div>
   )
+}
+
+const engineGroupRowStyle: CSSProperties = {
+  display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-start',
+}
+function engineGroupBtnStyle(on: boolean): CSSProperties {
+  return {
+    background: on ? T.accentGlow : 'transparent',
+    border: `1px solid ${on ? T.accent : T.border}`,
+    color: on ? T.text : T.textMuted,
+    padding: '6px 14px', borderRadius: 4,
+    cursor: 'pointer',
+    fontFamily: T.sans, fontSize: 13, fontWeight: on ? 500 : 400,
+  }
 }
 
 // ── Brand router ───────────────────────────────────────────────

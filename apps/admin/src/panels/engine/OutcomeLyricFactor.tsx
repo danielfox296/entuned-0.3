@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { api, getToken, outcomeLabel } from '../../api.js'
 import type { OutcomeLyricFactorRow } from '../../api.js'
 import { T } from '@entuned/tokens'
-import { Button, S, useToast } from '../../ui/index.js'
+import { Button, PanelHeader, S, useToast } from '../../ui/index.js'
 
 export function OutcomeLyricFactor() {
   const [rows, setRows] = useState<OutcomeLyricFactorRow[] | null>(null)
@@ -47,6 +47,7 @@ export function OutcomeLyricFactor() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <PanelHeader title="Outcome Hook Prompt" />
       <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textDim, lineHeight: 1.5 }}>
         Per-outcome lyric direction injected into the hook drafter (and downstream consumers). Layered on top of the universal craft system prompt; defines the outcome-specific behavioral overlay. No ICP data is injected.
       </div>

@@ -10,7 +10,7 @@
 // R&B / latin instead of defaulting to pop.
 
 import { prisma } from '../../db.js'
-import { marsAssemble, type StyleBuilderName } from '../mars/mars.js'
+import { marsAssemble } from '../mars/mars.js'
 import { generateLyrics, type GenreBrief, type OutcomeBrief } from '../bernie/bernie.js'
 import { runProfessor } from '../professor/professor.js'
 import { runMusicProfessor } from '../music-professor/music-professor.js'
@@ -66,8 +66,6 @@ export interface SeedBuilderOptions {
   n: number
   triggeredBy: 'manual' | 'cron'
   triggeredByUser?: string
-  /** Mars style builder strategy for this batch. Defaults to STYLE_BUILDER env / 'router'. */
-  styleBuilder?: StyleBuilderName
 }
 
 export interface SeedBuilderResult {
@@ -101,7 +99,7 @@ export async function runEno(opts: SeedBuilderOptions): Promise<SeedBuilderResul
 
   for (let i = 0; i < opts.n; i++) {
     try {
-      const result = await createSongSeed(batch.id, opts.icpId, opts.outcomeId, opts.styleBuilder)
+      const result = await createSongSeed(batch.id, opts.icpId, opts.outcomeId)
       if (!result.ok) {
         errors.push(result.reason ?? 'unknown')
         if (result.reason === 'pool_exhausted_hooks' || result.reason === 'pool_exhausted_reference_tracks') {
@@ -131,7 +129,7 @@ export interface CreateSongSeedResult {
   reason?: string
 }
 
-async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId: string, styleBuilder?: StyleBuilderName): Promise<CreateSongSeedResult> {
+async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId: string): Promise<CreateSongSeedResult> {
   const hook = await pickAvailableHook(icpId, outcomeId)
   if (!hook) return { ok: false, reason: 'pool_exhausted_hooks' }
 
@@ -161,7 +159,7 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
     // Prisma's typings still mark the included relation as nullable. Narrow here.
     if (!refTrack.styleAnalysis) throw new Error('refTrack.styleAnalysis missing after picker filter')
     const styleAnalysis = refTrack.styleAnalysis
-    const mars = await marsAssemble(styleAnalysis, outcome, { year: refTrack.year, styleBuilder })
+    const mars = await marsAssemble(styleAnalysis, outcome, { year: refTrack.year })
 
     // Variance resolution — samples concrete tempo/mode from the Outcome's distribution
     // when bands are configured. No-op (returns center values) when radius/weights are null.

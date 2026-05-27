@@ -9,7 +9,7 @@ For the load-bearing rules that apply across these subsystems (Outcome-prepend w
 | Dir / file | Role | Entrypoint |
 |---|---|---|
 | `eno/` | Per-seed orchestrator — turns one queued `SongSeed` into a resolved Suno payload (style + lyric + arrangement + outcome-factor prepend). | `runEno` ([eno/eno.ts](eno/eno.ts)). See `eno/README.md`. |
-| `mars/` | Style-prompt builder for Suno. Anchor-and-carve: genre anchor + negative-style axes. Every output is wrapped by `applyOutcomeFactorPrompt` from `eno`. | `marsAssemble` ([mars/mars.ts](mars/mars.ts)); per-portion router `routeStylePortion` ([mars/style-router.ts](mars/style-router.ts)) |
+| `mars/` | Style-prompt builder for Suno. Anchor-and-carve: genre anchor + negative-style axes. Every output is wrapped by `applyOutcomeFactorPrompt` from `eno`. | `marsAssemble` ([mars/mars.ts](mars/mars.ts)); anchor strategy `buildAnchorStyle` ([mars/style-anchor.ts](mars/style-anchor.ts)) |
 | `bernie/` | Lyric generator — draft + edit passes. Draft is genre-aware via the `genreBrief` Eno builds from the reference track. | `generateLyrics` ([bernie/bernie.ts](bernie/bernie.ts)) |
 | `decomposer/` | Reference-track analysis — turns a track into a structured `StyleAnalysis`. Feeds Mars. | `decompose` ([decomposer/decomposer.ts](decomposer/decomposer.ts)) |
 | `arranger/` | Injects arrangement section markers (`[verse]`, `[chorus]`, etc.) into Bernie's lyric output before Suno. | `injectArrangement` ([arranger/arranger.ts](arranger/arranger.ts)) |

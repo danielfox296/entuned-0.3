@@ -1,8 +1,7 @@
-// Mars Style Anchor v1 — "Anchor-and-Carve" parallel builder.
+// Mars Style Anchor — "Anchor-and-Carve" builder.
 //
 // Why this exists: live Suno testing (2026-05-10) showed Suno reads genre tags as
-// the dominant signal and ignores ~90% of technical vocabulary. The router builder
-// (style-router.ts) produces precise prompts that mostly get ignored. The anchor
+// the dominant signal and ignores ~90% of technical vocabulary. The anchor
 // builder operates the actual steering wheel:
 //   1. Pick a genre tag whose CENTROID points at the right family (not the literal
 //      label — "yacht rock" collapses to Christopher Cross, but "1970s jazz-rock"
@@ -11,11 +10,11 @@
 //   3. Hand a curated list of sub-attractors to the negative-style field, which is
 //      the primary tool for carving unwanted attractors out of a genre cluster.
 //
-// Output shape mirrors RouterResult but adds negativeAdditions — the anchor strategy
-// participates in negative-style construction. Mars merges these into the rule-fired
-// negative-style output so the existing protections are preserved.
+// Returns negativeAdditions — Mars merges these into the rule-fired negative-style
+// output so the existing protections are preserved.
 //
-// Toggle via STYLE_BUILDER=anchor (env). Defaults to router.
+// As of 2026-05-26 this is the sole production strategy. The legacy router + raw
+// template strategies were removed once Anchor became the only path.
 
 import Anthropic from '@anthropic-ai/sdk'
 import type { StyleAnalysis } from '@prisma/client'
@@ -45,7 +44,7 @@ interface AnchorPick {
 // Cold-start seed only — used when the StyleAnchorPrompt table is empty on
 // first run. Once getOrSeedAnchorPrompt() has inserted v1, runtime ALWAYS
 // reads from the DB and this const is never consulted again. Edit prompts
-// through Dash → Prompts & Rules → Mars Prompts, NOT here.
+// through Dash → Prompts & Rules → Style → Style Prompt, NOT here.
 export const STYLE_ANCHOR_SYSTEM_PROMPT_SEED = `You are picking Suno style parameters for one reference track. Suno is genre-tag driven — it reads genre tags as the dominant signal and ignores most technical vocabulary. Your job is to pick three things.
 
 1. ANCHOR: one genre tag (subgenre + decade) whose CENTROID points at the right family for this track. NOT the literal genre label if that label's Suno-training centroid is a famously generic artist. Examples:

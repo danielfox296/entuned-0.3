@@ -12,9 +12,8 @@
 //   GET    /admin/lyric-prompts                  — { draft: { latest, history }, edit: { latest, history } }
 //   POST   /admin/lyric-prompts/draft            — new draft prompt version
 //   POST   /admin/lyric-prompts/edit             — new edit prompt version
-//   GET    /admin/mars-prompts                   — { anchor: { latest, history }, router: { latest, history } }
-//   POST   /admin/mars-prompts/anchor            — new anchor prompt version
-//   POST   /admin/mars-prompts/router            — new router prompt version
+//   GET    /admin/style-prompt                   — { latest, history } for the anchor builder
+//   POST   /admin/style-prompt                   — new style (anchor) prompt version
 //   POST   /admin/email/preview                  — render or test-send an email template
 //                                                  (gated by INTERNAL_ADMIN_TOKEN, header x-admin-token)
 
@@ -669,44 +668,26 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return row
   })
 
-  // ----- Mars system prompts (anchor + router) -----
-  // DB-backed system prompts for the two LLM-driven Mars style builders.
-  // Same shape as /lyric-prompts. Schema SSOT:
-  //   ../../../entune v0.3/schema/light-cards.md (Card 12 — Mars,
-  //   "StyleAnchorPrompt and StyleRouterPrompt" section).
-  // Cold-start v1 happens in lib/mars/style-{anchor,router}.ts on first call.
+  // ----- Style system prompt (anchor builder) -----
+  // DB-backed system prompt for the anchor-and-carve style builder. Same shape
+  // as /lyric-prompts. Cold-start v1 happens in lib/mars/style-anchor.ts on
+  // first call. Schema SSOT: ../../../entune v0.3/schema/light-cards.md
+  // (Card 12 — Mars). The legacy /mars-prompts/{anchor,router} routes were
+  // removed 2026-05-26 once anchor became the sole production strategy.
 
-  app.get('/mars-prompts', async (req, reply) => {
+  app.get('/style-prompt', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
-    const [anchorAll, routerAll] = await Promise.all([
-      prisma.styleAnchorPrompt.findMany({ orderBy: { version: 'desc' } }),
-      prisma.styleRouterPrompt.findMany({ orderBy: { version: 'desc' } }),
-    ])
-    return {
-      anchor: { latest: anchorAll[0] ?? null, history: anchorAll },
-      router: { latest: routerAll[0] ?? null, history: routerAll },
-    }
+    const all = await prisma.styleAnchorPrompt.findMany({ orderBy: { version: 'desc' } })
+    return { latest: all[0] ?? null, history: all }
   })
 
-  app.post('/mars-prompts/anchor', async (req, reply) => {
+  app.post('/style-prompt', async (req, reply) => {
     const op = await requireAdmin(req, reply); if (!op) return
     const parsed = LyricPromptPostBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const max = await prisma.styleAnchorPrompt.aggregate({ _max: { version: true } })
     const next = (max._max.version ?? 0) + 1
     const row = await prisma.styleAnchorPrompt.create({
-      data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.accountId },
-    })
-    return row
-  })
-
-  app.post('/mars-prompts/router', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
-    const parsed = LyricPromptPostBody.safeParse(req.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const max = await prisma.styleRouterPrompt.aggregate({ _max: { version: true } })
-    const next = (max._max.version ?? 0) + 1
-    const row = await prisma.styleRouterPrompt.create({
       data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.accountId },
     })
     return row
@@ -3687,7 +3668,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     icpId: z.string().uuid(),
     outcomeId: z.string().uuid(),
     n: z.number().int().min(1).max(20),
-    styleBuilder: z.enum(['router', 'legacy', 'anchor']).optional(),
   })
 
   app.post('/eno/run', async (req, reply) => {
@@ -3701,7 +3681,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         n: parsed.data.n,
         triggeredBy: 'manual',
         triggeredByUser: op.accountId,
-        styleBuilder: parsed.data.styleBuilder,
       })
       return result
     } catch (e: any) {

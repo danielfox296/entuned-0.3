@@ -24,7 +24,7 @@ export function MarsStyleAxes() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.lg }}>
       <PanelHeader
-        title="Mars Style Axes"
+        title="Always-fire Contamination + Axis Rules"
         subtitle="Negative-style steering for Suno: contamination terms (always-fire / modern-drift / modern-family) and per-axis opposite-style rules (genre / vocal / mood / production)."
       />
       <ContaminationSection />
