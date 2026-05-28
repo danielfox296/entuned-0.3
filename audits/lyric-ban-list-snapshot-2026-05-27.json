@@ -1,0 +1,898 @@
+[
+  {
+    "id": "3697420d-98ee-4582-8166-8d9a5a08e065",
+    "category": "cliche_phrase",
+    "text": "afternoon glow",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.089Z"
+  },
+  {
+    "id": "d7cfe1bc-795a-421d-83ec-d8334058dceb",
+    "category": "cliche_phrase",
+    "text": "air sat heavy",
+    "note": null,
+    "createdAt": "2026-05-26T14:05:55.326Z"
+  },
+  {
+    "id": "c66b7b5b-546b-45a9-a651-6b18fed91846",
+    "category": "cliche_phrase",
+    "text": "breaking chains",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:31.986Z"
+  },
+  {
+    "id": "aa5bbe55-2dfb-462c-8a50-88fa2b25712c",
+    "category": "cliche_phrase",
+    "text": "breaking free",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:31.993Z"
+  },
+  {
+    "id": "706e16ed-a5ba-4e1c-9d0f-fb8905cce1c6",
+    "category": "cliche_phrase",
+    "text": "ceiling fan",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "7ea71308-9ede-48a2-a340-846f90f67b6b",
+    "category": "cliche_phrase",
+    "text": "chasing dreams",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:31.998Z"
+  },
+  {
+    "id": "b95f9790-3cbc-46cd-8027-e79ed967f026",
+    "category": "cliche_phrase",
+    "text": "chasing shadows",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.003Z"
+  },
+  {
+    "id": "70e7d353-c67e-4379-b2f7-3f3d14e67a62",
+    "category": "cliche_phrase",
+    "text": "city lights",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.007Z"
+  },
+  {
+    "id": "41037da2-c45b-4184-bb41-2350532309e4",
+    "category": "cliche_phrase",
+    "text": "concrete jungles",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.012Z"
+  },
+  {
+    "id": "e0af38cb-cabd-4ca9-8a7f-4ed57c13b3ac",
+    "category": "cliche_phrase",
+    "text": "dancing shadows",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.016Z"
+  },
+  {
+    "id": "05c91fd7-7cf4-42e8-bc9e-0587f2bb2e2d",
+    "category": "cliche_phrase",
+    "text": "distant echoes",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.021Z"
+  },
+  {
+    "id": "876e2fc2-5260-411a-9b45-a47a52fc4fe9",
+    "category": "cliche_phrase",
+    "text": "dreamscape",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.026Z"
+  },
+  {
+    "id": "b8c641d5-1997-4d58-9546-13d92e755cfc",
+    "category": "cliche_phrase",
+    "text": "echo chamber",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.031Z"
+  },
+  {
+    "id": "6823d5f2-ca8e-49b9-aef5-5739e9c2be1b",
+    "category": "cliche_phrase",
+    "text": "echoes of",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.036Z"
+  },
+  {
+    "id": "27c91472-d6af-45e7-99fe-b717bb1a7213",
+    "category": "cliche_phrase",
+    "text": "electric dreams",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.040Z"
+  },
+  {
+    "id": "7039b0fd-16e1-431f-88b4-9a6e29e21338",
+    "category": "cliche_phrase",
+    "text": "fading light",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.044Z"
+  },
+  {
+    "id": "1377a07d-68f1-4253-b493-b5fa0c525b45",
+    "category": "cliche_phrase",
+    "text": "forgotten tales",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.049Z"
+  },
+  {
+    "id": "76cd5a29-f5df-49cd-a66e-eaff361459fb",
+    "category": "cliche_phrase",
+    "text": "going cold",
+    "note": null,
+    "createdAt": "2026-05-20T18:42:34.280Z"
+  },
+  {
+    "id": "f2038806-2fba-4b0e-8102-95552e18b963",
+    "category": "cliche_phrase",
+    "text": "gone cold",
+    "note": null,
+    "createdAt": "2026-05-12T04:23:24.355Z"
+  },
+  {
+    "id": "9e72152f-59bc-442a-a6e7-fc4649c905a2",
+    "category": "cliche_phrase",
+    "text": "good with that, just the way you are",
+    "note": null,
+    "createdAt": "2026-05-26T00:11:17.382Z"
+  },
+  {
+    "id": "ec5b0c14-2e1b-45d0-b4e4-e1a9e2f0eb24",
+    "category": "cliche_phrase",
+    "text": "guiding light",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.053Z"
+  },
+  {
+    "id": "34ea816c-d391-4d3b-982c-f55cc982a9b3",
+    "category": "cliche_phrase",
+    "text": "i'm learning how to",
+    "note": null,
+    "createdAt": "2026-05-07T06:29:21.773Z"
+  },
+  {
+    "id": "dc6a5db6-59ce-4c41-8d8a-c79d16cf8fb0",
+    "category": "cliche_phrase",
+    "text": "in the shadows",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.057Z"
+  },
+  {
+    "id": "db6643cf-4dbb-4779-bceb-56d4d20ee0e1",
+    "category": "cliche_phrase",
+    "text": "into the night",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.062Z"
+  },
+  {
+    "id": "da128cda-969d-44c5-9359-6030c486fa83",
+    "category": "cliche_phrase",
+    "text": "i used to",
+    "note": null,
+    "createdAt": "2026-05-20T22:56:36.371Z"
+  },
+  {
+    "id": "32221a9f-af6b-4f1d-81fd-cb3e0e579915",
+    "category": "cliche_phrase",
+    "text": "I Used to",
+    "note": null,
+    "createdAt": "2026-05-07T05:59:43.434Z"
+  },
+  {
+    "id": "f8571edc-2816-4323-9fa7-5b7724ce4e2d",
+    "category": "cliche_phrase",
+    "text": "just this",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "9d78ed51-0a92-4606-a338-ea7ca54fe326",
+    "category": "cliche_phrase",
+    "text": "lost in the shadows",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.066Z"
+  },
+  {
+    "id": "fad76561-4560-441a-8616-1346a7ad1b16",
+    "category": "cliche_phrase",
+    "text": "my skin",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "bb04f47a-0864-41fa-811c-c75725b6b1cf",
+    "category": "cliche_phrase",
+    "text": "no deadline",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "80227f35-c5bd-4069-a30d-b8c7930a6b87",
+    "category": "cliche_phrase",
+    "text": "no rush",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "d1e3f50c-720d-4387-985e-81fbff79ed97",
+    "category": "cliche_phrase",
+    "text": "nothing to prove",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "79bb3f27-2614-4748-bc84-722f54104ee8",
+    "category": "cliche_phrase",
+    "text": "out the door",
+    "note": null,
+    "createdAt": "2026-05-07T06:30:44.287Z"
+  },
+  {
+    "id": "c53c30b6-1317-4041-9941-9ef75c1f1856",
+    "category": "cliche_phrase",
+    "text": "porch light",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "7ba1efeb-88ec-464a-9188-efff9ef03462",
+    "category": "cliche_phrase",
+    "text": "quiet room",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "6dc3c9bb-20f5-42cf-818e-ec21856f2a5c",
+    "category": "cliche_phrase",
+    "text": "raging storm",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.070Z"
+  },
+  {
+    "id": "45f00157-0687-4c5f-8b55-01615b75b1c8",
+    "category": "cliche_phrase",
+    "text": "rebel spirit",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.075Z"
+  },
+  {
+    "id": "3bfeae06-30b2-43d3-9591-ca4e2535da14",
+    "category": "cliche_phrase",
+    "text": "rise above",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.080Z"
+  },
+  {
+    "id": "ccadce35-5766-4226-9693-14cc7ffadfb8",
+    "category": "cliche_phrase",
+    "text": "rise like a phoenix",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.084Z"
+  },
+  {
+    "id": "ceb63046-3337-4c26-ab13-51788f44b48e",
+    "category": "cliche_phrase",
+    "text": "something shifted",
+    "note": null,
+    "createdAt": "2026-05-25T10:58:13.611Z"
+  },
+  {
+    "id": "269cace6-3a2a-4cd5-aa76-0b27df7da8a4",
+    "category": "cliche_phrase",
+    "text": "story untold",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "026a1c23-c170-4d1a-827e-cb761b447fc2",
+    "category": "cliche_phrase",
+    "text": "sun hits",
+    "note": null,
+    "createdAt": "2026-05-25T11:00:29.555Z"
+  },
+  {
+    "id": "75ca528a-76b0-4a84-8e8b-91253167adc7",
+    "category": "cliche_phrase",
+    "text": "takes the time",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "ef512272-9282-46ab-92c5-ee45c163685f",
+    "category": "cliche_phrase",
+    "text": "the morning",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "720f193d-8963-4a60-9e53-95add1088215",
+    "category": "cliche_phrase",
+    "text": "warm in my skin",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "38b69b06-afaf-4fc6-b624-92d913622d49",
+    "category": "cliche_phrase",
+    "text": "word unsaid",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "398c2fdc-ec81-40dd-9e8a-328911fe1360",
+    "category": "cliche_shape",
+    "text": "\"Every night I [verb]\"",
+    "note": null,
+    "createdAt": "2026-05-07T05:59:43.434Z"
+  },
+  {
+    "id": "3a72f666-8890-4e9c-b590-87ec8b7a01f0",
+    "category": "cliche_shape",
+    "text": "\"I'll never [verb] again\"",
+    "note": null,
+    "createdAt": "2026-05-07T05:59:43.434Z"
+  },
+  {
+    "id": "61d38b04-8d5a-46e4-b483-a7fcec760f51",
+    "category": "cliche_shape",
+    "text": "let it ___",
+    "note": "added 2026-05-25 — phrasal-verb cliché starter",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "a6550e18-02b4-4519-9982-8058d797cd11",
+    "category": "cliche_shape",
+    "text": "settings in a house or kitchen",
+    "note": null,
+    "createdAt": "2026-05-20T22:56:25.631Z"
+  },
+  {
+    "id": "4cb777fb-3738-409a-8eb4-c54a82de58f4",
+    "category": "cliche_shape",
+    "text": "there was a time when",
+    "note": "transformational arc",
+    "createdAt": "2026-05-21T03:12:30.967Z"
+  },
+  {
+    "id": "4aecad98-3059-43f0-8997-4ef420917ca7",
+    "category": "overused_word",
+    "text": "afternoon",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "e6097be9-3894-41da-aaf6-8ebaace4ebbb",
+    "category": "overused_word",
+    "text": "ancient",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.093Z"
+  },
+  {
+    "id": "7b7e339d-d523-4849-93fb-1dd3f07066c4",
+    "category": "overused_word",
+    "text": "ascend",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.097Z"
+  },
+  {
+    "id": "fdd3c9fb-976a-4421-8c47-e689e505f29c",
+    "category": "overused_word",
+    "text": "ashes",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.103Z"
+  },
+  {
+    "id": "c15fd780-27d4-4cc2-95ec-5b0e4b08b55a",
+    "category": "overused_word",
+    "text": "awakening",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.107Z"
+  },
+  {
+    "id": "8ba5a655-2f19-4cb2-9754-b62382bbb391",
+    "category": "overused_word",
+    "text": "cascade",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.112Z"
+  },
+  {
+    "id": "47409619-8587-482d-b370-14aa3ef18e3b",
+    "category": "overused_word",
+    "text": "celestial",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.116Z"
+  },
+  {
+    "id": "e7ca1cc3-234b-4f1b-b95b-f4518e0e7115",
+    "category": "overused_word",
+    "text": "chains",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.121Z"
+  },
+  {
+    "id": "5451e689-bfc4-49b2-b90a-2a442c8acf86",
+    "category": "overused_word",
+    "text": "chair",
+    "note": null,
+    "createdAt": "2026-05-20T18:43:23.895Z"
+  },
+  {
+    "id": "5d5ea6b2-ccbd-4889-b661-d934df64973e",
+    "category": "overused_word",
+    "text": "coffee",
+    "note": null,
+    "createdAt": "2026-05-07T05:59:43.434Z"
+  },
+  {
+    "id": "f067ce95-9f0a-4d19-9fba-c04ef77c7060",
+    "category": "overused_word",
+    "text": "coffee's",
+    "note": null,
+    "createdAt": "2026-05-12T04:23:10.905Z"
+  },
+  {
+    "id": "a182fc00-7bac-4521-8fa5-78ca495cb424",
+    "category": "overused_word",
+    "text": "cosmic",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.125Z"
+  },
+  {
+    "id": "a7d1c9a1-75c6-4ba3-bd0f-15af35cb6188",
+    "category": "overused_word",
+    "text": "crescendo",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.129Z"
+  },
+  {
+    "id": "eba9c0a4-2757-4ca1-9ccb-0c08856beabb",
+    "category": "overused_word",
+    "text": "cup",
+    "note": null,
+    "createdAt": "2026-05-20T22:59:14.665Z"
+  },
+  {
+    "id": "42fe2c09-9657-4be1-af57-b97667b1cd37",
+    "category": "overused_word",
+    "text": "dashboard",
+    "note": null,
+    "createdAt": "2026-05-07T05:59:43.434Z"
+  },
+  {
+    "id": "eec1a1b4-8d09-4c7f-b317-0da8f91a61ce",
+    "category": "overused_word",
+    "text": "divine",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.134Z"
+  },
+  {
+    "id": "53277308-2bd3-4236-8185-3d104ab333c4",
+    "category": "overused_word",
+    "text": "dog",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "dfa84378-da0b-480b-894a-1f8eb239a689",
+    "category": "overused_word",
+    "text": "door",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "a73e917b-848b-41c3-83c0-92943b2328b5",
+    "category": "overused_word",
+    "text": "dreamy",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.279Z"
+  },
+  {
+    "id": "2267ad9c-9b5d-4bca-898b-08b017c97ac9",
+    "category": "overused_word",
+    "text": "dusk",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.138Z"
+  },
+  {
+    "id": "ed3f935e-64a1-42b6-9887-69b2243a3d98",
+    "category": "overused_word",
+    "text": "dust",
+    "note": null,
+    "createdAt": "2026-05-20T18:43:44.210Z"
+  },
+  {
+    "id": "25bc25c0-14cb-41bf-a7b7-fb93e6638089",
+    "category": "overused_word",
+    "text": "ease",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "0fe37e36-89ed-4ff9-a559-210e7fe3400f",
+    "category": "overused_word",
+    "text": "easy",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.254Z"
+  },
+  {
+    "id": "28cc74f7-3fe1-415a-9185-be87ec1b9c54",
+    "category": "overused_word",
+    "text": "embrace",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.143Z"
+  },
+  {
+    "id": "13496c4b-95af-43ff-9569-b81d2a31b5a9",
+    "category": "overused_word",
+    "text": "enchanted",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.147Z"
+  },
+  {
+    "id": "6d62850d-8a94-48f4-8ccf-c9dfa8934342",
+    "category": "overused_word",
+    "text": "eternal",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.151Z"
+  },
+  {
+    "id": "d93f4d85-c099-492e-9d24-628d099d781c",
+    "category": "overused_word",
+    "text": "ethereal",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.156Z"
+  },
+  {
+    "id": "edf90db4-4562-4a58-b37b-40314e9ddfcc",
+    "category": "overused_word",
+    "text": "everlasting",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.160Z"
+  },
+  {
+    "id": "4e1fb81e-6760-483f-ac40-8bb88dde4549",
+    "category": "overused_word",
+    "text": "feet",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "c08f4157-5811-4994-952c-3adbb7097abc",
+    "category": "overused_word",
+    "text": "flame",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.165Z"
+  },
+  {
+    "id": "ae62540c-9a4b-4201-8d36-61a69c53b76f",
+    "category": "overused_word",
+    "text": "flickering",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.171Z"
+  },
+  {
+    "id": "a41468ea-58a0-4bce-b37c-14f5cbf19d94",
+    "category": "overused_word",
+    "text": "gentle",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.258Z"
+  },
+  {
+    "id": "edce8694-75ea-4b21-9821-1bcd42b6b9dc",
+    "category": "overused_word",
+    "text": "ghosts",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.175Z"
+  },
+  {
+    "id": "12ff1046-0b38-4148-946d-ca62357c45d2",
+    "category": "overused_word",
+    "text": "glass",
+    "note": null,
+    "createdAt": "2026-05-20T22:59:17.826Z"
+  },
+  {
+    "id": "9db323ec-328b-4938-82dc-bfa639d31513",
+    "category": "overused_word",
+    "text": "glow",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.179Z"
+  },
+  {
+    "id": "5b6858c7-d9ea-4232-ba84-ba4f7c5c4930",
+    "category": "overused_word",
+    "text": "golden",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.275Z"
+  },
+  {
+    "id": "756b514a-781e-4c08-bbdc-2c8e756b2f9d",
+    "category": "overused_word",
+    "text": "groove",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.262Z"
+  },
+  {
+    "id": "138563dd-a56c-442c-9fed-a260e83c9cfb",
+    "category": "overused_word",
+    "text": "harmony",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.184Z"
+  },
+  {
+    "id": "3345c874-d785-4d90-9eea-08a8faf6ce0c",
+    "category": "overused_word",
+    "text": "hazy",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.188Z"
+  },
+  {
+    "id": "c64d483e-2004-4471-ad2e-f37b8ce86f0d",
+    "category": "overused_word",
+    "text": "heartbeat",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.192Z"
+  },
+  {
+    "id": "3450f673-583d-4574-bde8-84beed5b6dce",
+    "category": "overused_word",
+    "text": "hidden",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.196Z"
+  },
+  {
+    "id": "445110c5-6c2f-4fd1-ac78-a053d69bcd7d",
+    "category": "overused_word",
+    "text": "hollow",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.201Z"
+  },
+  {
+    "id": "2a610901-bba4-4e6d-980d-907bd370eaae",
+    "category": "overused_word",
+    "text": "illuminated",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.206Z"
+  },
+  {
+    "id": "394214ec-f9ed-41a2-9749-e990394d4532",
+    "category": "overused_word",
+    "text": "infinite",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.210Z"
+  },
+  {
+    "id": "f4838f02-848d-458c-a45e-eb80cd02dc7a",
+    "category": "overused_word",
+    "text": "Jacket",
+    "note": null,
+    "createdAt": "2026-05-12T04:17:07.612Z"
+  },
+  {
+    "id": "706f01eb-421b-473d-9a8e-f44a626afba1",
+    "category": "overused_word",
+    "text": "kitchen",
+    "note": null,
+    "createdAt": "2026-05-13T00:42:41.274Z"
+  },
+  {
+    "id": "c57d238d-2fde-4837-9ead-41af0eb9f067",
+    "category": "overused_word",
+    "text": "labyrinths",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.215Z"
+  },
+  {
+    "id": "31301b20-25d6-41c0-890f-946f820e94ba",
+    "category": "overused_word",
+    "text": "magical",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.284Z"
+  },
+  {
+    "id": "df4af0c2-41d0-4027-9843-126658c4f2cf",
+    "category": "overused_word",
+    "text": "midnight",
+    "note": null,
+    "createdAt": "2026-05-07T05:59:43.434Z"
+  },
+  {
+    "id": "0676d86b-eb59-4f3d-850b-91acf21b569b",
+    "category": "overused_word",
+    "text": "mirrors",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.220Z"
+  },
+  {
+    "id": "8a48cdb2-ba9f-4a7e-9347-e35333ba5032",
+    "category": "overused_word",
+    "text": "moonlight",
+    "note": null,
+    "createdAt": "2026-05-07T05:59:43.434Z"
+  },
+  {
+    "id": "f9443fa5-1636-46f5-b68d-524b552e5b2a",
+    "category": "overused_word",
+    "text": "mystic",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.224Z"
+  },
+  {
+    "id": "98a592f2-8c70-422a-821d-57f1e4a33e33",
+    "category": "overused_word",
+    "text": "neon",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.228Z"
+  },
+  {
+    "id": "62e293ea-4790-4c98-b6ea-cf6f0773fd3f",
+    "category": "overused_word",
+    "text": "noise",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "6bd00efa-ca8d-4ea3-b814-bc818b056f54",
+    "category": "overused_word",
+    "text": "pavement",
+    "note": null,
+    "createdAt": "2026-05-25T11:06:15.817Z"
+  },
+  {
+    "id": "ca30e32d-3881-4ea9-b8b1-2108c09f9872",
+    "category": "overused_word",
+    "text": "peace",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.266Z"
+  },
+  {
+    "id": "4ef9182f-9fbb-471d-a127-92db8eed6cce",
+    "category": "overused_word",
+    "text": "phantom",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.232Z"
+  },
+  {
+    "id": "e3adf8c2-a9ef-459c-8f83-a434f4df6074",
+    "category": "overused_word",
+    "text": "pulse",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.236Z"
+  },
+  {
+    "id": "c360e56a-9c8d-476b-97f1-8f8dff446fd5",
+    "category": "overused_word",
+    "text": "radiant",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.241Z"
+  },
+  {
+    "id": "35fbd3bb-7a41-4e05-939e-ab0d3dc682b0",
+    "category": "overused_word",
+    "text": "reborn",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.245Z"
+  },
+  {
+    "id": "4379f958-b04b-4e80-b18a-e737d5824e0b",
+    "category": "overused_word",
+    "text": "reciept",
+    "note": null,
+    "createdAt": "2026-05-07T05:59:43.434Z"
+  },
+  {
+    "id": "80248518-2147-4f7e-aff3-fc7142edd3f2",
+    "category": "overused_word",
+    "text": "resonate",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.250Z"
+  },
+  {
+    "id": "25854162-213e-4df4-8158-542393d6bc0a",
+    "category": "overused_word",
+    "text": "road",
+    "note": null,
+    "createdAt": "2026-05-07T05:59:43.434Z"
+  },
+  {
+    "id": "987cfd58-aa84-4fc7-99d4-d93e90b8b08f",
+    "category": "overused_word",
+    "text": "settled",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "9525b442-6f76-4e61-9daf-0b7541050f21",
+    "category": "overused_word",
+    "text": "shadows",
+    "note": null,
+    "createdAt": "2026-05-07T05:59:43.434Z"
+  },
+  {
+    "id": "7b8c95bd-3f12-42aa-b3b8-b95b167e7863",
+    "category": "overused_word",
+    "text": "shift",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "554c2278-f3c5-473e-8f75-d63c66f67a9e",
+    "category": "overused_word",
+    "text": "shifted",
+    "note": null,
+    "createdAt": "2026-05-12T04:22:57.887Z"
+  },
+  {
+    "id": "0a66b69d-b6e3-4c51-9045-431cf4304601",
+    "category": "overused_word",
+    "text": "silence",
+    "note": null,
+    "createdAt": "2026-05-20T22:59:06.027Z"
+  },
+  {
+    "id": "6166a158-20cb-43fc-a74b-13ff91ff3ae7",
+    "category": "overused_word",
+    "text": "starlit",
+    "note": null,
+    "createdAt": "2026-05-07T05:59:43.434Z"
+  },
+  {
+    "id": "6bc1960c-80ed-464f-b6df-45f3ac345bda",
+    "category": "overused_word",
+    "text": "sun",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "485908f4-2516-474b-af2d-9029c8b34b95",
+    "category": "overused_word",
+    "text": "surrender",
+    "note": null,
+    "createdAt": "2026-05-07T05:59:43.434Z"
+  },
+  {
+    "id": "e7d1b465-6f9b-45da-ac59-eb297ba3c95a",
+    "category": "overused_word",
+    "text": "tea",
+    "note": null,
+    "createdAt": "2026-05-20T18:42:17.222Z"
+  },
+  {
+    "id": "8d64f8b6-b0bd-487a-9744-926eaebee2d9",
+    "category": "overused_word",
+    "text": "traced",
+    "note": null,
+    "createdAt": "2026-05-20T18:43:54.951Z"
+  },
+  {
+    "id": "1f824f38-9fcf-4c40-b4b3-40edd47bf99d",
+    "category": "overused_word",
+    "text": "warm",
+    "note": "added 2026-05-25 — over-relied on in recent batches",
+    "createdAt": "2026-05-25T19:19:17.868Z"
+  },
+  {
+    "id": "02e69ac6-d096-440b-ac24-ad9aeac8e820",
+    "category": "overused_word",
+    "text": "weightless",
+    "note": "added 2026-05-26 — migrated from inline Hook System Prompt",
+    "createdAt": "2026-05-27T02:59:32.271Z"
+  },
+  {
+    "id": "e9433a74-b817-4472-86d4-bf7ac9d75ec6",
+    "category": "overused_word",
+    "text": "whispers",
+    "note": null,
+    "createdAt": "2026-05-07T05:59:43.434Z"
+  },
+  {
+    "id": "910d1716-9c6c-4755-a1e9-3d11184d8bfa",
+    "category": "overused_word",
+    "text": "window",
+    "note": null,
+    "createdAt": "2026-05-20T22:59:22.995Z"
+  }
+]

@@ -1,0 +1,27 @@
+{
+  "outcomeKey": "5b24bf95-95ed-402f-aa0d-3003448bac99",
+  "title": "Value Lift / Transaction Value",
+  "attemptedAt": "2026-05-27T00:44:47.607Z",
+  "rolledBackAt": "2026-05-28T00:49:13.259Z",
+  "rationale": "Daniel's entendre framing: a hook is the line a customer says inside their own head right before the trade-up choice. Anchor each hook to one of a small set of inner phrases (worth it / I always pick the good one / etc); the drafter wraps a scene around the phrase.",
+  "templateText": "The action: a customer at a two-option moment picks the better one.\n\nThe hook is the line a person quietly says inside their own head right before that choice. Anchor each hook to one of these inner phrases — write a scene around it that earns the line:\n\n- \"worth it\"\n- \"I always pick the good one\"\n- \"the better one this time\"\n- \"this is the one\"\n- \"we're celebrating\"\n- \"I came here for this\"\n\nQuiet thought, not slogan. The phrase carries the meaning; the scene gives it somewhere to live.\n",
+  "smokeTestResult": {
+    "icp": "Gary (Untuckit)",
+    "n": 8,
+    "hooks": [
+      "Worth it, every dollar of it",
+      "I always pick the good one",
+      "The better one this time",
+      "Mom said get the real thing",
+      "This is the one I wanted",
+      "We're celebrating, so I'm not counting",
+      "I came here for this exactly",
+      "Twice as much, lasts me ten years"
+    ],
+    "verdict": "Only 'Mom said get the real thing' executed the entendre cleanly. Six of eight hooks quoted the seed phrases verbatim instead of wrapping scenes. Pattern read as keyword instruction, not feeling anchor.",
+    "diagnosed_causes": [
+      "Bullet list of phrases reads as 'include one of these strings,' not 'evoke this internal feeling.' The 'write a scene around it that earns the line' instruction was not load-bearing enough to override the bullets.",
+      "System prompt still permits category-3 ('speaks a direct behavior or intention') as a valid hook type. The verbatim-quoting hooks land exactly in that slot — the outcome overlay and the universal craft frame were in tension."
+    ]
+  }
+}

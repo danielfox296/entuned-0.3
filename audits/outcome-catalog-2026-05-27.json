@@ -1,0 +1,90 @@
+[
+  {
+    "outcomeKey": "e50bb3ae-dc63-44eb-8d03-ae9acaede0ee",
+    "title": "Browse to Buy",
+    "displayTitle": "Help Them Decide",
+    "mood": "inviting, easygoing",
+    "tempoBpm": 82,
+    "mode": "major"
+  },
+  {
+    "outcomeKey": "5b24bf95-95ed-402f-aa0d-3003448bac99",
+    "title": "Value Lift",
+    "displayTitle": "Trade Them Up",
+    "mood": "classic, refined",
+    "tempoBpm": 74,
+    "mode": "minor"
+  },
+  {
+    "outcomeKey": "e318387a-1294-4cbb-9c3c-ebb30e16b741",
+    "title": "Add Items",
+    "displayTitle": "Fill the Basket",
+    "mood": "curious, energetic",
+    "tempoBpm": 100,
+    "mode": "major"
+  },
+  {
+    "outcomeKey": "6bee45e6-911c-4ea0-899f-bb6668e672ee",
+    "title": "Impulse",
+    "displayTitle": "Grab It Now",
+    "mood": "playful, optimistic",
+    "tempoBpm": 92,
+    "mode": "major"
+  },
+  {
+    "outcomeKey": "0ffa6e2e-6c09-48e1-8aae-a431636ee799",
+    "title": "Dwell Compression",
+    "displayTitle": "Keep It Moving",
+    "mood": "urgent, propulsive",
+    "tempoBpm": 104,
+    "mode": "major"
+  },
+  {
+    "outcomeKey": "33333333-3333-3333-3333-333333333333",
+    "title": "Brand Match",
+    "displayTitle": "Our Sound",
+    "mood": "confident, solid",
+    "tempoBpm": 92,
+    "mode": "major"
+  },
+  {
+    "outcomeKey": "d7437a5d-d250-4976-a0b5-91825d020ea9",
+    "title": "Status Lift",
+    "displayTitle": "Swagger Spend",
+    "mood": "bold, confident",
+    "tempoBpm": 108,
+    "mode": "mixolydian"
+  },
+  {
+    "outcomeKey": "ec5b9a44-4836-495b-855b-1dfdf07dcf82",
+    "title": "Steady",
+    "displayTitle": "Steady",
+    "mood": "steady, balanced",
+    "tempoBpm": 104,
+    "mode": "mixolydian"
+  },
+  {
+    "outcomeKey": "b434800e-08b7-4bda-ab3a-04a2d9153506",
+    "title": "Chill",
+    "displayTitle": "Chill",
+    "mood": "tender, hushed",
+    "tempoBpm": 66,
+    "mode": "dorian"
+  },
+  {
+    "outcomeKey": "5bf57ce8-f4d1-4011-9b54-7e28d65e7d36",
+    "title": "Upbeat",
+    "displayTitle": "Upbeat",
+    "mood": "optimistic, danceable",
+    "tempoBpm": 122,
+    "mode": "major pentatonic"
+  },
+  {
+    "outcomeKey": "dc8f550d-9330-4c97-8a9f-91670f05b50b",
+    "title": "Dwell Extension",
+    "displayTitle": "Stay & Browse",
+    "mood": "thoughtful, reflective",
+    "tempoBpm": 66,
+    "mode": "minor"
+  }
+]

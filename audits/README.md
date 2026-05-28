@@ -17,3 +17,4 @@ Treat the files here as **historical reference**. Don't update them to reflect c
 | [ASSESSMENT-eno-comparison.md](ASSESSMENT-eno-comparison.md) | 2026-05-17 | Eno-1 vs Eno-2 parallel-orchestrator deep-read |
 | [ASSESSMENT-frontends.md](ASSESSMENT-frontends.md) | 2026-05-17 | player + admin + dashboard frontend audit |
 | [ASSESSMENT-tier-bug.md](ASSESSMENT-tier-bug.md) | 2026-05-17 | Drill-down on the `Tier` type drifted across three files |
+| [lyric-ban-list-audit-2026-05-27.md](lyric-ban-list-audit-2026-05-27.md) | 2026-05-27 | Triage of 128 `LyricBanEntry` rows against the upstream rewrite of `OutcomeLyricFactor` + Hook Drafter system prompt — 45 retire candidates, 80 keep, 3 for Daniel. Companion snapshots: `lyric-ban-list-snapshot-*.json`, `lyric-draft-prompt-snapshot-*.txt`, `hook-drafter-v4-snapshot-*.txt`, `outcome-catalog-*.json`, three `outcome-factor-*.json` (pre-zeroshot / pre-inner-phrase / inner-phrase-attempt). |
