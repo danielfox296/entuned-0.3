@@ -9,11 +9,17 @@ Browser-free hook drafting. Replaces the manual Dash flow ("Workflows → Hook W
 
 The artifact produced is **byte-identical** to what the browser writes: same `prisma.hook.create` shape, same `status='approved'`, same `approvedById`/`approvedAt`. The HTTP route's only added work is Zod validation + auth — both are operator-owned concerns this skill handles at the script layer.
 
+## Pre-flight (read this first)
+
+**Working directory:** every `railway ssh` call must run from the monorepo root (`entuned-0.3/`). From `~/Desktop/entuned/` one level up, `railway ssh` fails with `No linked project found`. Always prefix with `cd entuned-0.3 &&`.
+
+**SSH auth:** `railway ssh` uses `~/.ssh/railway_ed25519` (passphrase-less ed25519). `~/.ssh/config` has a `Host ssh.railway.com` block pinning that key with `IdentitiesOnly yes`, so auth works flag-free. Do NOT pass `--identity-file`. If you get `Permission denied (publickey)`, check `~/.ssh/config` still has the Host block and `railway ssh keys list` still shows the `railway-cli` key — see `entuned-0.3/CLAUDE.md` → Railway SSH.
+
 ## railway ssh escaping rules (read this first)
 
 Every script in this skill is shell-wrapped like:
 ```
-railway ssh "cd /app && node -e '<JS-here>'"
+cd entuned-0.3 && railway ssh "cd /app && node -e '<JS-here>'"
 ```
 
 Three quoting layers nest: outer `"..."` (shell arg) → inner `'...'` (node -e arg) → `\"` (JS string literals). Two `$` rules:
@@ -49,7 +55,7 @@ LOCATION="Free"
 ICP_NAME="Free Tier"
 OUTCOMES_CSV="Chill,Steady,Upbeat"
 
-railway ssh "cd /app && node -e '
+cd entuned-0.3 && railway ssh "cd /app && node -e '
 import(\"@prisma/client\").then(async m=>{
   const p = new m.PrismaClient();
   const fail = (stage, info) => { console.error(JSON.stringify({stage, ...info})); process.exit(1); };
@@ -91,7 +97,7 @@ Default `n` is **5** unless Daniel specifies. Cap at 20 (the Zod limit in the ad
 Get Daniel's `accountId` once at the start of the skill so `Hook.approvedById` matches what the browser writes. Hard-code if you know it; otherwise:
 
 ```bash
-railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
+cd entuned-0.3 && railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
   const p=new m.PrismaClient();
   const a=await p.account.findUnique({where:{email:\"daniel@entuned.co\"}});
   console.log(a?.id);
@@ -106,7 +112,7 @@ Cache this value for the rest of the skill session.
 For each (icpId, outcomeId) target, count approved hooks AND in-flight consumption. The right metric for "should I draft more" is `available = approved - inflight` — the count of approved hooks that `make-song-seeds` could still consume:
 
 ```bash
-railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
+cd entuned-0.3 && railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
   const p=new m.PrismaClient();
   const approved=await p.hook.count({where:{icpId:\"<ICP>\",outcomeId:\"<OUTCOME>\",status:\"approved\"}});
   const inflight=await p.songSeed.count({where:{hook:{icpId:\"<ICP>\",outcomeId:\"<OUTCOME>\"},status:{in:[\"assembling\",\"queued\",\"accepted\"]}}});
@@ -129,7 +135,7 @@ One `railway ssh` per target. Inline the IDs and `n`:
 
 ```bash
 ICP_ID="..."; OUTCOME_ID="..."; N=5; APPROVED_BY="<daniel-account-id>"
-railway ssh "cd /app && node --import tsx -e '
+cd entuned-0.3 && railway ssh "cd /app && node --import tsx -e '
 import(\"./dist/lib/hooks/drafter.js\").then(async d => {
   const { PrismaClient } = await import(\"@prisma/client\");
   const p = new PrismaClient();
@@ -173,7 +179,7 @@ Print every new hook for the record, grouped by `(ICP × outcome)`, then continu
 Query to populate the dump (replace `<NEW_IDS>` with the array of ids returned by Step 2's `createMany`; or re-query by `approvedAt >= <step-2-start-time>` if ids weren't captured):
 
 ```bash
-railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
+cd entuned-0.3 && railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
   const p = new m.PrismaClient();
   const rows = await p.hook.findMany({
     where: { id: { in: <NEW_IDS> } },

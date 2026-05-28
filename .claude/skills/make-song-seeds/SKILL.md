@@ -9,11 +9,17 @@ Browser-free `runEno` invocation. Replaces the manual Dash flow ("Workflows → 
 
 The artifacts produced are **byte-identical** to what the browser writes: same `runEno()` call, same `SongSeedBatch` row with full provenance (icpId, outcomeId, requestedN, producedN, reason, triggeredBy, triggeredByUser, pipeline, startedAt, finishedAt), same `SongSeed` rows with hook/refTrack/outcome IDs + style + negativeStyle + lyrics + all version snapshots (lyricDraftPromptVersion, lyricEditPromptVersion, styleTemplateVersion, outcomeFactorPromptVersion, marsPromptVersion, hookWriterPromptVersion, formArchetypeVersion, arrangementTemplateVersion).
 
+## Pre-flight (read this first)
+
+**Working directory:** every `railway ssh` call must run from the monorepo root (`entuned-0.3/`). From `~/Desktop/entuned/` one level up, `railway ssh` fails with `No linked project found`. Always prefix with `cd entuned-0.3 &&`.
+
+**SSH auth:** `railway ssh` uses `~/.ssh/railway_ed25519` (passphrase-less ed25519). `~/.ssh/config` has a `Host ssh.railway.com` block pinning that key with `IdentitiesOnly yes`, so auth works flag-free. Do NOT pass `--identity-file`. If you get `Permission denied (publickey)`, check `~/.ssh/config` still has the Host block and `railway ssh keys list` still shows the `railway-cli` key — see `entuned-0.3/CLAUDE.md` → Railway SSH.
+
 ## railway ssh escaping rules (read this first)
 
 Every script in this skill is shell-wrapped like:
 ```
-railway ssh "cd /app && node -e '<JS-here>'"
+cd entuned-0.3 && railway ssh "cd /app && node -e '<JS-here>'"
 ```
 
 Three quoting layers nest: outer `"..."` (shell arg) → inner `'...'` (node -e arg) → `\"` (JS string literals). Two `$` rules:
@@ -50,7 +56,7 @@ LOCATION="Free"
 ICP_NAME="Free Tier"
 OUTCOMES_CSV="Chill,Steady,Upbeat"
 
-railway ssh "cd /app && node -e '
+cd entuned-0.3 && railway ssh "cd /app && node -e '
 import(\"@prisma/client\").then(async m=>{
   const p = new m.PrismaClient();
   const fail = (stage, info) => { console.error(JSON.stringify({stage, ...info})); process.exit(1); };
@@ -92,7 +98,7 @@ Default `n` is **3** for a sanity-check run, **5** for a real fill. Cap at 20 (Z
 Get Daniel's `accountId` once so `SongSeedBatch.triggeredByUser` matches what the browser writes:
 
 ```bash
-railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
+cd entuned-0.3 && railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
   const p=new m.PrismaClient();
   const a=await p.account.findUnique({where:{email:\"daniel@entuned.co\"}});
   console.log(a?.id);
@@ -107,7 +113,7 @@ Cache for the session.
 For each target, verify there's hook headroom (`runEno` will return `pool_exhausted_hooks` otherwise). The right metric is `available = approved - inflight` (this matches the calc `draft-hooks` uses):
 
 ```bash
-railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
+cd entuned-0.3 && railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
   const p=new m.PrismaClient();
   const approved=await p.hook.count({where:{icpId:\"<ICP>\",outcomeId:\"<OUTCOME>\",status:\"approved\"}});
   const inflight=await p.songSeed.count({where:{hook:{icpId:\"<ICP>\",outcomeId:\"<OUTCOME>\"},status:{in:[\"assembling\",\"queued\",\"accepted\"]}}});
@@ -125,7 +131,7 @@ railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
 Also worth a quick ref-track sanity check at the outcome's tempo (the only ref-track gate now):
 
 ```bash
-railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
+cd entuned-0.3 && railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
   const p=new m.PrismaClient();
   const refs=await p.referenceTrack.findMany({where:{icpId:\"<ICP>\",status:\"approved\",styleAnalysis:{isNot:null}},include:{styleAnalysis:true}});
   const bpm = <OUTCOME_BPM>;
@@ -148,7 +154,7 @@ Use this exact template:
 
 ```bash
 ICP_ID="..."; OUTCOME_ID="..."; N=3; TRIGGERED_BY_USER="<daniel-account-id>"
-railway ssh "cd /app && node --import tsx -e '
+cd entuned-0.3 && railway ssh "cd /app && node --import tsx -e '
 import(\"./dist/lib/eno/eno.js\").then(async e => {
   const result = await e.runEno({
     icpId: \"$ICP_ID\",
@@ -181,7 +187,7 @@ Result shape:
 After every batch, dump the produced seeds so Daniel can sanity-check before they ship to Suno. The block to inline (replace `<BATCH_ID>`):
 
 ```bash
-railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
+cd entuned-0.3 && railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
   const p=new m.PrismaClient();
   const seeds=await p.songSeed.findMany({
     where:{songSeedBatchId:\"<BATCH_ID>\"},

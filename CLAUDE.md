@@ -28,6 +28,9 @@ Production monorepo. 4 apps: `apps/server` (Fastify + Prisma) → `api.entuned.c
 - **Tests gate every production deploy.** Railway and both Pages workflows run `pnpm test`; if anything fails, no new deploy is promoted. There is no skip flag — if the gate blocks you, fix or revert.
 - **Schema changes:** update `../entune v0.3/schema/` first (the SSOT), then mirror into `apps/server/prisma/schema.prisma`, then `prisma migrate`.
 - **Railway deploy:** server only. `railway up` from the **monorepo root** (`entuned-0.3/`). The Railway service has Root Directory=`apps/server` set in the dashboard, so the upload must contain that path. Do NOT use `--path-as-root` — that flag conflicts with the dashboard's Root Directory setting and breaks the build.
+- **Railway SSH:** `cd entuned-0.3 && railway ssh "..."`. Two gotchas:
+  1. **Must be run from the monorepo root** (the linked Railway project). From `~/Desktop/entuned/` one level up, `railway ssh` fails with `No linked project found` even when `railway whoami` shows logged in. Always prefix with `cd entuned-0.3 &&`.
+  2. **SSH auth uses `~/.ssh/railway_ed25519`** (passphrase-less ed25519, registered with Railway as the `railway-cli` key). `~/.ssh/config` has a `Host ssh.railway.com` block pinning that key with `IdentitiesOnly yes`, so `railway ssh` authenticates without flags and without ssh-agent state. Do NOT pass `--identity-file`; the config handles it. If `railway ssh` fails with `Permission denied (publickey)`, check that `~/.ssh/railway_ed25519` still exists and that `railway ssh keys list` includes its fingerprint — re-register with `railway ssh keys add --key ~/.ssh/railway_ed25519.pub --name railway-cli` if needed.
 - **Customer dashboard deploys to a separate publish repo** (`danielfox296/entuned-0.3-dashboard`). Workflow: `.github/workflows/deploy-dashboard.yml`.
 - **Cloudflare DNS for app subdomains MUST be DNS-only (gray cloud)** — Railway and GitHub Pages terminate SSL themselves.
 

@@ -15,6 +15,12 @@ Orchestrator. Runs the complete music generation pipeline end-to-end by delegati
 
 Stages 1 and 2 run browser-free over `railway ssh`. Only Stage 3 (Suno round-trip) needs a browser. The bootstrap step uses Dash for reference-track suggestion and parallel API fetches for decompose.
 
+## Pre-flight (read this first)
+
+**Working directory:** every `railway ssh` call must run from the monorepo root (`entuned-0.3/`). From `~/Desktop/entuned/` one level up, `railway ssh` fails with `No linked project found`. Always prefix with `cd entuned-0.3 &&`.
+
+**SSH auth:** `railway ssh` uses `~/.ssh/railway_ed25519` (passphrase-less ed25519). `~/.ssh/config` has a `Host ssh.railway.com` block pinning that key with `IdentitiesOnly yes`, so auth works flag-free. Do NOT pass `--identity-file`. If you get `Permission denied (publickey)`, check `~/.ssh/config` still has the Host block and `railway ssh keys list` still shows the `railway-cli` key — see `entuned-0.3/CLAUDE.md` → Railway SSH.
+
 ## Step 0 — Resolve targets (REQUIRED)
 
 `ARGUMENTS` must specify all three of `client`, `location`, `icp` (or IDs directly), plus the target `outcomes` (csv of `Outcome.title`) and optional `n` per outcome. No name-guessing, no silent defaults. If anything is missing or ambiguous, fail loudly with the candidate list — never pick.
@@ -117,7 +123,7 @@ There is no `voiceNotes` field in the schema. The psychographic ICP fields (`val
 After bootstrap (or if ICP was already provisioned), check pool headroom against the targets in ARGUMENTS. For each `(ICP × outcome)` combo, query:
 
 ```bash
-railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
+cd entuned-0.3 && railway ssh "cd /app && node -e 'import(\"@prisma/client\").then(async m=>{
   const p = new m.PrismaClient();
   const approved = await p.hook.count({ where: { icpId: \"$ICP_ID\", outcomeId: \"$OUTCOME_ID\", status: \"approved\" } });
   const inflight = await p.songSeed.count({ where: { hook: { icpId: \"$ICP_ID\", outcomeId: \"$OUTCOME_ID\" }, status: { in: [\"assembling\", \"queued\", \"accepted\"] } } });
