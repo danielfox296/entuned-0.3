@@ -318,11 +318,12 @@ export function HookRefresh({ ctx }: { ctx: WorkflowContext }) {
               }}
             />
           )}
-          {activeOutcomeId && <ManualHookEntry onAdd={(text) => {
-            setRows((rs) => [{
+          {activeOutcomeId && <ManualHookEntry onAdd={(texts) => {
+            const newRows: DraftRow[] = texts.map((text) => ({
               text, vocalGender: null, hookId: null, persistedAs: null,
               rejectionReason: null, saving: false, editing: false,
-            }, ...rs])
+            }))
+            setRows((rs) => [...newRows, ...rs])
           }} />}
           {activeOutcomeId && drafting && (
             <LlmProgress
@@ -455,30 +456,37 @@ function Heading({ children }: { children: React.ReactNode }) {
   )
 }
 
-function ManualHookEntry({ onAdd }: { onAdd: (text: string) => void }) {
+function ManualHookEntry({ onAdd }: { onAdd: (texts: string[]) => void }) {
   const [value, setValue] = useState('')
+  const parsed = value.split(/[,\n]/).map((s) => s.trim()).filter(Boolean)
   const submit = () => {
-    const t = value.trim()
-    if (!t) return
-    onAdd(t)
+    if (parsed.length === 0) return
+    onAdd(parsed)
     setValue('')
   }
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
-      <input
-        type="text"
+      <textarea
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') submit() }}
-        placeholder="type a hook line manually…"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault()
+            submit()
+          }
+        }}
+        rows={3}
+        placeholder="type hooks manually — separate multiple with commas or new lines (⌘/Ctrl+Enter to add)"
         style={{
           flex: 1, background: T.bg, color: T.text,
           border: `1px solid ${T.border}`, borderRadius: 3,
-          padding: '8px 10px', fontFamily: T.sans, fontSize: 14,
-          outline: 'none',
+          padding: '8px 10px', fontFamily: T.sans, fontSize: 14, lineHeight: 1.4,
+          outline: 'none', resize: 'vertical',
         }}
       />
-      <Button onClick={submit} disabled={!value.trim()}>Add</Button>
+      <Button onClick={submit} disabled={parsed.length === 0}>
+        {parsed.length > 1 ? `Add ${parsed.length}` : 'Add'}
+      </Button>
     </div>
   )
 }
