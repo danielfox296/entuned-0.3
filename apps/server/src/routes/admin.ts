@@ -2345,20 +2345,28 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const limit = Math.min(parseInt(q.limit ?? '50', 10) || 50, 200)
     const offset = Math.max(parseInt(q.offset ?? '0', 10) || 0, 0)
     const where: any = {}
-    if (q.icpId) where.icpId = q.icpId
     if (q.outcomeId) where.outcomeId = q.outcomeId
     if (q.hookId) where.hookId = q.hookId
     if (q.active === 'true') where.active = true
     else if (q.active === 'false') where.active = false
     // active === 'all' or unset → no filter
 
-    // free-tier filter: 'hide' (default — non-Free-Tier rows only), 'only'
-    // (Free Tier ICP rows only), 'all' (both). Replaces the legacy general-pool
-    // filter — "general pool" is now formally the Free Tier ICP.
-    const general = q.general ?? 'hide'
-    if (general === 'hide') where.icpId = { not: FREE_TIER_ICP_ID }
-    else if (general === 'only') where.icpId = FREE_TIER_ICP_ID
-    // 'all' → no filter
+    // ICP filter takes precedence over the free-tier toggle. When the operator
+    // picks a specific ICP, the FREE hide/only/all toggle is meaningless — the
+    // pick already fully constrains the ICP axis. Without this precedence,
+    // selecting "Free Tier" while general='hide' would silently rewrite icpId
+    // to { not: FREE_TIER_ICP_ID } and show paid-ICP rows instead.
+    if (q.icpId) {
+      where.icpId = q.icpId
+    } else {
+      // free-tier filter: 'hide' (default — non-Free-Tier rows only), 'only'
+      // (Free Tier ICP rows only), 'all' (both). Replaces the legacy general-pool
+      // filter — "general pool" is now formally the Free Tier ICP.
+      const general = q.general ?? 'hide'
+      if (general === 'hide') where.icpId = { not: FREE_TIER_ICP_ID }
+      else if (general === 'only') where.icpId = FREE_TIER_ICP_ID
+      // 'all' → no filter
+    }
 
     const [rows, total] = await Promise.all([
       prisma.lineageRow.findMany({
