@@ -2375,7 +2375,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         skip: offset,
         take: limit,
         include: {
-          song: { select: { id: true, r2Url: true, byteSize: true } },
+          song: { select: { id: true, r2Url: true, r2ObjectKey: true, byteSize: true, contentType: true, uploadedAt: true } },
           hook: { select: { id: true, text: true } },
           outcome: { select: { id: true, title: true, displayTitle: true, version: true } },
           songSeed: { select: { id: true, title: true } },
@@ -2438,7 +2438,14 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           storeName: i?.storeLinks[0]?.store.name ?? null,
           outcome: r.outcome,
           hook: r.hook,
-          song: r.song,
+          // byteSize is BigInt in Prisma — Fastify's default JSON serializer
+          // throws on BigInt, so coerce to Number. uploadedAt is a Date.
+          song: r.song ? {
+            ...r.song,
+            byteSize: r.song.byteSize == null ? null : Number(r.song.byteSize),
+            uploadedAt: r.song.uploadedAt.toISOString(),
+          } : r.song,
+          songSeedId: r.songSeedId,
           songTitle: r.songSeed?.title ?? null,
           // True if this song+outcome has a Free Tier ICP row (whether via a
           // sibling row or via this row itself if icpId IS the Free Tier ICP).

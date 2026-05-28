@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, getToken } from '../../api.js'
-import type { LineageRowList, LineageRowFull, OutcomeRowFull } from '../../api.js'
+import type { LineageRowList, LineageRowFull, OutcomeRowFull, SongSeedDetail } from '../../api.js'
 import { T } from '@entuned/tokens'
 import { Button, PanelHeader, S } from '../../ui/index.js'
 
@@ -216,6 +216,10 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
   const [playing, setPlaying] = useState(false)
   const [duration, setDuration] = useState<number | null>(null)
   const [generalBusy, setGeneralBusy] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  const [seedDetail, setSeedDetail] = useState<SongSeedDetail | null>(null)
+  const [seedErr, setSeedErr] = useState<string | null>(null)
+  const [seedLoading, setSeedLoading] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
@@ -260,15 +264,28 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
     a.play().catch((e) => setErr(e.message))
   }
 
+  const toggleExpanded = () => {
+    const next = !expanded
+    setExpanded(next)
+    if (next && row.songSeedId && !seedDetail && !seedLoading) {
+      const token = getToken(); if (!token) return
+      setSeedLoading(true); setSeedErr(null)
+      api.songSeedDetail(row.songSeedId, token)
+        .then(setSeedDetail)
+        .catch((e: any) => setSeedErr(e.message))
+        .finally(() => setSeedLoading(false))
+    }
+  }
+
   const created = new Date(row.createdAt).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
   })
   return (
+    <div style={{ borderBottom: `1px solid ${T.borderSubtle}`, opacity: row.active ? 1 : 0.55 }}>
     <div style={{
       display: 'grid', gridTemplateColumns: COLS, gap: 10,
-      padding: '10px 12px', borderBottom: `1px solid ${T.borderSubtle}`,
+      padding: '10px 12px',
       fontFamily: T.mono, fontSize: 14, alignItems: 'flex-start',
-      opacity: row.active ? 1 : 0.55,
     }}>
       <span style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
         <button
@@ -279,10 +296,10 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
           {playing ? '❚❚' : '▶'}
         </button>
         <span
-          onClick={play}
+          onClick={toggleExpanded}
           style={{ color: T.text, fontWeight: 700, cursor: 'pointer', fontFamily: T.sans, wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3 }}
-          title={row.songTitle ?? undefined}
-        >{row.songTitle ?? '(untitled)'}</span>
+          title={expanded ? 'hide details' : 'show details'}
+        >{expanded ? '▾ ' : '▸ '}{row.songTitle ?? '(untitled)'}</span>
       </span>
       <span style={{ color: T.text, fontFamily: T.sans, lineHeight: 1.3, wordBreak: 'break-word', overflowWrap: 'anywhere' }} title={row.hook?.text ?? '— general pool —'}>
         {row.hook?.text ?? <span style={{ color: T.textDim, fontStyle: 'italic' }}>— general pool —</span>}
@@ -339,6 +356,137 @@ function Row({ row, onChanged }: { row: LineageRowFull; onChanged: () => void })
         {err && <div style={{ fontSize: 12, color: T.danger }}>{err}</div>}
       </span>
     </div>
+    {expanded && (
+      <DetailPanel
+        row={row}
+        seedDetail={seedDetail}
+        seedErr={seedErr}
+        seedLoading={seedLoading}
+      />
+    )}
+    </div>
+  )
+}
+
+function DetailPanel({ row, seedDetail, seedErr, seedLoading }: {
+  row: LineageRowFull
+  seedDetail: SongSeedDetail | null
+  seedErr: string | null
+  seedLoading: boolean
+}) {
+  const byteSize = row.song.byteSize == null ? null : Number(row.song.byteSize)
+  const sizeKb = byteSize == null ? null : Math.round(byteSize / 1024)
+  const uploadedAt = new Date(row.song.uploadedAt).toLocaleString()
+  return (
+    <div style={{
+      padding: '14px 18px 18px 38px',
+      background: T.surface,
+      borderTop: `1px solid ${T.borderSubtle}`,
+      fontFamily: T.mono, fontSize: 13, color: T.textMuted,
+      display: 'flex', flexDirection: 'column', gap: 14,
+    }}>
+      <Section title="Audio">
+        <UrlField label="r2 url" value={row.song.r2Url} />
+        <Field label="r2 object key" value={row.song.r2ObjectKey} />
+        <Field label="song id" value={row.song.id} mono />
+        <Field label="size" value={sizeKb == null ? '—' : `${sizeKb.toLocaleString()} KB`} />
+        <Field label="content type" value={row.song.contentType ?? '—'} />
+        <Field label="uploaded" value={uploadedAt} />
+      </Section>
+
+      <Section title="Lineage">
+        <Field label="lineage row id" value={row.id} mono />
+        <Field label="outcome" value={`${row.outcome.displayTitle ?? row.outcome.title} (v${row.outcome.version})`} />
+        <Field label="outcome id" value={row.outcome.id} mono />
+        <Field label="hook" value={row.hook?.text ?? '— general pool —'} />
+        {row.hook && <Field label="hook id" value={row.hook.id} mono />}
+        <Field label="icp" value={row.icpName ?? row.icpId ?? '—'} />
+        {row.icpId && <Field label="icp id" value={row.icpId} mono />}
+        <Field label="client" value={row.clientName ?? '—'} />
+        <Field label="store" value={row.storeName ?? '—'} />
+      </Section>
+
+      {row.songSeedId && (
+        <Section title="Seed prompt">
+          <Field label="seed id" value={row.songSeedId} mono />
+          {seedLoading && <div style={{ color: T.textDim }}>loading seed…</div>}
+          {seedErr && <div style={{ color: T.danger }}>{seedErr}</div>}
+          {seedDetail && (
+            <>
+              <Field label="status" value={seedDetail.status} />
+              <Field label="title" value={seedDetail.title ?? '—'} />
+              <Field label="vocal gender" value={seedDetail.vocalGender ?? '—'} />
+              <Field label="style" value={seedDetail.style ?? '—'} multiline />
+              <Field label="negative style" value={seedDetail.negativeStyle ?? '—'} multiline />
+              <Field label="lyrics" value={seedDetail.lyrics ?? '—'} multiline />
+            </>
+          )}
+        </Section>
+      )}
+    </div>
+  )
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{
+        fontFamily: T.mono, fontSize: 11, color: T.textDim,
+        textTransform: 'uppercase', letterSpacing: '0.05em',
+      }}>{title}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', columnGap: 14, rowGap: 4 }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, value, mono, multiline }: { label: string; value: string; mono?: boolean; multiline?: boolean }) {
+  return (
+    <>
+      <div style={{ color: T.textDim, fontSize: 12 }}>{label}</div>
+      <div style={{
+        color: T.text,
+        fontFamily: mono ? T.mono : T.sans,
+        fontSize: 13,
+        whiteSpace: multiline ? 'pre-wrap' : 'normal',
+        wordBreak: 'break-word',
+      }}>{value}</div>
+    </>
+  )
+}
+
+function UrlField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1200)
+    } catch { /* clipboard unavailable */ }
+  }
+  return (
+    <>
+      <div style={{ color: T.textDim, fontSize: 12 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <a
+          href={value}
+          target="_blank"
+          rel="noreferrer"
+          style={{ color: T.accent, fontFamily: T.mono, fontSize: 13, wordBreak: 'break-all', textDecoration: 'none' }}
+        >{value}</a>
+        <button
+          onClick={copy}
+          style={{
+            background: 'transparent', border: `1px solid ${T.border}`,
+            color: copied ? T.accent : T.textMuted,
+            fontFamily: T.mono, fontSize: 11, padding: '2px 8px', borderRadius: 3,
+            cursor: 'pointer', flexShrink: 0,
+          }}
+          title="copy to clipboard"
+        >{copied ? 'copied' : 'copy'}</button>
+      </div>
+    </>
   )
 }
 

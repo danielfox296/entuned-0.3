@@ -722,7 +722,15 @@ export interface LineageRowFull {
   storeName: string | null
   outcome: { id: string; title: string; displayTitle: string | null; version: number }
   hook: { id: string; text: string } | null
-  song: { id: string; r2Url: string; byteSize: number | string | null }
+  song: {
+    id: string
+    r2Url: string
+    r2ObjectKey: string
+    byteSize: number | null
+    contentType: string | null
+    uploadedAt: string
+  }
+  songSeedId: string | null
   songTitle: string | null
   // True if this song+outcome pair is in the free-tier general pool. Toggled
   // via POST /admin/lineage-rows/:id/toggle-general.

@@ -80,6 +80,68 @@ describe('GET /admin/lineage-rows — icp + free-tier filter precedence', () => 
     playbackGroupBy.mockResolvedValue([])
   })
 
+  it('selects the song detail fields the dash Song Browser expand panel needs (r2ObjectKey, contentType, uploadedAt)', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'GET',
+      url: '/lineage-rows',
+      headers: AUTH,
+    })
+    expect(res.statusCode).toBe(200)
+    const include = lineageFindMany.mock.calls[0][0].include
+    expect(include.song.select).toMatchObject({
+      id: true, r2Url: true, r2ObjectKey: true,
+      byteSize: true, contentType: true, uploadedAt: true,
+    })
+  })
+
+  it('returns songSeedId + song fields on each row so the detail panel can render without an extra fetch', async () => {
+    const uploadedAt = new Date('2026-04-01T12:00:00Z')
+    lineageFindMany.mockResolvedValueOnce([{
+      id: 'row-1',
+      active: true,
+      createdAt: new Date('2026-04-01T12:00:00Z'),
+      icpId: '00000000-0000-0000-0000-0000000000aa',
+      songId: 'song-1',
+      outcomeId: 'oc-1',
+      hookId: 'hk-1',
+      songSeedId: 'seed-1',
+      song: {
+        id: 'song-1',
+        r2Url: 'https://r2.example.com/song-1.mp3',
+        r2ObjectKey: 'songs/song-1.mp3',
+        byteSize: 1234567n,
+        contentType: 'audio/mpeg',
+        uploadedAt,
+      },
+      hook: { id: 'hk-1', text: 'the hook' },
+      outcome: { id: 'oc-1', title: 'Focus', displayTitle: 'Focus AM', version: 2 },
+      songSeed: { id: 'seed-1', title: 'My Song' },
+    }])
+    lineageCount.mockResolvedValueOnce(1)
+
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'GET',
+      url: '/lineage-rows',
+      headers: AUTH,
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.rows[0].songSeedId).toBe('seed-1')
+    expect(body.rows[0].song).toMatchObject({
+      id: 'song-1',
+      r2Url: 'https://r2.example.com/song-1.mp3',
+      r2ObjectKey: 'songs/song-1.mp3',
+      // BigInt → number coercion: Fastify's default JSON serializer cannot
+      // emit BigInts. Regression guard for the 500 the route returned when
+      // the response carried a non-null byteSize.
+      byteSize: 1234567,
+      contentType: 'audio/mpeg',
+      uploadedAt: uploadedAt.toISOString(),
+    })
+  })
+
   it('explicit icpId=FREE_TIER_ICP_ID with default general=hide returns Free Tier rows (does not get overwritten to { not: FREE_TIER_ICP_ID })', async () => {
     const app = await buildTestApp(adminRoutes)
     const res = await app.inject({
