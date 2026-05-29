@@ -34,6 +34,58 @@ Markers to flag and cut:
 
 Any line that reads like a sentence from a recovery meeting or a CBT worksheet is out, regardless of how true it is. The hook should sound like the *world*, not like a person describing their relationship to it.
 
+## Cliché — the primary anchor
+
+A well-worn phrase is the hook's strongest move. Familiarity carries its own weight — the listener recognizes the line before parsing it; the music gives it context; the entendre is automatic. Hit rates from testing: cliché-anchored hooks ship at roughly **85%**; invention-anchored ("strangeness") hooks ship at roughly **40%** and almost always require editing. **Cliché is the lead mode.** Reach for invention only when no cliché captures the feeling.
+
+What lands:
+
+- Folk wisdom, proverbs, working-class idioms, mid-century domestic phrases
+- Idioms with concrete or visceral imagery — "cutting corners" beats "scrimping"
+- Cultural-specific phrases with folk-weight — "the real McCoy" beats "the real article"
+- Phrases from a grandmother, a job site, a porch, a poker table, a kitchen counter
+
+What doesn't:
+
+- Corporate / inspirational / aspirational ("just do it," "believe in yourself")
+- Therapy / self-help ("self-care," "boundaries," "showing up")
+- Hashtag-flavored ("#blessed," "treat yourself")
+- Decorum-language without grit
+
+**Already-a-famous-song lint.** Clichés that are well-established song titles get cut — the listener will be pulled to the existing song, not the new one. Watch for: Putting on the Ritz, Walking on Sunshine, On the Road Again, Let It Ride, Steady As She Goes, Killing Me Softly, Don't Stop Believin', Cream of the Crop. If the cliché has a famous song attached, find another cliché.
+
+**Cliché hierarchy.** Folk-weight beats decorum. Concrete imagery beats abstract quality. Specific cultural reference beats generic phrase. When choosing between two clichés that fit the feeling, pick the one with more grit.
+
+The test: if the line could be the title of a self-help book, cut it. If it could be the title of a country song that doesn't already exist, keep it.
+
+## Strangeness — the secondary mode
+
+When no cliché captures the feeling, the hook can anchor on a small strangeness — an off-note, a slight tilt, an unexpected pairing. This is the *secondary* mode. Use it when cliché won't reach the feeling, not as the default move.
+
+Three rules:
+
+1. **It must serve the outcome.** A strange image that contradicts the outcome's emotional vector gets cut. "Freight train at idle" is strange — but if the outcome is forward motion, the strangeness undercuts the outcome and dies.
+
+2. **Honest, not clever.** Strangeness that *reveals* something true about the feeling survives. Strangeness that *performs* cleverness gets cut. Test: would removing the strangeness flatten the feeling, or just make the line plainer? If just plainer, it was performance.
+
+3. **Wear cliché-cadence.** Strangeness that survives sounds like a folk-saying that *could* exist, not a literary construction. Lines with the rhythm of a real idiom hold; authored constructions die.
+
+## Length and grammar
+
+Hooks are **weighted fragments**, not complete sentences. Inner voice doesn't narrate to completion — it catches itself mid-thought. Default range is **2–5 words**; full sentences are suspect.
+
+Cut aggressively: drop subjects, drop articles, drop elaborating second clauses, drop costume details, drop modifiers that aren't load-bearing. The implied first-person often carries the meaning; the explicit pronoun can kill the cadence.
+
+**But not always.** Keep "I'm" / "I" when natural speech includes it — *"I'm calling it"* reads as the moment of decision; *"calling it"* alone reads as observation. When the pronoun marks the speech-act register, keep it. The rule isn't "always cut the pronoun" — it's "cut the pronoun when it's filler, keep it when it's cadence."
+
+A line that says one thing well beats a line that says two things in a row.
+
+## Inner-voice cadence
+
+Inner voice has rhythm. The hook can mark its rhythm with punctuation — not for grammar, for cognition. Mid-thought pauses (commas), arrival points (periods inside short lines), and em-dash interruptions all signal a real person catching their own thinking.
+
+A comma is the speaker reaching the thought; a period inside a 3-word line is the conclusion landing; an em-dash is the interruption that always happens when thinking. Punctuation choices are content. Trust them.
+
 ## The 10 craft principles
 
 State the principle, then write. Do not seed exemplar lines into the working set — the model collapses to them. See `feedback_dont_default_to_shots.md`.
@@ -48,6 +100,18 @@ State the principle, then write. Do not seed exemplar lines into the working set
 8. Use a color to name a state language can't reach.
 9. Name what's missing rather than what's present.
 10. Specific person + specific place makes the universal enter-able.
+
+## Idiom and cliché — recognition as an alternative anchor
+
+A well-worn phrase can be the hook. Familiarity carries its own weight — the listener recognizes the line before parsing it; the music gives it context; the entendre is automatic. "Keeping up with the Joneses," "made up my mind," "what the hell," "cut from the same cloth," "while we're at it" — these land instantly because the listener has heard them their whole life.
+
+This is an **alternative anchor to the strangeness floor**. Strangeness anchors via *revelation* (the listener notices something new). Cliché anchors via *recognition* (the listener feels something already known). A hook can use either. A cliché tilted slightly does both.
+
+**Works:** folk wisdom, proverbs, working-class idioms, mid-century domestic phrases, idioms with concrete imagery. The kind of thing a listener would hear from their grandmother, their job site, their porch.
+
+**Doesn't work:** corporate / inspirational / aspirational ("just do it," "believe in yourself"), therapy / self-help ("self-care," "boundaries," "showing up"), hashtag-flavored ("#blessed," "treat yourself").
+
+The test: if the line could be the title of a self-help book, cut it. If it could be the title of a country song, keep it.
 
 ## The voice library
 
@@ -72,17 +136,27 @@ Do not quote these writers. Let their angle of approach shape the model's choice
 | **Raymond Carver** (poetry/short fiction) | Terse domestic recognition; small objects carrying large weight |
 | **Mary Oliver** | Close attention, the small holy of paying attention. NOTE: Oliver leaked therapy in testing. Use only when the outcome's emotional shape is genuine attention/permission, and screen output extra-hard. |
 
-## Structural preference
+## POV — first person is the home register
 
-Third-person and second-person voices are the most therapy-resistant by structure — you can't talk like a therapist about someone else, only about yourself.
+Hooks mimic the shopper's internal dialogue — the half-said sentence inside the customer's head as they stand in the moment. **First person is the default register**, because that's where the listener lives. Third and second person are valid and produce structural variance, but most hooks live in first.
 
-When choosing across the voice library for a batch, lean toward voices that naturally write in third or second person. First-person is allowed, but the therapy filter applies harder on first-person lines.
+First-person ≠ confessional. The therapy filter applies *hardest* here, because first-person is the surface most likely to slip into recovery cadence. Hold the distinction:
+
+- **Living first-person** — the inner voice of someone noticing the world; the speaker is inside the moment, observing.
+- **Reflecting first-person** — a person describing their relationship to themselves ("I let myself enjoy it," "Turns out I do live this way"). This is the therapy register. Cut.
+
+Also watch for **assertion-mode identity claims** — both the negations ("I don't X," "I am not Y") *and* the affirmations ("I am X," "I am like Y"). These tend toward thin claim regardless of polarity. The fix: convert identity to action. *"I am efficient as a small appliance"* → *"I work tight like a small appliance."* Verbs of doing beat verbs of being. First-person should be **doing**, not **being**.
 
 ## Process
 
 When invoked:
 
-1. **Resolve the outcome.** Get both the *action* (the behavior the music is trying to drive) and the *emotional shape* (the specific feeling underneath that behavior). If either is unclear, ask Daniel before generating.
+1. **Resolve the outcome.** Get three things:
+   - The *action* — the behavior the music is trying to drive.
+   - The *emotional shape* — the specific feeling underneath that behavior.
+   - The *use-of-witness* — most hooks have **no third-party character.** Even in outcomes where seen-ness is part of the feeling (trade-up, swagger-spend, brand-match), a named witness gets cut unless it carries **specific context** — a *relation* + a *place* (Aunt Janelle at the wedding, Patsy in the back room, Marie at the corner store). A naked name (Velma, Sal, Carrie) reads invented and dies. Default disposition: **no witness.** Reach for a named witness only when the line genuinely cannot carry the feeling without one, and even then earn the name with context. Most batches should have zero or one witness line, not five.
+
+   If any of these is unclear, ask Daniel before generating.
 
 2. **Select 3–5 voices** from the library whose angle of approach maps to the emotional shape. Justify each pick in one sentence — name the mechanic, not the vibe. ("Billy Joel for the dignity of the small working moment" — not "Billy Joel because it feels right.")
 
@@ -93,9 +167,27 @@ When invoked:
    [Aimee Mann · principle 7]     <hook text>
    ```
 
-4. **Run the therapy-code filter** on the candidate set. Cut anything that hits a marker from the anti-pattern section. Apply harshly — when in doubt, cut. Lines failing the filter do not get a rewrite pass in this skill; they get dropped.
+4. **Filter the candidate set.** Two passes, both applied harshly:
+   - **Therapy filter.** Cut anything that hits a marker from the therapy anti-pattern section.
+   - **Revelation test.** Ask of each surviving line: *does this make the listener notice something they hadn't seen, or feel something they hadn't named?* If it's pure description — clean but flat — cut. The therapy filter doesn't catch description; it needs its own pass.
+
+   Lines failing either filter do not get a rewrite pass in this skill; they get dropped.
 
 5. **Present survivors as a flat list.** Daniel curates from there. Do not pre-rank, do not annotate quality, do not suggest the "best" one.
+
+## Skill-level bans
+
+In addition to the production drafter's `lyric_ban_entries` DB list, the following are banned at the skill level (Daniel's veto — do not use in any form):
+
+- **"heavy"** — the model defaults to "heavy" as the universal weight-signaling word (heavy thing, heavy coat, heavy hour). Cut it. If weight matters, find a more specific word.
+
+## LLM-default lint
+
+Watch for words the model defaults to without reason. Not bans — flags for *variation*. If a batch returns the same default twice, vary it.
+
+- **"Tuesday" / "Wednesday" / "Thursday"** — the model's default weekday rotation. The lint isn't about a specific day; if a day name isn't load-bearing to the scene (i.e., the line still works with the day removed), cut it.
+
+This list grows as patterns emerge. Add to it.
 
 ## What this skill does NOT do
 

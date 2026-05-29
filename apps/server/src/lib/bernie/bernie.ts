@@ -75,6 +75,21 @@ export interface BernieOutput {
   draftPromptVersion: number
 }
 
+// Render the chosen form's sections into a per-section brief. Each section
+// names its [Section] marker and its arc — the stanza's job + how much space to
+// leave. This is what gives each stanza intention instead of texture.
+export function formatFormBrief(form: FormArchetypeChoice): string {
+  const lines = form.sections.map((s) => {
+    const marker = s.optional ? `[${s.label}] (optional — include only if it earns its place)` : `[${s.label}]`
+    return `- ${marker} — ${s.arc}`
+  })
+  return `Song form — write every section below, in order, each under its [Section] marker. Do NOT add or remove sections. Each section has a job (its "arc"): follow it. The arc says what the stanza does and how much room to leave — honor the restraint. A short, unfinished line is a finished line; don't complete a thought just because you can.
+Form note: ${form.shapeNote}
+Sections:
+${lines.join('\n')}
+`
+}
+
 function formatGenreContext(brief: GenreBrief): string {
   const parts: string[] = []
   parts.push(`Genre: ${brief.genreTag}`)
@@ -106,12 +121,7 @@ export async function generateLyrics(input: BernieInput): Promise<BernieOutput> 
   ])
 
   const arrangementBrief = input.arrangementSections ? formatArrangementBrief(input.arrangementSections) : ''
-  const formBrief = input.formArchetype
-    ? `Song form (use this exact section structure — do NOT add or remove sections):
-Sections: ${input.formArchetype.sectionList}
-Form note: ${input.formArchetype.shapeNote}
-`
-    : ''
+  const formBrief = input.formArchetype ? formatFormBrief(input.formArchetype) : ''
 
   const genreContext = input.genreBrief ? formatGenreContext(input.genreBrief) : ''
   const genreOverrides = input.genreBrief ? await getGenreCraftOverrides(input.genreBrief.genreTag) : null

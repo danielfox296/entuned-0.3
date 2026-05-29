@@ -2128,7 +2128,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   const FormArchetypeBody = z.object({
     slug: z.string().min(1).max(40),
     displayName: z.string().min(1),
-    sectionList: z.string().min(1),
+    sections: z.array(z.object({
+      label: z.string().min(1),
+      optional: z.boolean().optional(),
+      arc: z.string().min(1),
+    })).min(1),
     shapeNote: z.string().min(1),
     requiresSections: z.array(z.string()).default([]),
     outcomeWeights: z.record(z.string(), z.number().nonnegative()),
@@ -2160,7 +2164,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         id: a.id,
         slug: a.slug,
         displayName: a.displayName,
-        sectionList: a.sectionList,
+        sections: a.sections,
         shapeNote: a.shapeNote,
         requiresSections: a.requiresSections,
         outcomeWeights: a.outcomeWeights,
@@ -2185,7 +2189,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         data: {
           slug: parsed.data.slug,
           displayName: parsed.data.displayName,
-          sectionList: parsed.data.sectionList,
+          sections: parsed.data.sections,
           shapeNote: parsed.data.shapeNote,
           requiresSections: parsed.data.requiresSections,
           outcomeWeights: parsed.data.outcomeWeights,
@@ -2212,7 +2216,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         data: {
           slug: parsed.data.slug,
           displayName: parsed.data.displayName,
-          sectionList: parsed.data.sectionList,
+          sections: parsed.data.sections,
           shapeNote: parsed.data.shapeNote,
           requiresSections: parsed.data.requiresSections,
           outcomeWeights: parsed.data.outcomeWeights,

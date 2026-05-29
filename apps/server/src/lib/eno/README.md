@@ -69,11 +69,11 @@ The Lyric Professor pass is intentionally genre-agnostic: the draft already enco
 
 ---
 
-## Locked design — Song Form arcs + Stager rename *(approved, NOT yet built)*
+## Song Form arcs — SHIPPED 2026-05-28 · Stager rename + density — pending
 
-The change we're about to make. Recorded here so the intent survives; nothing below is in the code yet.
+Arcs are live. The Stager rename and the density/markup workstream below are still pending.
 
-**The problem.** Song Form hands Bernie only section *names* (`[Verse 1], [Chorus], …`) + a prose `shapeNote`. Nothing tells a stanza what it should *do*, so verses become texture, not argument. Density and "fractured scene" complaints trace back to this absence of per-stanza intention.
+**The problem (solved by arcs).** Song Form hands Bernie only section *names* (`[Verse 1], [Chorus], …`) + a prose `shapeNote`. Nothing tells a stanza what it should *do*, so verses become texture, not argument. Density and "fractured scene" complaints trace back to this absence of per-stanza intention.
 
 **The fix — arcs, inline on the Song Form row.** Each section carries an **arc**: a one-line directive for what that stanza does and its space/density character ("zoom to one detail," "state then contradict," "address someone," "refrain — repetition is the meaning"). The arc is **subject to the arrangement** — a loop form only ever carries refrain/mantra arcs; a sparse verse carries single-image arcs. That falls out naturally because arcs are authored *per Song Form row*.
 
@@ -82,11 +82,14 @@ The change we're about to make. Recorded here so the intent survives; nothing be
 - The arc is plain text **written into each section, per row**. One place to manage it: the Song Form entry.
 - **Variety comes from multiple rows per shape** — several `VCVCB` rows, each a different arc coloring on its V's and C's. The existing weighted-random pick across rows provides the variance; no runtime arc-assembly engine. Each row is a human-authored, coherent whole (avoids the machine-glued incoherence that flattened `draft-hooks`).
 
-**Surfaces touched when we build:**
-- Schema: `FormArchetype.sectionList` → structured. (SSOT → mirror → migrate.)
-- Bernie: the `formBrief` block becomes a per-section list (label + arc directive) instead of the flat `Sections:` / `Form note:` strings.
-- Dash `FormArchetypes.tsx`: per-section editor (label + arc) replacing the flat `sectionList` textarea; panel label → **"Song Form"**.
-- Rename `arranger/` → `stager/` (dir + entrypoint). Record both renames (Song Form, Stager) in `../../../../NAMES.md` and update `../README.md`'s index row **when the code lands** — not before.
-- Seed the existing 6 form rows (vcvcbc, vcvc, aaba, intro_driven, loop, tag_out) with arcs; add extra colorings per shape as desired.
+**Shipped 2026-05-28 (arcs):**
+- ✅ Schema: `FormArchetype.sectionList` (flat string) → `sections` JSON — ordered array of `{ label, optional?, arc }`. Migration `20260528000000_form_archetype_section_arcs`.
+- ✅ Picker (`form-archetype.ts`): copies `sections`; **skips archetypes with empty `sections`** (migrate→seed safety net); `LEGACY_DEFAULT` carries arcs.
+- ✅ Bernie: `formatFormBrief()` renders a per-section brief (each `[Section]` + its arc + restraint note); `stripFlavorAnnotations` deleted (structured fields don't leak parens into lyrics).
+- ✅ Dash `FormArchetypes.tsx`: `SectionsEditor` (label · optional · arc, add/remove/reorder) replaces the flat textarea.
+- ✅ Seed: 6 forms re-seeded with arcs (weights/era gates unchanged, so shape distribution is preserved). Run via `railway ssh` after deploy.
+- Arc content authored from `rules_of_modern_lyricism.md` (serve-the-hook, verse-2-develops, leave-room, restraint, POV). ~18-arc vocabulary + alternate colorings for vcvcbc/vcvc are drafted but **not yet seeded** — add as extra rows when desired.
 
-**Parallel workstream (related, not part of this schema change):** the density/space fixes — keep our existing tempo-derived syllable counts (fewer than the 6–12 the external research suggests), and add the Suno markup levers (hyphens to stretch, matched syllable pairs, blank lines between sections, literal chorus repetition). These are DB rule edits to Bernie's craft rules + possibly Stager formatting — *not* new architecture.
+**Still pending:**
+- Rename `arranger/` → `stager/` (dir + entrypoint). Record both renames (Song Form, Stager) in `../../../../NAMES.md` and update `../README.md`'s index row **when that code lands**.
+- Density/space workstream: the density/space fixes — keep our existing tempo-derived syllable counts (fewer than the 6–12 the external research suggests), and add the Suno markup levers (hyphens to stretch, matched syllable pairs, blank lines between sections, literal chorus repetition). These are DB rule edits to Bernie's craft rules + possibly Stager formatting — *not* new architecture.

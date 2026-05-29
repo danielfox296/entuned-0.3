@@ -16,7 +16,8 @@ vi.mock('@anthropic-ai/sdk', () => {
   return { default: MockAnthropic }
 })
 
-import { generateLyrics, type GenreBrief, type OutcomeBrief } from './bernie.js'
+import { generateLyrics, formatFormBrief, type GenreBrief, type OutcomeBrief } from './bernie.js'
+import type { FormArchetypeChoice } from '../eno/form-archetype.js'
 import { prisma } from '../../db.js'
 
 const draftFindFirst = prisma.lyricDraftPrompt.findFirst as ReturnType<typeof vi.fn>
@@ -258,5 +259,37 @@ describe('generateLyrics — output shape', () => {
     await generateLyrics({ hookText: 'hook here' })
 
     expect(messagesCreate).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('formatFormBrief — per-section arc rendering', () => {
+  const form: FormArchetypeChoice = {
+    id: 'x', slug: 'test', displayName: 'Test', shapeNote: 'note here',
+    sections: [
+      { label: 'Intro', optional: true, arc: 'The Frame — leave it to the music.' },
+      { label: 'Verse 1', arc: 'Establish — one plain scene.' },
+      { label: 'Chorus', arc: 'Thesis — say the one idea.' },
+    ],
+  }
+
+  it('renders each section under its [Section] marker with its arc', () => {
+    const brief = formatFormBrief(form)
+    expect(brief).toContain('[Verse 1] — Establish — one plain scene.')
+    expect(brief).toContain('[Chorus] — Thesis — say the one idea.')
+  })
+
+  it('marks optional sections', () => {
+    const brief = formatFormBrief(form)
+    expect(brief).toContain('[Intro] (optional')
+  })
+
+  it('preserves section order', () => {
+    const brief = formatFormBrief(form)
+    expect(brief.indexOf('[Verse 1]')).toBeLessThan(brief.indexOf('[Chorus]'))
+    expect(brief.indexOf('[Intro]')).toBeLessThan(brief.indexOf('[Verse 1]'))
+  })
+
+  it('carries the shape note', () => {
+    expect(formatFormBrief(form)).toContain('note here')
   })
 })

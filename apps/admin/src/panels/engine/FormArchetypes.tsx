@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, getToken } from '../../api.js'
-import type { FormArchetypeRow, FormArchetypeWriteBody, FormArchetypeEraRange } from '../../api.js'
+import type { FormArchetypeRow, FormArchetypeWriteBody, FormArchetypeEraRange, FormArchetypeSection } from '../../api.js'
 import { T } from '@entuned/tokens'
 import { Button, Input, Textarea, Section, S, useToast } from '../../ui/index.js'
 
@@ -11,7 +11,7 @@ const SECTION_KEYS = ['intro', 'verse', 'pre_chorus', 'chorus', 'bridge', 'outro
 const EMPTY_DRAFT: FormArchetypeWriteBody = {
   slug: '',
   displayName: '',
-  sectionList: '',
+  sections: [],
   shapeNote: '',
   requiresSections: [],
   outcomeWeights: { '*': 1 },
@@ -24,7 +24,7 @@ function rowToBody(r: FormArchetypeRow): FormArchetypeWriteBody {
   return {
     slug: r.slug,
     displayName: r.displayName,
-    sectionList: r.sectionList,
+    sections: r.sections,
     shapeNote: r.shapeNote,
     requiresSections: r.requiresSections,
     outcomeWeights: r.outcomeWeights,
@@ -190,7 +190,7 @@ export function FormArchetypes() {
               outcomes={outcomes}
               isNew
               onPrimary={create}
-              primaryDisabled={!creating.slug.trim() || !creating.displayName.trim() || !creating.sectionList.trim() || !creating.shapeNote.trim()}
+              primaryDisabled={!creating.slug.trim() || !creating.displayName.trim() || creating.sections.length === 0 || !creating.shapeNote.trim()}
               primaryBusy={busy === '__new__'}
               primaryLabel="create"
               onCancel={() => setCreating(null)}
@@ -259,7 +259,7 @@ function ArchetypeEditor({
   return (
     <Section
       title={isNew ? 'New archetype' : `Editing "${draft.slug}"`}
-      subtitle="Eno picks one archetype per generation and passes sectionList + shapeNote into Bernie. Weights skew the random pick; era ranges gate by reference-track year."
+      subtitle="Eno picks one form per generation and passes its sections (each with an arc) + shapeNote into Bernie. Same shape, different arcs = a new row. Weights skew the random pick; era ranges gate by reference-track year."
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <Field label="slug" hint="stable identifier; use snake_case (vcvcbc, aaba, vcvc, intro_driven, loop, tag_out, ...)">
@@ -279,13 +279,8 @@ function ArchetypeEditor({
           />
         </Field>
 
-        <Field label="section list" hint="passed verbatim to Bernie as the section structure to write into">
-          <Textarea
-            value={draft.sectionList}
-            onChange={(e) => set('sectionList', e.target.value)}
-            rows={3}
-            placeholder="[Verse 1], [Chorus], [Verse 2], [Chorus], [Bridge], [Final Chorus]"
-          />
+        <Field label="sections" hint="ordered list — each section gets an arc (its job + relationship to the hook + how much space to leave). Order matters: Verse 1 and Verse 2 are separate rows with separate arcs. Repeated labels (e.g. two Choruses) are fine.">
+          <SectionsEditor sections={draft.sections} onChange={(next) => set('sections', next)} />
         </Field>
 
         <Field label="shape note" hint="one to three sentences explaining the form's logic to Bernie. For AABA-style forms, instruct where the hook lands.">
@@ -444,6 +439,55 @@ function ArchetypeEditor({
         </div>
       </div>
     </Section>
+  )
+}
+
+function SectionsEditor({ sections, onChange }: {
+  sections: FormArchetypeSection[]
+  onChange: (next: FormArchetypeSection[]) => void
+}) {
+  const setAt = (i: number, patch: Partial<FormArchetypeSection>) =>
+    onChange(sections.map((s, j) => (j === i ? { ...s, ...patch } : s)))
+  const removeAt = (i: number) => onChange(sections.filter((_, j) => j !== i))
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir
+    if (j < 0 || j >= sections.length) return
+    const next = [...sections]
+    const tmp = next[i]!; next[i] = next[j]!; next[j] = tmp
+    onChange(next)
+  }
+  const add = () => onChange([...sections, { label: '', arc: '' }])
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {sections.map((s, i) => (
+        <div key={i} style={{
+          display: 'grid', gridTemplateColumns: '24px 160px 1fr auto', gap: 8, alignItems: 'start',
+          border: `1px solid ${T.borderSubtle}`, borderRadius: 4, padding: 8, background: T.surface,
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <button type="button" onClick={() => move(i, -1)} disabled={i === 0}
+              style={{ border: 'none', background: 'transparent', color: i === 0 ? T.textDim : T.textMuted, cursor: i === 0 ? 'default' : 'pointer', fontSize: 11, lineHeight: 1 }}>▲</button>
+            <span style={{ fontFamily: T.sans, fontSize: S.label, color: T.textDim, textAlign: 'center' }}>{i + 1}</span>
+            <button type="button" onClick={() => move(i, 1)} disabled={i === sections.length - 1}
+              style={{ border: 'none', background: 'transparent', color: i === sections.length - 1 ? T.textDim : T.textMuted, cursor: i === sections.length - 1 ? 'default' : 'pointer', fontSize: 11, lineHeight: 1 }}>▼</button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <Input value={s.label} onChange={(e) => setAt(i, { label: e.target.value })} placeholder="Verse 1" />
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontFamily: T.sans, fontSize: S.label, color: T.textMuted, cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!s.optional} onChange={(e) => setAt(i, { optional: e.target.checked || undefined })} />
+              optional
+            </label>
+          </div>
+          <Textarea value={s.arc} onChange={(e) => setAt(i, { arc: e.target.value })} rows={2}
+            placeholder="The Turn — don't restate Verse 1; later moment or harder truth. Recolor the hook. Stay bare." />
+          <Button variant="tinyDanger" onClick={() => removeAt(i)}>×</Button>
+        </div>
+      ))}
+      <div>
+        <Button variant="tiny" onClick={add}>+ add section</Button>
+      </div>
+    </div>
   )
 }
 

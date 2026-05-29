@@ -216,11 +216,19 @@ export interface FormArchetypeEraRange {
   weight: number
 }
 
+// One section of a song form. Ordered per-occurrence; `arc` is the stanza's
+// intention (its job + relationship to the hook + space character).
+export interface FormArchetypeSection {
+  label: string
+  optional?: boolean
+  arc: string
+}
+
 export interface FormArchetypeRow {
   id: string
   slug: string
   displayName: string
-  sectionList: string
+  sections: FormArchetypeSection[]
   shapeNote: string
   requiresSections: string[]
   outcomeWeights: Record<string, number>
@@ -238,7 +246,7 @@ export interface FormArchetypeListResponse {
 export interface FormArchetypeWriteBody {
   slug: string
   displayName: string
-  sectionList: string
+  sections: FormArchetypeSection[]
   shapeNote: string
   requiresSections: string[]
   outcomeWeights: Record<string, number>

@@ -805,7 +805,11 @@ model FormArchetype {
   id               String   @id @default(uuid()) @db.Uuid
   slug             String   @unique
   displayName      String   @map("display_name")
-  sectionList      String   @map("section_list")
+  // Ordered, per-occurrence section list with a narrative "arc" per section.
+  // Shape: [{ label: string, optional?: boolean, arc: string }]. Ordered (not
+  // keyed) so repeated labels (Verse 1 vs Verse 2, the three Choruses) each
+  // carry their own arc. Bernie renders this into its per-section brief.
+  sections         Json     @default("[]") @map("sections")
   shapeNote        String   @map("shape_note")
   requiresSections String[] @default([]) @map("requires_sections")
   outcomeWeights   Json     @default("{}") @map("outcome_weights")

@@ -20,11 +20,22 @@
 import { prisma } from '../../db.js'
 import type { ArrangementSections } from '../arranger/arranger.js'
 
+// One section of a song form. Ordered per-occurrence (Verse 1 and Verse 2 are
+// separate entries with separate arcs). `label` is the bare section name
+// ("Verse 1"); brackets are added when rendering to Bernie. `arc` is the
+// stanza's intention — what it does + its relationship to the hook + its
+// space/density character. Plain English; Bernie reads it directly.
+export interface SectionSpec {
+  label: string
+  optional?: boolean
+  arc: string
+}
+
 export interface FormArchetypeChoice {
   id: string | null  // null when falling back to LEGACY_DEFAULT (no DB row)
   slug: string
   displayName: string
-  sectionList: string
+  sections: SectionSpec[]
   shapeNote: string
 }
 
@@ -32,8 +43,19 @@ const LEGACY_DEFAULT: FormArchetypeChoice = {
   id: null,
   slug: 'vcvcbc',
   displayName: 'V-C-V-C-Bridge-Final C (legacy default)',
-  sectionList: '[Intro] (optional), [Verse 1], [Chorus], [Verse 2], [Chorus], [Bridge], [Final Chorus], [Outro] (optional)',
-  shapeNote: 'Standard pop arc — two verse-chorus cycles, a bridge that contrasts in image or stance, then a final chorus that lands. The hook is the chorus, sung verbatim each time including in [Final Chorus].',
+  sections: [
+    { label: 'Intro', optional: true, arc: 'The Frame — near-wordless. If any words, one short phrase that hints at the hook’s world. Leave most of it to the music.' },
+    { label: 'Verse 1', arc: 'Establish-and-Lean — set one plain scene with the narrator acting. End leaning toward the chorus. Leave a line short.' },
+    { label: 'Pre-Chorus', optional: true, arc: 'The Lift — tighten and rise, short pushing lines, energy aimed at the chorus. End unresolved.' },
+    { label: 'Chorus', arc: 'Thesis — state the song’s one idea, clean and finished. Plain words, room around it. Say it and let it ring. Hook verbatim.' },
+    { label: 'Verse 2', arc: 'The Turn — don’t restate Verse 1; later moment or harder truth. Make the hook mean something new when it returns. Stay bare.' },
+    { label: 'Pre-Chorus', optional: true, arc: 'The Lift — same rise as before, a touch more pressure. End unresolved.' },
+    { label: 'Chorus', arc: 'Thesis — hook verbatim again. Same words, now carrying Verse 2’s weight.' },
+    { label: 'Bridge', arc: 'Reframe — step outside the frame: new image, new stance, the line the verses avoided. Barest section. Resolve back toward the hook.' },
+    { label: 'Final Chorus', arc: 'Thesis-Plus — same hook, heaviest landing. Identical words, earned. No new lines.' },
+    { label: 'Outro', optional: true, arc: 'The Landing — hook fragment, sustained, like the last thing said before the lights go. No new ideas.' },
+  ],
+  shapeNote: 'Standard pop arc — two verse-chorus cycles, a bridge that contrasts in image or stance, then a final chorus that lands. The hook is the chorus, sung verbatim each time including in the Final Chorus.',
 }
 
 interface EraRange {
@@ -85,6 +107,10 @@ export async function pickFormArchetype(input: PickInput): Promise<FormArchetype
       const hasAllRequired = a.requiresSections.every((s) => presentSections.has(s))
       if (!hasAllRequired) continue
     }
+    // A form with no sections can't shape a lyric. Skip it (handles the brief
+    // window between the section_list→sections migration and the re-seed).
+    const sections = Array.isArray(a.sections) ? (a.sections as unknown as SectionSpec[]) : []
+    if (sections.length === 0) continue
     const ow = (a.outcomeWeights as Record<string, unknown>) ?? {}
     const ew = (a.eraWeights as EraWeights | null) ?? null
     const weight = baseWeight(ow, input.outcomeKey) * eraMultiplier(ew, input.referenceYear)
@@ -94,7 +120,7 @@ export async function pickFormArchetype(input: PickInput): Promise<FormArchetype
         id: a.id,
         slug: a.slug,
         displayName: a.displayName,
-        sectionList: a.sectionList,
+        sections,
         shapeNote: a.shapeNote,
       },
       weight,
