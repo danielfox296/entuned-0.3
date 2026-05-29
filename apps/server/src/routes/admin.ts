@@ -23,12 +23,13 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
 import { verify } from '../lib/auth.js'
 import bcrypt from 'bcryptjs'
-import { decompose } from '../lib/decomposer/decomposer.js'
+import { decompose, toStyleAnalysisData } from '../lib/decomposer/decomposer.js'
 import { lookupBpm } from '../lib/decomposer/bpm-lookup.js'
 import { pickSystemDefaultOutcomeId, isFreeTierAllowedOutcome } from '../lib/outcomes.js'
 import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 import { runEno } from '../lib/eno/eno.js'
+import { getOrSeedArrangementPolicy } from '../lib/arranger/policy.js'
 import { FREE_TIER_ICP_ID, FREE_TIER_AD_STORE_ID, FREE_TIER_CLIENT_ID } from '../lib/freeTier.js'
 import { downloadAndUploadFromUrl, uploadBuffer, MIN_AUDIO_BYTES } from '../lib/r2.js'
 import { draftHooks } from '../lib/hooks/drafter.js'
@@ -1675,25 +1676,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         year: row.year ?? undefined,
         operatorNotes: row.operatorNotes ?? undefined,
       }).then(async (result) => {
-        const data = {
-          styleAnalyzerInstructionsVersion: result.rulesVersion,
-          status: 'draft',
-          verifiedAt: null,
-          verifiedById: null,
-          confidence: result.output.confidence,
-          vibePitch: result.output.vibe_pitch,
-          eraProductionSignature: result.output.era_production_signature,
-          instrumentationPalette: result.output.instrumentation_palette,
-          standoutElement: result.output.standout_element,
-          arrangementShape: result.output.arrangement_shape ?? null,
-          dynamicCurve: result.output.dynamic_curve ?? null,
-          vocalCharacter: result.output.vocal_character,
-          vocalArrangement: result.output.vocal_arrangement,
-          harmonicAndGroove: result.output.harmonic_and_groove,
-          arrangementSections: result.output.arrangement_sections ?? Prisma.JsonNull,
-          arrangementVersion: result.output.arrangement_sections ? result.rulesVersion : null,
-          bpm: result.output.bpm ?? null,
-        }
+        const data = toStyleAnalysisData(result)
         await prisma.styleAnalysis.upsert({
           where: { referenceTrackId: id },
           create: { referenceTrackId: id, ...data },
@@ -1755,25 +1738,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         year: ref.year ?? undefined,
         operatorNotes: ref.operatorNotes ?? undefined,
       }).then(async (result) => {
-        const data = {
-          styleAnalyzerInstructionsVersion: result.rulesVersion,
-          status: 'draft',
-          verifiedAt: null,
-          verifiedById: null,
-          confidence: result.output.confidence,
-          vibePitch: result.output.vibe_pitch,
-          eraProductionSignature: result.output.era_production_signature,
-          instrumentationPalette: result.output.instrumentation_palette,
-          standoutElement: result.output.standout_element,
-          arrangementShape: result.output.arrangement_shape ?? null,
-          dynamicCurve: result.output.dynamic_curve ?? null,
-          vocalCharacter: result.output.vocal_character,
-          vocalArrangement: result.output.vocal_arrangement,
-          harmonicAndGroove: result.output.harmonic_and_groove,
-          arrangementSections: result.output.arrangement_sections ?? Prisma.JsonNull,
-          arrangementVersion: result.output.arrangement_sections ? result.rulesVersion : null,
-          bpm: result.output.bpm ?? null,
-        }
+        const data = toStyleAnalysisData(result)
         await prisma.styleAnalysis.upsert({
           where: { referenceTrackId: ref.id },
           create: { referenceTrackId: ref.id, ...data },
@@ -1810,26 +1775,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     } catch (e: any) {
       return reply.code(502).send({ error: 'decompose_failed', message: e.message ?? 'unknown' })
     }
-    const data = {
-      styleAnalyzerInstructionsVersion: result.rulesVersion,
-      status: 'draft',
-      verifiedAt: null,
-      verifiedById: null,
-      confidence: result.output.confidence,
-      vibePitch: result.output.vibe_pitch,
-      eraProductionSignature: result.output.era_production_signature,
-      instrumentationPalette: result.output.instrumentation_palette,
-      standoutElement: result.output.standout_element,
-      // v8+ drops these two fields. Older rules versions still populate them.
-      arrangementShape: result.output.arrangement_shape ?? null,
-      dynamicCurve: result.output.dynamic_curve ?? null,
-      vocalCharacter: result.output.vocal_character,
-      vocalArrangement: result.output.vocal_arrangement,
-      harmonicAndGroove: result.output.harmonic_and_groove,
-      arrangementSections: result.output.arrangement_sections ?? Prisma.JsonNull,
-      arrangementVersion: result.output.arrangement_sections ? result.rulesVersion : null,
-      bpm: result.output.bpm ?? null,
-    }
+    const data = toStyleAnalysisData(result)
     const row = await prisma.styleAnalysis.upsert({
       where: { referenceTrackId: id },
       create: { referenceTrackId: id, ...data },
@@ -1848,6 +1794,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     vocalCharacter: z.string().nullable().optional(),
     vocalArrangement: z.string().nullable().optional(),
     harmonicAndGroove: z.string().nullable().optional(),
+    // v13 structured fields — operator-editable, same as the prose fields above.
+    genreAnchor: z.string().nullable().optional(),
+    harmonicCharacter: z.string().nullable().optional(),
+    grooveCharacter: z.string().nullable().optional(),
+    vocalRegister: z.string().nullable().optional(),
+    vocalGender: z.enum(['male', 'female', 'duet', 'instrumental']).nullable().optional(),
     // Private picker-compatibility data — operator can override the
     // decomposer's web-search-derived value. Never rendered into Suno.
     bpm: z.number().int().min(1).max(300).nullable().optional(),
@@ -1872,25 +1824,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           year: ref.year ?? undefined,
           operatorNotes: ref.operatorNotes ?? undefined,
         })
-        const data = {
-          styleAnalyzerInstructionsVersion: result.rulesVersion,
-          status: 'draft' as const,
-          verifiedAt: null,
-          verifiedById: null,
-          confidence: result.output.confidence,
-          vibePitch: result.output.vibe_pitch,
-          eraProductionSignature: result.output.era_production_signature,
-          instrumentationPalette: result.output.instrumentation_palette,
-          standoutElement: result.output.standout_element,
-          arrangementShape: result.output.arrangement_shape ?? null,
-          dynamicCurve: result.output.dynamic_curve ?? null,
-          vocalCharacter: result.output.vocal_character,
-          vocalArrangement: result.output.vocal_arrangement,
-          harmonicAndGroove: result.output.harmonic_and_groove,
-          arrangementSections: result.output.arrangement_sections ?? Prisma.JsonNull,
-          arrangementVersion: result.output.arrangement_sections ? result.rulesVersion : null,
-          bpm: result.output.bpm ?? null,
-        }
+        const data = toStyleAnalysisData(result)
         await prisma.styleAnalysis.upsert({
           where: { referenceTrackId: ref.id },
           create: { referenceTrackId: ref.id, ...data },
@@ -2242,6 +2176,61 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     } catch {
       return reply.code(404).send({ error: 'not_found' })
     }
+  })
+
+  // ----- Arrangement Policy (operator-tunable Stager: escalation + outro) -----
+  // Versioned singleton; latest version wins at runtime. GET seeds v1 from the
+  // formerly-hardcoded defaults on first open. POST appends a new version.
+
+  const ArrangementConfigBody = z.object({
+    finalChorus: z.object({
+      deliveryCue: z.string().nullable(),
+      forceDensity: z.string().nullable(),
+      forceDynamic: z.string().nullable(),
+    }),
+    midChorus: z.object({
+      fromIndex: z.number().int().min(1),
+      deliveryCue: z.string().nullable(),
+    }),
+    outroOnChorusEnd: z.object({
+      enabled: z.boolean(),
+      label: z.string().min(1),
+      density: z.string().nullable(),
+      dynamic: z.string().nullable(),
+      deliveryCue: z.string().nullable(),
+    }),
+  })
+
+  app.get('/arrangement-policy', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const loaded = await getOrSeedArrangementPolicy()
+    const history = await prisma.arrangementPolicy.findMany({
+      orderBy: { version: 'desc' },
+      select: { version: true, notes: true, createdAt: true },
+      take: 20,
+    })
+    return {
+      version: loaded.version,
+      config: loaded.config,
+      history: history.map((h) => ({ version: h.version, notes: h.notes, createdAt: h.createdAt.toISOString() })),
+    }
+  })
+
+  app.post('/arrangement-policy', async (req, reply) => {
+    const op = await requireAdmin(req, reply); if (!op) return
+    const Body = z.object({ config: ArrangementConfigBody, notes: z.string().nullable().optional() })
+    const parsed = Body.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    const latest = await prisma.arrangementPolicy.findFirst({ orderBy: { version: 'desc' }, select: { version: true } })
+    const nextVersion = (latest?.version ?? 0) + 1
+    const row = await prisma.arrangementPolicy.create({
+      data: {
+        version: nextVersion,
+        config: parsed.data.config as unknown as Prisma.InputJsonValue,
+        notes: parsed.data.notes ?? null,
+      },
+    })
+    return { version: row.version, config: row.config }
   })
 
   // ----- Free Tier Outcome Allowlist -----

@@ -1,35 +1,27 @@
-// Arranger — post-processes Bernie's lyrics to inject per-section production tags
-// and apply chorus escalation across repeats.
+// Arranger (a.k.a. Stager) — post-processes Bernie's lyrics to inject per-section
+// production tags, apply chorus escalation across repeats, and carry the song out
+// past a final chorus.
 //
-// Two output formats are supported, gated by env var ARRANGER_FORMAT:
+// Operator-tunable: the escalation cues + outro behavior live in the DB
+// (ArrangementPolicy, edited in Dash → Engine → Arrangement Rules) and are passed
+// in as an ArrangementConfig. This function stays PURE — no DB access, no LLM —
+// so eno loads the policy and hands it in; tests pass a literal. The defaults
+// (ARRANGEMENT_POLICY_SEED) reproduce the values that used to be hardcoded here.
 //
-//   - 'legacy' (default) — the format we shipped before any external research.
-//     Multi-line, one bracket per directive type:
-//       [Chorus]
-//       [Instrument: A, B]
-//       [Sustained, full]
-//       [Belted]
+// Two output formats, gated by env var ARRANGER_FORMAT:
+//   - 'legacy' (default) — multi-line, one bracket per directive type.
+//   - 'pipe' — pipe-stacked single-bracket headers ([Chorus | belted | full | A and B]).
 //
-//   - 'pipe' — pipe-stacked single-bracket headers per external Suno research:
-//       [Chorus | belted | sustained full | A and B]
-//     Pipe acts as AND; max ~4 modifiers; broadest → most specific.
+// Chorus escalation: identical chorus repetitions read as "produce identical
+// music," flattening the energy arc. First chorus = base; middle chorus(es) layer
+// the mid cue; the final chorus gets the final cue + forced density/dynamic.
+// Skipped when the base vocal_delivery is instrumental/wordless/a-cappella.
 //
-// The pipe format ships behind a flag so we can A/B against the legacy format
-// before fully replacing the production output. Flip `ARRANGER_FORMAT=pipe` on
-// Railway when ready to test.
+// Outro carry-out: when a song ends on a chorus with no outro/tag after it, append
+// a sustained instrumental outro so Suno carries out instead of stopping cold.
+// Forms that already end on an [Outro]/[Tag] (loop, tag_out) are left untouched.
 //
-// Chorus escalation runs for either format: identical chorus repetitions read as
-// instructions to produce identical music, which flattens the song's energy arc.
-// First chorus = base; middle chorus(es) layer in stacked harmonies; final chorus
-// (whether labeled [Chorus] or [Final Chorus]) gets gang vocals on the hook,
-// sustained-full energy. Bernie's lyric variation on [Final Chorus] is independent.
-//
-// Skipped when the base directive's vocal_delivery is `instrumental`, `wordless`,
-// or `a-cappella` — escalation cues that mention "vocals" or "the hook" would
-// contradict those base states.
-//
-// Pure function: no DB access, no LLM. Called in createSongSeed() after Bernie
-// returns, before writing SongSeed.lyrics.
+// Called in createSongSeed() after Bernie returns, before writing SongSeed.lyrics.
 
 export interface SectionDirective {
   instruments: string[]
@@ -41,6 +33,20 @@ export interface SectionDirective {
 export type ArrangementSections = Partial<Record<SectionKey, SectionDirective>>
 
 type SectionKey = 'intro' | 'verse' | 'pre_chorus' | 'chorus' | 'bridge' | 'outro'
+
+// Operator-tunable Stager policy. Stored as JSON in ArrangementPolicy.config;
+// seeded with ARRANGEMENT_POLICY_SEED (the formerly-hardcoded behavior).
+export interface ArrangementConfig {
+  finalChorus: { deliveryCue: string | null; forceDensity: string | null; forceDynamic: string | null }
+  midChorus: { fromIndex: number; deliveryCue: string | null }
+  outroOnChorusEnd: { enabled: boolean; label: string; density: string | null; dynamic: string | null; deliveryCue: string | null }
+}
+
+export const ARRANGEMENT_POLICY_SEED: ArrangementConfig = {
+  finalChorus: { deliveryCue: 'gang vocals on the hook', forceDensity: 'full', forceDynamic: 'sustained' },
+  midChorus: { fromIndex: 2, deliveryCue: 'stacked harmonies' },
+  outroOnChorusEnd: { enabled: true, label: 'Outro', density: 'full', dynamic: 'sustained', deliveryCue: null },
+}
 
 type ArrangerFormat = 'legacy' | 'pipe'
 
@@ -85,16 +91,17 @@ interface ChorusRank {
 
 interface EscalationApplied {
   delivery?: string
-  density?: SectionDirective['density']
-  dynamic?: SectionDirective['dynamic']
+  density?: string
+  dynamic?: string
 }
 
-/** Compute escalated delivery/density/dynamic for the given chorus instance.
- *  Returns the original directive values when no escalation should apply (early
- *  chorus, or base delivery is instrumental/wordless/a-cappella). */
+/** Compute escalated delivery/density/dynamic for the given chorus instance,
+ *  per the operator policy. Returns the original values when no escalation should
+ *  apply (early chorus, or base delivery is instrumental/wordless/a-cappella). */
 function applyChorusEscalation(
   directive: SectionDirective | undefined,
   rank: ChorusRank | undefined,
+  policy: ArrangementConfig,
 ): EscalationApplied {
   const baseDelivery = directive?.vocal_delivery
   const baseDensity = directive?.density
@@ -102,24 +109,28 @@ function applyChorusEscalation(
 
   if (!rank) return { delivery: baseDelivery, density: baseDensity, dynamic: baseDynamic }
 
-  // Skip escalation entirely when the base is incompatible — gang-vocal cues
-  // would contradict an instrumental/wordless/a-cappella section.
+  // Skip escalation entirely when the base is incompatible — vocal cues would
+  // contradict an instrumental/wordless/a-cappella section.
   if (baseDelivery && ESCALATION_INCOMPATIBLE_DELIVERY.has(baseDelivery)) {
     return { delivery: baseDelivery, density: baseDensity, dynamic: baseDynamic }
   }
 
   let delivery: string | undefined = baseDelivery
   if (rank.isFinal) {
-    delivery = delivery ? `${delivery}, gang vocals on the hook` : 'gang vocals on the hook'
-  } else if (rank.index >= 2) {
-    delivery = delivery ? `${delivery}, stacked harmonies` : 'stacked harmonies'
+    const cue = policy.finalChorus.deliveryCue
+    if (cue) delivery = delivery ? `${delivery}, ${cue}` : cue
+  } else if (rank.index >= policy.midChorus.fromIndex) {
+    const cue = policy.midChorus.deliveryCue
+    if (cue) delivery = delivery ? `${delivery}, ${cue}` : cue
   }
 
-  let density = baseDensity
-  let dynamic = baseDynamic
+  let density: string | undefined = baseDensity
+  let dynamic: string | undefined = baseDynamic
   if (rank.isFinal) {
-    if (!density || density === 'minimal' || density === 'sparse' || density === 'medium') density = 'full'
-    if (!dynamic || dynamic === 'retreating' || dynamic === 'stripped' || dynamic === 'fade') dynamic = 'sustained'
+    const fd = policy.finalChorus.forceDensity
+    const fdyn = policy.finalChorus.forceDynamic
+    if (fd && (!density || density === 'minimal' || density === 'sparse' || density === 'medium')) density = fd
+    if (fdyn && (!dynamic || dynamic === 'retreating' || dynamic === 'stripped' || dynamic === 'fade')) dynamic = fdyn
   }
 
   return { delivery, density, dynamic }
@@ -146,6 +157,37 @@ function planChoruses(lyrics: string): ChorusPlan {
   return { totalChoruses: total, hasExplicitFinal }
 }
 
+/** The normalized key of the LAST section header in the (pre-injection) lyric, or
+ *  null. Used to decide whether to append an outro: a song that ends on a chorus
+ *  needs a carry-out; one already ending on an outro/tag/bridge does not.
+ *  Runs on Bernie's raw output (only real [Section] headers, no tag brackets). */
+function lastSectionKey(lyrics: string): SectionKey | 'unrecognized' | null {
+  let last: SectionKey | 'unrecognized' | null = null
+  for (const line of lyrics.split('\n')) {
+    const m = line.match(/^\[([^\]]+)\]$/)
+    if (!m) continue
+    const norm = normalizeSection(m[1])
+    last = norm ? norm.key : 'unrecognized'
+  }
+  return last
+}
+
+/** Build the appended instrumental outro lines for the active format. */
+function buildOutroBlock(policy: ArrangementConfig, format: ArrangerFormat): string[] {
+  const o = policy.outroOnChorusEnd
+  if (format === 'pipe') {
+    const segments: string[] = []
+    if (o.deliveryCue) segments.push(o.deliveryCue)
+    const energy = [o.dynamic, o.density].filter(Boolean).join(' ').trim()
+    if (energy) segments.push(energy)
+    return ['', segments.length ? `[${o.label} | ${segments.join(' | ')}]` : `[${o.label}]`]
+  }
+  const lines = ['', `[${o.label}]`]
+  if (o.dynamic) lines.push(o.density ? `[${titleCase(o.dynamic)}, ${o.density}]` : `[${titleCase(o.dynamic)}]`)
+  if (o.deliveryCue) lines.push(`[${titleCase(o.deliveryCue)}]`)
+  return lines
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Format: legacy (multi-line tags)
 // ──────────────────────────────────────────────────────────────────────────────
@@ -154,11 +196,12 @@ function buildLegacyTags(
   rawLabel: string,
   directive: SectionDirective | undefined,
   rank: ChorusRank | undefined,
+  policy: ArrangementConfig,
 ): { headerLine: string; extraTags: string[] } {
   let label = rawLabel.trim()
   if (rank?.isFinal && !label.toLowerCase().includes('final')) label = 'Final Chorus'
 
-  const esc = applyChorusEscalation(directive, rank)
+  const esc = applyChorusEscalation(directive, rank, policy)
   const tags: string[] = []
 
   if (directive && directive.instruments.length > 0) {
@@ -168,8 +211,6 @@ function buildLegacyTags(
     tags.push(esc.density ? `[${titleCase(esc.dynamic)}, ${esc.density}]` : `[${titleCase(esc.dynamic)}]`)
   }
   if (esc.delivery) {
-    // Legacy format uses a separate delivery bracket. Multi-word phrases like
-    // "stacked harmonies" go in as-is.
     tags.push(`[${titleCase(esc.delivery)}]`)
   }
   return { headerLine: `[${label}]`, extraTags: tags }
@@ -183,11 +224,12 @@ function buildPipeHeader(
   rawLabel: string,
   directive: SectionDirective | undefined,
   rank: ChorusRank | undefined,
+  policy: ArrangementConfig,
 ): string {
   let label = rawLabel.trim()
   if (rank?.isFinal && !label.toLowerCase().includes('final')) label = 'Final Chorus'
 
-  const esc = applyChorusEscalation(directive, rank)
+  const esc = applyChorusEscalation(directive, rank, policy)
   const segments: string[] = []
 
   if (esc.delivery) segments.push(esc.delivery)
@@ -211,16 +253,20 @@ function buildPipeHeader(
 // Public entry point
 // ──────────────────────────────────────────────────────────────────────────────
 
-export function injectArrangement(lyrics: string, sections: ArrangementSections): string {
-  // Always walk the lyrics — even with no directives, we still want the chorus
-  // escalation pass to rename the final [Chorus] to [Final Chorus] and add
-  // gang-vocal cues. That gives every track an energy arc regardless of whether
-  // the reference's StyleAnalysis has arrangementSections.
+export function injectArrangement(
+  lyrics: string,
+  sections: ArrangementSections,
+  policy: ArrangementConfig = ARRANGEMENT_POLICY_SEED,
+): string {
+  // Always walk the lyrics — even with no directives, the chorus-escalation pass
+  // renames the final [Chorus] to [Final Chorus] and adds the final cue, giving
+  // every track an energy arc regardless of the reference's StyleAnalysis.
   const plan = planChoruses(lyrics)
   const format = getFormat()
+  const endsOnChorus = lastSectionKey(lyrics) === 'chorus'
   let chorusSeen = 0
 
-  return lyrics
+  const lines = lyrics
     .split('\n')
     .flatMap((line) => {
       const headerMatch = line.match(/^\[([^\]]+)\]$/)
@@ -241,10 +287,18 @@ export function injectArrangement(lyrics: string, sections: ArrangementSections)
       }
 
       if (format === 'pipe') {
-        return [buildPipeHeader(headerMatch[1], directive, rank)]
+        return [buildPipeHeader(headerMatch[1], directive, rank, policy)]
       }
-      const { headerLine, extraTags } = buildLegacyTags(headerMatch[1], directive, rank)
+      const { headerLine, extraTags } = buildLegacyTags(headerMatch[1], directive, rank, policy)
       return [headerLine, ...extraTags]
     })
-    .join('\n')
+
+  // Carry-out: a song that ends on a chorus stops cold. Append a sustained
+  // instrumental outro so it lands. Forms ending on an [Outro]/[Tag]/bridge are
+  // left alone (lastSectionKey !== 'chorus').
+  if (policy.outroOnChorusEnd?.enabled && endsOnChorus) {
+    lines.push(...buildOutroBlock(policy, format))
+  }
+
+  return lines.join('\n')
 }

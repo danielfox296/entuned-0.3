@@ -1,4 +1,4 @@
-// Experiment surface — current default decomposer rules version. See ./README.md for the version sweep contract.
+// Experiment surface — historical decomposer rules version. See ./README.md for the version sweep contract; default is v13.
 // MusicologicalRules v12 — actually enforces the era_production_signature budget.
 //   v11 → v12 changes (after v11 smoke test showed Sonnet ignored the prose-only
 //   instruction; outputs averaged 200+ chars instead of the 40-char target):

@@ -130,12 +130,17 @@ export async function marsAssemble(
   const { negativeStyle: ruleFiredNeg, firedRuleIds } = await buildNegativeStyle(styleAnalysis as any)
   const negativeStyle = mergeNegativeStyle(ruleFiredNeg, anchored.negativeAdditions)
 
-  // Look at both vocal fields for gender hints — a track may have a male lead and a
-  // female sample, only one of which gets tagged in vocal_character.
-  const vocalText = [styleAnalysis.vocalCharacter, styleAnalysis.vocalArrangement]
-    .filter(Boolean)
-    .join(' · ')
-  const vocalGender = extractVocalGender(vocalText)
+  // Prefer the v13 discrete vocal_gender column when present; it's the decomposer's
+  // explicit call. Pre-v13 rows have it null → infer from the vocal prose. Look at both
+  // vocal fields for the inference — a track may have a male lead and a female sample,
+  // only one of which gets tagged in vocal_character.
+  const declaredGender = (styleAnalysis as { vocalGender?: string | null }).vocalGender
+  const vocalGender: VocalGender =
+    declaredGender === 'male' || declaredGender === 'female' || declaredGender === 'duet' || declaredGender === 'instrumental'
+      ? declaredGender
+      : extractVocalGender(
+          [styleAnalysis.vocalCharacter, styleAnalysis.vocalArrangement].filter(Boolean).join(' · '),
+        )
 
   // Genre-keyed steering injection (deterministic, no LLM). Picks one harmonic
   // palette + one vocal descriptor from the first matching GenreGravityRule

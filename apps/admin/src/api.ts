@@ -255,6 +255,19 @@ export interface FormArchetypeWriteBody {
   notes?: string | null
 }
 
+// Stager (arranger) policy — chorus-escalation cues + outro carry-out behavior.
+export interface ArrangementConfig {
+  finalChorus: { deliveryCue: string | null; forceDensity: string | null; forceDynamic: string | null }
+  midChorus: { fromIndex: number; deliveryCue: string | null }
+  outroOnChorusEnd: { enabled: boolean; label: string; density: string | null; dynamic: string | null; deliveryCue: string | null }
+}
+
+export interface ArrangementPolicyResponse {
+  version: number
+  config: ArrangementConfig
+  history: Array<{ version: number; notes: string | null; createdAt: string }>
+}
+
 export interface LyricPromptRow {
   id: string
   version: number
@@ -1402,6 +1415,14 @@ export const api = {
     req<FormArchetypeRow>(`/admin/form-archetypes/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   deleteFormArchetype: (id: string, token: string) =>
     req<{ ok: true }>(`/admin/form-archetypes/${id}`, { method: 'DELETE' }, token),
+  arrangementPolicy: (token: string) =>
+    req<ArrangementPolicyResponse>('/admin/arrangement-policy', {}, token),
+  saveArrangementPolicy: (config: ArrangementConfig, notes: string | null, token: string) =>
+    req<{ version: number; config: ArrangementConfig }>(
+      '/admin/arrangement-policy',
+      { method: 'POST', body: JSON.stringify({ config, notes }) },
+      token,
+    ),
   freeTierOutcomes: (token: string) =>
     req<{ outcomeKey: string; outcomeId: string; title: string; version: number; availableOnFree: boolean }[]>(
       '/admin/free-tier-outcomes', {}, token,

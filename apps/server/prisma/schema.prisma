@@ -382,6 +382,15 @@ model StyleAnalysis {
   harmonicAndGroove                String?   @map("harmonic_and_groove")
   arrangementSections              Json?     @map("arrangement_sections")
   arrangementVersion               Int?      @map("arrangement_version")
+  // v13 structured fields (2026-05-29). The v13 decomposer emits these discretely
+  // instead of having Mars/Bernie mine prose. Null for pre-v13 rows; consumers
+  // normalize them back into the legacy prose columns at read time
+  // (normalizeStyleAnalysis in lib/eno/eno.ts). See schema SSOT Card 05.
+  genreAnchor                      String?   @map("genre_anchor")
+  harmonicCharacter                String?   @map("harmonic_character")
+  grooveCharacter                  String?   @map("groove_character")
+  vocalRegister                    String?   @map("vocal_register")
+  vocalGender                      String?   @map("vocal_gender")
   // Private picker-compatibility data. MUST NOT appear in any rendered Suno
   // prompt or qualitative prose field. See schema/05-reference-track-decomposition.md
   // ("The BPM doctrine, restated").
@@ -821,6 +830,23 @@ model FormArchetype {
 
   @@index([isActive])
   @@map("form_archetypes")
+}
+
+// Operator-tunable Stager (arranger) policy — chorus-escalation cues + the
+// end-of-song outro behavior. Versioned singleton: latest version wins at
+// runtime via getOrSeedArrangementPolicy(). The `config` JSON shape is
+// ArrangementConfig in lib/arranger/arranger.ts. Edited in Dash → Engine →
+// Arrangement Rules. Ends the prior exception where the arranger was the one
+// pipeline stage with hardcoded rules and no operator surface.
+model ArrangementPolicy {
+  id          String   @id @default(uuid()) @db.Uuid
+  version     Int      @unique
+  config      Json
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by") @db.Uuid
+
+  @@map("arrangement_policies")
 }
 
 // ---------- OutcomeLyricFactor ----------

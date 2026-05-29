@@ -34,6 +34,8 @@ import { MUSICOLOGICAL_RULES_V9 } from './rules-v9.js'
 import { MUSICOLOGICAL_RULES_V10 } from './rules-v10.js'
 import { MUSICOLOGICAL_RULES_V11 } from './rules-v11.js'
 import { MUSICOLOGICAL_RULES_V12 } from './rules-v12.js'
+import { MUSICOLOGICAL_RULES_V13 } from './rules-v13.js'
+import { Prisma } from '@prisma/client'
 
 const MODEL = process.env.DECOMPOSER_MODEL ?? 'claude-sonnet-4-6'
 
@@ -51,8 +53,14 @@ const RULES_BY_VERSION: Record<number, string> = {
   10: MUSICOLOGICAL_RULES_V10,
   11: MUSICOLOGICAL_RULES_V11,
   12: MUSICOLOGICAL_RULES_V12,
+  13: MUSICOLOGICAL_RULES_V13,
 }
-const LATEST_RULES_VERSION = 12
+const LATEST_RULES_VERSION = 13
+
+// v13 emits structured fields discretely and stops emitting the prose fields that
+// never reached Suno. This is the first version-keyed CONTRACT change since v8 —
+// the validate() + required-keys logic below branches on it.
+const STRUCTURED_FIELDS_VERSION = 13
 
 const SECTION_PROPS = {
   type: 'object',
@@ -73,19 +81,24 @@ const EMIT_DECOMPOSITION_TOOL = {
     properties: {
       verifiable_facts: { type: 'string' },
       confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
-      vibe_pitch: { type: 'string' },
+      vibe_pitch: { type: 'string', description: 'v1-v12 only. Retired in v13 (replaced by genre_anchor).' },
       era_production_signature: {
         type: 'string',
-        description: 'HARD CAP 40 chars. Schema: `<decade-prefix>, <1-2 production words>`. Decade-prefix is one of: early-60s, mid-60s, late-60s, early-70s, ..., early-2020s, mid-2020s (must be the FIRST token). Production words: lo-fi, polished, tape, DAW, home-recorded, dry, wet, saturated, warm tape, room bleed, gated reverb, sidechain, plate reverb, spring reverb, tape echo, compression, sampling. Examples: "late-70s warm tape, room bleed", "mid-2010s polished DAW, sidechain". No leading affect, no "Warm", no clauses, no period. v12+ only — older versions allowed prose.',
+        description: 'v1-v12 only. Retired in v13 (reached Suno in zero of the audited seeds). HARD CAP 40 chars. Schema: `<decade-prefix>, <1-2 production words>`. Decade-prefix is one of: early-60s, mid-60s, late-60s, early-70s, ..., early-2020s, mid-2020s (must be the FIRST token). Production words: lo-fi, polished, tape, DAW, home-recorded, dry, wet, saturated, warm tape, room bleed, gated reverb, sidechain, plate reverb, spring reverb, tape echo, compression, sampling.',
       },
       instrumentation_palette: { type: 'string' },
       standout_element: { type: 'string' },
       arrangement_shape: { type: 'string', description: 'v1-v7 only. Drop in v8+ (information moves into arrangement_sections).' },
       dynamic_curve: { type: 'string', description: 'v1-v7 only. Drop in v8+.' },
       vocal_character: { type: 'string' },
-      vocal_arrangement: { type: 'string' },
-      harmonic_and_groove: { type: 'string' },
+      vocal_arrangement: { type: 'string', description: 'v1-v12 only. Retired in v13 (folded into vocal_character).' },
+      harmonic_and_groove: { type: 'string', description: 'v1-v12 only. Retired in v13 (split into harmonic_character + groove_character).' },
       vocal_gender: { type: 'string', enum: ['male', 'female', 'duet', 'instrumental'] },
+      // v13+ structured fields.
+      genre_anchor: { type: 'string', description: 'v13+. One clean `<subgenre> <decade>` tag (e.g. "1990s trip-hop"). No comma stacks, no prose, no affect. The canonical genre centroid the pipeline anchors on.' },
+      harmonic_character: { type: 'string', description: 'v13+. Chord language only (modal interchange, deceptive cadence, jazz-inflected extended chords, etc.). No groove here.' },
+      groove_character: { type: 'string', description: 'v13+. Groove pocket + tempo-feel only (behind-the-beat, mid-tempo, swung, sampled loop, etc.). No chords here.' },
+      vocal_register: { type: 'string', description: 'v13+. One register word (tenor/baritone/alto/soprano/falsetto/...). Empty string if instrumental.' },
       arrangement_sections: {
         type: 'object',
         description: 'Per-section instrumentation map (v6+).',
@@ -96,9 +109,28 @@ const EMIT_DECOMPOSITION_TOOL = {
         description: 'v10+. Track tempo (BPM), integer or null. Web-search grounded; main-body tempo, not intro/outro; aligned to snare/backbeat (not hi-hat subdivision). Null when no confident source is available — also set confidence: low. Private picker data — never rendered into a Suno prompt.',
       },
     },
+    // Legacy (v1-v12) required set. v13+ overrides via buildEmitTool below.
     required: ['vibe_pitch', 'era_production_signature', 'instrumentation_palette', 'standout_element', 'vocal_character', 'vocal_arrangement', 'harmonic_and_groove', 'confidence'],
   },
 } as const
+
+// v13 structured-fields required set.
+const V13_REQUIRED_KEYS = [
+  'genre_anchor', 'instrumentation_palette', 'standout_element',
+  'vocal_character', 'vocal_gender', 'harmonic_character', 'groove_character', 'confidence',
+]
+
+// The tool's property set is shared across versions (so older versions remain
+// reachable via env override); only the `required` array is version-keyed.
+export function buildEmitTool(version: number) {
+  const required = version >= STRUCTURED_FIELDS_VERSION
+    ? V13_REQUIRED_KEYS
+    : EMIT_DECOMPOSITION_TOOL.input_schema.required
+  return {
+    ...EMIT_DECOMPOSITION_TOOL,
+    input_schema: { ...EMIT_DECOMPOSITION_TOOL.input_schema, required },
+  }
+}
 
 export interface DecomposeInput {
   artist: string
@@ -120,18 +152,24 @@ export interface DecomposeInput {
 export interface StyleAnalysisOutput {
   // v2+ grounding fields
   verifiable_facts?: string
-  // descriptive fields
-  vibe_pitch: string
-  era_production_signature: string
+  // descriptive fields kept across all versions
   instrumentation_palette: string
   standout_element: string
+  vocal_character: string
+  confidence: 'low' | 'medium' | 'high'
+  // v1-v12 prose fields — retired in v13 (replaced by the structured fields below).
+  vibe_pitch?: string
+  era_production_signature?: string
+  vocal_arrangement?: string
+  harmonic_and_groove?: string
   // Dropped in v8 — moved into arrangement_sections per section. Still emitted by v1-v7.
   arrangement_shape?: string
   dynamic_curve?: string
-  vocal_character: string
-  vocal_arrangement: string
-  harmonic_and_groove: string
-  confidence: 'low' | 'medium' | 'high'
+  // v13+ structured fields.
+  genre_anchor?: string
+  harmonic_character?: string
+  groove_character?: string
+  vocal_register?: string
   // v3+: explicit gender for Suno
   vocal_gender?: 'male' | 'female' | 'duet' | 'instrumental'
   // v6+: per-section instrumentation map for the Arranger module.
@@ -262,7 +300,7 @@ ${rulesRow.version >= 2 ? 'Use web search to ground yourself in this exact track
   // emit_decomposition is always emitted; web_search is added when v2+ rules apply.
   // tool_choice is omitted ('auto') so the model can chain web_search calls before
   // emit_decomposition — forcing the custom tool would preclude web_search entirely.
-  const baseTools: any[] = [EMIT_DECOMPOSITION_TOOL]
+  const baseTools: any[] = [buildEmitTool(rulesRow.version)]
   if (rulesRow.version >= 2) {
     baseTools.push({ type: 'web_search_20250305', name: 'web_search', max_uses: 3 })
   }
@@ -317,20 +355,34 @@ const ALLOWED_VOCAL_DELIVERY = new Set([
   'close-mic', 'distant', 'whispered', 'belted', 'falsetto', 'stacked', 'doubled', 'wordless', 'instrumental', 'a-cappella',
 ])
 
-function validate(o: any, rulesVersion: number): asserts o is StyleAnalysisOutput {
-  const baseRequired = [
-    'vibe_pitch',
-    'era_production_signature',
-    'instrumentation_palette',
-    'standout_element',
-    'vocal_character',
-    'vocal_arrangement',
-    'harmonic_and_groove',
-    'confidence',
-  ] as const
-  const required: string[] = [...baseRequired]
-  if (rulesVersion < 8) {
-    required.push('arrangement_shape', 'dynamic_curve')
+export function validate(o: any, rulesVersion: number): asserts o is StyleAnalysisOutput {
+  // v13+ emits structured fields; v1-v12 emit the prose contract. The required
+  // set is version-keyed to match what each rules version is told to produce.
+  let required: string[]
+  if (rulesVersion >= STRUCTURED_FIELDS_VERSION) {
+    required = [
+      'genre_anchor',
+      'instrumentation_palette',
+      'standout_element',
+      'vocal_character',
+      'harmonic_character',
+      'groove_character',
+      'confidence',
+    ]
+  } else {
+    required = [
+      'vibe_pitch',
+      'era_production_signature',
+      'instrumentation_palette',
+      'standout_element',
+      'vocal_character',
+      'vocal_arrangement',
+      'harmonic_and_groove',
+      'confidence',
+    ]
+    if (rulesVersion < 8) {
+      required.push('arrangement_shape', 'dynamic_curve')
+    }
   }
   for (const k of required) {
     if (typeof o[k] !== 'string' || o[k].length === 0) {
@@ -339,6 +391,13 @@ function validate(o: any, rulesVersion: number): asserts o is StyleAnalysisOutpu
   }
   if (!['low', 'medium', 'high'].includes(o.confidence)) {
     throw new Error(`Invalid confidence: ${o.confidence}`)
+  }
+  // v13 requires a valid vocal_gender enum (load-bearing for Suno's vocal toggle).
+  // vocal_register may be empty (instrumental tracks), so it is NOT required.
+  if (rulesVersion >= STRUCTURED_FIELDS_VERSION) {
+    if (!['male', 'female', 'duet', 'instrumental'].includes(o.vocal_gender)) {
+      throw new Error(`Invalid vocal_gender: ${o.vocal_gender}`)
+    }
   }
   if (o.arrangement_sections !== undefined) {
     if (typeof o.arrangement_sections !== 'object' || o.arrangement_sections === null || Array.isArray(o.arrangement_sections)) {
@@ -378,5 +437,46 @@ function validate(o: any, rulesVersion: number): asserts o is StyleAnalysisOutpu
     if (typeof o.bpm !== 'number' || !Number.isInteger(o.bpm) || o.bpm <= 0 || o.bpm > 300) {
       o.bpm = null
     }
+  }
+}
+
+/**
+ * Map a DecomposeResult onto the Prisma `StyleAnalysis` upsert payload.
+ *
+ * Single source of truth for the snake_case (model output) → camelCase (Prisma
+ * column) mapping. Previously this block was copy-pasted across four admin route
+ * handlers; the lazy-decompose picker path (lib/eno) also uses it. Handles both
+ * the v1-v12 prose contract and the v13 structured contract — each version only
+ * populates the columns it emits; the rest fall to null and consumers normalize
+ * (see normalizeStyleAnalysis in lib/eno/eno.ts).
+ */
+export function toStyleAnalysisData(result: DecomposeResult) {
+  const o = result.output
+  return {
+    styleAnalyzerInstructionsVersion: result.rulesVersion,
+    status: 'draft' as const,
+    verifiedAt: null,
+    verifiedById: null,
+    confidence: o.confidence,
+    // kept across all versions
+    instrumentationPalette: o.instrumentation_palette ?? null,
+    standoutElement: o.standout_element ?? null,
+    vocalCharacter: o.vocal_character ?? null,
+    arrangementSections: o.arrangement_sections ?? Prisma.JsonNull,
+    arrangementVersion: o.arrangement_sections ? result.rulesVersion : null,
+    bpm: o.bpm ?? null,
+    // v1-v12 prose fields (null on v13 rows)
+    vibePitch: o.vibe_pitch ?? null,
+    eraProductionSignature: o.era_production_signature ?? null,
+    vocalArrangement: o.vocal_arrangement ?? null,
+    harmonicAndGroove: o.harmonic_and_groove ?? null,
+    arrangementShape: o.arrangement_shape ?? null,
+    dynamicCurve: o.dynamic_curve ?? null,
+    // v13 structured fields (null on pre-v13 rows)
+    genreAnchor: o.genre_anchor ?? null,
+    harmonicCharacter: o.harmonic_character ?? null,
+    grooveCharacter: o.groove_character ?? null,
+    vocalRegister: o.vocal_register ?? null,
+    vocalGender: o.vocal_gender ?? null,
   }
 }

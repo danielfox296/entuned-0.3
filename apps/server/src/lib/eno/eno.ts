@@ -10,11 +10,13 @@
 // R&B / latin instead of defaulting to pop.
 
 import { prisma } from '../../db.js'
+import { decompose, toStyleAnalysisData } from '../decomposer/decomposer.js'
 import { marsAssemble } from '../mars/mars.js'
 import { generateLyrics, type GenreBrief, type OutcomeBrief } from '../bernie/bernie.js'
 import { runProfessor } from '../professor/professor.js'
 import { runMusicProfessor } from '../music-professor/music-professor.js'
 import { injectArrangement, type ArrangementSections } from '../arranger/arranger.js'
+import { getOrSeedArrangementPolicy } from '../arranger/policy.js'
 import { resolveOutcomeParams } from '../variance/variance.js'
 // vocal-gender import removed 2026-05-23 — Hook.vocalGender now flows
 // directly to Suno via the populate-songs vocal toggle, not via ref-track
@@ -139,7 +141,10 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
     // The picker's where clause filters `styleAnalysis: { isNot: null }`, but
     // Prisma's typings still mark the included relation as nullable. Narrow here.
     if (!refTrack.styleAnalysis) throw new Error('refTrack.styleAnalysis missing after picker filter')
-    const styleAnalysis = refTrack.styleAnalysis
+    // Normalize v13 structured columns back into the legacy prose field names so the
+    // whole Mars subsystem (anchor builder, 5-axis exclusions, DB exclusion rules) and
+    // Bernie read v13 rows without any per-consumer rewiring. No-op on pre-v13 rows.
+    const styleAnalysis = normalizeStyleAnalysis(refTrack.styleAnalysis)
     const mars = await marsAssemble(styleAnalysis, outcome, { year: refTrack.year })
 
     // Variance resolution — samples concrete tempo/mode from the Outcome's distribution
@@ -239,7 +244,8 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
     // Always run injectArrangement: even when arrangementSections is null, the
     // arranger performs the chorus-escalation pass (rename final [Chorus] to
     // [Final Chorus], add gang-vocal cues) so every track gets an energy arc.
-    const finalLyrics = injectArrangement(professor.lyrics, arrangementSections ?? {})
+    const arrangementPolicy = await getOrSeedArrangementPolicy()
+    const finalLyrics = injectArrangement(professor.lyrics, arrangementSections ?? {}, arrangementPolicy.config)
 
     await prisma.songSeed.update({
       where: { id: songSeed.id },
@@ -297,29 +303,60 @@ const REGISTER_TERMS = [
   'falsetto', 'head voice', 'chest voice',
 ]
 
+/** Trim a string; return undefined for null / empty / whitespace-only. */
+function nonEmpty(s: string | null | undefined): string | undefined {
+  const t = s?.trim()
+  return t ? t : undefined
+}
+
+// Read-time compatibility shim for v13 structured-field rows.
+//
+// v13 emits discrete columns (genreAnchor, harmonicCharacter, grooveCharacter, …) and
+// leaves the legacy prose columns (vibePitch, harmonicAndGroove) null. The entire Mars
+// subsystem — the anchor builder, the 5-axis exclusion haystack, and the DB-configured
+// exclusion rules keyed on legacy field names — reads the prose columns. Rather than
+// rewire every one of those consumers, we fill the legacy field names from the v13
+// columns here, once, at the point a StyleAnalysis enters the seed builder. Pre-v13 rows
+// (no v13 columns) are returned unchanged. extractGenreBrief and Mars's vocal-gender
+// path read the discrete columns directly where it matters; this shim covers everything
+// else for free.
+export function normalizeStyleAnalysis<T extends StyleAnalysis>(sa: T): T {
+  const out = { ...sa } as StyleAnalysis
+  if (!nonEmpty(out.vibePitch) && nonEmpty(out.genreAnchor)) {
+    out.vibePitch = out.genreAnchor
+  }
+  if (!nonEmpty(out.harmonicAndGroove)) {
+    const h = nonEmpty(out.harmonicCharacter)
+    const g = nonEmpty(out.grooveCharacter)
+    if (h || g) out.harmonicAndGroove = [h, g].filter(Boolean).join(' | ')
+  }
+  return out as T
+}
+
 export function extractGenreBrief(
   styleAnalysis: StyleAnalysis,
   refTrackYear: number | null | undefined,
   anchorTag?: string | null,
 ): GenreBrief {
-  const genreTag = anchorTag
+  // genreTag: Mars anchor (best signal) → v13 genre_anchor column → leading vibe_pitch
+  // clause (pre-v13) → 'pop'.
+  const genreTag = nonEmpty(anchorTag)
+    ?? nonEmpty(styleAnalysis.genreAnchor)
     ?? extractLeadingGenre(styleAnalysis.vibePitch)
     ?? 'pop'
 
-  const harmAndGroove = styleAnalysis.harmonicAndGroove ?? ''
-  const commaIdx = harmAndGroove.lastIndexOf(',')
-  let harmonicCharacter: string
-  let grooveCharacter: string
-  if (commaIdx > 0) {
-    const parts = splitHarmonicAndGroove(harmAndGroove)
+  // harmonic / groove: prefer the v13 discrete columns; else split the fused legacy field.
+  let harmonicCharacter = nonEmpty(styleAnalysis.harmonicCharacter) ?? ''
+  let grooveCharacter = nonEmpty(styleAnalysis.grooveCharacter) ?? ''
+  if (!harmonicCharacter && !grooveCharacter) {
+    const parts = splitHarmonicAndGroove(styleAnalysis.harmonicAndGroove ?? '')
     harmonicCharacter = parts.harmonic
     grooveCharacter = parts.groove
-  } else {
-    harmonicCharacter = harmAndGroove.trim()
-    grooveCharacter = ''
   }
 
-  const vocalRegister = extractVocalRegister(styleAnalysis.vocalCharacter ?? '')
+  // vocalRegister: prefer the v13 column; else regex-scan vocal_character prose.
+  const vocalRegister = nonEmpty(styleAnalysis.vocalRegister)
+    ?? extractVocalRegister(styleAnalysis.vocalCharacter ?? '')
 
   const eraDecade = typeof refTrackYear === 'number'
     ? `${Math.floor(refTrackYear / 10) * 10}s`
@@ -329,7 +366,15 @@ export function extractGenreBrief(
 }
 
 function splitHarmonicAndGroove(text: string): { harmonic: string; groove: string } {
-  const fragments = text.split(',').map((s) => s.trim()).filter(Boolean)
+  const trimmed = text.trim()
+  if (!trimmed) return { harmonic: '', groove: '' }
+  // v13 normalization joins the two axes with " | "; split on that directly.
+  if (trimmed.includes(' | ')) {
+    const [harmonic, ...rest] = trimmed.split(' | ')
+    return { harmonic: harmonic.trim(), groove: rest.join(' | ').trim() }
+  }
+  // Legacy fused prose: term-match groove vocabulary out of the comma fragments.
+  const fragments = trimmed.split(',').map((s) => s.trim()).filter(Boolean)
   const grooveParts: string[] = []
   const harmonicParts: string[] = []
   for (const f of fragments) {
@@ -409,18 +454,72 @@ export type PickRefResult =
   | { ok: true; ref: RefTrackWithAnalysis }
   | { ok: false; reason: 'no_approved_with_analysis' | 'no_outcome_tempo_match' }
 
+// A failed or low-confidence decomposition produces a hallucinated genre tag and
+// must not seed songs. The decomposer sets confidence:'low' exactly when it could
+// not verify the track (the verifiable_facts grounding gate) — e.g. the "Puddle"
+// case that returned vibe_pitch:"Unable to decompose…" yet still seeded a song.
+// Such rows are excluded from picking AND from lazy re-decompose (a re-run would
+// just fail again and burn a call).
+export function isDecompositionUsable(confidence: string | null | undefined): boolean {
+  return confidence !== 'low'
+}
+
+// useCount alone doesn't spread bursts: it only increments on operator accept
+// (admin.ts), so every iteration of a burst sees the same snapshot. Add in-flight +
+// accepted seed counts so each created seed pushes the next iteration toward a
+// different track.
+export function scoreTrack(t: { useCount: number; songSeeds: { status: string }[] }): number {
+  const inFlight = t.songSeeds.filter(
+    (s) => s.status === 'assembling' || s.status === 'queued' || s.status === 'accepted',
+  ).length
+  return t.useCount + inFlight
+}
+
+type PartitionTrack = { styleAnalysis: { bpm: number | null; confidence: string | null } | null }
+
+// Split approved tracks into the pool that can be picked right now (decomposed,
+// usable, tempo-compatible) vs. those that have never been decomposed and could be
+// lazily decomposed on demand. Tracks that ARE decomposed but unusable or
+// tempo-incompatible fall into neither bucket — they're skipped without re-decompose.
+export function partitionPickableTracks<T extends PartitionTrack>(
+  tracks: T[],
+  outcomeTempoBpm: number,
+): { ready: T[]; needsDecompose: T[] } {
+  const ready: T[] = []
+  const needsDecompose: T[] = []
+  for (const t of tracks) {
+    if (!t.styleAnalysis) {
+      needsDecompose.push(t)
+      continue
+    }
+    if (!isDecompositionUsable(t.styleAnalysis.confidence)) continue
+    if (bpmCompatible(t.styleAnalysis.bpm, outcomeTempoBpm)) ready.push(t)
+  }
+  return { ready, needsDecompose }
+}
+
+// Per-pick budget on just-in-time decompositions. A tempo-scarce pool (few refs near
+// the outcome tempo) could otherwise trigger a long chain of decompose calls for one
+// seed; cap it. In the common case the first lazy decompose succeeds (most refs are
+// BPM-fluid or near the outcome tempo), so this is a safety bound, not the norm.
+export const MAX_LAZY_DECOMPOSE_PER_PICK = 4
+
+// Pick a reference track for one seed.
+//
+// Fast path (unchanged behavior): if a decomposed, usable, tempo-compatible track
+// exists, score and pick it. Lazy path: if none is ready, decompose never-decomposed
+// candidates just-in-time (score order, bounded) until one is usable and
+// tempo-compatible. This makes decomposition pay-as-you-go — only tracks actually used
+// ever get decomposed — instead of the old "decompose all ~33 approved refs up front,
+// use ~12" pattern that left ~46% of decompositions unused. Tracks accumulate into the
+// ready pool across a batch, so a run of N seeds decomposes ≈ the distinct tracks it
+// consumes, not the whole pool.
 export async function pickReferenceTrack(
   icpId: string,
   outcomeTempoBpm: number,
 ): Promise<PickRefResult> {
-  // useCount alone doesn't spread bursts: it only increments on operator
-  // accept (admin.ts), so every iteration of a burst sees the same snapshot
-  // and grabs the same lowest-useCount track. Add in-flight + already-
-  // accepted seed counts to the score so each created seed naturally
-  // pushes the next iteration toward a different track. Tiebreak randomly
-  // so single-seed runs also vary across calls.
   const tracks = await prisma.referenceTrack.findMany({
-    where: { icpId, status: 'approved', styleAnalysis: { isNot: null } },
+    where: { icpId, status: 'approved' },
     include: {
       styleAnalysis: true,
       songSeeds: { select: { status: true } },
@@ -428,20 +527,50 @@ export async function pickReferenceTrack(
   })
   if (tracks.length === 0) return { ok: false, reason: 'no_approved_with_analysis' }
 
-  // Filter: outcome tempo compatibility (±7bpm). Refs whose StyleAnalysis
-  // has no decomposed BPM pass through — they get filtered on next decompose.
-  const tempoCompatible = tracks.filter((t) => bpmCompatible(t.styleAnalysis?.bpm, outcomeTempoBpm))
-  if (tempoCompatible.length === 0) return { ok: false, reason: 'no_outcome_tempo_match' }
+  // Tiebreak randomly so single-seed runs also vary across calls.
+  const rankByScore = <T extends { useCount: number; songSeeds: { status: string }[] }>(arr: T[]): T[] =>
+    [...arr]
+      .map((t) => ({ t, score: scoreTrack(t) }))
+      .sort((a, b) => a.score - b.score || Math.random() - 0.5)
+      .map((x) => x.t)
 
-  const scored = tempoCompatible.map((t) => {
-    const inFlight = t.songSeeds.filter(
-      (s) => s.status === 'assembling' || s.status === 'queued' || s.status === 'accepted',
-    ).length
-    return { t, score: t.useCount + inFlight }
-  })
-  scored.sort((a, b) => (a.score - b.score) || (Math.random() - 0.5))
+  const { ready, needsDecompose } = partitionPickableTracks(tracks, outcomeTempoBpm)
 
-  const winner = scored[0]?.t
-  if (!winner || !winner.styleAnalysis) return { ok: false, reason: 'no_approved_with_analysis' }
-  return { ok: true, ref: winner as unknown as RefTrackWithAnalysis }
+  // Fast path.
+  const readyWinner = rankByScore(ready)[0]
+  if (readyWinner?.styleAnalysis) {
+    return { ok: true, ref: readyWinner as unknown as RefTrackWithAnalysis }
+  }
+
+  // Lazy path — decompose undecomposed candidates just-in-time.
+  for (const t of rankByScore(needsDecompose).slice(0, MAX_LAZY_DECOMPOSE_PER_PICK)) {
+    let sa
+    try {
+      const result = await decompose({
+        artist: t.artist,
+        title: t.title,
+        year: t.year ?? undefined,
+        operatorNotes: t.operatorNotes ?? undefined,
+      })
+      const data = toStyleAnalysisData(result)
+      sa = await prisma.styleAnalysis.upsert({
+        where: { referenceTrackId: t.id },
+        create: { referenceTrackId: t.id, ...data },
+        update: data,
+      })
+    } catch {
+      // A decompose / API failure on one candidate must not abort the pick.
+      continue
+    }
+    if (isDecompositionUsable(sa.confidence) && bpmCompatible(sa.bpm, outcomeTempoBpm)) {
+      return { ok: true, ref: { ...t, styleAnalysis: sa } as unknown as RefTrackWithAnalysis }
+    }
+  }
+
+  // Nothing usable + tempo-compatible, even after lazy decompose. Distinguish "had
+  // usable decompositions but tempo mismatched" from "nothing to work with" for the caller.
+  const anyUsableDecomposed = tracks.some(
+    (t) => t.styleAnalysis && isDecompositionUsable(t.styleAnalysis.confidence),
+  )
+  return { ok: false, reason: anyUsableDecomposed ? 'no_outcome_tempo_match' : 'no_approved_with_analysis' }
 }

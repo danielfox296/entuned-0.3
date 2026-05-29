@@ -17,6 +17,7 @@ import { LyricBanList } from './panels/engine/LyricBanList.js'
 import { OutcomeFactorPrompt } from './panels/engine/OutcomeFactorPrompt.js'
 import { ReferenceTrackPrompt } from './panels/engine/ReferenceTrackPrompt.js'
 import { FormArchetypes } from './panels/engine/FormArchetypes.js'
+import { ArrangementRules } from './panels/engine/ArrangementRules.js'
 import { GenreCraftRules } from './panels/engine/GenreCraftRules.js'
 import { StyleTemplate } from './panels/engine/StyleTemplate.js'
 import { BpmLookupPrompt } from './panels/engine/BpmLookupPrompt.js'
@@ -338,6 +339,7 @@ const ENGINE_GROUPS: EngineGroup[] = [
     label: 'Arrangement',
     panels: [
       { label: 'Arrangement Formats', panel: () => <FormArchetypes /> },
+      { label: 'Arrangement Rules', panel: () => <ArrangementRules /> },
     ],
   },
 ]

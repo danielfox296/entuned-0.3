@@ -8,20 +8,40 @@ The decomposer reads a reference track's metadata and produces a structured musi
 
 | File | Status |
 |---|---|
-| [`rules-v1.ts`](./rules-v1.ts) – [`rules-v5.ts`](./rules-v5.ts) | Historical — reachable only via env/DB override |
-| [`rules-v6.ts`](./rules-v6.ts) | Historical — but **still imported** by [`decomposer.ts:18`](./decomposer.ts). Not orphaned. |
-| [`rules-v7.ts`](./rules-v7.ts) | Historical — reachable only via env/DB override |
-| [`rules-v8.ts`](./rules-v8.ts) | **Current production default** ([`decomposer.ts:35`](./decomposer.ts)) |
+| [`rules-v1.ts`](./rules-v1.ts) – [`rules-v7.ts`](./rules-v7.ts) | Historical — reachable only via env/DB override (v6 is still imported, not orphaned) |
+| [`rules-v8.ts`](./rules-v8.ts) – [`rules-v12.ts`](./rules-v12.ts) | Historical — the v8–v12 prose contract. Produced most rows currently in the DB. Reachable via env/DB override. |
+| [`rules-v13.ts`](./rules-v13.ts) | **Current production default.** Structured-fields rewrite — emits discrete columns instead of prose to be mined. See "v13" below. |
 
 ## Default + selection
 
-`getRulesText` ([decomposer.ts:35](./decomposer.ts)) returns v8 by default. The version is selected by:
+`decompose()` defaults to `LATEST_RULES_VERSION` (v13). The version is selected by:
 
-1. `DECOMPOSER_RULES_VERSION` env var (operator override), or
-2. The `rulesVersion` column on the relevant DB row (per-decomposition pin), else
-3. v8.
+1. `DECOMPOSER_RULES_VERSION` env var (operator override / rollback), or
+2. The `styleAnalyzerInstructions` DB row pinned to that version, else
+3. The TS const auto-seeded into a new DB row.
 
-Only v8 fires in default production traffic.
+Only v13 fires in default production traffic.
+
+## v13 — structured-fields contract (2026-05-29)
+
+v13 is the first contract change since v8. An audit found ~5 tokens of a ~250-word
+v8–v12 decomposition reached the final Suno style; the rest was generated, stored, fed
+to Mars, and discarded. v13:
+
+- **Emits the consumed signals discretely** into new `StyleAnalysis` columns:
+  `genre_anchor`, `harmonic_character`, `groove_character`, `vocal_register`,
+  `vocal_gender`. Consumers read these directly instead of regex-mining prose.
+- **Retires the prose fields that never landed**: `vibe_pitch`,
+  `era_production_signature`, `vocal_arrangement`, `harmonic_and_groove`
+  (plus the long-dead `arrangement_shape` / `dynamic_curve`).
+- **Keeps** `verifiable_facts` + `confidence` — they force web-search fact-finding,
+  which is what makes `confidence` trustworthy (the picker's usability gate keys on it).
+- **No data backfill.** Pre-v13 rows keep their prose columns; v13 rows null them and
+  populate the new columns. `normalizeStyleAnalysis` (`lib/eno/eno.ts`) back-fills the
+  legacy field names at read time so the Mars subsystem reads v13 rows unchanged.
+
+See [`CONSUMERS.md`](./CONSUMERS.md) for the full field → consumer map and the rules for
+changing the contract, and schema SSOT Card 05 for the column definitions.
 
 ## Why old versions stay on disk
 
@@ -39,9 +59,9 @@ If you actually want fewer files on disk, the right move is to (a) confirm with 
 
 ## Adding a new version
 
-1. Copy the current default (`rules-v8.ts` → `rules-v9.ts`).
+1. Copy the current default (`rules-v13.ts` → `rules-v14.ts`).
 2. Make changes to the new file. Leave older versions alone.
-3. Update `decomposer.ts` to add v9 to the lookup map and (when ready) flip the default.
+3. Update `decomposer.ts` to add v14 to `RULES_BY_VERSION` and bump `LATEST_RULES_VERSION`. If the new version changes the emitted-field *contract* (not just wording), branch `validate()`, `buildEmitTool()`, and `toStyleAnalysisData()` on it the way v13 does via `STRUCTURED_FIELDS_VERSION`, and update [`CONSUMERS.md`](./CONSUMERS.md).
 4. Add the top-of-file pointer comment matching the existing pattern.
 
 The pattern at the top of each file is one line, matching this repo's existing comment style:
