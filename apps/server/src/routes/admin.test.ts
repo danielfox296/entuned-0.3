@@ -114,6 +114,15 @@ vi.mock('../db.js', () => {
       update: vi.fn(),
       delete: vi.fn(),
     },
+    outcome: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
+    lineageRow: {
+      groupBy: vi.fn(),
+    },
     $transaction: vi.fn(async (cb: (tx: any) => unknown) => cb(mock)),
   }
   return { prisma: mock }
@@ -1762,5 +1771,109 @@ describe('admin routes — professor modules', () => {
     const app = await buildTestApp(adminRoutes)
     const res = await app.inject({ method: 'GET', url: '/professor/modules' })
     expect(res.statusCode).toBe(401)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Outcome library — variance levers (tempoBpmRadius, modeWeights)
+//
+// These two fields are the operator-facing way to broaden the variety of
+// songs an Outcome produces: a tempo spread band and a weighted mode
+// distribution that the per-seed variance resolver samples from. They were
+// previously absent from the create/edit route, so they could only be set by
+// direct DB surgery — AND the copy-on-write PUT silently dropped them on every
+// edit (the new version copied only title/tempo/mode/mood/era). These tests
+// pin both into the route and guard the PUT carry-over regression.
+// ---------------------------------------------------------------------------
+describe('admin routes — outcome variance levers', () => {
+  const outcomeCreate = prisma.outcome.create as ReturnType<typeof vi.fn>
+  const outcomeUpdate = prisma.outcome.update as ReturnType<typeof vi.fn>
+  const outcomeFindUnique = prisma.outcome.findUnique as ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    seedAdminAccount()
+  })
+
+  it('POST /outcomes persists tempoBpmRadius + modeWeights', async () => {
+    outcomeCreate.mockResolvedValue({ id: 'oc-new' })
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/outcomes', headers: AUTH,
+      payload: {
+        title: 'Dwell Extension', tempoBpm: 66, tempoBpmRadius: 10,
+        mode: 'minor', modeWeights: { minor: 1, dorian: 2, aeolian: 1 }, mood: 'tender, hushed',
+      },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(outcomeCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          tempoBpm: 66, tempoBpmRadius: 10,
+          mode: 'minor', modeWeights: { minor: 1, dorian: 2, aeolian: 1 },
+        }),
+      }),
+    )
+  })
+
+  it('POST /outcomes stores nulls when no spread is given (single fixed tempo + mode)', async () => {
+    const { Prisma } = await import('@prisma/client')
+    outcomeCreate.mockResolvedValue({ id: 'oc-new' })
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/outcomes', headers: AUTH,
+      payload: { title: 'Impulse', tempoBpm: 92, mode: 'major', mood: 'bright, punchy' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const data = outcomeCreate.mock.calls[0][0].data
+    expect(data.tempoBpmRadius).toBeNull()
+    // Nullable Json must use Prisma.JsonNull, never JS null (Prisma rejects the latter).
+    expect(data.modeWeights).toBe(Prisma.JsonNull)
+  })
+
+  it('POST /outcomes rejects a non-positive mode weight (zod bad_body)', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST', url: '/outcomes', headers: AUTH,
+      payload: { title: 'Bad', tempoBpm: 100, mode: 'major', modeWeights: { major: 0 }, mood: 'x' },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toBe('bad_body')
+    expect(outcomeCreate).not.toHaveBeenCalled()
+  })
+
+  it('PUT /outcomes/:id carries tempoBpmRadius + modeWeights into the new version (copy-on-write regression)', async () => {
+    outcomeFindUnique.mockResolvedValue({
+      id: 'oc-1', outcomeKey: 'key-1', version: 3, supersededAt: null,
+    })
+    outcomeUpdate.mockResolvedValue({ id: 'oc-1' })
+    outcomeCreate.mockResolvedValue({ id: 'oc-1-v4' })
+
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'PUT', url: '/outcomes/oc-1', headers: AUTH,
+      payload: {
+        title: 'Dwell Extension', tempoBpm: 66, tempoBpmRadius: 10,
+        mode: 'minor', modeWeights: { minor: 1, dorian: 1 }, mood: 'tender, hushed',
+      },
+    })
+
+    expect(res.statusCode).toBe(200)
+    // Old version superseded.
+    expect(outcomeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'oc-1' }, data: { supersededAt: expect.any(Date) } }),
+    )
+    // New version must NOT drop the spread fields.
+    expect(outcomeCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          outcomeKey: 'key-1', version: 4,
+          tempoBpmRadius: 10, modeWeights: { minor: 1, dorian: 1 },
+        }),
+      }),
+    )
   })
 })

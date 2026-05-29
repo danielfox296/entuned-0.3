@@ -900,7 +900,9 @@ export interface OutcomeRowFull {
   title: string
   displayTitle: string | null
   tempoBpm: number
+  tempoBpmRadius: number | null
   mode: string
+  modeWeights: Record<string, number> | null
   mood: string
   dynamics: string | null
   instrumentation: string | null
@@ -1391,9 +1393,9 @@ export const api = {
     req<OutcomeRowFull[]>('/admin/outcomes', {}, token),
   outcomeLibrary: (token: string) =>
     req<(OutcomeRowFull & { lineageCount: number })[]>('/admin/outcomes?include=all', {}, token),
-  createOutcome: (body: { title: string; displayTitle?: string | null; tempoBpm: number; mode: string; mood: string; familiarity?: string | null; productionEraId?: string | null }, token: string) =>
+  createOutcome: (body: { title: string; displayTitle?: string | null; tempoBpm: number; tempoBpmRadius?: number | null; mode: string; modeWeights?: Record<string, number> | null; mood: string; familiarity?: string | null; productionEraId?: string | null }, token: string) =>
     req<OutcomeRowFull>('/admin/outcomes', { method: 'POST', body: JSON.stringify(body) }, token),
-  editOutcome: (id: string, body: { title: string; displayTitle?: string | null; tempoBpm: number; mode: string; mood: string; familiarity?: string | null; productionEraId?: string | null }, token: string) =>
+  editOutcome: (id: string, body: { title: string; displayTitle?: string | null; tempoBpm: number; tempoBpmRadius?: number | null; mode: string; modeWeights?: Record<string, number> | null; mood: string; familiarity?: string | null; productionEraId?: string | null }, token: string) =>
     req<OutcomeRowFull>(`/admin/outcomes/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
   productionEras: (token: string) =>
     req<ProductionEraStub[]>('/admin/production-eras', {}, token),

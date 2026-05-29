@@ -12,10 +12,33 @@ interface Draft {
   title: string
   displayTitle: string
   tempoBpm: number
+  tempoBpmRadius: number // 0 = no spread (single fixed BPM)
   mode: string
+  modeWeights: string // editable form, e.g. "minor, dorian:2, aeolian"; blank = single fixed mode
   mood: string
   familiarity: string
   productionEraId: string
+}
+
+// modeWeights is stored as a JSON map { mode: weight }. Operators edit it as a compact
+// comma list where a bare mode means weight 1 and "mode:n" sets an explicit weight.
+function parseModeWeights(s: string): Record<string, number> | null {
+  const out: Record<string, number> = {}
+  for (const tok of s.split(',')) {
+    const t = tok.trim()
+    if (!t) continue
+    const [mode, w] = t.split(':').map((x) => x.trim())
+    if (!mode) continue
+    const weight = w === undefined || w === '' ? 1 : Number(w)
+    if (!Number.isFinite(weight) || weight <= 0) continue
+    out[mode] = weight
+  }
+  return Object.keys(out).length ? out : null
+}
+
+function serializeModeWeights(mw: Record<string, number> | null | undefined): string {
+  if (!mw) return ''
+  return Object.entries(mw).map(([m, w]) => (w === 1 ? m : `${m}:${w}`)).join(', ')
 }
 
 const MODE_SUGGESTIONS = ['major', 'minor', 'dorian', 'mixolydian', 'lydian', 'phrygian', 'aeolian', 'modal_jazz', 'blues']
@@ -65,7 +88,9 @@ export function OutcomeLibrary() {
       title: r.title,
       displayTitle: r.displayTitle ?? '',
       tempoBpm: r.tempoBpm,
+      tempoBpmRadius: r.tempoBpmRadius ?? 0,
       mode: r.mode,
+      modeWeights: serializeModeWeights(r.modeWeights),
       mood: r.mood ?? '',
       familiarity: r.familiarity ?? '',
       productionEraId: r.productionEraId ?? '',
@@ -79,7 +104,8 @@ export function OutcomeLibrary() {
     try {
       await api.editOutcome(editingId, {
         title: draft.title, displayTitle: draft.displayTitle.trim() || null,
-        tempoBpm: draft.tempoBpm, mode: draft.mode, mood: draft.mood.trim(),
+        tempoBpm: draft.tempoBpm, tempoBpmRadius: draft.tempoBpmRadius > 0 ? draft.tempoBpmRadius : null,
+        mode: draft.mode, modeWeights: parseModeWeights(draft.modeWeights), mood: draft.mood.trim(),
         familiarity: draft.familiarity || null, productionEraId: draft.productionEraId || null,
       }, token)
       setEditingId(null); setDraft(null); await reload()
@@ -94,7 +120,8 @@ export function OutcomeLibrary() {
     try {
       await api.createOutcome({
         title: adding.title, displayTitle: adding.displayTitle.trim() || null,
-        tempoBpm: adding.tempoBpm, mode: adding.mode, mood: adding.mood.trim(),
+        tempoBpm: adding.tempoBpm, tempoBpmRadius: adding.tempoBpmRadius > 0 ? adding.tempoBpmRadius : null,
+        mode: adding.mode, modeWeights: parseModeWeights(adding.modeWeights), mood: adding.mood.trim(),
         familiarity: adding.familiarity || null, productionEraId: adding.productionEraId || null,
       }, token)
       setAdding(null); await reload()
@@ -144,7 +171,7 @@ export function OutcomeLibrary() {
         />
         <Button
           variant={adding ? 'ghost' : 'primary'}
-          onClick={() => setAdding(adding ? null : { title: '', displayTitle: '', tempoBpm: 100, mode: 'major', mood: '', familiarity: '', productionEraId: '' })}
+          onClick={() => setAdding(adding ? null : { title: '', displayTitle: '', tempoBpm: 100, tempoBpmRadius: 0, mode: 'major', modeWeights: '', mood: '', familiarity: '', productionEraId: '' })}
         >{adding ? 'cancel' : '+ new outcome'}</Button>
       </div>
 
@@ -234,8 +261,12 @@ function DataRow({ row, onEdit, onSupersede, busy }: {
     }}>
       <span style={{ color: T.text, fontWeight: 500 }}>{row.displayTitle ?? row.title}</span>
       <span style={{ color: T.accentMuted }}>v{row.version}</span>
-      <span style={{ color: T.textMuted }}>{row.tempoBpm}</span>
-      <span style={{ color: T.textMuted }}>{row.mode}</span>
+      <span style={{ color: T.textMuted }}>
+        {row.tempoBpm}{row.tempoBpmRadius ? <span style={{ color: T.accentMuted }}> ±{row.tempoBpmRadius}</span> : null}
+      </span>
+      <span style={cellTrunc}>
+        {row.mode}{row.modeWeights ? <span style={{ color: T.accentMuted }}> +{Object.keys(row.modeWeights).length}</span> : null}
+      </span>
       <span style={cellTrunc}>{row.mood ?? '—'}</span>
       <span style={cellTrunc}>{eraLabel}</span>
       <span style={{ color: row.lineageCount === 0 ? T.danger : T.text, textAlign: 'right', paddingRight: 6 }}>{row.lineageCount}</span>
@@ -269,7 +300,7 @@ function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent,
       background: intent === 'new' ? T.accentGlow : 'transparent',
       border: intent === 'new' ? `1px solid ${T.accentMuted}` : 'none',
       borderRadius: S.r4, padding: intent === 'new' ? 14 : 0,
-      display: 'grid', gridTemplateColumns: '1fr 1fr 100px 140px 1.2fr 140px 1.2fr', gap: 8,
+      display: 'grid', gridTemplateColumns: '1fr 1fr 90px 90px 130px 1.4fr 1.2fr 140px', gap: 8,
     }}>
       <div>
         <label style={labelStyle}>title (LLM-facing)</label>
@@ -284,11 +315,19 @@ function OutcomeForm({ draft, onChange, onSubmit, onCancel, submitLabel, intent,
         <Input type="number" min={40} max={220} value={draft.tempoBpm} onChange={(e) => set('tempoBpm', parseInt(e.target.value, 10) || 100)} />
       </div>
       <div>
+        <label style={labelStyle}>± bpm spread</label>
+        <Input type="number" min={0} max={60} value={draft.tempoBpmRadius} onChange={(e) => set('tempoBpmRadius', parseInt(e.target.value, 10) || 0)} title="0 = single fixed tempo; N = each seed samples a tempo in [bpm − N, bpm + N]" />
+      </div>
+      <div>
         <label style={labelStyle}>mode</label>
         <Input list="mode-suggestions" value={draft.mode} onChange={(e) => set('mode', e.target.value)} placeholder="major" />
         <datalist id="mode-suggestions">
           {MODE_SUGGESTIONS.map((m) => <option key={m} value={m} />)}
         </datalist>
+      </div>
+      <div>
+        <label style={labelStyle}>mode spread (weighted)</label>
+        <Input value={draft.modeWeights} onChange={(e) => set('modeWeights', e.target.value)} placeholder="blank = fixed · minor, dorian:2, aeolian" title="Blank = always the mode at left. Otherwise each seed samples from this set; a bare mode = weight 1, mode:n sets a weight." />
       </div>
       <div>
         <label style={labelStyle}>mood (required — leads style prefix)</label>
