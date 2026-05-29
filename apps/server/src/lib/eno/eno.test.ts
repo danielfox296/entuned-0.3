@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest'
 import {
   assessRefPoolDiversity,
   bpmCompatible,
+  composeFinalStyle,
   extractGenreBrief,
+  fillOutcomeTemplate,
   isDecompositionUsable,
   normalizeStyleAnalysis,
   partitionPickableTracks,
@@ -328,4 +330,60 @@ describe('scoreTrack — burst spreading', () => {
 // mode from text was lossy. Outcome.mode reaches Suno via the
 // OutcomeFactorPrompt prepend — that's the only place mode signaling
 // belongs.
+
+describe('fillOutcomeTemplate', () => {
+  it('fills template placeholders', () => {
+    expect(fillOutcomeTemplate(
+      { tempoBpm: 95, mode: 'dorian', mood: 'relaxed' },
+      '{mood}, {tempo_bpm}bpm, {mode}',
+    )).toBe('relaxed, 95bpm, dorian')
+  })
+
+  it('returns empty string for blank template', () => {
+    expect(fillOutcomeTemplate({ tempoBpm: 95, mode: 'dorian', mood: 'relaxed' }, '')).toBe('')
+    expect(fillOutcomeTemplate({ tempoBpm: 95, mode: 'dorian', mood: 'relaxed' }, '  ')).toBe('')
+  })
+})
+
+describe('composeFinalStyle — vocal identity placement', () => {
+  it('places vocal identity between outcome prepend and genre', () => {
+    const result = composeFinalStyle(
+      'relaxed, 95bpm, dorian',
+      'raspy tenor, conversational, dry close-mic',
+      null,
+      '1970s jazz-rock, jazz guitar solo, I-IV vamp',
+    )
+    expect(result).toBe('relaxed, 95bpm, dorian, raspy tenor, conversational, dry close-mic, 1970s jazz-rock, jazz guitar solo, I-IV vamp')
+  })
+
+  it('falls back to legacy vocal descriptor when no triple-stack', () => {
+    const result = composeFinalStyle(
+      'relaxed, 95bpm, dorian',
+      null,
+      'drawl',
+      '1970s jazz-rock, jazz guitar solo',
+    )
+    expect(result).toBe('relaxed, 95bpm, dorian, drawl, 1970s jazz-rock, jazz guitar solo')
+  })
+
+  it('omits vocal entirely when neither triple-stack nor legacy is present', () => {
+    const result = composeFinalStyle(
+      'relaxed, 95bpm, dorian',
+      null,
+      null,
+      '1970s jazz-rock, jazz guitar solo',
+    )
+    expect(result).toBe('relaxed, 95bpm, dorian 1970s jazz-rock, jazz guitar solo')
+  })
+
+  it('handles empty outcome prepend', () => {
+    const result = composeFinalStyle(
+      '',
+      'raspy, conversational, close-mic',
+      null,
+      '1970s jazz-rock',
+    )
+    expect(result).toBe('raspy, conversational, close-mic, 1970s jazz-rock')
+  })
+})
 

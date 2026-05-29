@@ -632,6 +632,9 @@ model GenreGravityRule {
   counterExclusions String[] @default([]) @map("counter_exclusions")
   positivePalettes  String[] @default([]) @map("positive_palettes")
   vocalDescriptors  String[] @default([]) @map("vocal_descriptors")
+  vocalCharacters   String[] @default([]) @map("vocal_characters")
+  vocalDeliveries   String[] @default([]) @map("vocal_deliveries")
+  vocalEffects      String[] @default([]) @map("vocal_effects")
   notes             String?
   active            Boolean  @default(true)
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -719,6 +722,7 @@ model SongSeed {
   musicProfessorChangeLog      String? @map("music_professor_change_log") // JSON-serialized array of brief tags from the Music Professor's per-change audit
   harmonicPalette              String? @map("harmonic_palette") // palette token Mars injected from GenreGravityRule.positivePalettes (null if no rule matched)
   vocalDescriptor              String? @map("vocal_descriptor") // vocal descriptor token Mars injected from GenreGravityRule.vocalDescriptors (null if no rule matched)
+  vocalIdentity                String? @map("vocal_identity") // composed triple-stack vocal identity (character + delivery + effect) placed before genre anchor
   arrangementTemplateVersion Int?     @map("arrangement_template_version")
   resolvedTempoBpm           Int?     @map("resolved_tempo_bpm")
   resolvedMode               String?  @map("resolved_mode")

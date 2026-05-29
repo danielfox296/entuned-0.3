@@ -34,13 +34,36 @@ export async function getOrSeedOutcomeFactorPrompt(): Promise<{ id: string; vers
   })
 }
 
-export function applyOutcomeFactorPrompt(stylePortion: string, outcome: { tempoBpm: number; mode: string; mood: string }, templateText: string): string {
-  if (!templateText.trim()) return stylePortion
-  const filled = templateText
+export function fillOutcomeTemplate(outcome: { tempoBpm: number; mode: string; mood: string }, templateText: string): string {
+  if (!templateText.trim()) return ''
+  return templateText
     .replace(/\{tempo_bpm\}/g, String(outcome.tempoBpm))
     .replace(/\{mode\}/g, outcome.mode)
     .replace(/\{mood\}/g, outcome.mood)
-  return `${filled.trim()} ${stylePortion}`
+    .trim()
+}
+
+// Compose the final style string. Order: outcome prepend, vocal identity, genre+corrections+palette.
+// Vocal identity goes BEFORE genre anchor — Suno front-loads processing, so whatever
+// it reads first gets prioritized. The vocal identity is the triple-stack
+// (character + delivery + effect) from GenreGravityRule, or a legacy single
+// descriptor as fallback.
+export function composeFinalStyle(
+  outcomePrepend: string,
+  vocalIdentity: string | null | undefined,
+  legacyVocalDescriptor: string | null | undefined,
+  stylePortion: string,
+): string {
+  const vocal = vocalIdentity || legacyVocalDescriptor || null
+  const parts = [outcomePrepend, vocal, stylePortion].filter(Boolean)
+  return parts.join(vocal ? ', ' : ' ')
+}
+
+// Kept for backward compat with any external callers or tests.
+export function applyOutcomeFactorPrompt(stylePortion: string, outcome: { tempoBpm: number; mode: string; mood: string }, templateText: string): string {
+  const prepend = fillOutcomeTemplate(outcome, templateText)
+  if (!prepend) return stylePortion
+  return `${prepend} ${stylePortion}`
 }
 
 export interface SeedBuilderOptions {
@@ -188,10 +211,15 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
     })
 
     const outcomeFactorPrompt = await getOrSeedOutcomeFactorPrompt()
-    const finalStyle = applyOutcomeFactorPrompt(
-      musicProfessor.style,
+    const outcomePrepend = fillOutcomeTemplate(
       { tempoBpm: resolved.tempoBpm, mode: resolved.mode, mood: outcome.mood },
       outcomeFactorPrompt.templateText,
+    )
+    const finalStyle = composeFinalStyle(
+      outcomePrepend,
+      mars.vocalIdentity,
+      mars.vocalDescriptor,
+      musicProfessor.style,
     )
 
     const icpRow = await prisma.iCP.findUniqueOrThrow({ where: { id: icpId }, select: { clientId: true } })
@@ -288,6 +316,7 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
         musicProfessorChangeLog: musicProfessor.changeLog.length > 0 ? JSON.stringify(musicProfessor.changeLog) : null,
         harmonicPalette: mars.harmonicPalette,
         vocalDescriptor: mars.vocalDescriptor,
+        vocalIdentity: mars.vocalIdentity,
         arrangementTemplateVersion: arrangementSections ? arrangementVersion : null,
         resolvedTempoBpm: resolved.tempoBpm,
         resolvedMode: resolved.mode,

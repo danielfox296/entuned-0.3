@@ -7,7 +7,10 @@
 //     Mars deterministically (no LLM). Steers TOWARD genre-authentic
 //     harmony — verified 2026-05-26 that text tokens like "I-IV vamp" or
 //     "tonic drone" do influence Suno's chord motion.
-// Both fields are independent — a row may have either, both, or neither.
+//   - vocalCharacters / vocalDeliveries / vocalEffects: triple-stack vocal
+//     identity. Mars picks one from each and composes a vocal identity string
+//     placed BEFORE the genre anchor, where Suno reads it hardest.
+// All fields are independent — a row may have any combination.
 
 import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
@@ -20,6 +23,9 @@ type Editing = GenreGravityRuleDraft & {
   _exclusionsText?: string
   _palettesText?: string
   _vocalsText?: string
+  _charactersText?: string
+  _deliveriesText?: string
+  _effectsText?: string
 }
 
 const EMPTY: Editing = {
@@ -27,11 +33,17 @@ const EMPTY: Editing = {
   counterExclusions: [],
   positivePalettes: [],
   vocalDescriptors: [],
+  vocalCharacters: [],
+  vocalDeliveries: [],
+  vocalEffects: [],
   notes: '',
   active: true,
   _exclusionsText: '',
   _palettesText: '',
   _vocalsText: '',
+  _charactersText: '',
+  _deliveriesText: '',
+  _effectsText: '',
 }
 
 function fromRow(r: GenreGravityRuleRow): Editing {
@@ -40,32 +52,33 @@ function fromRow(r: GenreGravityRuleRow): Editing {
     counterExclusions: r.counterExclusions,
     positivePalettes: r.positivePalettes,
     vocalDescriptors: r.vocalDescriptors,
+    vocalCharacters: r.vocalCharacters,
+    vocalDeliveries: r.vocalDeliveries,
+    vocalEffects: r.vocalEffects,
     notes: r.notes ?? '',
     active: r.active,
     _exclusionsText: r.counterExclusions.join(', '),
     _palettesText: r.positivePalettes.join(', '),
     _vocalsText: r.vocalDescriptors.join(', '),
+    _charactersText: r.vocalCharacters.join(', '),
+    _deliveriesText: r.vocalDeliveries.join(', '),
+    _effectsText: r.vocalEffects.join(', '),
   }
 }
 
+function splitCommas(s: string | undefined): string[] {
+  return (s ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+}
+
 function normalize(d: Editing): GenreGravityRuleDraft {
-  const exclusions = (d._exclusionsText ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-  const palettes = (d._palettesText ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-  const vocals = (d._vocalsText ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
   return {
     tag: d.tag.trim(),
-    counterExclusions: exclusions,
-    positivePalettes: palettes,
-    vocalDescriptors: vocals,
+    counterExclusions: splitCommas(d._exclusionsText),
+    positivePalettes: splitCommas(d._palettesText),
+    vocalDescriptors: splitCommas(d._vocalsText),
+    vocalCharacters: splitCommas(d._charactersText),
+    vocalDeliveries: splitCommas(d._deliveriesText),
+    vocalEffects: splitCommas(d._effectsText),
     notes: d.notes?.trim() ? d.notes.trim() : null,
     active: d.active ?? true,
   }
@@ -138,7 +151,7 @@ export function GenreGravityRules() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.lg }}>
       <PanelHeader
         title="Genre Steering Rules"
-        subtitle={`Bidirectional rules keyed on genre tag. ${activeCount}/${rows.length} active. counter-exclusions push AWAY from a centroid (e.g. soft rock → smooth jazz). positive-palettes push TOWARD genre-authentic harmony (e.g. country → I-IV vamp). Either field may be empty.`}
+        subtitle={`Bidirectional rules keyed on genre tag. ${activeCount}/${rows.length} active. counter-exclusions push AWAY from a centroid. positive-palettes push TOWARD genre-authentic harmony. Vocal triple-stack (character + delivery + effect) composes a vocal identity placed before the genre anchor.`}
       />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -149,7 +162,7 @@ export function GenreGravityRules() {
         {err && <span style={{ fontSize: S.small, color: T.danger, fontFamily: T.sans }}>{err}</span>}
       </div>
 
-      {!loaded && <div style={{ color: T.textMuted, fontFamily: T.sans, fontSize: S.small }}>loading…</div>}
+      {!loaded && <div style={{ color: T.textMuted, fontFamily: T.sans, fontSize: S.small }}>loading...</div>}
 
       {loaded && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: S.md }}>
@@ -200,10 +213,22 @@ export function GenreGravityRules() {
   )
 }
 
+function TagLine({ color, label, items }: { color: string; label: string; items: string[] }) {
+  return (
+    <div style={{ marginBottom: 4 }}>
+      <span style={{ color, fontWeight: 600 }}>{label} →</span>{' '}
+      {items.length > 0 ? items.join(', ') : <em style={{ color: T.textDim }}>(none)</em>}
+    </div>
+  )
+}
+
 function DisplayCard({ row, onEdit, onDelete, onToggleActive, busy }: {
   row: GenreGravityRuleRow
   onEdit: () => void; onDelete: () => void; onToggleActive: () => void; busy: boolean
 }) {
+  const hasTripleStack = row.vocalCharacters.length > 0
+    || row.vocalDeliveries.length > 0
+    || row.vocalEffects.length > 0
   return (
     <div style={{
       border: `1px solid ${row.active ? T.border : T.borderSubtle}`,
@@ -228,24 +253,23 @@ function DisplayCard({ row, onEdit, onDelete, onToggleActive, busy }: {
             {row.active ? 'deactivate' : 'activate'}
           </Button>
           <Button variant="tiny" onClick={onEdit} disabled={busy}>edit</Button>
-          <Button variant="tinyDanger" onClick={onDelete} disabled={busy}>×</Button>
+          <Button variant="tinyDanger" onClick={onDelete} disabled={busy}>x</Button>
         </div>
       </div>
       <div style={{
         fontFamily: T.mono, fontSize: S.small, color: T.textMuted, lineHeight: 1.5,
       }}>
-        <div style={{ marginBottom: 4 }}>
-          <span style={{ color: T.danger, fontWeight: 600 }}>away →</span>{' '}
-          {row.counterExclusions.length > 0 ? row.counterExclusions.join(', ') : <em style={{ color: T.textDim }}>(none)</em>}
-        </div>
-        <div style={{ marginBottom: 4 }}>
-          <span style={{ color: T.success, fontWeight: 600 }}>harmony →</span>{' '}
-          {row.positivePalettes.length > 0 ? row.positivePalettes.join(', ') : <em style={{ color: T.textDim }}>(none)</em>}
-        </div>
-        <div>
-          <span style={{ color: T.gold, fontWeight: 600 }}>vocal →</span>{' '}
-          {row.vocalDescriptors.length > 0 ? row.vocalDescriptors.join(', ') : <em style={{ color: T.textDim }}>(none)</em>}
-        </div>
+        <TagLine color={T.danger} label="away" items={row.counterExclusions} />
+        <TagLine color={T.success} label="harmony" items={row.positivePalettes} />
+        {hasTripleStack ? (
+          <>
+            <TagLine color={T.gold} label="voice:character" items={row.vocalCharacters} />
+            <TagLine color={T.gold} label="voice:delivery" items={row.vocalDeliveries} />
+            <TagLine color={T.gold} label="voice:effect" items={row.vocalEffects} />
+          </>
+        ) : (
+          <TagLine color={T.gold} label="vocal (legacy)" items={row.vocalDescriptors} />
+        )}
       </div>
       {row.notes && (
         <div style={{
@@ -257,6 +281,12 @@ function DisplayCard({ row, onEdit, onDelete, onToggleActive, busy }: {
   )
 }
 
+const TA_STYLE: React.CSSProperties = {
+  fontFamily: T.mono, fontSize: S.small, color: T.text,
+  background: T.bg, border: `1px solid ${T.border}`, borderRadius: 4,
+  padding: 10, resize: 'vertical', lineHeight: 1.5,
+}
+
 function RuleCard({ draft, onChange, onSave, onCancel, busy, isNew }: {
   draft: Editing; onChange: (d: Editing) => void
   onSave: () => void; onCancel: () => void; busy: boolean; isNew?: boolean
@@ -265,7 +295,11 @@ function RuleCard({ draft, onChange, onSave, onCancel, busy, isNew }: {
   const hasExclusions = (draft._exclusionsText ?? '').trim().length > 0
   const hasPalettes = (draft._palettesText ?? '').trim().length > 0
   const hasVocals = (draft._vocalsText ?? '').trim().length > 0
-  const valid = draft.tag.trim().length > 0 && (hasExclusions || hasPalettes || hasVocals)
+  const hasCharacters = (draft._charactersText ?? '').trim().length > 0
+  const hasDeliveries = (draft._deliveriesText ?? '').trim().length > 0
+  const hasEffects = (draft._effectsText ?? '').trim().length > 0
+  const valid = draft.tag.trim().length > 0
+    && (hasExclusions || hasPalettes || hasVocals || hasCharacters || hasDeliveries || hasEffects)
   return (
     <div style={{
       border: `1px solid ${T.accentMuted}`, borderRadius: S.r4, padding: 16,
@@ -297,51 +331,79 @@ function RuleCard({ draft, onChange, onSave, onCancel, busy, isNew }: {
         onChange={(e) => set('_exclusionsText', e.target.value)}
         placeholder="smooth jazz, adult contemporary, easy listening"
         rows={2}
-        style={{
-          fontFamily: T.mono, fontSize: S.small, color: T.text,
-          background: T.bg, border: `1px solid ${T.border}`, borderRadius: 4,
-          padding: 10, resize: 'vertical', lineHeight: 1.5,
-        }}
+        style={TA_STYLE}
       />
-      <label style={{ fontFamily: T.sans, fontSize: S.small, color: T.success, fontWeight: 600 }}>harmony (positive palettes, comma-separated — Mars picks one per song randomly)</label>
+      <label style={{ fontFamily: T.sans, fontSize: S.small, color: T.success, fontWeight: 600 }}>harmony (positive palettes, comma-separated)</label>
       <textarea
         value={draft._palettesText ?? ''}
         onChange={(e) => set('_palettesText', e.target.value)}
         placeholder="I-IV vamp, I-V pendulum, I-IV-V three-chord"
         rows={2}
-        style={{
-          fontFamily: T.mono, fontSize: S.small, color: T.text,
-          background: T.bg, border: `1px solid ${T.border}`, borderRadius: 4,
-          padding: 10, resize: 'vertical', lineHeight: 1.5,
-        }}
+        style={TA_STYLE}
       />
-      <label style={{ fontFamily: T.sans, fontSize: S.small, color: T.gold, fontWeight: 600 }}>vocal (descriptors, comma-separated — Mars picks one per song randomly)</label>
-      <textarea
-        value={draft._vocalsText ?? ''}
-        onChange={(e) => set('_vocalsText', e.target.value)}
-        placeholder="drawl, twang, half-spoken, breathy"
-        rows={2}
-        style={{
-          fontFamily: T.mono, fontSize: S.small, color: T.text,
-          background: T.bg, border: `1px solid ${T.border}`, borderRadius: 4,
-          padding: 10, resize: 'vertical', lineHeight: 1.5,
-        }}
-      />
+
+      <div style={{
+        border: `1px solid ${T.gold}33`, borderRadius: S.r4, padding: 12,
+        display: 'flex', flexDirection: 'column', gap: 8,
+      }}>
+        <label style={{ fontFamily: T.sans, fontSize: S.small, color: T.gold, fontWeight: 600 }}>
+          vocal triple-stack (character + delivery + effect — Mars picks one from each per song)
+        </label>
+        <label style={{ fontFamily: T.sans, fontSize: 11, color: T.textDim }}>character — voice texture (raspy, breathy, smooth, gritty, silky, gravelly, sultry, husky, velvety)</label>
+        <textarea
+          value={draft._charactersText ?? ''}
+          onChange={(e) => set('_charactersText', e.target.value)}
+          placeholder="raspy, breathy, smooth, gritty, silky, gravelly, husky"
+          rows={2}
+          style={TA_STYLE}
+        />
+        <label style={{ fontFamily: T.sans, fontSize: 11, color: T.textDim }}>delivery — how they sing (intimate, powerful, conversational, belted, whispered, soaring, laid-back, commanding)</label>
+        <textarea
+          value={draft._deliveriesText ?? ''}
+          onChange={(e) => set('_deliveriesText', e.target.value)}
+          placeholder="intimate, conversational, laid-back, behind-the-beat"
+          rows={2}
+          style={TA_STYLE}
+        />
+        <label style={{ fontFamily: T.sans, fontSize: 11, color: T.textDim }}>effect — production on the vocal (close-mic, dry studio, reverb-drenched, compressed, lo-fi, tape-saturated)</label>
+        <textarea
+          value={draft._effectsText ?? ''}
+          onChange={(e) => set('_effectsText', e.target.value)}
+          placeholder="close-mic, dry studio, tape-saturated"
+          rows={2}
+          style={TA_STYLE}
+        />
+      </div>
+
+      {(hasVocals && (hasCharacters || hasDeliveries || hasEffects)) && (
+        <div style={{ fontFamily: T.sans, fontSize: 11, color: T.gold }}>
+          triple-stack fields take precedence over legacy vocal field when both are populated
+        </div>
+      )}
+      {hasVocals && !hasCharacters && !hasDeliveries && !hasEffects && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontFamily: T.sans, fontSize: S.small, color: T.textDim, fontWeight: 600 }}>vocal legacy (flat descriptors — migrate to triple-stack above)</label>
+          <textarea
+            value={draft._vocalsText ?? ''}
+            onChange={(e) => set('_vocalsText', e.target.value)}
+            placeholder="drawl, twang, half-spoken, breathy"
+            rows={2}
+            style={TA_STYLE}
+          />
+        </div>
+      )}
+
       <textarea
         value={draft.notes ?? ''}
         onChange={(e) => set('notes', e.target.value)}
-        placeholder="notes (optional) — what drift or convention drove this rule?"
+        placeholder="notes (optional)"
         rows={2}
-        style={{
-          fontFamily: T.sans, fontSize: S.small, color: T.text,
-          background: T.bg, border: `1px solid ${T.border}`, borderRadius: 4,
-          padding: 10, resize: 'vertical', lineHeight: 1.5,
-        }}
+        style={{ ...TA_STYLE, fontFamily: T.sans }}
       />
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
         <Button variant="tiny" onClick={onCancel} disabled={busy}>cancel</Button>
         <Button variant="primary" onClick={onSave} disabled={!valid} busy={busy}>
-          {busy ? '…' : 'save'}
+          {busy ? '...' : 'save'}
         </Button>
       </div>
     </div>

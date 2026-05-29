@@ -30,7 +30,9 @@ export interface MarsOutput {
   anchor: { tag: string; corrections: string[]; negativeAdditions: string[] }
   /** Harmonic palette token appended by injectHarmonicPalette, or null when no GenreGravityRule matched. */
   harmonicPalette: string | null
-  /** Vocal descriptor token appended by injectHarmonicPalette, or null when the matched rule had no vocalDescriptors. */
+  /** Composed triple-stack vocal identity (character + delivery + effect), placed before genre anchor by eno. Null when no rule matched or arrays empty. */
+  vocalIdentity: string | null
+  /** Legacy: single vocal descriptor token from GenreGravityRule.vocalDescriptors. Null when triple-stack is used or no rule matched. */
   vocalDescriptor: string | null
 }
 
@@ -156,6 +158,7 @@ export async function marsAssemble(
     styleTemplateVersion,
     anchor: anchorMeta,
     harmonicPalette: steering.palette,
+    vocalIdentity: steering.vocalIdentity,
     vocalDescriptor: steering.vocalDescriptor,
   }
 }
