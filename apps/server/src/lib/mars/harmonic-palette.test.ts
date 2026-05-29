@@ -159,7 +159,7 @@ describe('injectHarmonicPalette', () => {
     }])
     const spy = vi.spyOn(Math, 'random').mockReturnValue(0) // always picks index 0
     const r = await injectHarmonicPalette('2000s outlaw country', 'country')
-    expect(r.vocalIdentity).toBe('raspy vocal, conversational, dry studio')
+    expect(r.vocalIdentity).toBe('raspy vocal, conversational delivery, dry studio recording')
     expect(r.vocalDescriptor).toBeNull() // triple-stack takes precedence
     expect(r.palette).toBe('I-IV vamp')
     expect(r.style).toBe('2000s outlaw country, I-IV vamp')
@@ -177,7 +177,7 @@ describe('injectHarmonicPalette', () => {
     }])
     const spy = vi.spyOn(Math, 'random').mockReturnValue(0)
     const r = await injectHarmonicPalette('2010s jazz', 'jazz')
-    expect(r.vocalIdentity).toBe('smooth vocal, reverb-drenched')
+    expect(r.vocalIdentity).toBe('smooth vocal, reverb-drenched recording')
     expect(r.vocalDescriptor).toBeNull()
     spy.mockRestore()
   })
@@ -193,7 +193,7 @@ describe('injectHarmonicPalette', () => {
     }])
     const spy = vi.spyOn(Math, 'random').mockReturnValue(0)
     const r = await injectHarmonicPalette('2010s soul', 'soul')
-    expect(r.vocalIdentity).toBe('silky vocal, intimate, close-mic')
+    expect(r.vocalIdentity).toBe('silky vocal, intimate delivery, close-mic recording')
     expect(r.vocalDescriptor).toBeNull() // legacy NOT used when triple-stack present
     spy.mockRestore()
   })
