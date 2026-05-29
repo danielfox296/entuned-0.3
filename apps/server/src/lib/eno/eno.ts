@@ -428,10 +428,16 @@ export async function pickAvailableHook(icpId: string, outcomeId: string): Promi
 
 export type RefTrackWithAnalysis = Awaited<ReturnType<typeof prisma.referenceTrack.findFirstOrThrow<{ include: { styleAnalysis: true } }>>>
 
-// Outcome → ref tempo gate. Refs without a decomposed BPM pass through
-// (lazy backfill on re-decompose); refs with a BPM must be within ±7 of the
-// outcome's tempo. See schema/05-reference-track-decomposition.md
-// "The BPM doctrine, restated".
+// Outcome → ref tempo gate. A ref is tempo-eligible for an outcome only when its
+// decomposed BPM is within ±7 of the outcome's tempo. A NULL bpm means "tempo
+// unknown" — it does NOT mean "matches every tempo". Unknown-tempo refs are
+// benched from the matched pool. (This was the inverse before 2026-05-29: null
+// returned `true`, so a single null-bpm decomposition was eligible for every
+// outcome, always won the fast path, and starved lazy decomposition — one track
+// pinned an entire batch. See schema/05-reference-track-decomposition.md
+// "The BPM doctrine, restated".) To make a null-bpm ref usable, re-decompose it
+// to resolve a real BPM (or set one manually); a still-null re-decompose stays
+// benched rather than poisoning the pool.
 //
 // Tempo is the ONLY ref-track gate. Two former gates were removed (2026-05-23):
 //   - Vocal gender: Hook.vocalGender drives Suno's vocal toggle directly in
@@ -446,7 +452,7 @@ export type RefTrackWithAnalysis = Awaited<ReturnType<typeof prisma.referenceTra
 //     signaling belongs.
 export const OUTCOME_TEMPO_TOLERANCE_BPM = 7
 export function bpmCompatible(refBpm: number | null | undefined, outcomeTempoBpm: number): boolean {
-  if (refBpm == null) return true
+  if (refBpm == null) return false
   return Math.abs(refBpm - outcomeTempoBpm) <= OUTCOME_TEMPO_TOLERANCE_BPM
 }
 
@@ -498,22 +504,30 @@ export function partitionPickableTracks<T extends PartitionTrack>(
   return { ready, needsDecompose }
 }
 
-// Per-pick budget on just-in-time decompositions. A tempo-scarce pool (few refs near
-// the outcome tempo) could otherwise trigger a long chain of decompose calls for one
-// seed; cap it. In the common case the first lazy decompose succeeds (most refs are
-// BPM-fluid or near the outcome tempo), so this is a safety bound, not the norm.
+// Per-pick budget on backfill decompositions. With bootstrap-eager decompose (see
+// schema/05 "Decompose timing") the pool is already decomposed before generation, so
+// the lazy path rarely runs at all; when it does it's a backfill for a straggler. A
+// tempo-scarce pool could otherwise trigger a long chain of decompose calls for one
+// seed; cap it. This is a safety bound on the backfill path, not a hot path.
 export const MAX_LAZY_DECOMPOSE_PER_PICK = 4
 
 // Pick a reference track for one seed.
 //
-// Fast path (unchanged behavior): if a decomposed, usable, tempo-compatible track
-// exists, score and pick it. Lazy path: if none is ready, decompose never-decomposed
-// candidates just-in-time (score order, bounded) until one is usable and
-// tempo-compatible. This makes decomposition pay-as-you-go — only tracks actually used
-// ever get decomposed — instead of the old "decompose all ~33 approved refs up front,
-// use ~12" pattern that left ~46% of decompositions unused. Tracks accumulate into the
-// ready pool across a batch, so a run of N seeds decomposes ≈ the distinct tracks it
-// consumes, not the whole pool.
+// Decompose timing is bootstrap-eager (see schema/05 "Decompose timing"): the approved
+// pool is decomposed BEFORE generation, so in the normal case the fast path below finds
+// a populated, real-bpm `ready` set and spreads across it by score. The lazy path is a
+// BACKFILL only — it covers an individual straggler bootstrap missed, not the primary
+// way the pool gets decomposed. (The earlier lazy-primary "pay-as-you-go" model was
+// withdrawn 2026-05-29: it made generation the first moment the pool got decomposed, so
+// one early null-bpm decompose could pin a whole batch — the Root Down incident.)
+//
+// Fast path: if a decomposed, usable, tempo-compatible track exists, score and pick it
+// (lowest score wins, random tiebreak). Lazy path: if none is ready, decompose
+// never-decomposed candidates just-in-time (score order, bounded by
+// MAX_LAZY_DECOMPOSE_PER_PICK) until one is usable and tempo-compatible. A null-bpm
+// decomposition is NOT tempo-compatible (bpmCompatible(null) === false), so it can
+// neither win the fast path nor be accepted by the lazy path — a single null-bpm track
+// can no longer pin a batch.
 export async function pickReferenceTrack(
   icpId: string,
   outcomeTempoBpm: number,

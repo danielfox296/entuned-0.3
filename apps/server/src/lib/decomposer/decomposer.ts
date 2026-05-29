@@ -106,7 +106,7 @@ const EMIT_DECOMPOSITION_TOOL = {
       },
       bpm: {
         type: ['integer', 'null'],
-        description: 'v10+. Track tempo (BPM), integer or null. Web-search grounded; main-body tempo, not intro/outro; aligned to snare/backbeat (not hi-hat subdivision). Null when no confident source is available — also set confidence: low. Private picker data — never rendered into a Suno prompt.',
+        description: 'v10+. Track tempo (BPM), integer or null. Web-search grounded; main-body tempo, not intro/outro; aligned to snare/backbeat (not hi-hat subdivision). Null only when no confident tempo source is available — a null bpm BENCHES the ref from tempo-matched picking (it is NOT treated as matching every tempo), so emit a grounded number whenever you can. Do NOT lower overall confidence solely because tempo is null: confidence reflects track identification/verification, not tempo certainty. Private picker data — never rendered into a Suno prompt.',
       },
     },
     // Legacy (v1-v12) required set. v13+ overrides via buildEmitTool below.

@@ -28,9 +28,12 @@ describe('bpmCompatible — outcome tempo gate', () => {
     expect(OUTCOME_TEMPO_TOLERANCE_BPM).toBe(7)
   })
 
-  it('passes when ref BPM is null/undefined — backfill is lazy on re-decompose', () => {
-    expect(bpmCompatible(null, 75)).toBe(true)
-    expect(bpmCompatible(undefined, 75)).toBe(true)
+  it('BENCHES a null/undefined ref BPM — unknown tempo is not a universal match', () => {
+    // Regression: null returning `true` made one null-bpm decomposition eligible
+    // for every outcome, win the fast path, and starve lazy decompose — a single
+    // track pinned an entire batch (the "Root Down" incident, 2026-05-29).
+    expect(bpmCompatible(null, 75)).toBe(false)
+    expect(bpmCompatible(undefined, 75)).toBe(false)
   })
 
   it('treats the boundary as inclusive (off-by-7 still passes)', () => {
@@ -224,9 +227,27 @@ describe('partitionPickableTracks — ready vs. needs-decompose', () => {
     expect(needsDecompose).toHaveLength(0)
   })
 
-  it('treats a usable decomposition with null bpm as tempo-compatible (ready)', () => {
-    const { ready } = partitionPickableTracks([mk({ bpm: null, confidence: 'high' })], 75)
-    expect(ready).toHaveLength(1)
+  it('BENCHES a usable decomposition with null bpm — neither ready nor re-decomposed', () => {
+    // A decomposed-but-tempo-unknown track is terminally benched: it has a
+    // styleAnalysis row (so it is not a lazy-decompose candidate) and its null
+    // bpm is no longer a universal match (so it never enters ready). Resolving
+    // it requires a re-decompose that yields a real bpm, or a manual bpm.
+    const { ready, needsDecompose } = partitionPickableTracks([mk({ bpm: null, confidence: 'high' })], 75)
+    expect(ready).toHaveLength(0)
+    expect(needsDecompose).toHaveLength(0)
+  })
+
+  it('does not let one null-bpm track starve lazy decompose for never-decomposed peers', () => {
+    // The Root Down incident in miniature: a usable null-bpm track sits alongside
+    // fresh undecomposed tracks. The null-bpm track must NOT occupy ready (which
+    // would short-circuit the fast path), and the fresh tracks must still route
+    // to needsDecompose so the lazy path can widen the pool.
+    const { ready, needsDecompose } = partitionPickableTracks(
+      [mk({ bpm: null, confidence: 'high' }), mk(null), mk(null)],
+      75,
+    )
+    expect(ready).toHaveLength(0)
+    expect(needsDecompose).toHaveLength(2)
   })
 })
 

@@ -92,13 +92,13 @@ Set via Clients → Location tab → "Default outcome" dropdown → save changes
 
 Workflows → Reference Tracks tab → click "suggest reference tracks". Suggestion run takes ~30-60s and returns ~30 candidates (typical: 33). Click "approve all" to accept the whole batch.
 
-**Do NOT bulk-decompose.** As of 2026-05-29 decomposition is **lazy / just-in-time**: `pickReferenceTrack` (in `lib/eno`) decomposes a track the first time it actually picks it, then reuses it. Approving the tracks is enough to bootstrap — the seed builder decomposes only the ~5–12 tracks a run consumes, not all ~33. This killed the old waste pattern (416 decompositions done, only 224 ever used in a seed → ~46% wasted).
+**Then bulk-decompose the approved pool BEFORE generation (bootstrap-eager).** As of 2026-05-29 decomposition is a **bootstrap step, not lazy-during-generation**. `POST /admin/reference-tracks/:id/decompose` runs in parallel; fire 8 at a time via `fetch` from the Dash tab across the approved pool, and wait for them to finish before running `make-song-seeds`. Generation must run against a populated, real-bpm pool that spreads across tempos — otherwise a single early decompose (especially a null-bpm one) pins the entire batch to one reference track. This is exactly the **"Root Down" incident (2026-05-29)**: under the prior lazy-primary model, the first seed's lazy decompose produced a null-bpm wildcard that anchored all 24 seeds across 11 outcomes to one track. Lazy / just-in-time decompose now survives only as a **backfill for an individual straggler** — it is NOT how the pool gets populated. See [GENERATION.md](../../../../../GENERATION.md) and `../../../entune v0.3/schema/05-reference-track-decomposition.md` → "Decompose timing".
 
-This means **Launch Checklist gate 4 ("Reference tracks decomposed") will read red on a fresh ICP** until the first `make-song-seeds` run, which is expected — it auto-satisfies once generation runs. Do not treat a red gate 4 as a blocker for generation.
+**Launch Checklist gate 4 ("Reference tracks decomposed")** should go **green** once the bootstrap decompose completes. A red gate 4 at generation time means the pool wasn't decomposed — fix it before seeding, don't proceed.
 
-Manual bulk-decompose is still available as an operator escape hatch (e.g. to pre-warm a pool or re-decompose onto a new rules version). `POST /admin/reference-tracks/:id/decompose` runs in parallel; fire 8 at a time via `fetch` from the Dash tab if you ever need it. But it is no longer part of the normal bootstrap.
+**Null-bpm tracks are benched, and that's correct.** Some refs decompose to `bpm: null` (tempo unpinnable, or pre-v10 rows) and are excluded from tempo-matched picking — not a bug. If an outcome's tempo ends up with too few compatible refs, resolve bpms (`POST /style-analyses/backfill-bpm` in bulk, or `PUT /decompositions/:id` for one) or approve refs nearer that tempo. Don't relax the gate.
 
-> Suggestion volume is still high (~33 per run, "approve all" takes them all). Lazy decompose makes the unused approvals cheap (they never get decomposed). A future curation step that scores candidates against the ICP psychographic vector and approves the top ~12 would also tighten the pool.
+> Suggestion volume is high (~33 per run, "approve all" takes them all). A future curation step that scores candidates against the ICP psychographic vector and decomposes the **top ~12** would tighten the pool and cut the up-front decompose cost. For now, decompose the approved set.
 
 ### Step 0c — Voice notes — N/A
 
