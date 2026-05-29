@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  assessRefPoolDiversity,
   bpmCompatible,
   extractGenreBrief,
   isDecompositionUsable,
@@ -248,6 +249,67 @@ describe('partitionPickableTracks — ready vs. needs-decompose', () => {
     )
     expect(ready).toHaveLength(0)
     expect(needsDecompose).toHaveLength(2)
+  })
+})
+
+describe('assessRefPoolDiversity — Root Down pre-flight guard', () => {
+  const mk = (sa: { bpm: number | null; confidence: string | null } | null) => ({ styleAnalysis: sa })
+
+  it('blocks when there are zero approved refs', () => {
+    const r = assessRefPoolDiversity([], 75, 2)
+    expect(r.block).toBe(true)
+    expect(r.reason).toBe('no_approved_reference_tracks')
+  })
+
+  it('blocks when every ref is decomposed but none is tempo-compatible (nothing left to decompose)', () => {
+    // Two decomposed refs, both far off-tempo, none undecomposed → no possible anchor.
+    const r = assessRefPoolDiversity([mk({ bpm: 145, confidence: 'high' }), mk({ bpm: 40, confidence: 'high' })], 75, 2)
+    expect(r.block).toBe(true)
+    expect(r.reason).toBe('no_tempo_compatible_reference_tracks_75bpm')
+  })
+
+  it('does NOT block on a small-but-nonzero eligible pool — it warns (Root Down signature)', () => {
+    // Exactly one eligible ref for n=2: the literal Root Down state — succeeds but every
+    // seed reuses one anchor. Must warn, must NOT block.
+    const r = assessRefPoolDiversity([mk({ bpm: 75, confidence: 'high' })], 75, 2)
+    expect(r.block).toBe(false)
+    expect(r.warnings.some((w) => /Root Down failure signature/.test(w))).toBe(true)
+  })
+
+  it('warns on reference reuse when eligible refs are fewer than n (but more than one)', () => {
+    const r = assessRefPoolDiversity(
+      [mk({ bpm: 75, confidence: 'high' }), mk({ bpm: 72, confidence: 'high' })],
+      75,
+      5,
+    )
+    expect(r.block).toBe(false)
+    expect(r.warnings.some((w) => /reference reuse expected/.test(w))).toBe(true)
+  })
+
+  it('warns that bootstrap-eager decompose did not run when undecomposed refs are present at gen time', () => {
+    const r = assessRefPoolDiversity(
+      [mk({ bpm: 75, confidence: 'high' }), mk({ bpm: 74, confidence: 'high' }), mk(null)],
+      75,
+      2,
+    )
+    expect(r.block).toBe(false)
+    expect(r.warnings.some((w) => /undecomposed at generation time/.test(w))).toBe(true)
+  })
+
+  it('is clean (no block, no warnings) when the eligible pool is healthy relative to n', () => {
+    const r = assessRefPoolDiversity(
+      [mk({ bpm: 75, confidence: 'high' }), mk({ bpm: 72, confidence: 'high' }), mk({ bpm: 78, confidence: 'high' })],
+      75,
+      2,
+    )
+    expect(r.block).toBe(false)
+    expect(r.warnings).toHaveLength(0)
+  })
+
+  it('falls back to lazy (warns, no block) when nothing is eligible yet but undecomposed refs remain', () => {
+    const r = assessRefPoolDiversity([mk(null), mk(null)], 75, 2)
+    expect(r.block).toBe(false)
+    expect(r.warnings.some((w) => /relying on lazy backfill/.test(w))).toBe(true)
   })
 })
 

@@ -57,6 +57,11 @@ export interface SeedBuilderResult {
   producedN: number
   reason: 'complete' | 'pool_exhausted' | 'precheck_failed'
   errors: string[]
+  // Non-blocking ref-pool diagnostics surfaced to the operator (see
+  // assessRefPoolDiversity). The batch still ran; these flag silent-degradation
+  // risks — an undecomposed pool at gen time, or an eligible pool thinner than n
+  // (the Root Down under-spread class).
+  warnings: string[]
 }
 
 export async function runEno(opts: SeedBuilderOptions): Promise<SeedBuilderResult> {
@@ -73,7 +78,21 @@ export async function runEno(opts: SeedBuilderOptions): Promise<SeedBuilderResul
   const outcome = await prisma.outcome.findUnique({ where: { id: opts.outcomeId } })
   if (!outcome || outcome.supersededAt) {
     await prisma.songSeedBatch.update({ where: { id: batch.id }, data: { producedN: 0, reason: 'precheck_failed', finishedAt: new Date() } })
-    return { songSeedBatchId: batch.id, requestedN: opts.n, producedN: 0, reason: 'precheck_failed', errors: ['outcome_missing_or_superseded'] }
+    return { songSeedBatchId: batch.id, requestedN: opts.n, producedN: 0, reason: 'precheck_failed', errors: ['outcome_missing_or_superseded'], warnings: [] }
+  }
+
+  // Ref-pool pre-flight. Catches the Root Down failure class (2026-05-29): a batch
+  // that succeeds while every seed reuses one anchor because the eligible pool is
+  // thin. Hard-blocks ONLY when nothing can anchor (zero refs, or zero tempo-compatible
+  // refs with none left to decompose); a small-but-nonzero pool is warned, not blocked.
+  const approvedRefs = await prisma.referenceTrack.findMany({
+    where: { icpId: opts.icpId, status: 'approved' },
+    select: { styleAnalysis: { select: { bpm: true, confidence: true } } },
+  })
+  const diversity = assessRefPoolDiversity(approvedRefs, outcome.tempoBpm, opts.n)
+  if (diversity.block) {
+    await prisma.songSeedBatch.update({ where: { id: batch.id }, data: { producedN: 0, reason: 'precheck_failed', finishedAt: new Date() } })
+    return { songSeedBatchId: batch.id, requestedN: opts.n, producedN: 0, reason: 'precheck_failed', errors: [diversity.reason ?? 'ref_pool_precheck_failed'], warnings: diversity.warnings }
   }
 
   let produced = 0
@@ -103,7 +122,7 @@ export async function runEno(opts: SeedBuilderOptions): Promise<SeedBuilderResul
     data: { producedN: produced, reason, finishedAt: new Date() },
   })
 
-  return { songSeedBatchId: batch.id, requestedN: opts.n, producedN: produced, reason, errors }
+  return { songSeedBatchId: batch.id, requestedN: opts.n, producedN: produced, reason, errors, warnings: diversity.warnings }
 }
 
 export interface CreateSongSeedResult {
@@ -502,6 +521,62 @@ export function partitionPickableTracks<T extends PartitionTrack>(
     if (bpmCompatible(t.styleAnalysis.bpm, outcomeTempoBpm)) ready.push(t)
   }
   return { ready, needsDecompose }
+}
+
+// Pre-flight diversity assessment for a (ICP × outcome × n) batch. Catches the failure
+// class behind the Root Down incident (2026-05-29): generation SUCCEEDS but every seed
+// reuses one anchor because the eligible reference pool is thin. The bpm fix removed the
+// specific cause (a null-bpm wildcard); this is the deterministic gate for the class —
+// the code-enforced counterpart to the bootstrap-eager doctrine in schema/05, so the
+// discipline does not depend on the operator remembering to decompose first.
+//
+// block=true ONLY when nothing can anchor: zero approved refs, or zero tempo-compatible
+// refs with none left to decompose (every ref benched). A small-but-nonzero eligible
+// pool is NOT blocked — small ICPs are legitimate — it is WARNED. Warnings surface the
+// two silent-degradation signals: (a) an undecomposed pool at generation time (bootstrap
+// did not run), and (b) an eligible pool thinner than n (reference reuse; total reuse at
+// exactly 1 eligible ref — the Root Down signature).
+export function assessRefPoolDiversity<T extends PartitionTrack>(
+  tracks: T[],
+  outcomeTempoBpm: number,
+  n: number,
+): { block: boolean; reason?: string; warnings: string[] } {
+  const warnings: string[] = []
+  if (tracks.length === 0) {
+    return { block: true, reason: 'no_approved_reference_tracks', warnings }
+  }
+  const { ready, needsDecompose } = partitionPickableTracks(tracks, outcomeTempoBpm)
+  const eligible = ready.length
+  const undecomposed = needsDecompose.length
+
+  if (undecomposed > 0) {
+    warnings.push(
+      `${undecomposed} approved ref(s) undecomposed at generation time — bootstrap-eager decompose likely did not run; pool may under-spread (see schema/05 "Decompose timing")`,
+    )
+  }
+
+  if (eligible === 0) {
+    // Nothing eligible right now. With undecomposed refs present, lazy backfill may
+    // still produce a pick, so warn rather than hard-block. With none left to
+    // decompose, every seed will fail the tempo gate — block once, up front, instead
+    // of emitting n identical per-seed pool_exhausted errors after the fact.
+    if (undecomposed === 0) {
+      return { block: true, reason: `no_tempo_compatible_reference_tracks_${outcomeTempoBpm}bpm`, warnings }
+    }
+    warnings.push(
+      `0 refs currently eligible at ${outcomeTempoBpm}bpm — relying on lazy backfill of undecomposed refs; decompose the pool first to avoid under-spread`,
+    )
+  } else if (eligible === 1 && n > 1) {
+    warnings.push(
+      `only 1 ref eligible at ${outcomeTempoBpm}bpm — all ${n} seeds will share one reference anchor (the Root Down failure signature); decompose or approve more refs near this tempo`,
+    )
+  } else if (eligible < n) {
+    warnings.push(
+      `only ${eligible} distinct eligible refs for ${n} seeds at ${outcomeTempoBpm}bpm — reference reuse expected; decompose or approve more refs near this tempo`,
+    )
+  }
+
+  return { block: false, warnings }
 }
 
 // Per-pick budget on backfill decompositions. With bootstrap-eager decompose (see
