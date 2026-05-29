@@ -176,6 +176,85 @@ const ARCHETYPES: ArchetypeSeed[] = [
       ],
     },
   },
+
+  // --- Alternate colorings: same shape, different per-section intention. ---
+  // These are how the same form "paints differently" across songs (the
+  // multiple-rows-per-shape design). Seeded at a low default weight (0.5) so
+  // they add variety without disturbing the base rows' tuned weights or the
+  // cross-form distribution much. Tune in Dash → Form Archetypes if you want a
+  // coloring favored or pinned to specific outcomes.
+  {
+    slug: 'vcvcbc_narrative',
+    displayName: 'V-C-V-C-Bridge-Final C — narrative / story coloring',
+    sections: [
+      { label: 'Intro', optional: true, arc: "The Frame — one phrase that names where we are. Mostly music." },
+      { label: 'Verse 1', arc: "Cold Open — start mid-action inside the story's first scene. One beat, then stop. Don't summarize the plot." },
+      { label: 'Pre-Chorus', optional: true, arc: "The Lift — push out of the scene toward what it means. End unresolved." },
+      { label: 'Chorus', arc: "Thesis — the story's claim, plain and finished. Hook verbatim." },
+      { label: 'Verse 2', arc: "Time-Jump — skip ahead: show what's different now in one concrete beat. Don't recap. Let the gap do the work." },
+      { label: 'Pre-Chorus', optional: true, arc: "The Lift — same push, more drive." },
+      { label: 'Chorus', arc: "Thesis — same claim, now that we know more. Hook verbatim." },
+      { label: 'Bridge', arc: "Reframe — pull the camera back: the story seen from outside, or from the other person. Barest section. Resolve toward the hook." },
+      { label: 'Final Chorus', arc: "Thesis-Plus — the claim, with the whole story behind it. Hook verbatim, no new lines." },
+      { label: 'Outro', optional: true, arc: "The Landing — last image, sustained." },
+    ],
+    shapeNote: 'Standard pop arc told as a STORY across the verses. Verse 2 jumps forward in time rather than deepening in place; the bridge steps outside the story. The hook is the chorus, sung verbatim each time including the Final Chorus.',
+    requiresSections: [],
+    outcomeWeightsByTitle: {},
+    defaultWeight: 0.5,
+  },
+  {
+    slug: 'vcvcbc_confession',
+    displayName: 'V-C-V-C-Bridge-Final C — direct-address / confession coloring',
+    sections: [
+      { label: 'Intro', optional: true, arc: "The Frame — one spoken-feeling phrase aimed at 'you'. Mostly music." },
+      { label: 'Verse 1', arc: "Establish-and-Lean — talk straight to one person; one plain thing you're telling them. Hold the POV. Lean toward the hook." },
+      { label: 'Pre-Chorus', optional: true, arc: "The Coil — pull back, quieter, right before you say it." },
+      { label: 'Chorus', arc: "Thesis — the thing you're telling them, said clean. Hook verbatim." },
+      { label: 'Verse 2', arc: "Deepen-Inward — admit more: what you didn't say in Verse 1. Same 'you,' closer in. One thought." },
+      { label: 'Pre-Chorus', optional: true, arc: "The Coil — same held breath." },
+      { label: 'Chorus', arc: "Thesis — hook verbatim." },
+      { label: 'Bridge', arc: "The Confession — the hardest thing, once, undecorated. Stay on 'you'." },
+      { label: 'Final Chorus', arc: "Thesis-Plus — same hook, heaviest landing. No new lines." },
+      { label: 'Outro', optional: true, arc: "The Landing — hook fragment, sustained." },
+    ],
+    shapeNote: "Standard pop arc spoken in second person — the whole song is addressed to one person. Hold the 'you' POV throughout; the bridge is the hardest admission. The hook is the chorus, sung verbatim each time.",
+    requiresSections: [],
+    outcomeWeightsByTitle: {},
+    defaultWeight: 0.5,
+  },
+  {
+    slug: 'vcvc_meditation',
+    displayName: 'V-C-V-C — single-image meditation coloring',
+    sections: [
+      { label: 'Verse 1', arc: "Establish-and-Lean — hold one image and stay with it; narrator doing one small thing inside it. No second scene." },
+      { label: 'Pre-Chorus', optional: true, arc: "The Coil — compress, a held breath." },
+      { label: 'Chorus', arc: "Thesis — name what the image means, plainly. Hook verbatim." },
+      { label: 'Verse 2', arc: "Deepen-Inward — same image, seen from inside now: one new thing it reveals. Don't add a new picture." },
+      { label: 'Pre-Chorus', optional: true, arc: "The Coil — same." },
+      { label: 'Chorus', arc: "Thesis-Plus — same meaning, heavier. Hook verbatim." },
+    ],
+    shapeNote: 'Two clean verse-chorus cycles built on ONE image for the whole song; both verses stay inside it. Verse 2 reveals something new about the image, it does not relocate. No bridge, ends on the second chorus.',
+    requiresSections: [],
+    outcomeWeightsByTitle: {},
+    defaultWeight: 0.5,
+  },
+  {
+    slug: 'vcvc_confession',
+    displayName: 'V-C-V-C — direct-address / confession coloring',
+    sections: [
+      { label: 'Verse 1', arc: "Cold Open — talk straight to 'you,' mid-thought. One plain thing, then stop." },
+      { label: 'Pre-Chorus', optional: true, arc: "The Lift — push toward saying it." },
+      { label: 'Chorus', arc: "Thesis — say it to them, clean and finished. Hook verbatim." },
+      { label: 'Verse 2', arc: "The Turn — tell them the part you held back; move the conversation forward, don't repeat. Same 'you'." },
+      { label: 'Pre-Chorus', optional: true, arc: "The Lift — same." },
+      { label: 'Chorus', arc: "Thesis-Plus — same words, now that it's all on the table. Hook verbatim." },
+    ],
+    shapeNote: "Two clean verse-chorus cycles spoken in second person to one person; Verse 2 says the held-back part. Direct and uninterrupted, no bridge, ends on the second chorus.",
+    requiresSections: [],
+    outcomeWeightsByTitle: {},
+    defaultWeight: 0.5,
+  },
 ]
 
 async function main() {
