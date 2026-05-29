@@ -92,27 +92,13 @@ Set via Clients → Location tab → "Default outcome" dropdown → save changes
 
 Workflows → Reference Tracks tab → click "suggest reference tracks". Suggestion run takes ~30-60s and returns ~30 candidates (typical: 33). Click "approve all" to accept the whole batch.
 
-Then decompose them. The UI only does per-track decompose, but `POST /admin/reference-tracks/:id/decompose` works in parallel. Fire 8 in parallel via `fetch` from the Dash tab:
+**Do NOT bulk-decompose.** As of 2026-05-29 decomposition is **lazy / just-in-time**: `pickReferenceTrack` (in `lib/eno`) decomposes a track the first time it actually picks it, then reuses it. Approving the tracks is enough to bootstrap — the seed builder decomposes only the ~5–12 tracks a run consumes, not all ~33. This killed the old waste pattern (416 decompositions done, only 224 ever used in a seed → ~46% wasted).
 
-```js
-const ids = [/* uuids from GET /admin/reference-tracks?icpId=... or DB */];
-const headers = { 'authorization': 'Bearer ' + localStorage.getItem('entuned.admin.token'), 'content-type': 'application/json' };
-const wave = 8;
-window.__decResults = {};
-(async () => {
-  for (let i = 0; i < ids.length; i += wave) {
-    await Promise.all(ids.slice(i, i+wave).map(async id => {
-      const r = await fetch(`https://api.entuned.co/admin/reference-tracks/${id}/decompose`, { method:'POST', headers, credentials:'include', body:'{}' });
-      window.__decResults[id] = { ok: r.ok, status: r.status };
-    }));
-  }
-  window.__decDone = true;
-})();
-```
+This means **Launch Checklist gate 4 ("Reference tracks decomposed") will read red on a fresh ICP** until the first `make-song-seeds` run, which is expected — it auto-satisfies once generation runs. Do not treat a red gate 4 as a blocker for generation.
 
-Poll `window.__decResults` until count matches. ~33 tracks decomposes in ~135s. Gate just needs styleAnalysis row to exist (status `draft` is fine).
+Manual bulk-decompose is still available as an operator escape hatch (e.g. to pre-warm a pool or re-decompose onto a new rules version). `POST /admin/reference-tracks/:id/decompose` runs in parallel; fire 8 at a time via `fetch` from the Dash tab if you ever need it. But it is no longer part of the normal bootstrap.
 
-> Track suggestion volumes are too high — typical run returns 33 candidates and the "approve all" button takes them all. Most are never used. Future: add a curation step that scores against ICP psychographic vector and accepts top ~12.
+> Suggestion volume is still high (~33 per run, "approve all" takes them all). Lazy decompose makes the unused approvals cheap (they never get decomposed). A future curation step that scores candidates against the ICP psychographic vector and approves the top ~12 would also tighten the pool.
 
 ### Step 0c — Voice notes — N/A
 

@@ -8,8 +8,9 @@
 //     [--genre southern-rock]
 
 import 'dotenv/config'
-import { decompose } from '../src/lib/decomposer/decomposer.js'
+import { decompose, toStyleAnalysisData } from '../src/lib/decomposer/decomposer.js'
 import { marsAssemble } from '../src/lib/mars/mars.js'
+import { normalizeStyleAnalysis } from '../src/lib/eno/eno.js'
 import { prisma } from '../src/db.js'
 import type { Decomposition } from '@prisma/client'
 
@@ -53,26 +54,15 @@ async function main() {
 
   // Coerce the LLM output shape into the Prisma Decomposition shape (camelCase fields)
   // for the Mars matcher. We don't write to the DB on this path — Mars works on objects.
-  const decompositionForMars = {
+  // Build the row the same way the production path does (shared mapper) and run it
+  // through the v13 normalization shim so Mars reads structured-field rows correctly.
+  const decompositionForMars = normalizeStyleAnalysis({
     id: 'in-memory',
     referenceTrackId: 'in-memory',
-    musicologicalRulesVersion: decompositionResult.rulesVersion,
-    status: 'draft',
-    verifiedAt: null,
-    verifiedById: null,
-    confidence: decompositionResult.output.confidence,
-    vibePitch: decompositionResult.output.vibe_pitch,
-    eraProductionSignature: decompositionResult.output.era_production_signature,
-    instrumentationPalette: decompositionResult.output.instrumentation_palette,
-    standoutElement: decompositionResult.output.standout_element,
-    arrangementShape: decompositionResult.output.arrangement_shape,
-    dynamicCurve: decompositionResult.output.dynamic_curve,
-    vocalCharacter: decompositionResult.output.vocal_character,
-    vocalArrangement: decompositionResult.output.vocal_arrangement,
-    harmonicAndGroove: decompositionResult.output.harmonic_and_groove,
+    ...toStyleAnalysisData(decompositionResult),
     createdAt: new Date(),
     updatedAt: new Date(),
-  } as unknown as Decomposition
+  } as unknown as Decomposition)
 
   // 2. Mars.
   console.log(`\n[2/2] Mars assembling style...`)

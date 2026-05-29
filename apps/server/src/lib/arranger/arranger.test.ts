@@ -1,5 +1,17 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { injectArrangement, ARRANGEMENT_POLICY_SEED, type ArrangementConfig } from './arranger.js'
+
+// The output format is gated by the ARRANGER_FORMAT env var (prod sets it to
+// 'pipe'). Pin it per-test so the suite is deterministic regardless of the ambient
+// environment — otherwise these legacy-format assertions fail under a 'pipe' build
+// (which is exactly what was silently blocking every Railway deploy: the build env
+// carries ARRANGER_FORMAT=pipe, so the test gate failed on these tests).
+beforeEach(() => {
+  vi.stubEnv('ARRANGER_FORMAT', 'legacy')
+})
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
 
 const VCVC = `[Verse 1]
 I walked out
@@ -105,5 +117,36 @@ describe('injectArrangement — config-driven cues', () => {
     const out = injectArrangement(VCVC, {}, policy)
     expect(out).toContain('[Whole room sings]')
     expect(out).not.toContain('[Gang vocals on the hook]')
+  })
+})
+
+// Baseline coverage for the format prod actually runs (ARRANGER_FORMAT=pipe). The
+// legacy describes above cover the default; this guards the pipe code path so a
+// regression there can't ship silently the way the env-var mismatch just did.
+describe('injectArrangement — pipe format (ARRANGER_FORMAT=pipe, prod default)', () => {
+  beforeEach(() => {
+    vi.stubEnv('ARRANGER_FORMAT', 'pipe')
+  })
+
+  it('stacks escalation into one pipe-delimited final-chorus header', () => {
+    const out = injectArrangement(VCVC, {})
+    expect(out).toContain('[Final Chorus | gang vocals on the hook | sustained full]')
+    // legacy multi-bracket headers must NOT appear in pipe mode
+    expect(out).not.toContain('[Gang vocals on the hook]')
+  })
+
+  it('appends a pipe-format sustained outro when the song ends on a chorus', () => {
+    const out = injectArrangement(VCVC, {})
+    expect(out).toContain('[Outro | sustained full]')
+  })
+
+  it('gives the 2nd of three choruses the mid cue inside the pipe header', () => {
+    const lyrics = VCVC + `
+
+[Chorus]
+hold the line
+hold the line tonight`
+    const out = injectArrangement(lyrics, {})
+    expect(out).toContain('stacked harmonies')
   })
 })

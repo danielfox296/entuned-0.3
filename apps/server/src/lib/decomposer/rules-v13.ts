@@ -14,10 +14,15 @@
 //       vocal_gender. These map to new StyleAnalysis columns and are read
 //       directly — no regex mining.
 //     - STOP emitting the prose fields that never landed: vibe_pitch,
-//       era_production_signature, vocal_arrangement, harmonic_and_groove,
-//       arrangement_shape, dynamic_curve. (Era/decade reaches Suno from the
-//       track's release year, which Mars anchors on directly; the production
-//       signature reached Suno in zero of the 10 audited seeds.)
+//       vocal_arrangement, harmonic_and_groove, arrangement_shape, dynamic_curve.
+//       (vibe_pitch's genre clause → genre_anchor; the rest carried no consumed
+//       signal once the discrete fields exist.)
+//     - KEEP era_production_signature (compact form). The positive-style audit
+//       found it never reaches the Suno *style* string — but it is NOT dead: the
+//       negative-style production axis and 4 live DB StyleExclusionRule rows read
+//       it to CARVE (it feeds the exclude box, not the include box). Adversarial
+//       review caught this; dropping it would silently weaken carving on every
+//       v13 row. ~6 tokens, worth it.
 //     - KEEP the workhorses Mars actually carves from: instrumentation_palette
 //       (lead instrument), standout_element, vocal_character (technique/mic).
 //     - KEEP verifiable_facts + confidence: they are the grounding mechanism
@@ -43,16 +48,15 @@ schema asks for; do not editorialize.
 Emit via the \`emit_decomposition\` tool. Provide exactly these keys:
 
 verifiable_facts (string), confidence (string: low|medium|high),
-genre_anchor (string), instrumentation_palette (string), standout_element (string),
-vocal_gender (string: male|female|duet|instrumental), vocal_register (string),
-vocal_character (string), harmonic_character (string), groove_character (string),
-arrangement_sections (JSON OBJECT — nested map, NOT a string),
+genre_anchor (string), era_production_signature (string), instrumentation_palette (string),
+standout_element (string), vocal_gender (string: male|female|duet|instrumental),
+vocal_register (string), vocal_character (string), harmonic_character (string),
+groove_character (string), arrangement_sections (JSON OBJECT — nested map, NOT a string),
 bpm (integer or null).
 
-Do NOT emit vibe_pitch, era_production_signature, vocal_arrangement,
-harmonic_and_groove, arrangement_shape, or dynamic_curve. Those fields are retired —
-their signal now lives in genre_anchor, harmonic_character, groove_character, and the
-per-section arrangement map.
+Do NOT emit vibe_pitch, vocal_arrangement, harmonic_and_groove, arrangement_shape, or
+dynamic_curve. Those fields are retired — their signal now lives in genre_anchor,
+harmonic_character, groove_character, vocal_character, and the per-section arrangement map.
 
 ## Single guiding principle
 
@@ -105,8 +109,8 @@ BAD: "Keith Richards on Gibson Les Paul"
 
 ## No tempo numbers, no specific keys (qualitative fields)
 
-In every qualitative field (genre_anchor, instrumentation_palette, standout_element,
-vocal_character, harmonic_character, groove_character): no BPM numbers ("90 BPM"), no
+In every qualitative field (genre_anchor, era_production_signature, instrumentation_palette,
+standout_element, vocal_character, harmonic_character, groove_character): no BPM numbers ("90 BPM"), no
 specific keys ("F# minor"). OK: "mid-tempo", "modal", "minor-key". The numeric \`bpm\`
 field is the only place a tempo number is allowed.
 
@@ -128,9 +132,11 @@ operator heard the track. Incorporate across relevant fields even if web search 
 
 ### verifiable_facts
 Three concrete facts about this exact track, separated by " · " (album, release date,
-runtime, signature opening, sample source). Names allowed HERE ONLY — operator audit, not
-Suno. If you cannot produce three real facts, set confidence: low. This field exists to
-force you to actually identify the track; do not skip it.
+runtime, signature opening, sample source). Names allowed HERE ONLY (not in any
+Suno-facing field). This field is a **grounding device, not stored** — its purpose is to
+force you to actually identify the track via web_search before describing it. If you
+cannot produce three real facts, you have not identified the track: set confidence: low.
+Do not skip it.
 
 ### confidence
 "low" | "medium" | "high". Low whenever you could not verify the track, the title is
@@ -143,6 +149,15 @@ centroid the whole pipeline anchors on. Pair subgenre with decade. Pick the subg
 whose Suno-training centroid points at THIS track's family, not the broadest label.
 GOOD: "1990s trip-hop", "late-2000s indie folk", "1970s jazz-rock", "2010s alternative R&B"
 BAD: "trip-hop with melancholy soprano over harpsichord, layered analog production"
+
+### era_production_signature
+**Schema: \`<decade-prefix>, <1-2 production words>\` — HARD CAP 40 chars.** This field does
+NOT reach the Suno style string; it feeds the negative-style production axis and DB
+exclusion rules, which read it to CARVE the wrong production out. Keep it terse.
+- decade-prefix (FIRST token): one of early-60s, mid-60s, late-60s, early-70s … early-2020s, mid-2020s.
+- production words (1-2, comma-separated) from: lo-fi, polished, tape, DAW, home-recorded, dry, wet, saturated, warm tape, room bleed, gated reverb, sidechain, plate reverb, spring reverb, tape echo, compression, sampling.
+Output shape exactly: \`<decade-prefix>, <prod1>[, <prod2>]\`. No leading affect, no "with", no period, no clauses.
+Examples (the entire field value): "late-70s warm tape, room bleed" · "mid-2010s polished DAW, sidechain" · "late-90s polished, compression".
 
 ### instrumentation_palette
 Lead with what's PRIMARY (instrument name, not affect). Use hierarchy verbs (leading /

@@ -84,7 +84,7 @@ const EMIT_DECOMPOSITION_TOOL = {
       vibe_pitch: { type: 'string', description: 'v1-v12 only. Retired in v13 (replaced by genre_anchor).' },
       era_production_signature: {
         type: 'string',
-        description: 'v1-v12 only. Retired in v13 (reached Suno in zero of the audited seeds). HARD CAP 40 chars. Schema: `<decade-prefix>, <1-2 production words>`. Decade-prefix is one of: early-60s, mid-60s, late-60s, early-70s, ..., early-2020s, mid-2020s (must be the FIRST token). Production words: lo-fi, polished, tape, DAW, home-recorded, dry, wet, saturated, warm tape, room bleed, gated reverb, sidechain, plate reverb, spring reverb, tape echo, compression, sampling.',
+        description: 'HARD CAP 40 chars. Schema: `<decade-prefix>, <1-2 production words>`. Decade-prefix is one of: early-60s, mid-60s, late-60s, early-70s, ..., early-2020s, mid-2020s (must be the FIRST token). Production words: lo-fi, polished, tape, DAW, home-recorded, dry, wet, saturated, warm tape, room bleed, gated reverb, sidechain, plate reverb, spring reverb, tape echo, compression, sampling. Feeds the negative-style production axis + exclusion rules, not the positive style.',
       },
       instrumentation_palette: { type: 'string' },
       standout_element: { type: 'string' },
@@ -114,9 +114,10 @@ const EMIT_DECOMPOSITION_TOOL = {
   },
 } as const
 
-// v13 structured-fields required set.
+// v13 structured-fields required set. era_production_signature is kept (compact) — it
+// feeds the negative-style production axis + DB exclusion rules, not the positive style.
 const V13_REQUIRED_KEYS = [
-  'genre_anchor', 'instrumentation_palette', 'standout_element',
+  'genre_anchor', 'era_production_signature', 'instrumentation_palette', 'standout_element',
   'vocal_character', 'vocal_gender', 'harmonic_character', 'groove_character', 'confidence',
 ]
 
@@ -362,6 +363,7 @@ export function validate(o: any, rulesVersion: number): asserts o is StyleAnalys
   if (rulesVersion >= STRUCTURED_FIELDS_VERSION) {
     required = [
       'genre_anchor',
+      'era_production_signature',
       'instrumentation_palette',
       'standout_element',
       'vocal_character',
@@ -452,6 +454,14 @@ export function validate(o: any, rulesVersion: number): asserts o is StyleAnalys
  */
 export function toStyleAnalysisData(result: DecomposeResult) {
   const o = result.output
+  // The pipe is the reserved delimiter normalizeStyleAnalysis uses to fuse
+  // harmonic_character + groove_character into the legacy harmonicAndGroove column.
+  // Strip any stray pipe the model emits in a discrete field so the round-trip split
+  // can't mis-assign. (Also keeps genre_anchor a clean single tag.)
+  const noPipe = (s: string | null | undefined): string | null => {
+    const t = s?.replace(/\s*\|\s*/g, ', ').trim()
+    return t ? t : null
+  }
   return {
     styleAnalyzerInstructionsVersion: result.rulesVersion,
     status: 'draft' as const,
@@ -472,10 +482,10 @@ export function toStyleAnalysisData(result: DecomposeResult) {
     harmonicAndGroove: o.harmonic_and_groove ?? null,
     arrangementShape: o.arrangement_shape ?? null,
     dynamicCurve: o.dynamic_curve ?? null,
-    // v13 structured fields (null on pre-v13 rows)
-    genreAnchor: o.genre_anchor ?? null,
-    harmonicCharacter: o.harmonic_character ?? null,
-    grooveCharacter: o.groove_character ?? null,
+    // v13 structured fields (null on pre-v13 rows). Pipe-stripped — see noPipe above.
+    genreAnchor: noPipe(o.genre_anchor),
+    harmonicCharacter: noPipe(o.harmonic_character),
+    grooveCharacter: noPipe(o.groove_character),
     vocalRegister: o.vocal_register ?? null,
     vocalGender: o.vocal_gender ?? null,
   }

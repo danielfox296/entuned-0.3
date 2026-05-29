@@ -16,6 +16,7 @@ describe('toStyleAnalysisData — snake→camel mapper (single source of truth)'
   it('maps a v13 structured output into the discrete columns and nulls the legacy prose', () => {
     const out: StyleAnalysisOutput = {
       confidence: 'high',
+      era_production_signature: 'late-90s, room bleed',
       instrumentation_palette: 'harpsichord leading, sampled loop anchoring',
       standout_element: 'cycling harpsichord ostinato',
       vocal_character: 'breathy, close-mic, no vibrato',
@@ -36,11 +37,31 @@ describe('toStyleAnalysisData — snake→camel mapper (single source of truth)'
     expect(data.vocalGender).toBe('female')
     expect(data.bpm).toBe(77)
     expect(data.arrangementVersion).toBe(13)
-    // Legacy prose fields not emitted by v13 → null.
+    // era_production_signature is KEPT in v13 (feeds the negative-style carving path).
+    expect(data.eraProductionSignature).toBe('late-90s, room bleed')
+    // Genuinely retired prose fields → null.
     expect(data.vibePitch).toBeNull()
-    expect(data.eraProductionSignature).toBeNull()
     expect(data.harmonicAndGroove).toBeNull()
     expect(data.vocalArrangement).toBeNull()
+  })
+
+  it('strips stray pipes from discrete fields so the harmonic|groove fusion stays unambiguous', () => {
+    const out = {
+      confidence: 'high',
+      era_production_signature: 'mid-2010s, polished',
+      instrumentation_palette: 'guitar leading',
+      standout_element: 'delayed arpeggio',
+      vocal_character: 'breathy',
+      genre_anchor: 'trip-hop | downtempo',
+      harmonic_character: 'modal | chromatic',
+      groove_character: 'swung',
+      vocal_register: 'alto',
+      vocal_gender: 'female',
+    } as StyleAnalysisOutput
+    const data = toStyleAnalysisData(asResult(out, 13))
+    expect(data.genreAnchor).toBe('trip-hop, downtempo')
+    expect(data.harmonicCharacter).toBe('modal, chromatic')
+    expect(data.harmonicCharacter).not.toContain('|')
   })
 
   it('maps a v12 prose output into the legacy columns and nulls the v13 fields', () => {
@@ -64,14 +85,18 @@ describe('toStyleAnalysisData — snake→camel mapper (single source of truth)'
 })
 
 describe('buildEmitTool — version-keyed required set', () => {
-  it('v13 requires the structured fields and drops era_production_signature', () => {
+  it('v13 requires the structured fields (keeps era_production_signature, drops the rest of the prose)', () => {
     const required = buildEmitTool(13).input_schema.required as string[]
     expect(required).toContain('genre_anchor')
     expect(required).toContain('harmonic_character')
     expect(required).toContain('groove_character')
     expect(required).toContain('vocal_gender')
-    expect(required).not.toContain('era_production_signature')
+    // Kept — feeds the negative-style carving path.
+    expect(required).toContain('era_production_signature')
+    // Genuinely retired.
     expect(required).not.toContain('vibe_pitch')
+    expect(required).not.toContain('harmonic_and_groove')
+    expect(required).not.toContain('vocal_arrangement')
   })
 
   it('v12 keeps the legacy prose required set', () => {
@@ -86,6 +111,7 @@ describe('buildEmitTool — version-keyed required set', () => {
 describe('validate — v13 contract', () => {
   const validV13: StyleAnalysisOutput = {
     confidence: 'high',
+    era_production_signature: 'late-90s, room bleed',
     instrumentation_palette: 'harpsichord leading',
     standout_element: 'cycling ostinato',
     vocal_character: 'breathy, close-mic',
@@ -114,7 +140,12 @@ describe('validate — v13 contract', () => {
   })
 
   it('does not demand the retired prose fields under v13', () => {
-    // vibe_pitch / era_production_signature / harmonic_and_groove absent — still valid.
+    // vibe_pitch / vocal_arrangement / harmonic_and_groove absent — still valid.
     expect(() => validate({ ...validV13 }, 13)).not.toThrow()
+  })
+
+  it('still requires era_production_signature under v13 (kept for carving)', () => {
+    const { era_production_signature, ...rest } = validV13
+    expect(() => validate(rest, 13)).toThrow(/era_production_signature/)
   })
 })

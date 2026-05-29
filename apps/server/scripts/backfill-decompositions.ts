@@ -12,9 +12,8 @@
 // Required: --limit N. No default — explicit batch sizing keeps spend honest.
 
 import 'dotenv/config'
-import { Prisma } from '@prisma/client'
 import { prisma } from '../src/db.js'
-import { decompose } from '../src/lib/decomposer/decomposer.js'
+import { decompose, toStyleAnalysisData } from '../src/lib/decomposer/decomposer.js'
 
 const LATEST = 12
 
@@ -84,25 +83,7 @@ async function main() {
         year: ref.year ?? undefined,
         operatorNotes: ref.operatorNotes ?? undefined,
       })
-      const data = {
-        styleAnalyzerInstructionsVersion: result.rulesVersion,
-        status: 'draft' as const,
-        verifiedAt: null,
-        verifiedById: null,
-        confidence: result.output.confidence,
-        vibePitch: result.output.vibe_pitch,
-        eraProductionSignature: result.output.era_production_signature,
-        instrumentationPalette: result.output.instrumentation_palette,
-        standoutElement: result.output.standout_element,
-        arrangementShape: result.output.arrangement_shape ?? null,
-        dynamicCurve: result.output.dynamic_curve ?? null,
-        vocalCharacter: result.output.vocal_character,
-        vocalArrangement: result.output.vocal_arrangement,
-        harmonicAndGroove: result.output.harmonic_and_groove,
-        arrangementSections: result.output.arrangement_sections ?? Prisma.JsonNull,
-        arrangementVersion: result.output.arrangement_sections ? result.rulesVersion : null,
-        bpm: result.output.bpm ?? null,
-      }
+      const data = toStyleAnalysisData(result)
       await prisma.styleAnalysis.upsert({
         where: { referenceTrackId: ref.id },
         create: { referenceTrackId: ref.id, ...data },

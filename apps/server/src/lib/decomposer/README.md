@@ -31,9 +31,11 @@ to Mars, and discarded. v13:
 - **Emits the consumed signals discretely** into new `StyleAnalysis` columns:
   `genre_anchor`, `harmonic_character`, `groove_character`, `vocal_register`,
   `vocal_gender`. Consumers read these directly instead of regex-mining prose.
-- **Retires the prose fields that never landed**: `vibe_pitch`,
-  `era_production_signature`, `vocal_arrangement`, `harmonic_and_groove`
-  (plus the long-dead `arrangement_shape` / `dynamic_curve`).
+- **Retires the prose fields that never landed**: `vibe_pitch`, `vocal_arrangement`,
+  `harmonic_and_groove` (plus the long-dead `arrangement_shape` / `dynamic_curve`).
+- **Keeps `era_production_signature`** (compact form) — it never reaches the positive
+  style, but it feeds the *negative-style* production axis + 4 live exclusion rules
+  (carving). Adversarial review caught that dropping it weakens carving on every v13 row.
 - **Keeps** `verifiable_facts` + `confidence` — they force web-search fact-finding,
   which is what makes `confidence` trustworthy (the picker's usability gate keys on it).
 - **No data backfill.** Pre-v13 rows keep their prose columns; v13 rows null them and

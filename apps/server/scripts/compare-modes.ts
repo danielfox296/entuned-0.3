@@ -11,8 +11,9 @@
 //     [--notes "..."]
 
 import 'dotenv/config'
-import { decompose } from '../src/lib/decomposer/decomposer.js'
+import { decompose, toStyleAnalysisData } from '../src/lib/decomposer/decomposer.js'
 import { marsAssemble } from '../src/lib/mars/mars.js'
+import { normalizeStyleAnalysis } from '../src/lib/eno/eno.js'
 import { assembleCompactStyle } from '../src/lib/mars/style-template-compact.js'
 import { generateLyrics } from '../src/lib/proto-bernie/lyrics.js'
 import { prisma } from '../src/db.js'
@@ -50,30 +51,16 @@ async function main() {
   console.log(`Decomposing ${artist} — ${title}…`)
   const dec = await decompose({ artist, title, year, operatorNotes })
 
-  const decompositionForMars = {
+  // Build the row via the shared mapper + v13 normalization shim (same as production).
+  // Mars now reads vocal_gender directly from the column, so the old
+  // prepend-gender-into-vocal_character hack is no longer needed.
+  const decompositionForMars = normalizeStyleAnalysis({
     id: 'in-memory',
     referenceTrackId: 'in-memory',
-    musicologicalRulesVersion: dec.rulesVersion,
-    status: 'draft',
-    verifiedAt: null,
-    verifiedById: null,
-    confidence: dec.output.confidence,
-    vibePitch: dec.output.vibe_pitch,
-    eraProductionSignature: dec.output.era_production_signature,
-    instrumentationPalette: dec.output.instrumentation_palette,
-    standoutElement: dec.output.standout_element,
-    arrangementShape: dec.output.arrangement_shape,
-    dynamicCurve: dec.output.dynamic_curve,
-    // If decomposer-v3 reported gender explicitly, prepend it to vocal_character so
-    // Mars's matcher picks it up without needing to know the field exists.
-    vocalCharacter: dec.output.vocal_gender
-      ? `${dec.output.vocal_gender} vocal — ${dec.output.vocal_character}`
-      : dec.output.vocal_character,
-    vocalArrangement: dec.output.vocal_arrangement,
-    harmonicAndGroove: dec.output.harmonic_and_groove,
+    ...toStyleAnalysisData(dec),
     createdAt: new Date(),
     updatedAt: new Date(),
-  } as unknown as Decomposition
+  } as unknown as Decomposition)
 
   // 2. Mars (shared: negative_style, vocal_gender, fired rules).
   // Outcome is no longer used in style assembly (its physiology lives on Suno's other params).
