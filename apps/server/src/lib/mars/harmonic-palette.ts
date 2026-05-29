@@ -37,15 +37,16 @@ function pickRandom<T>(arr: T[]): T {
 }
 
 // Compose a triple-stack vocal identity from the three component arrays.
-// Format: "{character}, {delivery}, {effect}" — each component is one
-// randomly-picked entry. Omits any layer whose array is empty.
+// Character gets " vocal" appended so Suno knows the descriptor applies to
+// the voice, not the production or vibe ("smoky" is ambiguous; "smoky vocal" is not).
+// Delivery and effect terms are unambiguous in context.
 function composeVocalIdentity(
   characters: string[],
   deliveries: string[],
   effects: string[],
 ): string | null {
   const parts: string[] = []
-  if (characters.length > 0) parts.push(pickRandom(characters))
+  if (characters.length > 0) parts.push(`${pickRandom(characters)} vocal`)
   if (deliveries.length > 0) parts.push(pickRandom(deliveries))
   if (effects.length > 0) parts.push(pickRandom(effects))
   return parts.length > 0 ? parts.join(', ') : null
