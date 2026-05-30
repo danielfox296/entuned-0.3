@@ -201,7 +201,7 @@ export async function renderFlowTail(args: {
     ...mars.negativeStyle.split(',').map((t) => t.trim()).filter(Boolean),
     ...counter,
   ]
-  const sa = styleAnalysis as Record<string, string | null | undefined>
+  const sa = styleAnalysis as unknown as Record<string, string | null | undefined>
   const rendered = await runFlowRenderer({
     decomposition: {
       genreAnchor: sa.genreAnchor,
