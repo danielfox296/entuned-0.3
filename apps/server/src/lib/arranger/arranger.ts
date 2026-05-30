@@ -22,6 +22,18 @@
 // Forms that already end on an [Outro]/[Tag] (loop, tag_out) are left untouched.
 //
 // Called in createSongSeed() after Bernie returns, before writing SongSeed.lyrics.
+//
+// The section-matching primitives (SectionKey, normalizeSection, planChoruses,
+// lastSectionKey, ChorusRank) live in ./section-parse.js and are shared with the
+// Flow timeline builder so the two engines never disagree on section identity.
+
+import {
+  type SectionKey,
+  type ChorusRank,
+  normalizeSection,
+  planChoruses,
+  lastSectionKey,
+} from './section-parse.js'
 
 export interface SectionDirective {
   instruments: string[]
@@ -31,8 +43,6 @@ export interface SectionDirective {
 }
 
 export type ArrangementSections = Partial<Record<SectionKey, SectionDirective>>
-
-type SectionKey = 'intro' | 'verse' | 'pre_chorus' | 'chorus' | 'bridge' | 'outro'
 
 // Operator-tunable Stager policy. Stored as JSON in ArrangementPolicy.config;
 // seeded with ARRANGEMENT_POLICY_SEED (the formerly-hardcoded behavior).
@@ -55,39 +65,11 @@ function getFormat(): ArrangerFormat {
   return v === 'pipe' ? 'pipe' : 'legacy'
 }
 
-interface SectionMatch {
-  key: SectionKey
-  explicitFinal: boolean
-}
-
-const SECTION_MAP: Array<[RegExp, SectionKey, boolean]> = [
-  [/^intro/i, 'intro', false],
-  [/^pre[\s-]?chorus/i, 'pre_chorus', false],
-  [/^final[\s-]+chorus/i, 'chorus', true],
-  [/^chorus/i, 'chorus', false],
-  [/^verse/i, 'verse', false],
-  [/^bridge/i, 'bridge', false],
-  [/^outro/i, 'outro', false],
-]
-
-function normalizeSection(headerContent: string): SectionMatch | null {
-  const trimmed = headerContent.trim()
-  for (const [re, key, explicitFinal] of SECTION_MAP) {
-    if (re.test(trimmed)) return { key, explicitFinal }
-  }
-  return null
-}
-
 function titleCase(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
 const ESCALATION_INCOMPATIBLE_DELIVERY = new Set(['instrumental', 'wordless', 'a-cappella'])
-
-interface ChorusRank {
-  index: number
-  isFinal: boolean
-}
 
 interface EscalationApplied {
   delivery?: string
@@ -134,42 +116,6 @@ function applyChorusEscalation(
   }
 
   return { delivery, density, dynamic }
-}
-
-interface ChorusPlan {
-  totalChoruses: number
-  hasExplicitFinal: boolean
-}
-
-function planChoruses(lyrics: string): ChorusPlan {
-  let total = 0
-  let hasExplicitFinal = false
-  for (const line of lyrics.split('\n')) {
-    const m = line.match(/^\[([^\]]+)\]$/)
-    if (!m) continue
-    const norm = normalizeSection(m[1])
-    if (!norm) continue
-    if (norm.key === 'chorus') {
-      total++
-      if (norm.explicitFinal) hasExplicitFinal = true
-    }
-  }
-  return { totalChoruses: total, hasExplicitFinal }
-}
-
-/** The normalized key of the LAST section header in the (pre-injection) lyric, or
- *  null. Used to decide whether to append an outro: a song that ends on a chorus
- *  needs a carry-out; one already ending on an outro/tag/bridge does not.
- *  Runs on Bernie's raw output (only real [Section] headers, no tag brackets). */
-function lastSectionKey(lyrics: string): SectionKey | 'unrecognized' | null {
-  let last: SectionKey | 'unrecognized' | null = null
-  for (const line of lyrics.split('\n')) {
-    const m = line.match(/^\[([^\]]+)\]$/)
-    if (!m) continue
-    const norm = normalizeSection(m[1])
-    last = norm ? norm.key : 'unrecognized'
-  }
-  return last
 }
 
 /** Build the appended instrumental outro lines for the active format. */

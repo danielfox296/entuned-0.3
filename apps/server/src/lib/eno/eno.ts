@@ -11,18 +11,22 @@
 
 import { prisma } from '../../db.js'
 import { decompose, toStyleAnalysisData } from '../decomposer/decomposer.js'
-import { marsAssemble } from '../mars/mars.js'
+import { marsAssemble, type MarsOutput } from '../mars/mars.js'
 import { generateLyrics, type GenreBrief, type OutcomeBrief } from '../bernie/bernie.js'
 import { runProfessor } from '../professor/professor.js'
 import { runMusicProfessor } from '../music-professor/music-professor.js'
 import { injectArrangement, type ArrangementSections } from '../arranger/arranger.js'
 import { getOrSeedArrangementPolicy } from '../arranger/policy.js'
+import { buildFlowTimeline } from '../flow/timeline.js'
+import { runFlowRenderer } from '../flow/renderer.js'
+import { assembleFlowPrompt } from '../flow/assemble.js'
+import { getOrSeedFlowTimelinePolicy, loadCounterExclusionsForAnchor } from '../flow/loaders.js'
 import { resolveOutcomeParams } from '../variance/variance.js'
 // vocal-gender import removed 2026-05-23 — Hook.vocalGender now flows
 // directly to Suno via the populate-songs vocal toggle, not via ref-track
 // filtering. Hook.vocalGender remains for that purpose; see pickAvailableHook.
 import { pickFormArchetype } from './form-archetype.js'
-import type { StyleAnalysis } from '@prisma/client'
+import { Prisma, type StyleAnalysis } from '@prisma/client'
 
 export const OUTCOME_FACTOR_PROMPT_SEED = '{mood}, {tempo_bpm}bpm, {mode}' // prepended to style string. Mood is required on Outcome and leads the prefix as the affect anchor.
 
@@ -66,12 +70,16 @@ export function applyOutcomeFactorPrompt(stylePortion: string, outcome: { tempoB
   return `${prepend} ${stylePortion}`
 }
 
+export type GenerationEngine = 'suno' | 'flow'
+
 export interface SeedBuilderOptions {
   icpId: string
   outcomeId: string
   n: number
   triggeredBy: 'manual' | 'cron'
   triggeredByUser?: string
+  /** Generation engine for this batch. Defaults to 'suno'. */
+  engine?: GenerationEngine
 }
 
 export interface SeedBuilderResult {
@@ -88,6 +96,7 @@ export interface SeedBuilderResult {
 }
 
 export async function runEno(opts: SeedBuilderOptions): Promise<SeedBuilderResult> {
+  const engine: GenerationEngine = opts.engine ?? 'suno'
   const batch = await prisma.songSeedBatch.create({
     data: {
       icpId: opts.icpId,
@@ -95,6 +104,7 @@ export async function runEno(opts: SeedBuilderOptions): Promise<SeedBuilderResul
       requestedN: opts.n,
       triggeredBy: opts.triggeredBy,
       triggeredByUser: opts.triggeredByUser ?? null,
+      engine,
     },
   })
 
@@ -124,7 +134,7 @@ export async function runEno(opts: SeedBuilderOptions): Promise<SeedBuilderResul
 
   for (let i = 0; i < opts.n; i++) {
     try {
-      const result = await createSongSeed(batch.id, opts.icpId, opts.outcomeId)
+      const result = await createSongSeed(batch.id, opts.icpId, opts.outcomeId, engine)
       if (!result.ok) {
         errors.push(result.reason ?? 'unknown')
         if (result.reason === 'pool_exhausted_hooks' || result.reason === 'pool_exhausted_reference_tracks') {
@@ -154,7 +164,127 @@ export interface CreateSongSeedResult {
   reason?: string
 }
 
-async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId: string): Promise<CreateSongSeedResult> {
+// The engine-specific rendering tail. Everything upstream (Mars, variance, form,
+// Bernie, Professor) is shared; these two functions are the ONLY divergence —
+// they turn the shared intent into engine-native style + lyrics + provenance.
+// Exported so each tail is unit-testable without the hook/ref-picking machinery.
+
+export interface EngineTailResult {
+  style: string
+  negativeStyle: string | null
+  lyrics: string
+  provenance: Prisma.SongSeedUncheckedUpdateInput
+}
+
+export async function renderFlowTail(args: {
+  styleAnalysis: StyleAnalysis
+  mars: MarsOutput
+  resolved: { tempoBpm: number; mode: string }
+  mood: string
+  professorLyrics: string
+  arrangementSections: ArrangementSections | null | undefined
+}): Promise<EngineTailResult> {
+  const { styleAnalysis, mars, resolved, mood, professorLyrics, arrangementSections } = args
+  // Timeline (deterministic, OWNS the verbatim lyrics) → renderer (LLM, prose +
+  // per-slot descriptions, never sees the lyrics) → assemble. Hook integrity is
+  // structural: the LLM can't corrupt a line it never receives.
+  const timelinePolicy = await getOrSeedFlowTimelinePolicy()
+  const timeline = buildFlowTimeline({
+    lyrics: professorLyrics,
+    arrangementSections: arrangementSections ?? {},
+    config: timelinePolicy.config,
+  })
+  // Flow skips the Music Professor, so pull the genre-gravity counter-exclusions
+  // it would have applied and fold them into the avoid context.
+  const counter = await loadCounterExclusionsForAnchor(mars.anchor?.tag ?? null)
+  const avoidTerms = [
+    ...mars.negativeStyle.split(',').map((t) => t.trim()).filter(Boolean),
+    ...counter,
+  ]
+  const sa = styleAnalysis as Record<string, string | null | undefined>
+  const rendered = await runFlowRenderer({
+    decomposition: {
+      genreAnchor: sa.genreAnchor,
+      eraProductionSignature: sa.eraProductionSignature,
+      instrumentationPalette: sa.instrumentationPalette,
+      harmonicCharacter: sa.harmonicCharacter,
+      harmonicAndGroove: sa.harmonicAndGroove,
+      grooveCharacter: sa.grooveCharacter,
+      standoutElement: sa.standoutElement,
+      vibePitch: sa.vibePitch,
+      vocalCharacter: sa.vocalCharacter,
+      vocalArrangement: sa.vocalArrangement,
+      vocalRegister: sa.vocalRegister,
+    },
+    anchorTag: mars.anchor?.tag ?? null,
+    vocalIdentity: mars.vocalIdentity,
+    vocalDescriptor: mars.vocalDescriptor,
+    harmonicPalette: mars.harmonicPalette,
+    vocalGender: mars.vocalGender,
+    avoidTerms,
+    // Outcome affect anchor — the Flow equivalent of applyOutcomeFactorPrompt.
+    // mood/tempo/mode still reach the engine from the Outcome, never inlined by Mars.
+    outcome: { mood, tempoBpm: resolved.tempoBpm, mode: resolved.mode },
+    timeline,
+  })
+  // Deterministic fallback so style is never empty if the renderer fell back.
+  const anchorWord = mars.anchor?.tag ?? sa.genreAnchor ?? 'song'
+  const fallbackSoundWorld = `A ${mood} ${anchorWord} at ${resolved.tempoBpm} BPM in a ${resolved.mode} key.`
+  const flowPrompt = assembleFlowPrompt(timeline, rendered, fallbackSoundWorld)
+  return {
+    style: flowPrompt.style,
+    negativeStyle: null, // Flow has no negative-prompt syntax
+    lyrics: flowPrompt.lyrics,
+    provenance: {
+      flowRendererPersonaVersion: rendered.personaVersion,
+      flowTimelinePolicyVersion: timelinePolicy.version,
+    },
+  }
+}
+
+export async function renderSunoTail(args: {
+  mars: MarsOutput
+  resolved: { tempoBpm: number; mode: string }
+  mood: string
+  professorLyrics: string
+  arrangementSections: ArrangementSections | null | undefined
+  arrangementVersion: number | null
+}): Promise<EngineTailResult> {
+  const { mars, resolved, mood, professorLyrics, arrangementSections, arrangementVersion } = args
+  // Music Professor pass — finishing editor for Mars's style + negativeStyle.
+  // Falls back to Mars's input internally if it misbehaves; never blocks a seed.
+  const musicProfessor = await runMusicProfessor({
+    style: mars.style,
+    negativeStyle: mars.negativeStyle,
+    anchorTag: mars.anchor?.tag ?? null,
+  })
+  // Outcome prepend (tempo/mode/mood) — the load-bearing wrap rule.
+  const outcomeFactorPrompt = await getOrSeedOutcomeFactorPrompt()
+  const outcomePrepend = fillOutcomeTemplate(
+    { tempoBpm: resolved.tempoBpm, mode: resolved.mode, mood },
+    outcomeFactorPrompt.templateText,
+  )
+  const style = composeFinalStyle(outcomePrepend, mars.vocalIdentity, mars.vocalDescriptor, musicProfessor.style)
+  // Always run injectArrangement: even when arrangementSections is null, the
+  // chorus-escalation pass gives every track an energy arc.
+  const arrangementPolicy = await getOrSeedArrangementPolicy()
+  const lyrics = injectArrangement(professorLyrics, arrangementSections ?? {}, arrangementPolicy.config)
+  return {
+    style,
+    negativeStyle: musicProfessor.negativeStyle,
+    lyrics,
+    provenance: {
+      outcomeFactorPromptVersion: outcomeFactorPrompt.version,
+      musicProfessorPersonaVersion: musicProfessor.personaVersion,
+      stylePreMusicProfessor: mars.style,
+      negativeStylePreMusicProfessor: mars.negativeStyle,
+      musicProfessorChangeLog: musicProfessor.changeLog.length > 0 ? JSON.stringify(musicProfessor.changeLog) : null,
+      arrangementTemplateVersion: arrangementSections ? arrangementVersion : null,
+    },
+  }
+}
+
+async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId: string, engine: GenerationEngine = 'suno'): Promise<CreateSongSeedResult> {
   const hook = await pickAvailableHook(icpId, outcomeId)
   if (!hook) return { ok: false, reason: 'pool_exhausted_hooks' }
 
@@ -175,7 +305,7 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
 
   const songSeed = await prisma.songSeed.create({
     data: {
-      songSeedBatchId, icpId, hookId: hook.id, outcomeId, referenceTrackId: refTrack.id, status: 'assembling',
+      songSeedBatchId, icpId, hookId: hook.id, outcomeId, referenceTrackId: refTrack.id, status: 'assembling', engine,
     },
   })
 
@@ -197,30 +327,6 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
       mode: outcome.mode,
       modeWeights: outcome.modeWeights,
     })
-
-    // Music Professor pass — finishing editor for Mars's style + negativeStyle.
-    // Runs BEFORE applyOutcomeFactorPrompt so the wrap rule (tempo/mode/mood
-    // prepend) still applies cleanly on top of the polished style. Internally
-    // falls back to Mars's input if the model strips the anchor, blows past
-    // the caps, introduces banned tokens, or the API call fails — the layer
-    // must never block seed generation.
-    const musicProfessor = await runMusicProfessor({
-      style: mars.style,
-      negativeStyle: mars.negativeStyle,
-      anchorTag: mars.anchor?.tag ?? null,
-    })
-
-    const outcomeFactorPrompt = await getOrSeedOutcomeFactorPrompt()
-    const outcomePrepend = fillOutcomeTemplate(
-      { tempoBpm: resolved.tempoBpm, mode: resolved.mode, mood: outcome.mood },
-      outcomeFactorPrompt.templateText,
-    )
-    const finalStyle = composeFinalStyle(
-      outcomePrepend,
-      mars.vocalIdentity,
-      mars.vocalDescriptor,
-      musicProfessor.style,
-    )
 
     const icpRow = await prisma.iCP.findUniqueOrThrow({ where: { id: icpId }, select: { clientId: true } })
     const client = await prisma.client.findUnique({ where: { id: icpRow.clientId } })
@@ -288,40 +394,40 @@ async function createSongSeed(songSeedBatchId: string, icpId: string, outcomeId:
       hookText: hook.text,
     })
 
-    // Always run injectArrangement: even when arrangementSections is null, the
-    // arranger performs the chorus-escalation pass (rename final [Chorus] to
-    // [Final Chorus], add gang-vocal cues) so every track gets an energy arc.
-    const arrangementPolicy = await getOrSeedArrangementPolicy()
-    const finalLyrics = injectArrangement(professor.lyrics, arrangementSections ?? {}, arrangementPolicy.config)
+    // ── Engine branch ──────────────────────────────────────────────────────
+    // Everything above is engine-agnostic (Mars, variance, form, Bernie,
+    // Professor). Only the rendering tail forks. Suno: Music Professor cap-polish
+    // + outcome prepend + bracket-tag arrangement. Flow: full-decomposition prose
+    // render + a timestamped timeline. Both write into the same SongSeed columns
+    // (engine-native — no canonical form kept). engine-specific provenance only.
+    const tail = engine === 'flow'
+      ? await renderFlowTail({ styleAnalysis, mars, resolved, mood: outcome.mood, professorLyrics: professor.lyrics, arrangementSections })
+      : await renderSunoTail({ mars, resolved, mood: outcome.mood, professorLyrics: professor.lyrics, arrangementSections, arrangementVersion })
+    const { style, negativeStyle, lyrics, provenance } = tail
 
     await prisma.songSeed.update({
       where: { id: songSeed.id },
       data: {
         status: 'queued',
-        style: finalStyle,
+        style,
         stylePortionRaw: mars.style,
-        negativeStyle: musicProfessor.negativeStyle,
+        negativeStyle,
         vocalGender: mars.vocalGender,
-        lyrics: finalLyrics,
+        lyrics,
         title: lyricsRaw.title,
-        outcomeFactorPromptVersion: outcomeFactorPrompt.version,
         styleTemplateVersion: mars.styleTemplateVersion,
         lyricDraftPromptVersion: lyricsRaw.draftPromptVersion,
         professorPersonaVersion: professor.personaVersion,
         lyricPreProfessor: lyricsRaw.lyrics,
         professorChangeLog: professor.changeLog.length > 0 ? JSON.stringify(professor.changeLog) : null,
-        musicProfessorPersonaVersion: musicProfessor.personaVersion,
-        stylePreMusicProfessor: mars.style,
-        negativeStylePreMusicProfessor: mars.negativeStyle,
-        musicProfessorChangeLog: musicProfessor.changeLog.length > 0 ? JSON.stringify(musicProfessor.changeLog) : null,
         harmonicPalette: mars.harmonicPalette,
         vocalDescriptor: mars.vocalDescriptor,
         vocalIdentity: mars.vocalIdentity,
-        arrangementTemplateVersion: arrangementSections ? arrangementVersion : null,
         resolvedTempoBpm: resolved.tempoBpm,
         resolvedMode: resolved.mode,
         firedExclusionRuleIds: mars.firedExclusionRuleIds,
         genreBrief: JSON.stringify(genreBrief),
+        ...provenance,
       },
     })
 

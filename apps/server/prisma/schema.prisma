@@ -681,6 +681,7 @@ model SongSeedBatch {
   triggeredBy     String    @map("triggered_by")
   triggeredByUser String?   @map("triggered_by_user") @db.Uuid
   pipeline        String?   // eno-1 | eno-2; null = eno-1 for backward compat
+  engine          String    @default("suno") // 'suno' | 'flow' — engine all seeds in this batch render for
   startedAt       DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
   finishedAt      DateTime? @map("finished_at") @db.Timestamptz(6)
 
@@ -699,8 +700,15 @@ model SongSeed {
   referenceTrackId String? @map("reference_track_id") @db.Uuid
   status           String  @default("assembling") // assembling|queued|accepted|failed
   pipeline         String? // eno-1 | eno-2; null = eno-1
+  // Generation engine this seed is rendered for. 'suno' (default) = two-field
+  // style + bracket-tag lyrics; 'flow' = Google Lyria single rich prompt with a
+  // timestamped timeline. Distinct from `pipeline` (an eno-version flag).
+  engine          String  @default("suno")
 
-  // Final Song Prompt payload
+  // Final Song Prompt payload. Engine-native (no canonical/portable form is kept):
+  //  - suno: `style` = comma-tag style after outcome prepend; `lyrics` = bracket-tagged.
+  //  - flow: `style` = rich sound-world prose; `lyrics` = [mm:ss] timeline + lyrics;
+  //          `negativeStyle` = null (Flow has no negative-prompt syntax).
   style           String?
   stylePortionRaw String? @map("style_portion_raw")
   negativeStyle   String? @map("negative_style")
@@ -723,6 +731,9 @@ model SongSeed {
   harmonicPalette              String? @map("harmonic_palette") // palette token Mars injected from GenreGravityRule.positivePalettes (null if no rule matched)
   vocalDescriptor              String? @map("vocal_descriptor") // vocal descriptor token Mars injected from GenreGravityRule.vocalDescriptors (null if no rule matched)
   vocalIdentity                String? @map("vocal_identity") // composed triple-stack vocal identity (character + delivery + effect) placed before genre anchor
+  // Flow (Lyria) provenance — null on Suno seeds.
+  flowRendererPersonaVersion   Int?    @map("flow_renderer_persona_version") // FlowRendererPersona.version used to render the sound-world prose
+  flowTimelinePolicyVersion    Int?    @map("flow_timeline_policy_version") // FlowTimelinePolicy.version used to build the timestamped timeline
   arrangementTemplateVersion Int?     @map("arrangement_template_version")
   resolvedTempoBpm           Int?     @map("resolved_tempo_bpm")
   resolvedMode               String?  @map("resolved_mode")
@@ -851,6 +862,37 @@ model ArrangementPolicy {
   createdById String?  @map("created_by") @db.Uuid
 
   @@map("arrangement_policies")
+}
+
+// ---------- Flow (Lyria) engine ----------
+// FlowRendererPersona: versioned system prompt for the Flow renderer — the LLM
+// that turns the FULL StyleAnalysis (every decomposition field, not the Suno-
+// compressed anchor) into rich sound-world prose + per-slot production
+// descriptions. Mirrors MusicProfessorPersona so the Dash editor is identical.
+model FlowRendererPersona {
+  id          String   @id @default(uuid()) @db.Uuid
+  version     Int      @unique
+  promptText  String   @map("prompt_text")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by") @db.Uuid
+
+  @@map("flow_renderer_personas")
+}
+
+// FlowTimelinePolicy: operator-tunable timeline config (target duration, section
+// weights, gap budgets). Versioned singleton (latest wins), seeded from
+// FLOW_TIMELINE_POLICY_SEED. Kept separate from ArrangementPolicy so the Suno
+// arranger's tuning never couples to Flow timing.
+model FlowTimelinePolicy {
+  id          String   @id @default(uuid()) @db.Uuid
+  version     Int      @unique
+  config      Json
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by") @db.Uuid
+
+  @@map("flow_timeline_policies")
 }
 
 // ---------- OutcomeLyricFactor ----------
@@ -994,6 +1036,7 @@ model Song {
   r2ObjectKey String   @unique @map("r2_object_key")
   byteSize    BigInt?  @map("byte_size")
   contentType String?  @map("content_type")
+  engine      String   @default("suno") // provenance: which engine produced this audio ('suno' | 'flow'). Denormalized from SongSeed for fast filtering.
   uploadedAt  DateTime @default(now()) @map("uploaded_at") @db.Timestamptz(6)
 
   lineageRows         LineageRow[]

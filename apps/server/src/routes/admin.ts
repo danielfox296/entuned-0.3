@@ -3693,6 +3693,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     icpId: z.string().uuid(),
     outcomeId: z.string().uuid(),
     n: z.number().int().min(1).max(20),
+    engine: z.enum(['suno', 'flow']).optional(),
   })
 
   app.post('/eno/run', async (req, reply) => {
@@ -3706,6 +3707,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         n: parsed.data.n,
         triggeredBy: 'manual',
         triggeredByUser: op.accountId,
+        engine: parsed.data.engine,
       })
       return result
     } catch (e: any) {
@@ -3771,6 +3773,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
               r2ObjectKey: obj.key,
               byteSize: BigInt(obj.byteSize),
               contentType: obj.contentType,
+              engine: existing.engine,
             },
             update: {},
           })
@@ -3844,7 +3847,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         for (const obj of uploaded) {
           const song = await tx.song.upsert({
             where: { r2Url: obj.url },
-            create: { r2Url: obj.url, r2ObjectKey: obj.key, byteSize: BigInt(obj.byteSize), contentType: obj.contentType },
+            create: { r2Url: obj.url, r2ObjectKey: obj.key, byteSize: BigInt(obj.byteSize), contentType: obj.contentType, engine: existing.engine },
             update: {},
           })
           const row = await tx.lineageRow.create({

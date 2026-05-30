@@ -15,6 +15,8 @@ Orchestrator. Runs the complete music generation pipeline end-to-end by delegati
 
 Stages 1 and 2 run browser-free over `railway ssh`. Only Stage 3 (Suno round-trip) needs a browser. The bootstrap step uses Dash for reference-track suggestion and parallel API fetches for decompose.
 
+**Engine:** this pipeline is **Suno end-to-end** — Stage 3 (`populate-songs`) is Suno-only. The Google Flow (Lyria) engine is seed-generation only for now (no submission path). To make Flow seeds, call `make-song-seeds` directly with `ENGINE="flow"`; do not route Flow through `run-pipeline`.
+
 ## Pre-flight (read this first)
 
 **Working directory:** every `railway ssh` call must run from the monorepo root (`entuned-0.3/`). From `~/Desktop/entuned/` one level up, `railway ssh` fails with `No linked project found`. Always prefix with `cd entuned-0.3 &&`.

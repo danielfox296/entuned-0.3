@@ -153,7 +153,7 @@ One `railway ssh` per (ICP × outcome). **Two requirements baked into the templa
 Use this exact template:
 
 ```bash
-ICP_ID="..."; OUTCOME_ID="..."; N=3; TRIGGERED_BY_USER="<daniel-account-id>"
+ICP_ID="..."; OUTCOME_ID="..."; N=3; TRIGGERED_BY_USER="<daniel-account-id>"; ENGINE="suno"
 cd entuned-0.3 && railway ssh "cd /app && node --import tsx -e '
 import(\"./dist/lib/eno/eno.js\").then(async e => {
   const result = await e.runEno({
@@ -162,12 +162,20 @@ import(\"./dist/lib/eno/eno.js\").then(async e => {
     n: $N,
     triggeredBy: \"manual\",
     triggeredByUser: \"$TRIGGERED_BY_USER\",
+    engine: \"$ENGINE\",
   });
   console.log(JSON.stringify(result, null, 2));
   process.exit(0);
 })
 '"
 ```
+
+**`engine`** selects the generation engine: `"suno"` (default — two-field style + bracket-tag
+lyrics, ready for `populate-songs`) or `"flow"` (Google Lyria — a single rich prompt with a
+`[mm:ss]` timestamped timeline; `style` holds the sound-world prose, `lyrics` holds the timeline,
+`negativeStyle` is null). Omit it or pass `"suno"` for the normal pipeline. Flow seeds queue
+the same way but have no `populate-songs` path yet (Flow submission is not wired) — make Flow
+seeds only when explicitly asked to test the Flow renderer.
 
 Result shape:
 ```
