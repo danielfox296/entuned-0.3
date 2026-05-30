@@ -14,7 +14,7 @@ vi.mock('@anthropic-ai/sdk', () => {
   return { default: MockAnthropic }
 })
 
-import { runFlowRenderer, type FlowRendererInput } from './renderer.js'
+import { runFlowRenderer, clampProse, type FlowRendererInput } from './renderer.js'
 import { buildFlowTimeline, FLOW_TIMELINE_POLICY_SEED } from './timeline.js'
 import { prisma } from '../../db.js'
 
@@ -167,6 +167,27 @@ describe('runFlowRenderer — safety fallbacks (must never block a seed)', () =>
     expect(out.fellBack).toBe(false)
     expect(out.sectionDescriptions[0]).toBe('good one')
     expect(out.sectionDescriptions[1]).toBeUndefined()
+  })
+})
+
+describe('clampProse', () => {
+  it('returns the string unchanged when within the cap', () => {
+    expect(clampProse('short text.', 100)).toBe('short text.')
+  })
+
+  it('cuts at the last sentence boundary when one sits near the end', () => {
+    const s = 'Alpha beta gamma. Delta epsilon zeta eta theta iota kappa.'
+    const out = clampProse(s, 25)
+    expect(out).toBe('Alpha beta gamma.')
+  })
+
+  it('falls back to a whole-word boundary + ellipsis when no sentence end fits', () => {
+    const s = 'one two three four five six seven eight nine ten eleven twelve'
+    const out = clampProse(s, 20)
+    expect(out).toBe('one two three four…')
+    // the char in the source right after the kept text is a space — a clean cut
+    const kept = out.slice(0, -1) // drop the ellipsis
+    expect(s[kept.length]).toBe(' ')
   })
 })
 

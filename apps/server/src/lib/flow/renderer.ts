@@ -19,8 +19,19 @@ import type { FlowTimeline } from './timeline.js'
 const MODEL = process.env.FLOW_RENDERER_MODEL ?? process.env.MUSIC_PROFESSOR_MODEL ?? 'claude-sonnet-4-6'
 
 // Generous guardrails — Flow has no prompt cap, but bound runaway output.
-const SOUND_WORLD_HARD_CAP = 2500
-const DESCRIPTION_HARD_CAP = 400
+const SOUND_WORLD_HARD_CAP = 3000
+const DESCRIPTION_HARD_CAP = 800
+
+/** Clamp prose to a clean boundary so a hard cap never slices mid-word in the
+ *  prompt. Prefer the last sentence end; else the last word; never a raw cut. */
+export function clampProse(s: string, max: number): string {
+  if (s.length <= max) return s
+  const slice = s.slice(0, max)
+  const lastStop = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('! '), slice.lastIndexOf('? '))
+  if (lastStop >= max * 0.6) return slice.slice(0, lastStop + 1)
+  const lastSpace = slice.lastIndexOf(' ')
+  return (lastSpace > 0 ? slice.slice(0, lastSpace) : slice).replace(/[\s,;:—-]+$/, '') + '…'
+}
 
 /** The decomposition fields the renderer reads. A plain object (not the Prisma
  *  row) so it's trivially testable; eno maps a normalized StyleAnalysis into it. */
@@ -184,12 +195,12 @@ Emit soundWorld + one description per slot via the tool.`
       if (typeof s?.index !== 'number') continue
       const desc = typeof s.description === 'string' ? s.description.trim() : ''
       if (!desc) continue
-      sectionDescriptions[s.index] = desc.slice(0, DESCRIPTION_HARD_CAP)
+      sectionDescriptions[s.index] = clampProse(desc, DESCRIPTION_HARD_CAP)
     }
   }
 
   return {
-    soundWorld: soundWorld.slice(0, SOUND_WORLD_HARD_CAP),
+    soundWorld: clampProse(soundWorld, SOUND_WORLD_HARD_CAP),
     sectionDescriptions,
     personaVersion: persona.version,
     fellBack: false,
