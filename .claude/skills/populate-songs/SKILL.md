@@ -48,13 +48,15 @@ Target must be unambiguous: `client + location + icp` per [GENERATION.md](../../
 
 Get every queued seed's full prompt in one query. Use base64 for transport — `console.log` of long lyrics with newlines + em-dashes + apostrophes mangles in shell escaping.
 
+**Always filter `engine: "suno"`.** This skill is Suno-only. Google Flow (Lyria) seeds carry `engine: "flow"` and a Flow-shaped payload (`style` = sound-world prose, `lyrics` = a `[mm:ss]` timeline) that must NEVER be injected into Suno. The filter keeps Flow seeds out of the queue. Existing/Suno seeds all default to `engine: "suno"`, so nothing is lost.
+
 ```bash
 cd entuned-0.3 && railway ssh "cd /app && node -e '
 (async () => {
   const m = await import(\"@prisma/client\");
   const p = new m.PrismaClient();
   const seeds = await p.songSeed.findMany({
-    where: { songSeedBatchId: \"<BATCH_ID>\" },  // or { status: \"queued\", hook: { icpId: \"<ICP_ID>\" } }
+    where: { engine: \"suno\", songSeedBatchId: \"<BATCH_ID>\" },  // or { engine: \"suno\", status: \"queued\", hook: { icpId: \"<ICP_ID>\" } }
     select: { id: true, title: true, status: true, vocalGender: true, style: true, negativeStyle: true, lyrics: true },
     orderBy: { createdAt: \"asc\" },
   });
