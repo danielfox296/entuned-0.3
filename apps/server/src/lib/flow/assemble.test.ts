@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { assembleFlowPrompt } from './assemble.js'
+import { assembleFlowPrompt, FLOW_LYRICS_CAP } from './assemble.js'
 import { buildFlowTimeline, FLOW_TIMELINE_POLICY_SEED } from './timeline.js'
 import type { FlowRendererOutput } from './renderer.js'
 
@@ -58,5 +58,46 @@ describe('assembleFlowPrompt', () => {
     const noDescr: FlowRendererOutput = { soundWorld: 'sw', sectionDescriptions: {}, personaVersion: 1, fellBack: true }
     const out = assembleFlowPrompt(TIMELINE, noDescr, 'fallback')
     expect(out.lyrics.split('\n\n')[0]).toContain('(instrumental)')
+  })
+})
+
+describe('assembleFlowPrompt — 3000-char Lyrics cap (flowmusic.app)', () => {
+  // A realistic worst case: a long-form lyric across many sections, each with a
+  // verbose ~700-char production description from the renderer.
+  const LONG_LYRICS = Array.from({ length: 8 }, (_, i) =>
+    `[Verse ${i + 1}]\nline one of verse ${i + 1} here\nline two of verse ${i + 1} here\n\n[Chorus]\nthe unmistakable hook line ${i + 1}`,
+  ).join('\n\n')
+  const longTimeline = buildFlowTimeline({ lyrics: LONG_LYRICS, arrangementSections: {}, config: FLOW_TIMELINE_POLICY_SEED })
+  const verbose: FlowRendererOutput = {
+    soundWorld: 'sw',
+    sectionDescriptions: Object.fromEntries(longTimeline.slots.map((s) => [s.index, 'D'.repeat(700) + ' end.'])),
+    personaVersion: 1,
+    fellBack: false,
+  }
+
+  it('never exceeds the cap', () => {
+    const out = assembleFlowPrompt(longTimeline, verbose, 'fallback')
+    expect(out.lyrics.length).toBeLessThanOrEqual(FLOW_LYRICS_CAP)
+  })
+
+  it('preserves every verbatim lyric line (trims descriptions, not lyrics)', () => {
+    const out = assembleFlowPrompt(longTimeline, verbose, 'fallback')
+    const allLyricLines = longTimeline.slots.flatMap((s) => s.lyricLines)
+    for (const line of allLyricLines) {
+      expect(out.lyrics).toContain(line)
+    }
+    // and every hook is present
+    for (let i = 1; i <= 8; i++) expect(out.lyrics).toContain(`the unmistakable hook line ${i}`)
+  })
+
+  it('keeps all section timestamps (no slot dropped)', () => {
+    const out = assembleFlowPrompt(longTimeline, verbose, 'fallback')
+    const stamps = out.lyrics.match(/\[\d\d:\d\d\]/g) ?? []
+    expect(stamps.length).toBe(longTimeline.slots.length)
+  })
+
+  it('does not trim when comfortably under the cap', () => {
+    const out = assembleFlowPrompt(TIMELINE, RENDERED, 'fallback')
+    expect(out.lyrics).toContain('desc Verse 1')
   })
 })
