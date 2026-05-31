@@ -40,6 +40,7 @@ import { SongBrowser } from './panels/catalogue/SongBrowser.js'
 import { FlaggedReview } from './panels/catalogue/FlaggedReview.js'
 import { FreeTierOutcomes } from './panels/catalogue/FreeTierOutcomes.js'
 import { SongRepair } from './panels/catalogue/SongRepair.js'
+import { BulkImport } from './panels/catalogue/BulkImport.js'
 import { WorkflowRouter } from './panels/workflow/WorkflowRouter.js'
 import { RetentionDashboard } from './panels/monitoring/RetentionDashboard.js'
 import { PlayerReliability } from './panels/monitoring/PlayerReliability.js'
@@ -71,7 +72,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: [],
     description: '' },
   { key: 'catalogue', label: 'Library', short: 'Library', icon: Music2,
-    cards: ['Song Browser', 'Flagged Review', 'Pool Depth', 'Free Tier Outcomes', 'Song Repair'],
+    cards: ['Song Browser', 'Flagged Review', 'Pool Depth', 'Free Tier Outcomes', 'Bulk Import', 'Song Repair'],
     description: '' },
   { key: 'salesdata', label: 'Sales Data', short: 'Sales Data', icon: ShoppingCart,
     cards: ['Ingest'],
@@ -603,6 +604,7 @@ function CatalogueRouter({ cards }: { cards: string[] }) {
       {active === 'Song Browser' && <SongBrowser />}
       {active === 'Flagged Review' && <FlaggedReview />}
       {active === 'Free Tier Outcomes' && <FreeTierOutcomes />}
+      {active === 'Bulk Import' && <BulkImport />}
       {active === 'Song Repair' && <SongRepair />}
     </div>
   )

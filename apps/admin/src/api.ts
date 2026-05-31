@@ -1640,6 +1640,17 @@ export const api = {
     return upload<{ songSeed: SongSeedRow; lineageRows: any[] }>(`/admin/song-seeds/${id}/accept-files`, fd, token)
   },
 
+  // --- Bulk free-tier import (externally-produced MP3s, no generation lineage) ---
+  // One file per request; server content-addresses to R2 and upserts
+  // Song + LineageRow @ FREE_TIER_ICP_ID under the named outcome.
+  importFreeTierSong: (outcome: string, file: File, token: string) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return upload<{ songId: string; lineageRowId: string; r2Url: string; deduped: boolean }>(
+      `/admin/free-tier-imports?outcome=${encodeURIComponent(outcome)}`, fd, token,
+    )
+  },
+
   // --- Song repair (rehydrate Songs whose r2 object is empty / corrupt) ---
   brokenSongs: (token: string) =>
     req<BrokenSongRow[]>('/admin/songs/broken', {}, token),
