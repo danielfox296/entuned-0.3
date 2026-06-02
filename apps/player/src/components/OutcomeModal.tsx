@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { T } from "@entuned/tokens";
 import type { OutcomeOption } from "../api.js";
 import { effectFor } from "../lib/outcomeCopy.js";
 
@@ -303,7 +304,7 @@ function OutcomeRow({
         borderRadius: 11,
         border: `1px solid ${active ? TEAL_BORDER : "rgba(255,255,255,0.07)"}`,
         background: active ? TEAL_TINT : "rgba(255,255,255,0.025)",
-        color: "#d4e1e5",
+        color: T.text,
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.4 : 1,
         display: "flex",

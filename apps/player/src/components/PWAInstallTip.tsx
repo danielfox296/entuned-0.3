@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { T } from "@entuned/tokens";
 
 const DISMISS_KEY = "entuned.pwa_tip_dismissed_v1";
 
@@ -100,7 +101,7 @@ export function PWAInstallTip() {
     >
       <span style={{ flex: 1, lineHeight: 1.4 }}>
         {mode === "ios" ? (
-          <>For uninterrupted playback through alarms and the lock screen, tap <strong style={{ color: "#D4E1E5" }}>Share</strong> → <strong style={{ color: "#D4E1E5" }}>Add to Home Screen</strong>.</>
+          <>For uninterrupted playback through alarms and the lock screen, tap <strong style={{ color: T.text }}>Share</strong> → <strong style={{ color: T.text }}>Add to Home Screen</strong>.</>
         ) : (
           <>Install Entuned for uninterrupted playback through notifications and the lock screen.</>
         )}

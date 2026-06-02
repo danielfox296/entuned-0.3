@@ -111,6 +111,9 @@ importers:
       '@entuned/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@entuned/tokens':
+        specifier: workspace:*
+        version: link:../../packages/tokens
       howler:
         specifier: ^2.2.4
         version: 2.2.4

@@ -270,6 +270,56 @@ describe('POST /magic-link', () => {
     expect(res.json()).toEqual({ ok: true })
     expect(sendMagicLinkMock).not.toHaveBeenCalled()
   })
+
+  it('persists sanitized first-touch attribution onto the token', async () => {
+    magicCreate.mockResolvedValue({ id: 'mlt-attr' })
+
+    const app = await buildLoginApp()
+    const res = await app.inject({
+      method: 'POST',
+      url: '/magic-link',
+      payload: {
+        email: 'user@example.com',
+        attribution: {
+          referrer: 'https://www.reddit.com/r/smallbusiness',
+          landingPath: '/for-apparel?utm_source=reddit',
+          utmSource: 'reddit',
+          utmMedium: 'social',
+          utmCampaign: 'spring',
+          // Empty/whitespace fields coerce to null; unknown keys are ignored.
+          utmTerm: '   ',
+          ignoreMe: 'nope',
+        },
+      },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const data = magicCreate.mock.calls[0]![0].data as Record<string, unknown>
+    expect(data.attrReferrer).toBe('https://www.reddit.com/r/smallbusiness')
+    expect(data.attrLandingPath).toBe('/for-apparel?utm_source=reddit')
+    expect(data.attrUtmSource).toBe('reddit')
+    expect(data.attrUtmMedium).toBe('social')
+    expect(data.attrUtmCampaign).toBe('spring')
+    expect(data.attrUtmTerm).toBeNull()
+    expect(data.attrUtmContent).toBeNull()
+    expect(data).not.toHaveProperty('ignoreMe')
+  })
+
+  it('stores all-null attribution columns when no attribution is provided', async () => {
+    magicCreate.mockResolvedValue({ id: 'mlt-noattr' })
+
+    const app = await buildLoginApp()
+    const res = await app.inject({
+      method: 'POST',
+      url: '/magic-link',
+      payload: { email: 'user@example.com' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const data = magicCreate.mock.calls[0]![0].data as Record<string, unknown>
+    expect(data.attrReferrer).toBeNull()
+    expect(data.attrUtmSource).toBeNull()
+  })
 })
 
 // ---------- GET /verify ----------
@@ -332,6 +382,14 @@ describe('GET /verify', () => {
       tokenHash: 'h',
       consumedAt: null,
       expiresAt: new Date(Date.now() + 60_000),
+      // First-touch attribution parked on the token at /magic-link.
+      attrReferrer: 'https://www.reddit.com/r/smallbusiness',
+      attrLandingPath: '/for-apparel?utm_source=reddit',
+      attrUtmSource: 'reddit',
+      attrUtmMedium: 'social',
+      attrUtmCampaign: 'spring',
+      attrUtmTerm: null,
+      attrUtmContent: null,
     })
     magicUpdate.mockResolvedValue({ id: 'mlt-1' })
     // findOrCreateUserByEmail: existing user, not disabled.
@@ -359,7 +417,16 @@ describe('GET /verify', () => {
     expect(res.headers.location).toBe('https://app.entuned.co/')
     expect(magicUpdate).toHaveBeenCalledWith({ where: { id: 'mlt-1' }, data: { consumedAt: expect.any(Date) } })
     expect(setSessionCookieMock).toHaveBeenCalledWith(expect.anything(), 'acc-1', 3)
-    expect(ensureFreeMock).toHaveBeenCalledWith('acc-1', 'u@example.com')
+    // Attribution from the token is mapped + forwarded to provisioning.
+    expect(ensureFreeMock).toHaveBeenCalledWith('acc-1', 'u@example.com', {
+      referrer: 'https://www.reddit.com/r/smallbusiness',
+      landingPath: '/for-apparel?utm_source=reddit',
+      utmSource: 'reddit',
+      utmMedium: 'social',
+      utmCampaign: 'spring',
+      utmTerm: null,
+      utmContent: null,
+    })
   })
 
   it('redirects to /onboard when the client industry is null', async () => {

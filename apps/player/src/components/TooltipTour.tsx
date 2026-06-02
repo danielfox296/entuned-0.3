@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useState } from "react";
+import { T } from "@entuned/tokens";
 
 // First-launch onboarding tour — single tooltip pointing at the Outcome chip,
 // the one control whose meaning isn't self-evident. Heart and Flag are
@@ -178,7 +179,7 @@ export function TooltipTour({ steps, onClose }: Props) {
           border: `1px solid ${TEAL_BORDER}`,
           borderRadius: 16,
           padding: "20px 22px 18px",
-          color: "#D4E1E5",
+          color: T.text,
           fontFamily: "'Inter', sans-serif",
           boxShadow: `0 22px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(106,176,187,0.06), 0 0 32px ${TEAL_GLOW}`,
           animation: placement === "above"

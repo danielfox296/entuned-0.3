@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { T } from "@entuned/tokens";
 import { PlayerScreen } from "./screens/PlayerScreen.js";
 import { clearSession, loadSession, type Session } from "./lib/storage.js";
 import { api } from "./api.js";
@@ -62,7 +63,7 @@ export function App() {
       return (
         <div style={shellStyle}>
           <div style={{ textAlign: 'center', padding: 24 }}>
-            <div style={{ color: '#d7af74', marginBottom: 8 }}>Player not found</div>
+            <div style={{ color: T.gold, marginBottom: 8 }}>Player not found</div>
             <div style={{ opacity: 0.7 }}>{slugError}</div>
           </div>
         </div>
@@ -96,8 +97,8 @@ const shellStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  background: '#20201c',
-  color: '#d4e1e5',
+  background: T.bg,
+  color: T.text,
   fontFamily: "'Inter', sans-serif",
   fontSize: 14,
 };

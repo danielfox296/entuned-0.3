@@ -351,6 +351,7 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
       <tr><td style="padding:2px 12px 2px 0;color:#8a929a;">Email</td><td style="padding:2px 0;color:#d4e1e5;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">{{userEmail}}</td></tr>
       <tr><td style="padding:2px 12px 2px 0;color:#8a929a;">Company</td><td style="padding:2px 0;color:#d4e1e5;">{{companyName}}</td></tr>
       <tr><td style="padding:2px 12px 2px 0;color:#8a929a;">Player</td><td style="padding:2px 0;"><a href="{{playerUrl}}" style="color:#50929c;">{{playerUrl}}</a></td></tr>
+      <tr><td style="padding:2px 12px 2px 0;color:#8a929a;">Source</td><td style="padding:2px 0;color:#d4e1e5;">{{source}}</td></tr>
       <tr><td style="padding:2px 12px 2px 0;color:#8a929a;">When</td><td style="padding:2px 0;color:#d4e1e5;">{{signedUpAt}}</td></tr>
     </table>
     <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">Free tier, welcome email already sent. Account is in Dash.</p>
@@ -359,6 +360,7 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
       userEmail: 'newuser@example.com',
       companyName: 'newuser',
       playerUrl: 'https://music.entuned.co/sample-store-1234',
+      source: 'via reddit.com · landed /for-apparel',
       signedUpAt: '2026-05-20 14:32 UTC',
     },
   },

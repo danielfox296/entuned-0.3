@@ -8,6 +8,7 @@
 
 import { createRequestClient, TIER_RANK, TIER_LABEL, TIER_PRICE, highestTier } from '@entuned/api-client'
 import type { Tier } from '@entuned/api-client'
+import type { Attribution } from './lib/attribution.js'
 
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 export const PLAYER_URL = import.meta.env.VITE_PLAYER_URL ?? 'https://music.entuned.co'
@@ -177,10 +178,17 @@ export const api = {
   // `next` is an optional post-login destination URL. Server validates it
   // against APP_URL/API_URL origin allowlist (see safeNext in routes/login.ts);
   // anything else is silently dropped and login lands on '/'.
-  requestMagicLink: (email: string, next?: string) =>
+  // `attribution` is optional first-touch signup attribution (referrer/UTM/
+  // landing path) read from the entuned_attr cookie. Server re-sanitizes and
+  // persists it on the new Client; safe to omit / send partial.
+  requestMagicLink: (email: string, next?: string, attribution?: Attribution) =>
     req<MagicLinkResponse>('/login/magic-link', {
       method: 'POST',
-      body: JSON.stringify(next ? { email, next } : { email }),
+      body: JSON.stringify({
+        email,
+        ...(next ? { next } : {}),
+        ...(attribution ? { attribution } : {}),
+      }),
     }),
 
   // GET-redirect endpoint, but expose the URL helper here so call-sites import

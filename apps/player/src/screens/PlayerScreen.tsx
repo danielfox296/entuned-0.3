@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { T } from "@entuned/tokens";
 import { api, type QueueItem, type ActiveOutcome, type OutcomeOption, type AudioEventType, type ExtraFor } from "../api.js";
 import { CrossfadePlayer } from "../audio/crossfade-player.js";
 import { LoudnessSampler } from "../audio/loudness-sampler.js";
@@ -1225,7 +1226,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
                 fontFamily: "'Manrope', sans-serif",
                 fontSize: twoCol ? "clamp(1.75rem, 3.4vw, 2.4rem)" : (narrowPromo ? "clamp(1.4rem, 5.2vw, 1.9rem)" : "clamp(2rem, 5vw, 3rem)"),
                 fontWeight: 700,
-                color: "#D4E1E5",
+                color: T.text,
                 letterSpacing: "-0.02em",
                 lineHeight: 1.15,
                 textAlign: "center",
@@ -1260,7 +1261,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
         ) : null}
 
         {error ? (
-          <div style={{ fontFamily: "'Inter', sans-serif", padding: "10px 22px", background: "rgba(226,75,74,0.12)", border: "1px solid rgba(226,75,74,0.35)", borderRadius: 0, maxWidth: 440, textAlign: "center", fontSize: 12, color: "#E24B4A", letterSpacing: "0.05em" }}>
+          <div style={{ fontFamily: "'Inter', sans-serif", padding: "10px 22px", background: "rgba(226,75,74,0.12)", border: "1px solid rgba(226,75,74,0.35)", borderRadius: 0, maxWidth: 440, textAlign: "center", fontSize: 12, color: T.danger, letterSpacing: "0.05em" }}>
             {error}
           </div>
         ) : null}
@@ -1366,7 +1367,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
           </span>
           <span style={{ width: 1, height: 18, background: "rgba(80, 146, 156, 0.30)" }} />
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
-            <span style={{ fontFamily: "'Manrope', sans-serif", fontSize: 15, fontWeight: 600, letterSpacing: "0.01em", color: "#D4E1E5", whiteSpace: "nowrap" }}>
+            <span style={{ fontFamily: "'Manrope', sans-serif", fontSize: 15, fontWeight: 600, letterSpacing: "0.01em", color: T.text, whiteSpace: "nowrap" }}>
               {activeTitle}
             </span>
             {activeEffect ? (

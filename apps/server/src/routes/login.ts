@@ -14,6 +14,7 @@ import { prisma } from '../db.js'
 import { sendMagicLink } from '../lib/email.js'
 import { clearSessionCookie, requireAuth, setSessionCookie } from '../lib/session.js'
 import { ensureFreeClientForUser } from '../lib/account.js'
+import { sanitizeAttribution, type Attribution } from '../lib/attribution.js'
 
 const MAGIC_LINK_TTL_MS = 15 * 60 * 1000 // 15 minutes
 const MAGIC_LINK_TOKEN_BYTES = 32
@@ -23,6 +24,22 @@ const MagicLinkBody = z.object({
   // Optional post-login destination. Validated against `safeNext()` before
   // being baked into the email link — only same-origin URLs survive.
   next: z.string().optional(),
+  // Optional first-touch signup attribution captured by /start from the
+  // entuned_attr cookie. Untrusted — re-sanitized server-side via
+  // sanitizeAttribution (clamps lengths, drops empties). passthrough() keeps
+  // the object even though individual fields are loosely typed here.
+  attribution: z
+    .object({
+      referrer: z.string().optional(),
+      landingPath: z.string().optional(),
+      utmSource: z.string().optional(),
+      utmMedium: z.string().optional(),
+      utmCampaign: z.string().optional(),
+      utmTerm: z.string().optional(),
+      utmContent: z.string().optional(),
+    })
+    .partial()
+    .optional(),
 })
 
 /**
@@ -153,7 +170,7 @@ async function needsOnboarding(accountId: string): Promise<boolean> {
   return membership.client.industry === null
 }
 
-async function findOrCreateUserByEmail(email: string, name?: string | null): Promise<{ id: string; email: string; name: string | null; disabledAt: Date | null; tokenVersion: number }> {
+async function findOrCreateUserByEmail(email: string, name?: string | null, attribution?: Attribution): Promise<{ id: string; email: string; name: string | null; disabledAt: Date | null; tokenVersion: number }> {
   const normalized = email.trim().toLowerCase()
   const existing = await prisma.account.findUnique({ where: { email: normalized } })
   if (existing && existing.disabledAt) {
@@ -166,8 +183,10 @@ async function findOrCreateUserByEmail(email: string, name?: string | null): Pro
         data: { email: normalized, name: name ?? null, lastLoginAt: new Date() },
       })
   // Free-tier provisioning: every signed-in account gets a Client + Store
-  // (idempotent — backfills accounts that pre-date this change).
-  await ensureFreeClientForUser(acc.id, normalized)
+  // (idempotent — backfills accounts that pre-date this change). Attribution
+  // only lands on the *first* sign-in, when the Client is created; returning
+  // sign-ins are a no-op there and never overwrite first-touch.
+  await ensureFreeClientForUser(acc.id, normalized, attribution)
   return { id: acc.id, email: acc.email, name: acc.name, disabledAt: acc.disabledAt, tokenVersion: acc.tokenVersion }
 }
 
@@ -329,6 +348,7 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
       if (!parsed.success) return reply.code(200).send({ ok: true })
       const email = parsed.data.email.trim().toLowerCase()
       const validatedNext = safeNext(parsed.data.next)
+      const attribution = sanitizeAttribution(parsed.data.attribution)
 
       try {
         const tokenRaw = randomBytes(MAGIC_LINK_TOKEN_BYTES).toString('hex')
@@ -336,7 +356,18 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
         const expiresAt = new Date(Date.now() + MAGIC_LINK_TTL_MS)
 
         await prisma.magicLinkToken.create({
-          data: { email, tokenHash, expiresAt },
+          data: {
+            email,
+            tokenHash,
+            expiresAt,
+            attrReferrer: attribution.referrer,
+            attrLandingPath: attribution.landingPath,
+            attrUtmSource: attribution.utmSource,
+            attrUtmMedium: attribution.utmMedium,
+            attrUtmCampaign: attribution.utmCampaign,
+            attrUtmTerm: attribution.utmTerm,
+            attrUtmContent: attribution.utmContent,
+          },
         })
 
         // Bake `next` into the link itself so the email round-trips it without
@@ -382,7 +413,18 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
     if (row.expiresAt.getTime() < Date.now()) return failRedirect('token_expired')
 
     await prisma.magicLinkToken.update({ where: { id: row.id }, data: { consumedAt: new Date() } })
-    const acc = await findOrCreateUserByEmail(row.email)
+    // Carry first-touch attribution from the token onto the new Client (no-op
+    // for returning accounts — the Client already exists).
+    const attribution: Attribution = {
+      referrer: row.attrReferrer,
+      landingPath: row.attrLandingPath,
+      utmSource: row.attrUtmSource,
+      utmMedium: row.attrUtmMedium,
+      utmCampaign: row.attrUtmCampaign,
+      utmTerm: row.attrUtmTerm,
+      utmContent: row.attrUtmContent,
+    }
+    const acc = await findOrCreateUserByEmail(row.email, null, attribution)
     if (acc.disabledAt) {
       return reply.redirect(`${appUrl()}/start?error=account_disabled`, 302)
     }

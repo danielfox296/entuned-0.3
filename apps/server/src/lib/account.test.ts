@@ -298,7 +298,7 @@ describe('ensureFreeClientForUser', () => {
 
     await ensureFreeClientForUser('acct-1', '  Alice.Smith@Example.COM  ')
 
-    expect(clientCreate).toHaveBeenCalledWith({ data: { companyName: 'alice.smith' } })
+    expect(clientCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ companyName: 'alice.smith' }) })
   })
 
   it('falls back to "account" companyName when the email has no usable local-part', async () => {
@@ -314,7 +314,7 @@ describe('ensureFreeClientForUser', () => {
     // Email starts with '@' so split('@')[0] === '' → fallback to 'account'.
     await ensureFreeClientForUser('acct-1', '@example.com')
 
-    expect(clientCreate).toHaveBeenCalledWith({ data: { companyName: 'account' } })
+    expect(clientCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ companyName: 'account' }) })
   })
 
   it('creates the ClientMembership with role="owner" linked to the new client and account', async () => {
@@ -462,6 +462,60 @@ describe('ensureFreeClientForUser', () => {
     await ensureFreeClientForUser('acct-1', 'user@example.com')
 
     expect(sendAdminSignupMock).not.toHaveBeenCalled()
+  })
+
+  it('writes first-touch attribution onto the new Client and surfaces its summary in the admin email', async () => {
+    setRandomBytesSequence(['1234'])
+    membershipFindFirst.mockResolvedValueOnce(null)
+    clientCreate.mockResolvedValueOnce({ id: 'client-1' })
+    membershipCreate.mockResolvedValueOnce({ id: 'mem-1' })
+    storeFindUnique.mockResolvedValueOnce(null)
+    pickDefault.mockResolvedValueOnce('outcome-x')
+    storeCreate.mockResolvedValueOnce({ id: 'store-1' })
+    storeIcpCreate.mockResolvedValueOnce({ id: 'sicp-1' })
+
+    await ensureFreeClientForUser('acct-1', 'user@example.com', {
+      referrer: 'https://www.reddit.com/r/smallbusiness',
+      landingPath: '/for-apparel',
+      utmSource: 'reddit',
+      utmMedium: 'social',
+      utmCampaign: 'spring',
+      utmTerm: null,
+      utmContent: null,
+    })
+
+    expect(clientCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        attrReferrer: 'https://www.reddit.com/r/smallbusiness',
+        attrLandingPath: '/for-apparel',
+        attrUtmSource: 'reddit',
+        attrUtmMedium: 'social',
+        attrUtmCampaign: 'spring',
+        attrUtmTerm: null,
+        attrUtmContent: null,
+      }),
+    })
+    expect(sendAdminSignupMock.mock.calls[0]![0].source).toBe(
+      'utm: reddit / social / spring · via www.reddit.com · landed /for-apparel',
+    )
+  })
+
+  it('writes null attribution columns and a "Direct / unknown" source when no attribution is passed', async () => {
+    setRandomBytesSequence(['1234'])
+    membershipFindFirst.mockResolvedValueOnce(null)
+    clientCreate.mockResolvedValueOnce({ id: 'client-1' })
+    membershipCreate.mockResolvedValueOnce({ id: 'mem-1' })
+    storeFindUnique.mockResolvedValueOnce(null)
+    pickDefault.mockResolvedValueOnce('outcome-x')
+    storeCreate.mockResolvedValueOnce({ id: 'store-1' })
+    storeIcpCreate.mockResolvedValueOnce({ id: 'sicp-1' })
+
+    await ensureFreeClientForUser('acct-1', 'user@example.com')
+
+    expect(clientCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ attrReferrer: null, attrUtmSource: null }),
+    })
+    expect(sendAdminSignupMock.mock.calls[0]![0].source).toBe('Direct / unknown')
   })
 
   it('swallows sendAdminSignup errors (best-effort, never blocks sign-in)', async () => {

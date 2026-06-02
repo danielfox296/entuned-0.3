@@ -311,6 +311,9 @@ export async function sendAdminSignup(props: {
   companyName: string
   playerUrl: string
   signedUpAt: string
+  // One-line first-touch attribution summary (e.g. "via reddit.com · landed
+  // /for-apparel" or "Direct / unknown"). Optional for backward compat.
+  source?: string
 }): Promise<SendResult> {
   const to = process.env.ADMIN_EMAIL
   if (!to) return { ok: true, skipped: true }

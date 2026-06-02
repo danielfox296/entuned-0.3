@@ -11,6 +11,9 @@ export interface AdminSignupNotificationProps {
   companyName: string
   playerUrl: string
   signedUpAt: string
+  // First-touch attribution summary. Optional — older callers omit it, in
+  // which case the Source row falls back to "Direct / unknown".
+  source?: string
 }
 
 export function subject(props: AdminSignupNotificationProps): string {
@@ -24,6 +27,7 @@ export function html(props: AdminSignupNotificationProps): string {
       <tr><td style="padding:2px 12px 2px 0;color:#8a929a;">Email</td><td style="padding:2px 0;color:#d4e1e5;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">${props.userEmail}</td></tr>
       <tr><td style="padding:2px 12px 2px 0;color:#8a929a;">Company</td><td style="padding:2px 0;color:#d4e1e5;">${props.companyName}</td></tr>
       <tr><td style="padding:2px 12px 2px 0;color:#8a929a;">Player</td><td style="padding:2px 0;"><a href="${props.playerUrl}" style="color:#50929c;">${props.playerUrl}</a></td></tr>
+      <tr><td style="padding:2px 12px 2px 0;color:#8a929a;">Source</td><td style="padding:2px 0;color:#d4e1e5;">${props.source ?? 'Direct / unknown'}</td></tr>
       <tr><td style="padding:2px 12px 2px 0;color:#8a929a;">When</td><td style="padding:2px 0;color:#d4e1e5;">${props.signedUpAt}</td></tr>
     </table>
     <p style="margin:18px 0 0 0;font-size:13px;color:#8a929a;">Free tier, welcome email already sent. Account is in Dash.</p>

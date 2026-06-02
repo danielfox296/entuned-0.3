@@ -13,6 +13,7 @@ import { prisma } from '../db.js'
 import { sendAdminSignup, sendWelcome } from './email.js'
 import { FREE_TIER_ICP_ID } from './freeTier.js'
 import { pickSystemDefaultOutcomeId } from './outcomes.js'
+import { EMPTY_ATTRIBUTION, formatAttributionSummary, type Attribution } from './attribution.js'
 
 const PLAYER_URL = process.env.PLAYER_URL ?? 'https://music.entuned.co'
 const APP_URL = process.env.APP_URL ?? 'https://app.entuned.co'
@@ -74,9 +75,12 @@ export async function uniqueStoreSlug(name: string): Promise<string> {
  * The Free Tier system sentinel (FREE_TIER_CLIENT_ID) is the only Client
  * that intentionally has zero memberships; it's not a customer.
  *
- * Called from the magic-link verify and Google OAuth callback paths.
+ * Called from the magic-link verify and Google OAuth callback paths. The
+ * optional `attribution` is first-touch signup attribution carried from the
+ * magic-link token; it's written onto the Client here (write-once at creation)
+ * and is undefined on the Google path, which doesn't carry it yet.
  */
-export async function ensureFreeClientForUser(accountId: string, email: string): Promise<void> {
+export async function ensureFreeClientForUser(accountId: string, email: string, attribution?: Attribution): Promise<void> {
   const existing = await prisma.clientMembership.findFirst({
     where: { accountId },
     select: { id: true },
@@ -85,10 +89,20 @@ export async function ensureFreeClientForUser(accountId: string, email: string):
 
   const normalized = email.trim().toLowerCase()
   const localPart = normalized.split('@')[0] || 'account'
+  const attr = attribution ?? EMPTY_ATTRIBUTION
 
   const slug = await prisma.$transaction(async (tx) => {
     const client = await tx.client.create({
-      data: { companyName: localPart },
+      data: {
+        companyName: localPart,
+        attrReferrer: attr.referrer,
+        attrLandingPath: attr.landingPath,
+        attrUtmSource: attr.utmSource,
+        attrUtmMedium: attr.utmMedium,
+        attrUtmCampaign: attr.utmCampaign,
+        attrUtmTerm: attr.utmTerm,
+        attrUtmContent: attr.utmContent,
+      },
     })
     await tx.clientMembership.create({
       data: { clientId: client.id, accountId, role: 'owner' },
@@ -126,11 +140,13 @@ export async function ensureFreeClientForUser(accountId: string, email: string):
   await sendWelcome(normalized, 'free', playerUrl, APP_URL).catch(() => undefined)
 
   // Operator notification to ADMIN_EMAIL — best-effort, never blocks sign-in.
-  // Skipped automatically when ADMIN_EMAIL is unset.
+  // Skipped automatically when ADMIN_EMAIL is unset. `source` is the one-line
+  // attribution summary so the signup ping answers "where did this come from".
   await sendAdminSignup({
     userEmail: normalized,
     companyName: localPart,
     playerUrl,
     signedUpAt: new Date().toISOString(),
+    source: formatAttributionSummary(attr),
   }).catch(() => undefined)
 }

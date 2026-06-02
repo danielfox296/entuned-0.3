@@ -1,4 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
+import { T } from "@entuned/tokens";
 
 // Promo rail shown alongside the player. Content is tier-aware:
 //   free  → Core + Pro upsell (the upgrade pitch)
@@ -487,7 +488,7 @@ export function UpgradeRail({ rotationKey, tier, compact = false, withPhoto = fa
               fontSize: anchorSize,
               fontWeight: 700,
               lineHeight: 1.15,
-              color: "#D4E1E5",
+              color: T.text,
               letterSpacing: "-0.02em",
             }}
           >

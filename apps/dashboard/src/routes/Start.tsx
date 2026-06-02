@@ -4,6 +4,7 @@ import { T } from '@entuned/tokens'
 import { Button, Eyebrow, Input, Logo } from '../ui/index.js'
 import { api } from '../api.js'
 import { trackDashboardLanding, trackSignUp } from '../lib/ga4.js'
+import { captureFirstTouch, readAttribution } from '../lib/attribution.js'
 import content from '../content/start.yaml'
 
 function useMobile() {
@@ -23,8 +24,13 @@ export function Start() {
   const next = searchParams.get('next') ?? undefined
   const errorParam = searchParams.get('error')
 
-  // GA4 — fire landing event once on mount.
-  useEffect(() => { trackDashboardLanding() }, [])
+  // GA4 — fire landing event once on mount. Also stamp the first-touch
+  // attribution cookie if a visitor lands straight on /start (the marketing
+  // site stamps it earlier for visitors who arrive via entuned.co).
+  useEffect(() => {
+    trackDashboardLanding()
+    captureFirstTouch()
+  }, [])
 
   const linkErrorCopy = (() => {
     if (!errorParam) return null
@@ -44,7 +50,7 @@ export function Start() {
     setError(null)
     setBusy(true)
     try {
-      await api.requestMagicLink(email, next)
+      await api.requestMagicLink(email, next, readAttribution())
       trackSignUp('magic_link')
       setSent(true)
     } catch (err) {
