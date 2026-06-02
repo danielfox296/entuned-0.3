@@ -1,12 +1,18 @@
-// @entuned/contracts — shared HTTP response types owned by the server and
-// consumed by every frontend. Type-only: this package emits no runtime code.
+// @entuned/contracts — shared HTTP response types for Entuned's API,
+// consumed by the frontends (admin + player). Type-only: emits no runtime code.
 //
-// The server (apps/server/src/routes/*) annotates its handler return objects
-// with these types, so TypeScript enforces that the wire shape stays in sync
-// with what the clients read. Previously each frontend hand-redefined these
-// shapes and they had drifted — admin omitted `store`, under-typed `stores`,
-// and both clients called the operator field `displayName` when the server
-// actually sends `name`. This package is the single source of truth.
+// Previously each frontend hand-redefined these shapes and they had drifted —
+// admin omitted `store`, under-typed `stores`, and both clients called the
+// operator field `displayName` when the server actually sends `name`. This
+// package is the single client-side source of truth for those shapes.
+//
+// NOTE: the server (apps/server) deliberately does NOT depend on this package.
+// Railway builds the server with build context = apps/server only, so a
+// `workspace:*` dependency can't be resolved there (it breaks `pnpm install`).
+// The server therefore keeps its own local return types in auth.ts. If we ever
+// want compile-time server↔client conformance, that requires changing the
+// Railway build context (an infra decision) — see auth.ts `/auth/me`.
+// Keep these shapes in sync with apps/server/src/routes/auth.ts by hand.
 
 /** Operator identity returned by POST /auth/login (no display name). */
 export interface AuthOperator {
