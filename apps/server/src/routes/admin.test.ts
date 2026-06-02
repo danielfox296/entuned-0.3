@@ -129,10 +129,14 @@ vi.mock('../db.js', () => {
 })
 
 // Bypass JWT signing by stubbing `verify` to return a known admin payload
-// for the magic test token. requireAdmin still re-fetches the account row
-// from Prisma and checks tokenVersion — that's covered by the account mock.
-vi.mock('../lib/auth.js', () => ({
-  verify: vi.fn((token: string) => {
+// for the magic test token. The shared admin guard (adminPreHandler →
+// requireAdmin, now in lib/auth.js) still re-fetches the account row from
+// Prisma and checks tokenVersion — that's covered by the account mock. We
+// re-implement the guard here against the mocked verify + mocked prisma so
+// the auth contract (401/403 envelopes) is exercised end-to-end through the
+// plugin's preHandler, without real HMAC tokens.
+vi.mock('../lib/auth.js', () => {
+  const verify = vi.fn((token: string) => {
     if (token === 'admin-test-token') {
       return {
         accountId: 'op-admin-001',
@@ -152,8 +156,32 @@ vi.mock('../lib/auth.js', () => ({
       }
     }
     return null
-  }),
-}))
+  })
+  async function requireAdmin(req: any, reply: any) {
+    const auth = req.headers.authorization
+    if (!auth?.startsWith('Bearer ')) { reply.code(401).send({ error: 'unauthorized' }); return null }
+    const payload = verify(auth.slice(7))
+    if (!payload) { reply.code(401).send({ error: 'invalid_token' }); return null }
+    if (!payload.isAdmin) { reply.code(403).send({ error: 'admin_required' }); return null }
+    const { prisma } = await import('../db.js')
+    const op = await (prisma as any).account.findUnique({ where: { id: payload.accountId } })
+    if (!op || op.disabledAt || !op.isAdmin) { reply.code(403).send({ error: 'admin_required' }); return null }
+    if (op.tokenVersion !== payload.tv) { reply.code(401).send({ error: 'token_revoked' }); return null }
+    return { accountId: op.id, email: op.email, isAdmin: op.isAdmin }
+  }
+  return {
+    verify,
+    requireAdmin,
+    adminPreHandler: async (req: any, reply: any) => {
+      const op = await requireAdmin(req, reply)
+      if (!op) return reply
+      req.operator = op
+    },
+    ensureOperatorDecorator: (app: any) => {
+      if (!app.hasRequestDecorator('operator')) app.decorateRequest('operator', null)
+    },
+  }
+})
 
 // Free-tier outcome allowlist: default to "allowed" so most tests don't
 // have to touch it. Tests that exercise the guard override per-call.

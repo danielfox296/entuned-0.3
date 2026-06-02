@@ -1,9 +1,12 @@
-import Fastify from 'fastify'
+import Fastify, { type FastifyError } from 'fastify'
 import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
 import multipart from '@fastify/multipart'
 import fastifyCookie from '@fastify/cookie'
 import cron from 'node-cron'
+import { ZodError } from 'zod'
+import { Prisma } from '@prisma/client'
+import { AppError, sendError } from './lib/http-errors.js'
 import { healthRoutes } from './routes/health.js'
 import { hendrixRoutes } from './routes/hendrix.js'
 import { storeRoutes } from './routes/stores.js'
@@ -43,6 +46,53 @@ const app = Fastify({
 // Convert any BigInt values to Number before JSON serialization.
 app.addHook('preSerialization', async (_req, _reply, payload) => {
   return JSON.parse(JSON.stringify(payload, (_k, v) => typeof v === 'bigint' ? Number(v) : v))
+})
+
+// Global error handler — the safety net for anything that propagates as a
+// *throw* out of a route handler (uncaught exception, rejected promise, a
+// thrown AppError / ZodError / Prisma known error). Routes that send their own
+// `reply.code(...).send({ error })` envelopes by hand are unaffected: they
+// never reach here. The envelope is always `{ error: <code>, details? }`.
+app.setErrorHandler((error: FastifyError, request, reply) => {
+  // Zod parse failure (a thrown `schema.parse(...)`). Hand-rolled
+  // `safeParse` sites already send their own envelope, so this only fires for
+  // the throwing form.
+  if (error instanceof ZodError) {
+    return sendError(reply, 400, 'bad_body', error.flatten())
+  }
+
+  // Application errors carry their own status + code.
+  if (error instanceof AppError) {
+    return sendError(reply, error.status, error.code, error.details)
+  }
+
+  // Prisma known request errors: missing row → 404, unique violation → 409.
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === 'P2025') return sendError(reply, 404, 'not_found')
+    if (error.code === 'P2002') return sendError(reply, 409, 'duplicate')
+  }
+
+  // Fastify schema validation errors (e.g. JSON-schema body validation).
+  if (error.validation) {
+    return sendError(reply, 400, 'bad_body', error.validation)
+  }
+
+  // Fastify's own thrown HTTP errors (e.g. bad JSON → 400) carry a statusCode.
+  // Preserve a client-error status if present; otherwise treat as a 500.
+  const status = error.statusCode ?? 500
+  if (status >= 400 && status < 500) {
+    return sendError(reply, status, error.code ?? 'bad_request')
+  }
+
+  // Everything else is an unexpected server fault. Log the real error
+  // server-side; never leak internals (message/stack) to the client.
+  request.log.error({ err: error }, 'unhandled_error')
+  return sendError(reply, 500, 'internal')
+})
+
+// Uniform 404 for unmatched routes.
+app.setNotFoundHandler((_request, reply) => {
+  return sendError(reply, 404, 'not_found')
 })
 
 // `credentials: true` is required so browsers attach the session cookie on

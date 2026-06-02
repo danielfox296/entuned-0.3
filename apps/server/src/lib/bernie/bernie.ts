@@ -10,14 +10,15 @@
 // finishing now lives in lib/professor. The `lyric_edit_prompts` table is
 // retained for historical SongSeed provenance but no longer read at runtime.
 
-import Anthropic from '@anthropic-ai/sdk'
+import type Anthropic from '@anthropic-ai/sdk'
 import type { ArrangementSections } from '../arranger/arranger.js'
 import type { FormArchetypeChoice } from '../eno/form-archetype.js'
+import { getAnthropic, resolveModel, extractToolUse } from '../_llm/client.js'
 import { formatArrangementBrief, getOrSeedDraftPrompt } from './_helpers.js'
 import { formatHardBanBlock } from './lyric-craft-rules.js'
 import { getGenreCraftOverrides, formatGenreCraftBlock } from './genre-craft-rules.js'
 
-const MODEL = process.env.LYRICIST_MODEL ?? 'claude-sonnet-4-6'
+const MODEL = resolveModel(process.env.LYRICIST_MODEL, 'claude-sonnet-4-6')
 
 const EMIT_LYRICS_TOOL: Anthropic.Tool = {
   name: 'emit_lyrics',
@@ -111,9 +112,7 @@ Mode: ${brief.mode}
 }
 
 export async function generateLyrics(input: BernieInput): Promise<BernieOutput> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
-  const client = new Anthropic({ apiKey })
+  const client = getAnthropic()
 
   const [draftPrompt, hardBanBlock] = await Promise.all([
     getOrSeedDraftPrompt(),
@@ -146,9 +145,9 @@ ${formBrief ? `${formBrief}\n` : ''}${genreContext ? `${genreContext}\n` : ''}${
     tools: [EMIT_LYRICS_TOOL],
     tool_choice: { type: 'tool', name: 'emit_lyrics' },
   })
-  const draftToolUse = draftResponse.content.find((b: any) => b.type === 'tool_use' && (b as any).name === 'emit_lyrics') as any
+  const draftToolUse = extractToolUse(draftResponse, 'emit_lyrics')
   if (!draftToolUse) throw new Error('Bernie draft pass did not emit tool_use')
-  const draft = draftToolUse.input as { title: string; lyrics: string }
+  const draft = draftToolUse as { title: string; lyrics: string }
   if (!draft.title || !draft.lyrics) throw new Error('Bernie draft output missing title or lyrics')
 
   return {

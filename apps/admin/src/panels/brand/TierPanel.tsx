@@ -8,20 +8,13 @@
 import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
 import type { StoreCompState, TierHistoryRow } from '../../api.js'
+import { labelForTier } from '@entuned/api-client'
 import { T } from '@entuned/tokens'
 import { Button, Section, S, useToast } from '../../ui/index.js'
 
 interface Props {
   storeId: string
   storeName: string
-}
-
-const TIER_LABEL: Record<string, string> = {
-  free: 'Entuned Free',
-  mvp_pilot: 'MVP Pilot',
-  core: 'Boost',
-  pro: 'Pro',
-  enterprise: 'Enterprise',
 }
 
 const SOURCE_LABEL: Record<TierHistoryRow['source'], string> = {
@@ -72,7 +65,7 @@ export function TierPanel({ storeId, storeName }: Props) {
         },
         token,
       )
-      toast.success(`${TIER_LABEL[grantTier]} comp granted to ${storeName}`)
+      toast.success(`${labelForTier(grantTier)} comp granted to ${storeName}`)
       setShowGrant(false); setGrantReason(''); setGrantExpires('')
       await load()
     } catch (e: any) {
@@ -107,13 +100,13 @@ export function TierPanel({ storeId, storeName }: Props) {
         <div>
           <div style={{ fontSize: S.label, color: T.textMuted, fontFamily: T.sans, marginBottom: 2 }}>Effective</div>
           <div style={{ fontSize: S.body, color: T.text, fontFamily: T.sans, fontWeight: 600 }}>
-            {TIER_LABEL[store.effectiveTier] ?? store.effectiveTier}
+            {labelForTier(store.effectiveTier)}
           </div>
         </div>
         <div>
           <div style={{ fontSize: S.label, color: T.textMuted, fontFamily: T.sans, marginBottom: 2 }}>Paid (Stripe)</div>
           <div style={{ fontSize: S.body, color: T.text, fontFamily: T.sans }}>
-            {TIER_LABEL[store.paidTier] ?? store.paidTier}
+            {labelForTier(store.paidTier)}
           </div>
         </div>
         <div>
@@ -121,7 +114,7 @@ export function TierPanel({ storeId, storeName }: Props) {
           <div style={{ fontSize: S.body, color: compExpired ? T.textMuted : T.text, fontFamily: T.sans }}>
             {compActive
               ? <>
-                  {TIER_LABEL[store.compTier!] ?? store.compTier}
+                  {labelForTier(store.compTier!)}
                   {compExpired
                     ? <span style={{ color: T.danger, marginLeft: 6 }}>(expired)</span>
                     : store.compExpiresAt
@@ -215,9 +208,9 @@ export function TierPanel({ storeId, storeName }: Props) {
                 <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '120px 180px 1fr', gap: 12, fontFamily: T.sans, fontSize: S.label, padding: '4px 0', borderBottom: `1px solid ${T.border}` }}>
                   <div style={{ color: T.textMuted }}>{fmtDateTime(row.createdAt)}</div>
                   <div style={{ color: T.text }}>
-                    <span style={{ color: T.textMuted }}>{TIER_LABEL[row.fromTier] ?? row.fromTier}</span>
+                    <span style={{ color: T.textMuted }}>{labelForTier(row.fromTier)}</span>
                     <span style={{ color: T.textMuted, margin: '0 4px' }}>→</span>
-                    <strong>{TIER_LABEL[row.toTier] ?? row.toTier}</strong>
+                    <strong>{labelForTier(row.toTier)}</strong>
                   </div>
                   <div style={{ color: T.textMuted }}>
                     <span>{SOURCE_LABEL[row.source] ?? row.source}</span>

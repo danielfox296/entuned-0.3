@@ -16,11 +16,12 @@
 //     rate against an existing pool is naturally low — see "infinite monkeys"
 //     reasoning).
 
-import Anthropic from '@anthropic-ai/sdk'
+import type Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic, resolveModel, extractToolUse } from '../_llm/client.js'
 import { prisma } from '../../db.js'
 import { formatHardBanBlock } from '../bernie/lyric-craft-rules.js'
 
-const MODEL = process.env.HOOK_DRAFTER_MODEL ?? 'claude-sonnet-4-6'
+const MODEL = resolveModel(process.env.HOOK_DRAFTER_MODEL, 'claude-sonnet-4-6')
 
 // Cold-start seed only. Live prompt lives in `hook_drafter_prompts` (DB);
 // editable from Dash → Prompts & Rules → Hook Drafter. On first run after
@@ -213,9 +214,7 @@ export async function draftHooks(opts: {
   outcomeId: string
   n: number
 }): Promise<DraftHooksResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
-  const client = new Anthropic({ apiKey })
+  const client = getAnthropic()
 
   const userMessage = await buildUserMessage(opts)
 
@@ -228,11 +227,9 @@ export async function draftHooks(opts: {
     tool_choice: { type: 'tool', name: 'emit_hooks' },
   })
 
-  const toolUse = response.content.find(
-    (b: any) => b.type === 'tool_use' && (b as any).name === 'emit_hooks',
-  ) as any
+  const toolUse = extractToolUse(response, 'emit_hooks')
   if (!toolUse) throw new Error('Hook drafter did not emit tool_use')
-  const parsed = toolUse.input as { hooks: unknown }
+  const parsed = toolUse as { hooks: unknown }
   if (!Array.isArray(parsed.hooks)) throw new Error('Drafter output missing hooks array')
 
   const allowed: HookVocalGender[] = ['male', 'female', 'duet', null]

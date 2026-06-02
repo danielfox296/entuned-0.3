@@ -6,7 +6,8 @@
 // app uses a Bearer token in localStorage; we deliberately do not duplicate
 // that pattern here.
 
-import { createRequestClient } from '@entuned/api-client'
+import { createRequestClient, TIER_RANK, TIER_LABEL, TIER_PRICE, highestTier } from '@entuned/api-client'
+import type { Tier } from '@entuned/api-client'
 
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 export const PLAYER_URL = import.meta.env.VITE_PLAYER_URL ?? 'https://music.entuned.co'
@@ -16,7 +17,12 @@ const { req } = createRequestClient({ baseUrl: API_URL, credentials: 'include' }
 // ── Types ─────────────────────────────────────────────────────────
 
 export type Role = 'owner' | 'manager' | 'staff'
-export type Tier = 'free' | 'core' | 'pro' | 'enterprise'
+
+// Tier branding (TIER_RANK / TIER_LABEL / TIER_PRICE) and the `highestTier`
+// helper now live in @entuned/api-client (the branding SSOT). Re-exported here
+// so existing dashboard call-sites that import from '../api.js' keep working.
+export type { Tier }
+export { TIER_RANK, TIER_LABEL, TIER_PRICE, highestTier }
 
 export interface MeUser {
   id: string
@@ -154,33 +160,6 @@ export interface BoostTrialInput {
 }
 
 // ── Tier helpers ──────────────────────────────────────────────────
-
-export const TIER_RANK: Record<Tier, number> = {
-  free: 0,
-  core: 1,
-  pro: 2,
-  enterprise: 3,
-}
-
-export const TIER_LABEL: Record<Tier, string> = {
-  free: 'Entuned Free',
-  core: 'Boost',
-  pro: 'Pro',
-  enterprise: 'Enterprise',
-}
-
-export const TIER_PRICE: Record<Tier, string> = {
-  free: 'Free',
-  core: '$99 / location / month',
-  pro: '$399 / location / month',
-  enterprise: 'Custom',
-}
-
-/** Highest-rank tier across a Client's stores. Returns 'free' for empty input. */
-export function highestTier(stores: StoreRow[]): Tier {
-  if (stores.length === 0) return 'free'
-  return stores.reduce<Tier>((best, s) => (TIER_RANK[s.tier] > TIER_RANK[best] ? s.tier : best), 'free')
-}
 
 /** Headline store for surfaces that show a single store (e.g. Home). Picks
  * the highest-tier store so a paid customer sees the store they're paying

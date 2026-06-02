@@ -10,10 +10,11 @@
 // tempo, snare/backbeat alignment (not hi-hat subdivision), null on
 // unconfident sources.
 
-import Anthropic from '@anthropic-ai/sdk'
+import type Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic, resolveModel, extractToolUse } from '../_llm/client.js'
 import { prisma } from '../../db.js'
 
-const MODEL = process.env.BPM_LOOKUP_MODEL ?? 'claude-haiku-4-5-20251001'
+const MODEL = resolveModel(process.env.BPM_LOOKUP_MODEL, 'claude-haiku-4-5-20251001')
 
 // Cold-start seed only. Live prompt lives in `bpm_lookup_prompts` (DB), editable
 // from Dash → Prompts & Rules → BPM Lookup. After getOrSeedBpmLookupPrompt()
@@ -69,9 +70,7 @@ export interface BpmLookupResult {
 }
 
 export async function lookupBpm(input: BpmLookupInput): Promise<BpmLookupResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
-  const client = new Anthropic({ apiKey })
+  const client = getAnthropic()
 
   const userMessage = `Track: ${input.artist} — ${input.title}${input.year ? ` (${input.year})` : ''}
 
@@ -89,14 +88,12 @@ Look up the BPM and call emit_bpm.`
     ],
   })
 
-  const emitBlock = response.content.find(
-    (b: any) => b.type === 'tool_use' && b.name === 'emit_bpm',
-  ) as any
-  if (!emitBlock) {
+  const emitInput = extractToolUse(response, 'emit_bpm')
+  if (!emitInput) {
     return { bpm: null, confidence: 'low', modelId: response.model }
   }
 
-  const raw = emitBlock.input as { bpm: unknown; confidence: unknown }
+  const raw = emitInput as { bpm: unknown; confidence: unknown }
   const bpm = normalizeBpm(raw.bpm)
   const confidence = normalizeConfidence(raw.confidence)
   // If the model returned a value but it failed the (0, 300] sanity range,

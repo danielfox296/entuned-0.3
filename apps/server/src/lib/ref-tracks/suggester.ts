@@ -10,10 +10,10 @@
 // pipeline (eno.ts filters on styleAnalysis.isNot=null, and the decompose
 // route refuses pending rows).
 
-import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic, resolveModel, extractToolUse } from '../_llm/client.js'
 import { prisma } from '../../db.js'
 
-const MODEL = process.env.REF_TRACK_SUGGESTER_MODEL ?? 'claude-sonnet-4-6'
+const MODEL = resolveModel(process.env.REF_TRACK_SUGGESTER_MODEL, 'claude-sonnet-4-6')
 
 export const REFERENCE_TRACK_PROMPT_SEED = `
 You suggest reference tracks for a brand's in-store music ICP. A reference track
@@ -259,9 +259,7 @@ const EMIT_SUGGESTIONS_TOOL = {
 } as const
 
 export async function suggestReferenceTracks(opts: { icpId: string; buckets?: readonly Bucket[] }): Promise<SuggestReferenceTracksResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
-  const client = new Anthropic({ apiKey })
+  const client = getAnthropic()
 
   const [icp, prompt, existing] = await Promise.all([
     prisma.iCP.findUniqueOrThrow({ where: { id: opts.icpId }, include: { client: true } }),
@@ -329,9 +327,9 @@ Output JSON only.${focusDirective}`
     messages: [{ role: 'user', content: userMessage }],
   })
 
-  const toolUse = response.content.find((b: any) => b.type === 'tool_use' && b.name === 'emit_suggestions') as any
+  const toolUse = extractToolUse(response, 'emit_suggestions')
   if (!toolUse) throw new Error('Reference track suggester did not emit tool_use')
-  const parsed = toolUse.input as Record<string, unknown>
+  const parsed = toolUse as Record<string, unknown>
   const raw = JSON.stringify(parsed)
 
   const norm = (arr: unknown): SuggestedRefTrack[] => {

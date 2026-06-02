@@ -17,11 +17,11 @@
 //   POST   /admin/email/preview                  — render or test-send an email template
 //                                                  (gated by INTERNAL_ADMIN_TOKEN, header x-admin-token)
 
-import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
+import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
-import { verify } from '../lib/auth.js'
+import { adminPreHandler, ensureOperatorDecorator } from '../lib/auth.js'
 import bcrypt from 'bcryptjs'
 import { decompose, toStyleAnalysisData } from '../lib/decomposer/decomposer.js'
 import { lookupBpm } from '../lib/decomposer/bpm-lookup.js'
@@ -52,41 +52,6 @@ import {
   ScheduleSlotBody,
   findOverlappingSlot,
 } from '../lib/scheduleSlots.js'
-
-interface AuthedOp {
-  accountId: string
-  email: string
-  isAdmin: boolean
-}
-
-async function requireAdmin(req: FastifyRequest, reply: FastifyReply): Promise<AuthedOp | null> {
-  const auth = req.headers.authorization
-  if (!auth?.startsWith('Bearer ')) {
-    reply.code(401).send({ error: 'unauthorized' })
-    return null
-  }
-  const payload = verify(auth.slice(7))
-  if (!payload) {
-    reply.code(401).send({ error: 'invalid_token' })
-    return null
-  }
-  if (!payload.isAdmin) {
-    reply.code(403).send({ error: 'admin_required' })
-    return null
-  }
-  // Re-verify the operator is still active and the token's version matches
-  // the operator's current tokenVersion (bumped on password change / revoke).
-  const op = await prisma.account.findUnique({ where: { id: payload.accountId } })
-  if (!op || op.disabledAt || !op.isAdmin) {
-    reply.code(403).send({ error: 'admin_required' })
-    return null
-  }
-  if (op.tokenVersion !== payload.tv) {
-    reply.code(401).send({ error: 'token_revoked' })
-    return null
-  }
-  return { accountId: op.id, email: op.email, isAdmin: op.isAdmin }
-}
 
 // Time helpers + ScheduleSlotBody schema live in ../lib/scheduleSlots.js
 // (shared with /me/* routes — see ASSESSMENT.md §2.2).
@@ -213,16 +178,22 @@ const MarsAxisRuleBody = z.object({
 })
 
 export const adminRoutes: FastifyPluginAsync = async (app) => {
+  // Every admin route is guarded centrally: the preHandler runs requireAdmin
+  // and stashes the operator on req.operator (read as `req.operator!` by the
+  // handlers that need it). On auth failure it replies 401/403 and the route
+  // never runs. See lib/auth.ts.
+  ensureOperatorDecorator(app)
+  app.addHook('preHandler', adminPreHandler)
+
   // ----- MusicologicalRules -----
 
   app.get('/musicological-rules', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const all = await prisma.styleAnalyzerInstructions.findMany({ orderBy: { version: 'desc' } })
     return { latest: all[0] ?? null, history: all }
   })
 
   app.post('/musicological-rules', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const parsed = RulesPostBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const max = await prisma.styleAnalyzerInstructions.aggregate({ _max: { version: true } })
@@ -236,13 +207,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- FailureRules -----
 
   app.get('/style-exclusion-rules', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.styleExclusionRule.findMany({ orderBy: { triggerField: 'asc' } })
     return rows
   })
 
   app.post('/style-exclusion-rules', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const parsed = StyleExclusionRuleBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const row = await prisma.styleExclusionRule.create({
@@ -259,7 +228,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.put('/style-exclusion-rules/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = StyleExclusionRuleBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -282,7 +250,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.delete('/style-exclusion-rules/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     try {
       await prisma.styleExclusionRule.delete({ where: { id } })
@@ -297,7 +264,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // Append-only versioned. Latest row wins at runtime — see lib/mars/style-template-v1.ts.
 
   app.get('/style-template', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const all = await prisma.styleTemplate.findMany({ orderBy: { version: 'desc' } })
     return {
       latest: all[0] ?? null,
@@ -307,7 +273,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/style-template', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const parsed = StyleTemplatePostBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     // Reject unknown field names — keeps assembly defensive and surfaces typos.
@@ -335,7 +301,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- Production Eras (lookup for Outcome FK) -----
 
   app.get('/production-eras', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.productionEra.findMany({
       where: { isActive: true },
       select: { id: true, decade: true, genreSlug: true, genreDisplayName: true },
@@ -347,13 +312,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- OutcomeFactorPrompt (Card 14 — currently a no-op by design) -----
 
   app.get('/outcome-factor-prompt', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const all = await prisma.outcomeFactorPrompt.findMany({ orderBy: { version: 'desc' } })
     return { latest: all[0] ?? null, history: all }
   })
 
   app.post('/outcome-factor-prompt', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const parsed = OutcomePrependPostBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const max = await prisma.outcomeFactorPrompt.aggregate({ _max: { version: true } })
@@ -367,13 +331,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- ReferenceTrackPrompt (system prompt for the ref-track suggester) -----
 
   app.get('/reference-track-prompt', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const all = await prisma.referenceTrackPrompt.findMany({ orderBy: { version: 'desc' } })
     return { latest: all[0] ?? null, history: all }
   })
 
   app.post('/reference-track-prompt', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const parsed = ReferenceTrackPromptPostBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const max = await prisma.referenceTrackPrompt.aggregate({ _max: { version: true } })
@@ -388,7 +351,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     buckets: z.array(z.enum(['PreFormation', 'FormationEra', 'Subculture', 'Aspirational', 'Adjacent'])).optional(),
   })
   app.post('/icps/:id/suggest-reference-tracks', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const icpId = (req.params as any).id as string
     const exists = await prisma.iCP.findUnique({ where: { id: icpId }, select: { id: true } })
     if (!exists) return reply.code(404).send({ error: 'icp_not_found' })
@@ -405,7 +367,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- Lyric prompts (Bernie) -----
 
   app.get('/lyric-prompts', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const draftAll = await prisma.lyricDraftPrompt.findMany({ orderBy: { version: 'desc' } })
     return {
       draft: { latest: draftAll[0] ?? null, history: draftAll },
@@ -413,7 +374,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/lyric-prompts/draft', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const parsed = LyricPromptPostBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const max = await prisma.lyricDraftPrompt.aggregate({ _max: { version: true } })
@@ -433,13 +394,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // Mirrors /lyric-prompts shape. Cold-start v1 happens in lib/hooks/drafter.ts.
 
   app.get('/hook-drafter-prompt', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const all = await prisma.hookDrafterPrompt.findMany({ orderBy: { version: 'desc' } })
     return { latest: all[0] ?? null, history: all }
   })
 
   app.post('/hook-drafter-prompt', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const parsed = LyricPromptPostBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const max = await prisma.hookDrafterPrompt.aggregate({ _max: { version: true } })
@@ -456,13 +416,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // lib/professor/_helpers.ts on first call from Eno.
 
   app.get('/professor/persona', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const all = await prisma.professorPersona.findMany({ orderBy: { version: 'desc' } })
     return { latest: all[0] ?? null, history: all }
   })
 
   app.post('/professor/persona', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const parsed = LyricPromptPostBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const max = await prisma.professorPersona.aggregate({ _max: { version: true } })
@@ -474,13 +433,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.get('/professor/modules', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.professorModule.findMany({ orderBy: { sortOrder: 'asc' } })
     return rows
   })
 
   app.post('/professor/modules', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const parsed = ProfessorModulePostBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     // Default new modules to the end of the active list so they don't preempt
@@ -499,7 +456,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.patch('/professor/modules/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as { id: string }).id
     const parsed = ProfessorModulePatchBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -512,7 +468,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.delete('/professor/modules/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as { id: string }).id
     try {
       await prisma.professorModule.delete({ where: { id } })
@@ -529,13 +484,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // lib/music-professor/_helpers.ts on first call from Eno.
 
   app.get('/music-professor/persona', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const all = await prisma.musicProfessorPersona.findMany({ orderBy: { version: 'desc' } })
     return { latest: all[0] ?? null, history: all }
   })
 
   app.post('/music-professor/persona', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const parsed = LyricPromptPostBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const max = await prisma.musicProfessorPersona.aggregate({ _max: { version: true } })
@@ -547,13 +501,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.get('/music-professor/modules', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.musicProfessorModule.findMany({ orderBy: { sortOrder: 'asc' } })
     return rows
   })
 
   app.post('/music-professor/modules', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const parsed = MusicProfessorModulePostBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const max = await prisma.musicProfessorModule.aggregate({ _max: { sortOrder: true } })
@@ -571,7 +523,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.patch('/music-professor/modules/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as { id: string }).id
     const parsed = MusicProfessorModulePatchBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -584,7 +535,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.delete('/music-professor/modules/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as { id: string }).id
     try {
       await prisma.musicProfessorModule.delete({ where: { id } })
@@ -602,13 +552,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // Either field may be empty; a row may have just one direction.
 
   app.get('/genre-gravity-rules', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.genreGravityRule.findMany({ orderBy: { tag: 'asc' } })
     return rows
   })
 
   app.post('/genre-gravity-rules', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const parsed = GenreGravityRulePostBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     try {
@@ -633,7 +581,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.patch('/genre-gravity-rules/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as { id: string }).id
     const parsed = GenreGravityRulePatchBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -647,7 +594,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.delete('/genre-gravity-rules/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as { id: string }).id
     try {
       await prisma.genreGravityRule.delete({ where: { id } })
@@ -661,13 +607,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // Cold-start v1 happens in lib/decomposer/bpm-lookup.ts.
 
   app.get('/bpm-lookup-prompt', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const all = await prisma.bpmLookupPrompt.findMany({ orderBy: { version: 'desc' } })
     return { latest: all[0] ?? null, history: all }
   })
 
   app.post('/bpm-lookup-prompt', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const parsed = LyricPromptPostBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const max = await prisma.bpmLookupPrompt.aggregate({ _max: { version: true } })
@@ -686,13 +631,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // removed 2026-05-26 once anchor became the sole production strategy.
 
   app.get('/style-prompt', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const all = await prisma.styleAnchorPrompt.findMany({ orderBy: { version: 'desc' } })
     return { latest: all[0] ?? null, history: all }
   })
 
   app.post('/style-prompt', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const parsed = LyricPromptPostBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const max = await prisma.styleAnchorPrompt.aggregate({ _max: { version: true } })
@@ -706,13 +650,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- LyricBanEntries (overused words / cliché phrases / cliché shapes) -----
 
   app.get('/lyric-ban-entries', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.lyricBanEntry.findMany({ orderBy: [{ category: 'asc' }, { text: 'asc' }] })
     return rows
   })
 
   app.post('/lyric-ban-entries', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const parsed = LyricBanEntryBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     try {
@@ -727,7 +669,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.put('/lyric-ban-entries/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = LyricBanEntryBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -745,7 +686,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.delete('/lyric-ban-entries/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     try {
       await prisma.lyricBanEntry.delete({ where: { id } })
@@ -758,7 +698,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- GenreCraftRule (per-genre-family lyric craft overlays) -----
 
   app.get('/genre-craft-rules', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.genreCraftRule.findMany({
       orderBy: [{ sortOrder: 'asc' }, { familyName: 'asc' }],
     })
@@ -766,7 +705,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/genre-craft-rules', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const parsed = GenreCraftRuleBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     try {
@@ -781,7 +720,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.put('/genre-craft-rules/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const id = (req.params as any).id as string
     const parsed = GenreCraftRuleBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -799,7 +738,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.delete('/genre-craft-rules/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     try {
       await prisma.genreCraftRule.delete({ where: { id } })
@@ -812,7 +750,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- MarsContaminationTerm (always_fire / modern_drift / modern_family) -----
 
   app.get('/mars-contamination-terms', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.marsContaminationTerm.findMany({
       orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }, { term: 'asc' }],
     })
@@ -820,7 +757,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/mars-contamination-terms', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const parsed = MarsContaminationTermBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     try {
@@ -835,7 +771,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.put('/mars-contamination-terms/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = MarsContaminationTermBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -853,7 +788,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.delete('/mars-contamination-terms/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     try {
       await prisma.marsContaminationTerm.delete({ where: { id } })
@@ -866,7 +800,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- MarsAxisRule (per-axis opposite-style mapping) -----
 
   app.get('/mars-axis-rules', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.marsAxisRule.findMany({
       orderBy: [{ axisType: 'asc' }, { sortOrder: 'asc' }, { label: 'asc' }],
     })
@@ -874,7 +807,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/mars-axis-rules', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const parsed = MarsAxisRuleBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     try {
@@ -889,7 +821,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.put('/mars-axis-rules/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = MarsAxisRuleBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -907,7 +838,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.delete('/mars-axis-rules/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     try {
       await prisma.marsAxisRule.delete({ where: { id } })
@@ -922,7 +852,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- Clients (Card 3 Duke) -----
 
   app.get('/clients', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.client.findMany({
       orderBy: { companyName: 'asc' },
       include: {
@@ -962,7 +891,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.get('/clients/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const client = await prisma.client.findUnique({
       where: { id },
@@ -1053,7 +981,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.put('/clients/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = ClientUpdateBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -1070,7 +997,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/clients', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const parsed = ClientCreateBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const row = await prisma.client.create({
@@ -1115,7 +1041,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   const OwnerAttachBody = z.object({ email: z.string().email() })
 
   app.post('/clients/:id/owner', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = OwnerAttachBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -1200,7 +1125,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // unwind the rest. Songs in Cloudflare R2 are NOT removed — they're shared
   // assets across Clients and orphan-cleanup is out of scope here.
   app.delete('/clients/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
 
     const client = await prisma.client.findUnique({
@@ -1272,7 +1196,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/stores', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const parsed = StoreCreateBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     try {
@@ -1322,7 +1245,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.put('/stores/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = StoreUpdateBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -1397,7 +1319,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.delete('/stores/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
 
     if (id === FREE_TIER_AD_STORE_ID) {
@@ -1437,7 +1358,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.get('/stores', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.store.findMany({
       where: { archivedAt: null },
       orderBy: [{ client: { companyName: 'asc' } }, { name: 'asc' }],
@@ -1460,7 +1380,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.get('/stores/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const store = await prisma.store.findUnique({
       where: { id },
@@ -1507,7 +1426,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/icps', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const parsed = IcpCreateBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const store = await prisma.store.findUnique({ where: { id: parsed.data.storeId } })
@@ -1544,7 +1462,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.put('/icps/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = IcpUpdateBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -1566,7 +1483,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/icps/:id/reference-tracks', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const icpId = (req.params as any).id as string
     const parsed = RefTrackBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -1591,7 +1507,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.put('/reference-tracks/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = RefTrackBody.partial().safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -1604,7 +1519,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.delete('/reference-tracks/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     try {
       await prisma.referenceTrack.delete({ where: { id } })
@@ -1618,7 +1532,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // Returns the existing cached value if previously resolved.
   // ?force=1 retries even if a prior attempt set source='none'.
   app.post('/reference-tracks/:id/preview', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const force = (req.query as any)?.force === '1'
     const ref = await prisma.referenceTrack.findUnique({ where: { id } })
@@ -1656,7 +1569,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // --- Reject a pending suggestion. Soft-delete: keeps the row so the
   // suggester learns to exclude it from future runs. Idempotent. ---
   app.post('/reference-tracks/:id/reject', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     try {
       const row = await prisma.referenceTrack.update({
@@ -1671,7 +1583,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // --- Approve a pending (suggested) reference track. Flips status to approved. ---
   app.post('/reference-tracks/:id/approve', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const id = (req.params as any).id as string
     try {
       const row = await prisma.referenceTrack.update({
@@ -1701,7 +1613,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/reference-tracks/:id/archive', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     try {
       const row = await prisma.referenceTrack.update({
@@ -1718,7 +1629,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // query param scopes the approval to one bucket; omit to approve all pending
   // across all buckets on this ICP. ---
   app.post('/icps/:id/reference-tracks/approve-all-pending', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const icpId = (req.params as any).id as string
     const bucket = (req.query as any)?.bucket as string | undefined
     const allowedBuckets = ['PreFormation', 'FormationEra', 'Subculture', 'Aspirational', 'Adjacent'] as const
@@ -1764,7 +1675,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // Always overwrites any existing analysis. Pending suggestions cannot be
   // decomposed — approve first.
   app.post('/reference-tracks/:id/decompose', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const ref = await prisma.referenceTrack.findUnique({
       where: { id },
@@ -1817,7 +1727,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- Bulk: decompose every approved reference track across all ICPs -----
 
   app.post('/reference-tracks/decompose-all', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const tracks = await prisma.referenceTrack.findMany({
       where: { status: 'approved' },
       include: { styleAnalysis: true },
@@ -1861,7 +1770,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/style-analyses/backfill-bpm', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const parsed = BackfillBpmBody.safeParse(req.body ?? {})
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const limit = parsed.data.limit ?? 50
@@ -1904,7 +1812,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- Outcomes (read-only list for hook picker etc.) -----
 
   app.get('/outcomes', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const includeSuperseded = (req.query as any)?.include === 'all'
     const rows = await prisma.outcome.findMany({
       where: includeSuperseded ? {} : { supersededAt: null },
@@ -1939,7 +1846,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/outcomes', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const parsed = OutcomeCreateBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const row = await prisma.outcome.create({
@@ -1965,7 +1872,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // PUT = create new version with same outcomeKey, supersede the old.
   // Existing references (hooks, schedule rows, submissions, lineage rows) stay pinned to the old id.
   app.put('/outcomes/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const id = (req.params as any).id as string
     const parsed = OutcomeCreateBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -2005,7 +1912,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // Outcome versions and break version-pinned downstream rows.
 
   app.get('/outcome-lyric-factors', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     // Return one row per active Outcome family with its current lyric factor
     // (or null if never set), so the editor can render every outcome.
     const [outcomes, factors] = await Promise.all([
@@ -2039,7 +1945,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.put('/outcome-lyric-factors/:outcomeKey', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const outcomeKey = (req.params as any).outcomeKey as string
     const parsed = OutcomeLyricFactorBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -2062,7 +1968,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/outcomes/:id/supersede', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const existing = await prisma.outcome.findUnique({ where: { id } })
     if (!existing) return reply.code(404).send({ error: 'not_found' })
@@ -2099,7 +2004,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.get('/form-archetypes', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     // Return archetypes plus the active outcome list so the editor can render
     // a human-readable per-outcome weight grid (outcomeKey JSON keys → titles).
     const [archetypes, outcomes] = await Promise.all([
@@ -2132,7 +2036,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/form-archetypes', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const parsed = FormArchetypeBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     try {
@@ -2157,7 +2060,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.put('/form-archetypes/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = FormArchetypeBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -2185,7 +2087,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.delete('/form-archetypes/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     try {
       await prisma.formArchetype.delete({ where: { id } })
@@ -2219,7 +2120,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.get('/arrangement-policy', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const loaded = await getOrSeedArrangementPolicy()
     const history = await prisma.arrangementPolicy.findMany({
       orderBy: { version: 'desc' },
@@ -2234,7 +2134,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/arrangement-policy', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const Body = z.object({ config: ArrangementConfigBody, notes: z.string().nullable().optional() })
     const parsed = Body.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -2256,7 +2155,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // is on free tier. Toggle in Dash to gate, or unlock for a promo week.
 
   app.get('/free-tier-outcomes', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     // Return one row per outcomeKey (latest active version's metadata) plus
     // an `availableOnFree` flag from free_tier_outcomes. Superseded versions
     // are folded into their active sibling.
@@ -2280,7 +2178,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   const FreeTierOutcomeToggleBody = z.object({ outcomeKey: z.string().uuid() })
   app.post('/free-tier-outcomes/toggle', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const parsed = FreeTierOutcomeToggleBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
     const { outcomeKey } = parsed.data
@@ -2299,7 +2196,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // (store-ICP × scheduled-outcome) combination. This dashboard surfaces that risk.
 
   app.get('/pool-depth', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
 
     const [icps, activeOutcomes, counts] = await Promise.all([
       prisma.iCP.findMany({
@@ -2350,7 +2246,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // operator-facing browse / retire / restore / flagged-report views over it.
 
   app.get('/lineage-rows', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const q = req.query as any
     const limit = Math.min(parseInt(q.limit ?? '50', 10) || 50, 200)
     const offset = Math.max(parseInt(q.offset ?? '0', 10) || 0, 0)
@@ -2474,7 +2369,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   //   - Else INSERT a new Free Tier row (icpId=FREE_TIER_ICP_ID, hookId=NULL).
   // The source row itself is never modified.
   app.post('/lineage-rows/:id/toggle-general', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const source = await prisma.lineageRow.findUnique({
       where: { id },
@@ -2509,7 +2403,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   const LineageRowPatch = z.object({ active: z.boolean() })
 
   app.patch('/lineage-rows/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = LineageRowPatch.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -2533,7 +2426,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // by song, with counts per reason and the most recent report. The retire affordance
   // on this panel deactivates every LineageRow that references the offending song.
   app.get('/flagged', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
 
     const events = await prisma.playbackEvent.findMany({
       where: { eventType: 'song_report', songId: { not: null } },
@@ -2651,7 +2543,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // Retire every LineageRow referencing a flagged song in one step. Append-only audio
   // events are untouched — this just deactivates pool membership.
   app.post('/flagged/:songId/retire', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const songId = (req.params as any).songId as string
     const result = await prisma.lineageRow.updateMany({
       where: { songId, active: true },
@@ -2669,7 +2560,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/flagged/:songId/retire-for-store', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const songId = (req.params as any).songId as string
     const parsed = RetireForStoreBody.safeParse(req.body)
     if (!parsed.success) { reply.code(400); return { error: 'invalid body', issues: parsed.error.issues } }
@@ -2683,7 +2573,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.delete('/flagged/:songId/retire-for-store/:storeId', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const { songId, storeId } = req.params as any
     await prisma.storeRetiredSong.deleteMany({ where: { storeId, songId } })
     return { ok: true }
@@ -2692,7 +2581,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- Hooks (per-ICP queue) -----
 
   app.get('/icps/:id/hooks', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const icpId = (req.params as any).id as string
     const rows = await prisma.hook.findMany({
       where: { icpId },
@@ -2723,7 +2611,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/icps/:id/hook-writer/run', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const icpId = (req.params as any).id as string
     const parsed = DraftHooksBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -2754,7 +2641,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   }).refine((b) => !!b.texts || !!b.hooks, { message: 'Provide either texts or hooks' })
 
   app.post('/icps/:id/hooks/bulk', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const icpId = (req.params as any).id as string
     const parsed = HookBulkBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -2783,7 +2670,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/icps/:id/hooks', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const icpId = (req.params as any).id as string
     const parsed = HookCreateBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -2825,7 +2712,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.put('/hooks/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = HookUpdateBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -2845,7 +2731,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // Reject a draft hook. Persists status='rejected' and captures an optional
   // reason that feeds the next drafter batch as an anti-anchor.
   app.post('/hooks/:id/reject', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = HookRejectBody.safeParse(req.body ?? {})
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -2862,7 +2747,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/hooks/:id/approve', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const id = (req.params as any).id as string
     const existing = await prisma.hook.findUnique({ where: { id } })
     if (!existing) return reply.code(404).send({ error: 'not_found' })
@@ -2880,7 +2765,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // sees what will be left dangling. POST /retire applies it (skip in-flight check
   // with ?force=true if the operator has decided that's fine).
   app.get('/hooks/:id/retire-preview', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const hook = await prisma.hook.findUnique({ where: { id } })
     if (!hook) return reply.code(404).send({ error: 'not_found' })
@@ -2901,7 +2785,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   const RetireBody = z.object({ force: z.boolean().optional() })
 
   app.post('/hooks/:id/retire', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = RetireBody.safeParse(req.body ?? {})
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
@@ -2928,7 +2811,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- Playback: live store view + override -----
 
   app.get('/stores/:id/live', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const store = await prisma.store.findUnique({
       where: { id },
@@ -3035,7 +2917,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // pass `before` (an ISO occurredAt) to fetch older rows. Returns
   // `nextBefore` (ISO of the last row, or null if no more data).
   app.get('/stores/:id/events', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const q = req.query as { before?: string; limit?: string }
     const limit = Math.min(Math.max(Number(q.limit) || 50, 1), 200)
@@ -3094,7 +2975,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // unsubscribes — bucketed by day with severity coding. Replaces "scan the
   // full event firehose for trouble" with a single read.
   app.get('/stores/:id/player-health', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const q = z.object({ days: z.coerce.number().int().min(1).max(60).default(7) }).safeParse(req.query)
     if (!q.success) return reply.code(400).send({ error: 'bad_query' })
@@ -3151,7 +3031,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   const OverrideBody = z.object({ outcomeId: z.string().uuid() })
 
   app.post('/stores/:id/outcome-selection', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const id = (req.params as any).id as string
     const parsed = OverrideBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -3180,7 +3060,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/stores/:id/outcome-selection/clear', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const id = (req.params as any).id as string
     try {
       await clearOverride(id)
@@ -3201,7 +3081,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- Schedule (per-store weekly grid) -----
 
   app.get('/stores/:id/schedule', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const rows = await prisma.scheduleSlot.findMany({
       where: { storeId: id },
@@ -3222,7 +3101,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/stores/:id/schedule', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = ScheduleSlotBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -3268,7 +3146,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.put('/schedule-rows/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = ScheduleSlotBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -3315,7 +3192,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.delete('/schedule-rows/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     try {
       await prisma.scheduleSlot.delete({ where: { id } })
@@ -3332,7 +3208,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // depends on. Pure projection — does not touch override or current time.
 
   app.get('/stores/:id/schedule-dry-run', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const storeId = (req.params as any).id as string
 
     const store = await prisma.store.findUnique({
@@ -3497,7 +3372,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.delete('/hooks/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const existing = await prisma.hook.findUnique({ where: { id } })
     if (!existing) return reply.code(404).send({ error: 'not_found' })
@@ -3514,7 +3388,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.get('/song-seeds', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const parsed = SongSeedsListQuery.safeParse(req.query)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_query', details: parsed.error.flatten() })
     const where: any = {}
@@ -3535,7 +3408,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.get('/song-seeds/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const row = await prisma.songSeed.findUnique({
       where: { id },
@@ -3566,7 +3438,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // (accepted seeds are terminal). Used by the SongSeed modal's Save button and
   // the auto-save-before-accept flow.
   app.patch('/song-seeds/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = SongSeedPatchBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -3602,7 +3473,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // Song Creation Queue dashboard: per-outcome inventory for an ICP.
   // Returns counts the operator needs to decide what to act on without trial-and-error.
   app.get('/song-creation-queue/inventory', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const icpId = (req.query as any).icpId as string | undefined
     if (!icpId) return reply.code(400).send({ error: 'missing_icpId' })
 
@@ -3697,7 +3567,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/eno/run', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const parsed = SeedBuilderRunBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     try {
@@ -3716,7 +3586,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.delete('/song-seeds/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const existing = await prisma.songSeed.findUnique({ where: { id } })
     if (!existing) return reply.code(404).send({ error: 'not_found' })
@@ -3736,7 +3605,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/song-seeds/:id/accept', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = AcceptBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -3818,7 +3686,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // POST /admin/song-seeds/:id/accept-files — multipart file upload alternative to URL-paste accept
   app.post('/song-seeds/:id/accept-files', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
 
     const existing = await prisma.songSeed.findUnique({ where: { id } })
@@ -3887,7 +3754,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // src_unsupported / MEDIA_ERR_SRC_NOT_SUPPORTED in the player. Powers the
   // Dash Song Repair panel.
   app.get('/songs/broken', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.song.findMany({
       where: { byteSize: { lt: BigInt(MIN_AUDIO_BYTES) }, lineageRows: { some: { active: true } } },
       select: {
@@ -3930,7 +3796,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   const RepairBody = z.object({ sourceUrl: z.string().url() })
 
   app.post('/songs/:id/repair', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = RepairBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -3956,7 +3821,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // POST /admin/songs/:id/repair-file — multipart alternative when operator has
   // the mp3 locally (e.g. downloaded from Suno). Single file in the request.
   app.post('/songs/:id/repair-file', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const song = await prisma.song.findUnique({ where: { id }, select: { id: true, r2ObjectKey: true } })
     if (!song) return reply.code(404).send({ error: 'not_found' })
@@ -3987,7 +3851,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.put('/decompositions/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = DecompositionUpdateBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -4003,7 +3866,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // GET /admin/operators — list all operators with store assignments
   app.get('/operators', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.account.findMany({
       orderBy: { email: 'asc' },
       include: { storeAssignments: { include: { store: { select: { id: true, name: true, client: { select: { companyName: true } } } } } } },
@@ -4027,7 +3889,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // POST /admin/operators — create a new operator
   app.post('/operators', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const parsed = OperatorCreateBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
     const passwordHash = await bcrypt.hash(parsed.data.password, 10)
@@ -4067,7 +3929,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // PUT /admin/operators/:id — update email, password, stores, or disabled state
   app.put('/operators/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const id = (req.params as any).id as string
     const parsed = OperatorUpdateBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -4129,7 +3991,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // GET /admin/users[?q=substring][&clientId=<uuid>]
   app.get('/users', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const q = ((req.query as any)?.q as string | undefined)?.trim().toLowerCase() ?? ''
     const clientId = ((req.query as any)?.clientId as string | undefined)?.trim() || ''
     const conds: any[] = []
@@ -4180,7 +4041,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // (boots the user out of any active sessions) and burns outstanding magic
   // links keyed on the old email.
   app.patch('/users/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = UserPatchBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
@@ -4234,7 +4094,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // the customer-initiated flow, just bypasses the rate-limit and goes to
   // whatever email is on the user record.
   app.post('/users/:id/send-magic-link', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const u = await prisma.account.findUnique({ where: { id } })
     if (!u) return reply.code(404).send({ error: 'not_found' })
@@ -4261,7 +4120,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // issued before this call stops resolving. Use after a credential leak,
   // device theft, or just to log a customer out.
   app.post('/users/:id/revoke-sessions', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     try {
       const u = await prisma.account.update({
@@ -4283,7 +4141,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // Disabling also bumps tokenVersion so any active session is killed
   // immediately. Re-enabling does not bump.
   app.post('/users/:id/disable', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const parsed = UserDisableBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
@@ -4307,7 +4164,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // manager), via store assignment (associate), or via cross-client admin. One
   // list, one role per row. Powers the Clients > Logins panel.
   app.get('/clients/:clientId/logins', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const clientId = (req.params as any).clientId as string
     const exists = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } })
     if (!exists) return reply.code(404).send({ error: 'not_found' })
@@ -4373,7 +4229,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // POST /admin/stores/:storeId/pos/ingest
   app.post('/stores/:storeId/pos/ingest', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const storeId = (req.params as any).storeId as string
 
     const store = await prisma.store.findUnique({ where: { id: storeId }, select: { id: true, clientId: true } })
@@ -4445,7 +4301,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // GET /admin/stores/:storeId/pos/runs
   app.get('/stores/:storeId/pos/runs', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const storeId = (req.params as any).storeId as string
     const runs = await prisma.pOSPullRun.findMany({
       where: { storeId },
@@ -4467,7 +4322,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // GET /admin/stores/:storeId/pos/summary
   app.get('/stores/:storeId/pos/summary', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const storeId = (req.params as any).storeId as string
     const [totalEvents, earliest, latest] = await Promise.all([
       prisma.pOSEvent.count({ where: { storeId } }),
@@ -4487,7 +4341,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // Accepts a multipart XLS file (RetailNext "Daily Comprehensive Traffic Report").
   // Parses Sheet1 (daily summary) and Sheet2 (hourly breakdown) and upserts snapshots.
   app.post('/stores/:storeId/retailnext/ingest-xls', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const storeId = (req.params as any).storeId as string
 
     const store = await prisma.store.findUnique({ where: { id: storeId }, select: { id: true } })
@@ -4605,7 +4459,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // GET /admin/stores/:storeId/retailnext/runs
   app.get('/stores/:storeId/retailnext/runs', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const storeId = (req.params as any).storeId as string
     const runs = await prisma.retailNextIngestRun.findMany({
       where: { storeId },
@@ -4661,7 +4514,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // GET /admin/stores/:storeId/campaigns
   app.get('/stores/:storeId/campaigns', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const storeId = (req.params as any).storeId as string
     const campaigns = await prisma.campaign.findMany({
       where: { storeId },
@@ -4673,7 +4525,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // POST /admin/stores/:storeId/campaigns
   app.post('/stores/:storeId/campaigns', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const storeId = (req.params as any).storeId as string
     const body = z.object({
       name: z.string().min(1),
@@ -4696,7 +4547,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // PUT /admin/campaigns/:id
   app.put('/campaigns/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const body = z.object({
       name: z.string().min(1).optional(),
@@ -4719,7 +4569,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // DELETE /admin/campaigns/:id
   app.delete('/campaigns/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     await prisma.campaign.delete({ where: { id } })
     return { ok: true }
@@ -4727,7 +4576,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // POST /admin/campaigns/:campaignId/assets — paste a source URL, server downloads + re-hosts to R2
   app.post('/campaigns/:campaignId/assets', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const campaignId = (req.params as any).campaignId as string
     const body = z.object({
       sourceUrl: z.string().url(),
@@ -4780,7 +4628,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // POST /admin/campaigns/:campaignId/assets/upload — direct file upload to R2
   app.post('/campaigns/:campaignId/assets/upload', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const campaignId = (req.params as any).campaignId as string
 
     const campaign = await prisma.campaign.findUnique({
@@ -4835,7 +4682,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // DELETE /admin/ad-assets/:id
   app.delete('/ad-assets/:id', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const asset = await prisma.adAsset.findUnique({ where: { id }, select: { campaignId: true, position: true } })
     if (!asset) return reply.code(404).send({ error: 'not_found' })
@@ -4853,7 +4699,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // PUT /admin/ad-assets/:id/move — shift position up or down by one
   app.put('/ad-assets/:id/move', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as any).id as string
     const { direction } = z.object({ direction: z.enum(['up', 'down']) }).parse(req.body)
 
@@ -4936,7 +4781,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ──────────────────────────────────────────────────────────────────
 
   app.get('/email/templates', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const rows = await prisma.emailTemplate.findMany({ orderBy: { name: 'asc' } })
     const editableSet = new Set(EDITABLE_TEMPLATE_NAMES)
     const allNames = Object.keys(TEMPLATES)
@@ -4956,7 +4800,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.get<{ Params: { name: string } }>('/email/templates/:name', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const name = req.params.name
     if (!(name in TEMPLATES)) return reply.code(404).send({ error: 'unknown_template' })
     if (!EDITABLE_TEMPLATE_NAMES.includes(name as TemplateName)) {
@@ -4981,7 +4824,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.put<{ Params: { name: string } }>('/email/templates/:name', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const name = req.params.name
     if (!(name in TEMPLATES)) return reply.code(404).send({ error: 'unknown_template' })
     if (!EDITABLE_TEMPLATE_NAMES.includes(name as TemplateName)) {
@@ -5028,7 +4870,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/email/lifecycle/run', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const parsed = LifecycleRunBody.safeParse(req.body ?? {})
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
 
@@ -5063,7 +4904,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   //     so an Enterprise comp would have no upgrade path on expiry. Add
   //     'enterprise' back to this enum when an Enterprise SKU exists.
   app.post('/stores/:id/comp', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const id = (req.params as { id?: string } | undefined)?.id
     if (!id) return reply.code(400).send({ error: 'bad_id' })
 
@@ -5132,7 +4973,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // The Store row keeps the comp metadata cleared; audit trail lives in
   // tier_change_logs.
   app.delete('/stores/:id/comp', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
+    const op = req.operator!
     const id = (req.params as { id?: string } | undefined)?.id
     if (!id) return reply.code(400).send({ error: 'bad_id' })
 
@@ -5179,7 +5020,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // GET /admin/stores/:id/tier-history — audit log for one Store, newest first.
   app.get('/stores/:id/tier-history', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const id = (req.params as { id?: string } | undefined)?.id
     if (!id) return reply.code(400).send({ error: 'bad_id' })
 
@@ -5235,7 +5075,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // pause_collection back off. Idempotent: a Store with pausedUntil = null
   // is filtered out, so re-runs on already-resumed Stores are no-ops.
   app.post('/email/pause-auto-resume/run', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     try {
       const stats = await runPauseAutoResume()
       return { ok: true, stats }
@@ -5249,7 +5088,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // Same code path as the daily cron. Runs warning + ended emails and
   // clears expired comps from Store rows. Idempotent across runs.
   app.post('/comp-expiry/run', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     try {
       const stats = await runCompExpiryCron()
       return { ok: true, stats }
@@ -5264,7 +5102,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // and expired share links that would otherwise only show up as cryptic
   // skipped tracks. Default window is 7 days.
   app.get('/song-load-failures', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const q = z.object({ days: z.coerce.number().int().min(1).max(90).default(7) }).safeParse(req.query)
     if (!q.success) return reply.code(400).send({ error: 'bad_query' })
     const since = new Date(Date.now() - q.data.days * 24 * 60 * 60 * 1000)

@@ -14,10 +14,11 @@
 // lyric unchanged. The provenance fields on `SongSeed` capture the pre-
 // Professor lyric and the persona version used.
 
-import Anthropic from '@anthropic-ai/sdk'
+import type Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic, resolveModel, extractToolUse } from '../_llm/client.js'
 import { getOrSeedPersona, loadActiveModules, formatCurriculumBlock } from './_helpers.js'
 
-const MODEL = process.env.PROFESSOR_MODEL ?? process.env.LYRICIST_MODEL ?? 'claude-sonnet-4-6'
+const MODEL = resolveModel(process.env.PROFESSOR_MODEL, process.env.LYRICIST_MODEL, 'claude-sonnet-4-6')
 
 const EMIT_FINISHED_LYRIC_TOOL: Anthropic.Tool = {
   name: 'emit_finished_lyric',
@@ -80,9 +81,7 @@ function countSectionMarkers(text: string): number {
 }
 
 export async function runProfessor(input: ProfessorInput): Promise<ProfessorOutput> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
-  const client = new Anthropic({ apiKey })
+  const client = getAnthropic()
 
   const [persona, modules] = await Promise.all([
     getOrSeedPersona(),
@@ -104,8 +103,8 @@ export async function runProfessor(input: ProfessorInput): Promise<ProfessorOutp
       tools: [EMIT_FINISHED_LYRIC_TOOL],
       tool_choice: { type: 'tool', name: 'emit_finished_lyric' },
     })
-    const toolUse = response.content.find((b: any) => b.type === 'tool_use' && (b as any).name === 'emit_finished_lyric') as any
-    if (toolUse) toolInput = toolUse.input as { lyrics?: string; changeLog?: string[] }
+    const toolUse = extractToolUse(response, 'emit_finished_lyric')
+    if (toolUse) toolInput = toolUse as { lyrics?: string; changeLog?: string[] }
   } catch {
     // Network / API error — fall back to the input lyric. We deliberately do
     // not throw: the Professor is an additive polish layer and must not block

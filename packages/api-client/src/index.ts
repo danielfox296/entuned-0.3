@@ -9,6 +9,15 @@
 //   - Bearer token (admin, player) — passed per-call as the optional `token` arg.
 //   - Cookies (dashboard) — opt in with `credentials: 'include'`.
 
+export {
+  TIER_RANK,
+  TIER_LABEL,
+  TIER_PRICE,
+  labelForTier,
+  highestTier,
+} from './tier.js'
+export type { Tier } from './tier.js'
+
 export type ApiError = Error & { status: number; code?: string }
 
 /**

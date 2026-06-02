@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { T } from '@entuned/tokens'
 import { TIER_LABEL, TIER_PRICE, TIER_RANK, type Tier } from '../api.js'
+import { labelForTier } from '@entuned/api-client'
 import { useAuth } from '../lib/auth.jsx'
 import { useTier } from '../lib/tier.jsx'
 import { trackLockedNavClick } from '../lib/ga4.js'
@@ -221,7 +222,7 @@ function NavRow({ item, unlocked, showTooltip }: { item: NavSpec; unlocked: bool
   const [hover, setHover] = useState(false)
   const isRoadmap = item.requires === 'roadmap'
   const showBadge = !unlocked
-  const badgeLabel = isRoadmap ? 'Soon' : (item.requires === 'core' ? 'Boost' : 'Pro')
+  const badgeLabel = isRoadmap ? 'Soon' : labelForTier(item.requires)
 
   return (
     <div

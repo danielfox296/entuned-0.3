@@ -18,7 +18,8 @@
 // used. Like the Lyric Professor, this layer must never block seed
 // generation.
 
-import Anthropic from '@anthropic-ai/sdk'
+import type Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic, resolveModel, extractToolUse } from '../_llm/client.js'
 import {
   getOrSeedPersona,
   loadActiveModules,
@@ -27,7 +28,7 @@ import {
   formatGenreGravityBlock,
 } from './_helpers.js'
 
-const MODEL = process.env.MUSIC_PROFESSOR_MODEL ?? process.env.PROFESSOR_MODEL ?? 'claude-sonnet-4-6'
+const MODEL = resolveModel(process.env.MUSIC_PROFESSOR_MODEL, process.env.PROFESSOR_MODEL, 'claude-sonnet-4-6')
 
 // Hard caps. Positive style cap is well below SUNO_STYLE_CAP (1000) since
 // applyOutcomeFactorPrompt prepends ~40 chars and Mars's actual output runs
@@ -130,9 +131,7 @@ function containsBannedToken(style: string): boolean {
 }
 
 export async function runMusicProfessor(input: MusicProfessorInput): Promise<MusicProfessorOutput> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
-  const client = new Anthropic({ apiKey })
+  const client = getAnthropic()
 
   const [persona, modules, gravityRules] = await Promise.all([
     getOrSeedPersona(),
@@ -159,8 +158,8 @@ negativeStyle: ${input.negativeStyle}`
       tools: [EMIT_POLISHED_STYLE_TOOL],
       tool_choice: { type: 'tool', name: 'emit_polished_style' },
     })
-    const toolUse = response.content.find((b: any) => b.type === 'tool_use' && (b as any).name === 'emit_polished_style') as any
-    if (toolUse) toolInput = toolUse.input as { style?: string; negativeStyle?: string; changeLog?: string[] }
+    const toolUse = extractToolUse(response, 'emit_polished_style')
+    if (toolUse) toolInput = toolUse as { style?: string; negativeStyle?: string; changeLog?: string[] }
   } catch {
     // Network / API error — fall back to the Mars input. The Music Professor
     // is an additive polish layer and must not block seed generation.

@@ -12,11 +12,12 @@
 // line because it never receives or emits one — the timeline builder owns the
 // verbatim lyrics.
 
-import Anthropic from '@anthropic-ai/sdk'
+import type Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic, resolveModel, extractToolUse } from '../_llm/client.js'
 import { getOrSeedFlowRendererPersona } from './loaders.js'
 import type { FlowTimeline } from './timeline.js'
 
-const MODEL = process.env.FLOW_RENDERER_MODEL ?? process.env.MUSIC_PROFESSOR_MODEL ?? 'claude-sonnet-4-6'
+const MODEL = resolveModel(process.env.FLOW_RENDERER_MODEL, process.env.MUSIC_PROFESSOR_MODEL, 'claude-sonnet-4-6')
 
 // Generous guardrails — Flow has no prompt cap, but bound runaway output.
 const SOUND_WORLD_HARD_CAP = 3000
@@ -139,9 +140,7 @@ function formatTimelineForPrompt(timeline: FlowTimeline): string {
 }
 
 export async function runFlowRenderer(input: FlowRendererInput): Promise<FlowRendererOutput> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
-  const client = new Anthropic({ apiKey })
+  const client = getAnthropic()
 
   const persona = await getOrSeedFlowRendererPersona()
 
@@ -175,8 +174,8 @@ Emit soundWorld + one description per slot via the tool.`
       tools: [EMIT_FLOW_PROMPT_TOOL],
       tool_choice: { type: 'tool', name: 'emit_flow_prompt' },
     })
-    const toolUse = response.content.find((b: any) => b.type === 'tool_use' && (b as any).name === 'emit_flow_prompt') as any
-    if (toolUse) toolInput = toolUse.input
+    const toolUse = extractToolUse(response, 'emit_flow_prompt')
+    if (toolUse) toolInput = toolUse as { soundWorld?: string; sections?: Array<{ index?: number; description?: string }> }
   } catch {
     return { soundWorld: '', sectionDescriptions: {}, personaVersion: persona.version, fellBack: true, fallbackReason: 'api_error' }
   }

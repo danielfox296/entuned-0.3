@@ -16,15 +16,15 @@
 // As of 2026-05-26 this is the sole production strategy. The legacy router + raw
 // template strategies were removed once Anchor became the only path.
 
-import Anthropic from '@anthropic-ai/sdk'
 import type { StyleAnalysis } from '@prisma/client'
+import { getAnthropic, resolveModel, extractToolUse } from '../_llm/client.js'
 import { stripForSuno } from './sanitize.js'
 import { capStyle } from './cap.js'
 import { prisma } from '../../db.js'
 
 // Un-pinned alias — picks up minor model improvements automatically. Pin via
 // MARS_ANCHOR_MODEL env if reproducibility matters for a given experiment.
-const MODEL = process.env.MARS_ANCHOR_MODEL ?? 'claude-haiku-4-5'
+const MODEL = resolveModel(process.env.MARS_ANCHOR_MODEL, 'claude-haiku-4-5')
 // v2 — affect-ban discipline ported from the router system prompt. v1 was
 // leaking literary/affect words ("bedroom pop intimacy", "earnest", etc.)
 // into the corrections list, where Suno doesn't ground on them and the
@@ -166,10 +166,7 @@ export async function buildAnchorStyle(
   decomposition: StyleAnalysis,
   ctx: AnchorContext = {},
 ): Promise<AnchorResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
-
-  const client = new Anthropic({ apiKey })
+  const client = getAnthropic()
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 600,
@@ -216,16 +213,14 @@ export async function buildAnchorStyle(
     tool_choice: { type: 'tool', name: 'emit_anchor' },
   })
 
-  const toolUse = response.content.find(
-    (b: any) => b.type === 'tool_use' && (b as any).name === 'emit_anchor',
-  ) as any
+  const toolUse = extractToolUse(response, 'emit_anchor')
   if (!toolUse) throw new Error('Anchor did not emit tool_use')
-  const pick = toolUse.input as AnchorPick
+  const pick = toolUse as AnchorPick
   try {
     validate(pick)
   } catch (e) {
     console.error('--- anchor tool_use input (validation failed) ---')
-    console.error(JSON.stringify(toolUse.input))
+    console.error(JSON.stringify(toolUse))
     console.error('--- end tool_use input ---')
     throw e
   }

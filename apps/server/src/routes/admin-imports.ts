@@ -19,37 +19,24 @@
 // duplicating audio, and the LineageRow is only created if an active one for
 // (songId, outcomeId, FREE_TIER_ICP_ID) doesn't already exist.
 
-import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
+import type { FastifyPluginAsync, FastifyRequest } from 'fastify'
 import { createHash } from 'node:crypto'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
-import { verify } from '../lib/auth.js'
+import { adminPreHandler, ensureOperatorDecorator } from '../lib/auth.js'
 import { uploadBuffer, MIN_AUDIO_BYTES } from '../lib/r2.js'
 import { FREE_TIER_ICP_ID } from '../lib/freeTier.js'
 
-interface AuthedOp { accountId: string; email: string; isAdmin: boolean }
-
-async function requireAdmin(req: FastifyRequest, reply: FastifyReply): Promise<AuthedOp | null> {
-  const auth = req.headers.authorization
-  if (!auth?.startsWith('Bearer ')) { reply.code(401).send({ error: 'unauthorized' }); return null }
-  const payload = verify(auth.slice(7))
-  if (!payload) { reply.code(401).send({ error: 'invalid_token' }); return null }
-  if (!payload.isAdmin) { reply.code(403).send({ error: 'admin_required' }); return null }
-  const op = await prisma.account.findUnique({ where: { id: payload.accountId } })
-  if (!op || op.disabledAt || !op.isAdmin) { reply.code(403).send({ error: 'admin_required' }); return null }
-  if (op.tokenVersion !== payload.tv) { reply.code(401).send({ error: 'token_revoked' }); return null }
-  return { accountId: op.id, email: op.email, isAdmin: op.isAdmin }
-}
-
 export const adminImportRoutes: FastifyPluginAsync = async (app) => {
+  ensureOperatorDecorator(app)
+  app.addHook('preHandler', adminPreHandler)
+
   // POST /admin/free-tier-imports?outcome=<title|displayTitle>
   // multipart body: exactly one audio file field.
   // Resolves the outcome by name (case-insensitive title or displayTitle),
   // asserts it's in the FreeTierOutcome allowlist, then upserts Song +
   // LineageRow @ FREE_TIER_ICP_ID.
   app.post('/free-tier-imports', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
-
     const outcomeName = (req.query as Record<string, string>).outcome?.trim()
     if (!outcomeName) {
       return reply.code(400).send({ error: 'missing_outcome', message: 'Pass ?outcome=<name> (e.g. chill, steady, upbeat).' })

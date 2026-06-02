@@ -2,27 +2,10 @@
 // (lockscreen / wake-lock / visibility / stall / PWA-install / audio cache /
 // web push) so Dash operators can see per-store interruption rates and
 // installation adoption without writing SQL.
-import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify'
+import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../db.js'
-import { verify } from '../lib/auth.js'
-
-type AuthedOp = { accountId: string; email: string; isAdmin: boolean }
-
-async function requireAdmin(req: FastifyRequest, reply: FastifyReply): Promise<AuthedOp | null> {
-  const auth = req.headers.authorization
-  if (!auth?.startsWith('Bearer ')) { reply.code(401).send({ error: 'unauthorized' }); return null }
-  const payload = verify(auth.slice(7))
-  if (!payload) { reply.code(401).send({ error: 'invalid_token' }); return null }
-  if (!payload.isAdmin) { reply.code(403).send({ error: 'forbidden' }); return null }
-  const op = await prisma.account.findUnique({
-    where: { id: payload.accountId },
-    select: { id: true, email: true, isAdmin: true, disabledAt: true, tokenVersion: true },
-  })
-  if (!op || op.disabledAt || !op.isAdmin) { reply.code(403).send({ error: 'forbidden' }); return null }
-  if (op.tokenVersion !== payload.tv) { reply.code(401).send({ error: 'token_revoked' }); return null }
-  return { accountId: op.id, email: op.email, isAdmin: op.isAdmin }
-}
+import { adminPreHandler, ensureOperatorDecorator } from '../lib/auth.js'
 
 // Event types we surface in the summary. Listed explicitly so a future
 // addition to the Zod allow-list doesn't silently change the panel.
@@ -50,9 +33,11 @@ const RELIABILITY_EVENT_TYPES = [
 const QuerySchema = z.object({ days: z.coerce.number().int().min(1).max(90).default(7) })
 
 export const adminReliabilityRoutes: FastifyPluginAsync = async (app) => {
+  ensureOperatorDecorator(app)
+  app.addHook('preHandler', adminPreHandler)
+
   // GET /admin/reliability/summary?days=7 — per-store rollup.
   app.get('/reliability/summary', async (req, reply) => {
-    const op = await requireAdmin(req, reply); if (!op) return
     const q = QuerySchema.safeParse(req.query)
     if (!q.success) return reply.code(400).send({ error: 'bad_query' })
     const since = new Date(Date.now() - q.data.days * 24 * 60 * 60 * 1000)

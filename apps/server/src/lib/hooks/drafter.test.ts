@@ -19,6 +19,7 @@ vi.mock('@anthropic-ai/sdk', () => {
 })
 
 import { buildUserMessage, draftHooks, HOOK_SYSTEM_PROMPT_SEED, EMIT_HOOKS_TOOL } from './drafter.js'
+import { _resetAnthropicForTests } from '../_llm/client.js'
 import { prisma } from '../../db.js'
 
 const icpFind = prisma.iCP.findUniqueOrThrow as ReturnType<typeof vi.fn>
@@ -243,6 +244,10 @@ function toolUseResponse(hooks: Array<{ text: string; vocal_gender?: string }>) 
 describe('draftHooks', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // The shared Anthropic client is memoized; reset it so the per-test
+    // ANTHROPIC_API_KEY state (set here / deleted in the unset-key test) is
+    // honored on the next getAnthropic() call rather than served from cache.
+    _resetAnthropicForTests()
     process.env.ANTHROPIC_API_KEY = 'test-key'
     // Seed the DB-backed hook drafter prompt so the loader short-circuits to
     // the existing row (avoids hitting prisma.create in the mock).

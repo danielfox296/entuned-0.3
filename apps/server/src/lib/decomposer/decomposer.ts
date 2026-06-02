@@ -20,7 +20,7 @@
 //   the per-version notes and the rule that older versions are
 //   intentionally retained as rollback parachutes.
 
-import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic, resolveModel, extractToolUse } from '../_llm/client.js'
 import { prisma } from '../../db.js'
 import { MUSICOLOGICAL_RULES_V1 } from './rules-v1.js'
 import { MUSICOLOGICAL_RULES_V2 } from './rules-v2.js'
@@ -37,7 +37,7 @@ import { MUSICOLOGICAL_RULES_V12 } from './rules-v12.js'
 import { MUSICOLOGICAL_RULES_V13 } from './rules-v13.js'
 import { Prisma } from '@prisma/client'
 
-const MODEL = process.env.DECOMPOSER_MODEL ?? 'claude-sonnet-4-6'
+const MODEL = resolveModel(process.env.DECOMPOSER_MODEL, 'claude-sonnet-4-6')
 
 // Versioned rule selection. Default to latest. Override via env DECOMPOSER_RULES_VERSION=1.
 const RULES_BY_VERSION: Record<number, string> = {
@@ -250,10 +250,7 @@ export async function decompose(input: DecomposeInput): Promise<DecomposeResult>
     })
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
-
-  const client = new Anthropic({ apiKey })
+  const client = getAnthropic()
 
   const requiredKeys = rulesRow.version >= 10
     ? 'verifiable_facts, confidence, vibe_pitch, era_production_signature, instrumentation_palette, standout_element, vocal_character, vocal_arrangement, harmonic_and_groove, vocal_gender, arrangement_sections, bpm'
@@ -323,11 +320,9 @@ ${rulesRow.version >= 2 ? 'Use web search to ground yourself in this exact track
     messages: [{ role: 'user', content: userMessage }],
   })
 
-  const emitBlock = response.content.find(
-    (b: any) => b.type === 'tool_use' && b.name === 'emit_decomposition',
-  ) as any
-  if (!emitBlock) throw new Error('Decomposer did not emit emit_decomposition tool_use')
-  const parsed = emitBlock.input as StyleAnalysisOutput
+  const emitInput = extractToolUse(response, 'emit_decomposition')
+  if (!emitInput) throw new Error('Decomposer did not emit emit_decomposition tool_use')
+  const parsed = emitInput as StyleAnalysisOutput
   try {
     validate(parsed, rulesRow.version)
   } catch (e) {

@@ -5,24 +5,10 @@
 // events. No estimates, no fallback heuristics. If we don't have the event,
 // we don't fabricate the number — we just don't show it.
 
-import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
+import type { FastifyPluginAsync } from 'fastify'
 import { prisma } from '../db.js'
-import { verify } from '../lib/auth.js'
+import { adminPreHandler, ensureOperatorDecorator } from '../lib/auth.js'
 import { effectiveTier } from '../lib/tier.js'
-
-interface AuthedOp { accountId: string; email: string; isAdmin: boolean }
-
-async function requireAdmin(req: FastifyRequest, reply: FastifyReply): Promise<AuthedOp | null> {
-  const auth = req.headers.authorization
-  if (!auth?.startsWith('Bearer ')) { reply.code(401).send({ error: 'unauthorized' }); return null }
-  const payload = verify(auth.slice(7))
-  if (!payload) { reply.code(401).send({ error: 'invalid_token' }); return null }
-  if (!payload.isAdmin) { reply.code(403).send({ error: 'admin_required' }); return null }
-  const op = await prisma.account.findUnique({ where: { id: payload.accountId } })
-  if (!op || op.disabledAt || !op.isAdmin) { reply.code(403).send({ error: 'admin_required' }); return null }
-  if (op.tokenVersion !== payload.tv) { reply.code(401).send({ error: 'token_revoked' }); return null }
-  return { accountId: op.id, email: op.email, isAdmin: op.isAdmin }
-}
 
 // ISO 8601 week string, e.g. "2026-W20"
 function isoWeek(date: Date): string {
@@ -53,10 +39,10 @@ function isActivated(songStarts: number, sessions: number): boolean {
 }
 
 export const adminRetentionRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/retention', async (req, reply) => {
-    const op = await requireAdmin(req, reply)
-    if (!op) return
+  ensureOperatorDecorator(app)
+  app.addHook('preHandler', adminPreHandler)
 
+  app.get('/retention', async (req, reply) => {
     const raw = parseInt((req.query as Record<string, string>).windowDays ?? '28', 10)
     const windowDays = ([7, 14, 28, 90] as const).includes(raw as 7 | 14 | 28 | 90) ? raw : 28
 
