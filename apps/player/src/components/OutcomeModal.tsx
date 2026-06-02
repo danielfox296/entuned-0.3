@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { T } from "@entuned/tokens";
+import { PLAYER_ACCENT, PLAYER_TEXT_BRIGHT } from "../theme.js";
 import type { OutcomeOption } from "../api.js";
 import { effectFor } from "../lib/outcomeCopy.js";
 
@@ -18,7 +19,7 @@ function modeSortKey(o: OutcomeOption): number {
 // Brand teal — drives the modal's accent color throughout. No gold in this
 // surface; gold reads as Pro-tier signal elsewhere in the app and we want
 // the upsell here to feel like the same brand, not a different product.
-const TEAL = "#6AB0BB";
+const TEAL = PLAYER_ACCENT;
 const TEAL_TINT = "rgba(106,176,187,0.16)";
 const TEAL_BORDER = "rgba(106,176,187,0.55)";
 const TEAL_BORDER_FAINT = "rgba(106,176,187,0.18)";
@@ -124,7 +125,7 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
             fontFamily: "'Manrope', sans-serif",
             fontSize: compact ? 18 : 22,
             fontWeight: 700,
-            color: "#e8eef0",
+            color: PLAYER_TEXT_BRIGHT,
             letterSpacing: "-0.01em",
           }}>
             Pick what the music should do
@@ -337,7 +338,7 @@ function OutcomeRow({
             fontSize: compact ? 14 : 15,
             fontWeight: 600,
             letterSpacing: 0.2,
-            color: active ? TEAL : (locked ? "rgba(212,225,229,0.65)" : "#e8eef0"),
+            color: active ? TEAL : (locked ? "rgba(212,225,229,0.65)" : PLAYER_TEXT_BRIGHT),
           }}>
             {label}
           </span>

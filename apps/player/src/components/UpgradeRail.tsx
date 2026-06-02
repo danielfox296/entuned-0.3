@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { T } from "@entuned/tokens";
+import { PLAYER_ACCENT } from "../theme.js";
 
 // Promo rail shown alongside the player. Content is tier-aware:
 //   free  → Core + Pro upsell (the upgrade pitch)
@@ -376,7 +377,7 @@ export function UpgradeRail({ rotationKey, tier, compact = false, withPhoto = fa
         return { label: "Open your dashboard →", href: "https://app.entuned.co" };
     }
   })();
-  const ctaColor = "#6AB0BB";
+  const ctaColor = PLAYER_ACCENT;
   const ctaUnderline = "rgba(106, 176, 187, 0.5)";
 
   // Sizes scale down on narrow viewports so the rail can fit in 50% of phone
@@ -451,7 +452,7 @@ export function UpgradeRail({ rotationKey, tier, compact = false, withPhoto = fa
         justifyContent: withPhoto ? "flex-start" : "space-between",
         padding,
         background: "rgba(80, 146, 156, 0.06)",
-        borderLeft: "3px solid #6AB0BB",
+        borderLeft: `3px solid ${PLAYER_ACCENT}`,
         borderRadius: 4,
         boxSizing: "border-box",
         minHeight: 0,
@@ -522,7 +523,7 @@ export function UpgradeRail({ rotationKey, tier, compact = false, withPhoto = fa
                 <span
                   style={{
                     flexShrink: 0,
-                    color: "#6AB0BB",
+                    color: PLAYER_ACCENT,
                     opacity: 0.7,
                   }}
                   aria-hidden="true"

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import { T } from "@entuned/tokens";
+import { PLAYER_ACCENT, PLAYER_TEXT_BRIGHT } from "../theme.js";
 
 // First-launch onboarding tour — single tooltip pointing at the Outcome chip,
 // the one control whose meaning isn't self-evident. Heart and Flag are
@@ -11,7 +12,7 @@ const TOUR_KEY = "entuned.player.tour.seen.v2";
 // Brand teal — matches --accent in index.css. The tour is the user's first
 // touchpoint with the player, so it has to read as "Entuned" not "premium
 // callout"; gold is reserved for Pro-tier signal elsewhere in the app.
-const TEAL = "#6AB0BB";
+const TEAL = PLAYER_ACCENT;
 const TEAL_GLOW = "rgba(106,176,187,0.42)";
 const TEAL_RING = "rgba(106,176,187,0.85)";
 const TEAL_BORDER = "rgba(106,176,187,0.55)";
@@ -197,7 +198,7 @@ export function TooltipTour({ steps, onClose }: Props) {
         ) : null}
 
         <div style={{
-          fontSize: 16, lineHeight: 1.5, color: "#E8EEF0",
+          fontSize: 16, lineHeight: 1.5, color: PLAYER_TEXT_BRIGHT,
           fontWeight: 400, letterSpacing: "0.005em",
           marginBottom: 18,
         }}>

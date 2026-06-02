@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { T } from "@entuned/tokens";
+import { PLAYER_ACCENT } from "../theme.js";
 
 const DISMISS_KEY = "entuned.pwa_tip_dismissed_v1";
 
@@ -110,7 +111,7 @@ export function PWAInstallTip() {
         <button
           onClick={install}
           style={{
-            background: "#6AB0BB",
+            background: PLAYER_ACCENT,
             color: "#0d0d0a",
             border: "none",
             borderRadius: 8,

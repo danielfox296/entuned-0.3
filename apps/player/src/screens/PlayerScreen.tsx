@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { T } from "@entuned/tokens";
+import { PLAYER_ACCENT, PLAYER_GOLD } from "../theme.js";
 import { api, type QueueItem, type ActiveOutcome, type OutcomeOption, type AudioEventType, type ExtraFor } from "../api.js";
 import { CrossfadePlayer } from "../audio/crossfade-player.js";
 import { LoudnessSampler } from "../audio/loudness-sampler.js";
@@ -53,8 +54,8 @@ const TIER_LABEL: Record<string, string> = {
 };
 const TIER_COLOR: Record<string, string> = {
   free:       "rgba(212,225,229,0.55)", // ice faint
-  core:       "#6AB0BB",                // teal
-  pro:        "#E8B458",                // gold
+  core:       PLAYER_ACCENT,                // teal
+  pro:        PLAYER_GOLD,                // gold
   enterprise: "#D4E1E5",                // ice full
 };
 function TierEyebrow({ tier }: { tier: string }) {
@@ -1216,7 +1217,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
             {allOutcomesMode && currentItem ? (() => {
               const outcomeTitle = outcomes.find((o) => o.outcomeId === currentItem.outcomeId)?.title ?? null;
               return outcomeTitle ? (
-                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "0.18em", color: "#6AB0BB", textTransform: "uppercase", textAlign: "center", marginBottom: 12 }}>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "0.18em", color: PLAYER_ACCENT, textTransform: "uppercase", textAlign: "center", marginBottom: 12 }}>
                   {outcomeTitle}
                 </div>
               ) : null;
@@ -1249,13 +1250,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
         </div>
 
         {networkError ? (
-          <div style={{ fontFamily: "'Inter', sans-serif", padding: "10px 22px", background: "rgba(80,146,156,0.08)", border: "1px solid rgba(80,146,156,0.30)", borderRadius: 0, maxWidth: 440, textAlign: "center", fontSize: 12, color: "#6AB0BB", letterSpacing: "0.05em" }}>
+          <div style={{ fontFamily: "'Inter', sans-serif", padding: "10px 22px", background: "rgba(80,146,156,0.08)", border: "1px solid rgba(80,146,156,0.30)", borderRadius: 0, maxWidth: 440, textAlign: "center", fontSize: 12, color: PLAYER_ACCENT, letterSpacing: "0.05em" }}>
             {networkError}
           </div>
         ) : null}
 
         {buffering && !networkError ? (
-          <div style={{ fontFamily: "'Inter', sans-serif", padding: "10px 22px", background: "rgba(232,180,88,0.08)", border: "1px solid rgba(232,180,88,0.30)", borderRadius: 0, maxWidth: 440, textAlign: "center", fontSize: 12, color: "#E8B458", letterSpacing: "0.05em" }}>
+          <div style={{ fontFamily: "'Inter', sans-serif", padding: "10px 22px", background: "rgba(232,180,88,0.08)", border: "1px solid rgba(232,180,88,0.30)", borderRadius: 0, maxWidth: 440, textAlign: "center", fontSize: 12, color: PLAYER_GOLD, letterSpacing: "0.05em" }}>
             Buffering — poor connection. Will skip if needed.
           </div>
         ) : null}
@@ -1333,7 +1334,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
 
         {twoCol ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "0.18em", color: "#6AB0BB", textTransform: "uppercase" }}>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "0.18em", color: PLAYER_ACCENT, textTransform: "uppercase" }}>
               This session
             </div>
             <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 400, color: "rgba(212,225,229,0.85)" }}>
@@ -1362,7 +1363,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
             transition: "all 300ms cubic-bezier(.4,0,.2,1)",
           }}
         >
-          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "0.18em", color: "#6AB0BB", textTransform: "uppercase" }}>
+          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "0.18em", color: PLAYER_ACCENT, textTransform: "uppercase" }}>
             Music for
           </span>
           <span style={{ width: 1, height: 18, background: "rgba(80, 146, 156, 0.30)" }} />
@@ -1376,13 +1377,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
               </span>
             ) : null}
             {expiresLabel ? (
-              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 10, fontWeight: 500, letterSpacing: "0.10em", color: "#E8B458", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 10, fontWeight: 500, letterSpacing: "0.10em", color: PLAYER_GOLD, textTransform: "uppercase", whiteSpace: "nowrap" }}>
                 {expiresLabel}
               </span>
             ) : null}
           </div>
           <svg width="12" height="8" viewBox="0 0 12 8" fill="none" style={{ marginLeft: 4 }}>
-            <path d="M1 1l5 5 5-5" stroke="#6AB0BB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M1 1l5 5 5-5" stroke={PLAYER_ACCENT} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
       </div>
