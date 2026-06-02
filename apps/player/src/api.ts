@@ -2,6 +2,9 @@
 // Switch base URL with VITE_API_URL at build time.
 
 import { createRequestClient } from '@entuned/api-client'
+// Auth/me response shapes are owned by the server via @entuned/contracts.
+import type { AuthResponse, MeResponse } from '@entuned/contracts'
+export type { AuthResponse, MeResponse }
 
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
@@ -63,18 +66,7 @@ export interface OutcomeOption {
   availableOnFree: boolean
 }
 
-export interface AuthResponse {
-  token: string
-  operator: { id: string; email: string; isAdmin: boolean }
-}
-
-export interface MeResponse {
-  operator: { id: string; email: string; displayName: string | null; isAdmin: boolean }
-  /** Single store for non-admin operators (login determines store). Null for admins. */
-  store: { id: string; name: string; clientName: string | null; tier: string } | null
-  /** Cross-store list for admins; also a legacy fallback. */
-  stores: { id: string; name: string; clientName: string | null; tier: string }[]
-}
+// AuthResponse + MeResponse are imported from @entuned/contracts (re-exported above).
 
 export type AudioEventType =
   | 'song_start' | 'song_complete' | 'song_skip' | 'song_report' | 'song_love'

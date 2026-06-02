@@ -3,6 +3,11 @@
 // This file adds admin-specific typed endpoints + localStorage token storage.
 
 import { createRequestClient } from '@entuned/api-client'
+// Auth/me response shapes are owned by the server via @entuned/contracts.
+// Imported for local use AND re-exported so existing
+// `import { MeResponse } from './api.js'` consumers keep working.
+import type { AuthResponse, MeResponse } from '@entuned/contracts'
+export type { AuthResponse, MeResponse }
 
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
@@ -21,16 +26,7 @@ export function clearToken() {
 const { req, upload } = createRequestClient({ baseUrl: API_URL })
 
 // --- Types matching Prisma schema ---
-
-export interface AuthResponse {
-  token: string
-  operator: { id: string; email: string; isAdmin: boolean }
-}
-
-export interface MeResponse {
-  operator: { id: string; email: string; displayName: string | null; isAdmin: boolean }
-  stores: { id: string; name: string }[]
-}
+// AuthResponse + MeResponse are imported from @entuned/contracts (re-exported above).
 
 export interface HealthResponse {
   ok: boolean

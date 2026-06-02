@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
+import type { AuthResponse, MeResponse, MeStore } from '@entuned/contracts'
 import { z } from 'zod'
 import { createHash, randomBytes } from 'node:crypto'
 import bcrypt from 'bcryptjs'
@@ -47,7 +48,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     const result = await login(parsed.data.email, parsed.data.password)
     if (!result) return reply.code(401).send({ error: 'invalid_credentials' })
 
-    return {
+    const body: AuthResponse = {
       token: result.token,
       // External field name kept as `operator` for the admin/Dash SPA's
       // existing reads. Internally this is an Account row.
@@ -57,6 +58,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         isAdmin: result.account.isAdmin,
       },
     }
+    return body
   })
 
   // GET /auth/me — verify a token and return account + their store assignments.
@@ -75,8 +77,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     if (!acc || acc.disabledAt) return reply.code(401).send({ error: 'operator_disabled' })
     if (acc.tokenVersion !== payload.tv) return reply.code(401).send({ error: 'token_revoked' })
 
-    type StoreOut = { id: string; name: string; clientName: string | null; tier: string }
-    let stores: StoreOut[]
+    let stores: MeStore[]
     if (acc.isAdmin) {
       const rows = await prisma.store.findMany({
         select: { id: true, name: true, tier: true, compTier: true, compExpiresAt: true, client: { select: { companyName: true } } },
@@ -91,12 +92,13 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       }))
     }
     const store = !acc.isAdmin && stores.length > 0 ? stores[0] : null
-    return {
+    const body: MeResponse = {
       // External field name kept as `operator` for SPA back-compat.
       operator: { id: acc.id, email: acc.email, name: acc.name, isAdmin: acc.isAdmin },
       store,
       stores,
     }
+    return body
   })
 
   // ── Password recovery ──────────────────────────────────────────────────

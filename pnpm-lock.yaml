@@ -31,6 +31,9 @@ importers:
       '@entuned/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@entuned/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@entuned/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens
@@ -105,6 +108,9 @@ importers:
       '@entuned/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@entuned/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       howler:
         specifier: ^2.2.4
         version: 2.2.4
@@ -151,6 +157,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.1037.0
         version: 3.1037.0
+      '@entuned/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@fastify/cookie':
         specifier: ^11.0.2
         version: 11.0.2
@@ -241,6 +250,12 @@ importers:
         version: 4.1.6(@types/node@22.19.17)(vite@6.4.2(@types/node@22.19.17)(terser@5.47.1)(tsx@4.21.0))
 
   packages/api-client:
+    devDependencies:
+      vitest:
+        specifier: ^4.1.6
+        version: 4.1.6(@types/node@22.19.17)(vite@6.4.2(@types/node@22.19.17)(terser@5.47.1)(tsx@4.21.0))
+
+  packages/contracts:
     devDependencies:
       vitest:
         specifier: ^4.1.6
