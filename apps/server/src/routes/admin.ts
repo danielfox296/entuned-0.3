@@ -22,6 +22,7 @@ import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
 import { adminPreHandler, ensureOperatorDecorator } from '../lib/auth.js'
+import { registerVersionedText, registerModuleCrud } from './admin-resource-helpers.js'
 import bcrypt from 'bcryptjs'
 import { decompose, toStyleAnalysisData } from '../lib/decomposer/decomposer.js'
 import { lookupBpm } from '../lib/decomposer/bpm-lookup.js'
@@ -187,21 +188,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // ----- MusicologicalRules -----
 
-  app.get('/musicological-rules', async (req, reply) => {
-    const all = await prisma.styleAnalyzerInstructions.findMany({ orderBy: { version: 'desc' } })
-    return { latest: all[0] ?? null, history: all }
-  })
-
-  app.post('/musicological-rules', async (req, reply) => {
-    const op = req.operator!
-    const parsed = RulesPostBody.safeParse(req.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const max = await prisma.styleAnalyzerInstructions.aggregate({ _max: { version: true } })
-    const next = (max._max.version ?? 0) + 1
-    const row = await prisma.styleAnalyzerInstructions.create({
-      data: { version: next, rulesText: parsed.data.rulesText, notes: parsed.data.notes ?? null, createdById: op.accountId },
-    })
-    return row
+  registerVersionedText(app, {
+    getPath: '/musicological-rules',
+    model: prisma.styleAnalyzerInstructions,
+    field: 'rulesText',
+    schema: RulesPostBody,
   })
 
   // ----- FailureRules -----
@@ -311,40 +302,20 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // ----- OutcomeFactorPrompt (Card 14 — currently a no-op by design) -----
 
-  app.get('/outcome-factor-prompt', async (req, reply) => {
-    const all = await prisma.outcomeFactorPrompt.findMany({ orderBy: { version: 'desc' } })
-    return { latest: all[0] ?? null, history: all }
-  })
-
-  app.post('/outcome-factor-prompt', async (req, reply) => {
-    const op = req.operator!
-    const parsed = OutcomePrependPostBody.safeParse(req.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const max = await prisma.outcomeFactorPrompt.aggregate({ _max: { version: true } })
-    const next = (max._max.version ?? 0) + 1
-    const row = await prisma.outcomeFactorPrompt.create({
-      data: { version: next, templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, createdById: op.accountId },
-    })
-    return row
+  registerVersionedText(app, {
+    getPath: '/outcome-factor-prompt',
+    model: prisma.outcomeFactorPrompt,
+    field: 'templateText',
+    schema: OutcomePrependPostBody,
   })
 
   // ----- ReferenceTrackPrompt (system prompt for the ref-track suggester) -----
 
-  app.get('/reference-track-prompt', async (req, reply) => {
-    const all = await prisma.referenceTrackPrompt.findMany({ orderBy: { version: 'desc' } })
-    return { latest: all[0] ?? null, history: all }
-  })
-
-  app.post('/reference-track-prompt', async (req, reply) => {
-    const op = req.operator!
-    const parsed = ReferenceTrackPromptPostBody.safeParse(req.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const max = await prisma.referenceTrackPrompt.aggregate({ _max: { version: true } })
-    const next = (max._max.version ?? 0) + 1
-    const row = await prisma.referenceTrackPrompt.create({
-      data: { version: next, templateText: parsed.data.templateText, notes: parsed.data.notes ?? null, createdById: op.accountId },
-    })
-    return row
+  registerVersionedText(app, {
+    getPath: '/reference-track-prompt',
+    model: prisma.referenceTrackPrompt,
+    field: 'templateText',
+    schema: ReferenceTrackPromptPostBody,
   })
 
   const SuggestRefTracksBody = z.object({
@@ -366,23 +337,15 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // ----- Lyric prompts (Bernie) -----
 
-  app.get('/lyric-prompts', async (req, reply) => {
-    const draftAll = await prisma.lyricDraftPrompt.findMany({ orderBy: { version: 'desc' } })
-    return {
-      draft: { latest: draftAll[0] ?? null, history: draftAll },
-    }
-  })
-
-  app.post('/lyric-prompts/draft', async (req, reply) => {
-    const op = req.operator!
-    const parsed = LyricPromptPostBody.safeParse(req.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const max = await prisma.lyricDraftPrompt.aggregate({ _max: { version: true } })
-    const next = (max._max.version ?? 0) + 1
-    const row = await prisma.lyricDraftPrompt.create({
-      data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.accountId },
-    })
-    return row
+  // GET nests under `draft` (legacy shape — once held draft + edit prompts);
+  // POST writes to /lyric-prompts/draft.
+  registerVersionedText(app, {
+    getPath: '/lyric-prompts',
+    postPath: '/lyric-prompts/draft',
+    model: prisma.lyricDraftPrompt,
+    field: 'promptText',
+    schema: LyricPromptPostBody,
+    wrapGet: (all) => ({ draft: { latest: all[0] ?? null, history: all } }),
   })
 
   // POST /lyric-prompts/edit was retired 2026-05-25 when Bernie collapsed to a
@@ -393,21 +356,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- Hook Drafter prompt (universal craft prompt for hook generation) -----
   // Mirrors /lyric-prompts shape. Cold-start v1 happens in lib/hooks/drafter.ts.
 
-  app.get('/hook-drafter-prompt', async (req, reply) => {
-    const all = await prisma.hookDrafterPrompt.findMany({ orderBy: { version: 'desc' } })
-    return { latest: all[0] ?? null, history: all }
-  })
-
-  app.post('/hook-drafter-prompt', async (req, reply) => {
-    const op = req.operator!
-    const parsed = LyricPromptPostBody.safeParse(req.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const max = await prisma.hookDrafterPrompt.aggregate({ _max: { version: true } })
-    const next = (max._max.version ?? 0) + 1
-    const row = await prisma.hookDrafterPrompt.create({
-      data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.accountId },
-    })
-    return row
+  registerVersionedText(app, {
+    getPath: '/hook-drafter-prompt',
+    model: prisma.hookDrafterPrompt,
+    field: 'promptText',
+    schema: LyricPromptPostBody,
   })
 
   // ----- The Professor (finishing editor for song lyrics) -----
@@ -415,66 +368,19 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // Modules are a CRUD'd curriculum list. Cold-start of both happens in
   // lib/professor/_helpers.ts on first call from Eno.
 
-  app.get('/professor/persona', async (req, reply) => {
-    const all = await prisma.professorPersona.findMany({ orderBy: { version: 'desc' } })
-    return { latest: all[0] ?? null, history: all }
+  // Persona = versioned system prompt; modules = sortOrder-ordered curriculum.
+  // New modules default to the end of the list (max sortOrder + 10).
+  registerVersionedText(app, {
+    getPath: '/professor/persona',
+    model: prisma.professorPersona,
+    field: 'promptText',
+    schema: LyricPromptPostBody,
   })
-
-  app.post('/professor/persona', async (req, reply) => {
-    const op = req.operator!
-    const parsed = LyricPromptPostBody.safeParse(req.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const max = await prisma.professorPersona.aggregate({ _max: { version: true } })
-    const next = (max._max.version ?? 0) + 1
-    const row = await prisma.professorPersona.create({
-      data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.accountId },
-    })
-    return row
-  })
-
-  app.get('/professor/modules', async (req, reply) => {
-    const rows = await prisma.professorModule.findMany({ orderBy: { sortOrder: 'asc' } })
-    return rows
-  })
-
-  app.post('/professor/modules', async (req, reply) => {
-    const parsed = ProfessorModulePostBody.safeParse(req.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    // Default new modules to the end of the active list so they don't preempt
-    // existing ordering. Operators can drag-reorder afterward.
-    const max = await prisma.professorModule.aggregate({ _max: { sortOrder: true } })
-    const nextSort = parsed.data.sortOrder ?? ((max._max.sortOrder ?? 0) + 10)
-    const row = await prisma.professorModule.create({
-      data: {
-        name: parsed.data.name,
-        body: parsed.data.body,
-        active: parsed.data.active ?? true,
-        sortOrder: nextSort,
-      },
-    })
-    return row
-  })
-
-  app.patch('/professor/modules/:id', async (req, reply) => {
-    const id = (req.params as { id: string }).id
-    const parsed = ProfessorModulePatchBody.safeParse(req.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    try {
-      const row = await prisma.professorModule.update({ where: { id }, data: parsed.data })
-      return row
-    } catch {
-      return reply.code(404).send({ error: 'not_found' })
-    }
-  })
-
-  app.delete('/professor/modules/:id', async (req, reply) => {
-    const id = (req.params as { id: string }).id
-    try {
-      await prisma.professorModule.delete({ where: { id } })
-      return { ok: true }
-    } catch {
-      return reply.code(404).send({ error: 'not_found' })
-    }
+  registerModuleCrud(app, {
+    basePath: '/professor',
+    model: prisma.professorModule,
+    postSchema: ProfessorModulePostBody,
+    patchSchema: ProfessorModulePatchBody,
   })
 
   // ----- The Music Professor (finishing editor for Mars style + negativeStyle) -----
@@ -483,65 +389,19 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // for operator-facing severity. Cold-start of both happens in
   // lib/music-professor/_helpers.ts on first call from Eno.
 
-  app.get('/music-professor/persona', async (req, reply) => {
-    const all = await prisma.musicProfessorPersona.findMany({ orderBy: { version: 'desc' } })
-    return { latest: all[0] ?? null, history: all }
+  // Same shape as the Lyric Professor, plus a `tier` field on modules.
+  registerVersionedText(app, {
+    getPath: '/music-professor/persona',
+    model: prisma.musicProfessorPersona,
+    field: 'promptText',
+    schema: LyricPromptPostBody,
   })
-
-  app.post('/music-professor/persona', async (req, reply) => {
-    const op = req.operator!
-    const parsed = LyricPromptPostBody.safeParse(req.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const max = await prisma.musicProfessorPersona.aggregate({ _max: { version: true } })
-    const next = (max._max.version ?? 0) + 1
-    const row = await prisma.musicProfessorPersona.create({
-      data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.accountId },
-    })
-    return row
-  })
-
-  app.get('/music-professor/modules', async (req, reply) => {
-    const rows = await prisma.musicProfessorModule.findMany({ orderBy: { sortOrder: 'asc' } })
-    return rows
-  })
-
-  app.post('/music-professor/modules', async (req, reply) => {
-    const parsed = MusicProfessorModulePostBody.safeParse(req.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const max = await prisma.musicProfessorModule.aggregate({ _max: { sortOrder: true } })
-    const nextSort = parsed.data.sortOrder ?? ((max._max.sortOrder ?? 0) + 10)
-    const row = await prisma.musicProfessorModule.create({
-      data: {
-        name: parsed.data.name,
-        body: parsed.data.body,
-        tier: parsed.data.tier ?? 'optional',
-        active: parsed.data.active ?? true,
-        sortOrder: nextSort,
-      },
-    })
-    return row
-  })
-
-  app.patch('/music-professor/modules/:id', async (req, reply) => {
-    const id = (req.params as { id: string }).id
-    const parsed = MusicProfessorModulePatchBody.safeParse(req.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    try {
-      const row = await prisma.musicProfessorModule.update({ where: { id }, data: parsed.data })
-      return row
-    } catch {
-      return reply.code(404).send({ error: 'not_found' })
-    }
-  })
-
-  app.delete('/music-professor/modules/:id', async (req, reply) => {
-    const id = (req.params as { id: string }).id
-    try {
-      await prisma.musicProfessorModule.delete({ where: { id } })
-      return { ok: true }
-    } catch {
-      return reply.code(404).send({ error: 'not_found' })
-    }
+  registerModuleCrud(app, {
+    basePath: '/music-professor',
+    model: prisma.musicProfessorModule,
+    postSchema: MusicProfessorModulePostBody,
+    patchSchema: MusicProfessorModulePatchBody,
+    extraCreate: (data) => ({ tier: data.tier ?? 'optional' }),
   })
 
   // ----- GenreGravityRule (genre steering table — bidirectional) -----
@@ -606,21 +466,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // ----- BPM lookup prompt (Haiku + web_search) -----
   // Cold-start v1 happens in lib/decomposer/bpm-lookup.ts.
 
-  app.get('/bpm-lookup-prompt', async (req, reply) => {
-    const all = await prisma.bpmLookupPrompt.findMany({ orderBy: { version: 'desc' } })
-    return { latest: all[0] ?? null, history: all }
-  })
-
-  app.post('/bpm-lookup-prompt', async (req, reply) => {
-    const op = req.operator!
-    const parsed = LyricPromptPostBody.safeParse(req.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const max = await prisma.bpmLookupPrompt.aggregate({ _max: { version: true } })
-    const next = (max._max.version ?? 0) + 1
-    const row = await prisma.bpmLookupPrompt.create({
-      data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.accountId },
-    })
-    return row
+  registerVersionedText(app, {
+    getPath: '/bpm-lookup-prompt',
+    model: prisma.bpmLookupPrompt,
+    field: 'promptText',
+    schema: LyricPromptPostBody,
   })
 
   // ----- Style system prompt (anchor builder) -----
@@ -630,21 +480,11 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   // (Card 12 — Mars). The legacy /mars-prompts/{anchor,router} routes were
   // removed 2026-05-26 once anchor became the sole production strategy.
 
-  app.get('/style-prompt', async (req, reply) => {
-    const all = await prisma.styleAnchorPrompt.findMany({ orderBy: { version: 'desc' } })
-    return { latest: all[0] ?? null, history: all }
-  })
-
-  app.post('/style-prompt', async (req, reply) => {
-    const op = req.operator!
-    const parsed = LyricPromptPostBody.safeParse(req.body)
-    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
-    const max = await prisma.styleAnchorPrompt.aggregate({ _max: { version: true } })
-    const next = (max._max.version ?? 0) + 1
-    const row = await prisma.styleAnchorPrompt.create({
-      data: { version: next, promptText: parsed.data.promptText, notes: parsed.data.notes ?? null, createdById: op.accountId },
-    })
-    return row
+  registerVersionedText(app, {
+    getPath: '/style-prompt',
+    model: prisma.styleAnchorPrompt,
+    field: 'promptText',
+    schema: LyricPromptPostBody,
   })
 
   // ----- LyricBanEntries (overused words / cliché phrases / cliché shapes) -----
