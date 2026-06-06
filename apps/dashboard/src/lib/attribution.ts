@@ -18,6 +18,9 @@
 const COOKIE_NAME = 'entuned_attr'
 const MAX_AGE_DAYS = 30
 
+// sessionStorage key written by /r/:code (routes/ReferralLanding.tsx).
+const REFERRAL_CODE_KEY = 'entuned_referral_code'
+
 // Matches the server's Attribution shape (lib/attribution.ts) and the
 // magic-link request body.
 export interface Attribution {
@@ -28,6 +31,9 @@ export interface Attribution {
   utmCampaign?: string
   utmTerm?: string
   utmContent?: string
+  // Referral code captured by /r/:code into sessionStorage. Server validates
+  // strictly (server-generated slug charset); we only trim here.
+  referralCode?: string
 }
 
 interface CookiePayload {
@@ -101,10 +107,25 @@ function payloadToAttribution(p: CookiePayload): Attribution {
   }
 }
 
+// Best-effort read of the /r/:code referral code stamped into sessionStorage
+// by ReferralLanding. sessionStorage access can throw in sandboxed iframes /
+// privacy modes — never let that break signup. Loose client-side validation
+// (trim only); the server re-validates against the code charset.
+function readReferralCode(): string | undefined {
+  try {
+    const raw = sessionStorage.getItem(REFERRAL_CODE_KEY)
+    const trimmed = raw?.trim()
+    return trimmed || undefined
+  } catch {
+    return undefined
+  }
+}
+
 /**
  * Read first-touch attribution for the signup request. Prefers the cookie
  * (true first-touch, possibly set on the marketing site); falls back to the
  * current page if the cookie is missing/unparseable (e.g. cookies blocked).
+ * Also includes the /r/:code referral code from sessionStorage, if present.
  * Returns undefined if there's nothing worth sending.
  */
 export function readAttribution(): Attribution | undefined {
@@ -119,6 +140,7 @@ export function readAttribution(): Attribution | undefined {
   }
   if (!payload) payload = currentPagePayload()
   const attr = payloadToAttribution(payload)
+  attr.referralCode = readReferralCode()
   // Drop empty/whitespace fields; return undefined if nothing survives.
   const cleaned: Attribution = {}
   for (const [k, v] of Object.entries(attr)) {

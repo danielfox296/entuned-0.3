@@ -482,6 +482,7 @@ describe('ensureFreeClientForUser', () => {
       utmCampaign: 'spring',
       utmTerm: null,
       utmContent: null,
+      referralCode: null,
     })
 
     expect(clientCreate).toHaveBeenCalledWith({
@@ -493,11 +494,76 @@ describe('ensureFreeClientForUser', () => {
         attrUtmCampaign: 'spring',
         attrUtmTerm: null,
         attrUtmContent: null,
+        referredByCode: null,
       }),
     })
     expect(sendAdminSignupMock.mock.calls[0]![0].source).toBe(
       'utm: reddit / social / spring · via www.reddit.com · landed /for-apparel',
     )
+  })
+
+  it('writes attribution.referralCode onto the created Client.referredByCode and surfaces it in the admin email', async () => {
+    setRandomBytesSequence(['1234'])
+    membershipFindFirst.mockResolvedValueOnce(null)
+    clientCreate.mockResolvedValueOnce({ id: 'client-1' })
+    membershipCreate.mockResolvedValueOnce({ id: 'mem-1' })
+    storeFindUnique.mockResolvedValueOnce(null)
+    pickDefault.mockResolvedValueOnce('outcome-x')
+    storeCreate.mockResolvedValueOnce({ id: 'store-1' })
+    storeIcpCreate.mockResolvedValueOnce({ id: 'sicp-1' })
+
+    await ensureFreeClientForUser('acct-1', 'referred@example.com', {
+      referrer: null,
+      landingPath: '/start',
+      utmSource: null,
+      utmMedium: null,
+      utmCampaign: null,
+      utmTerm: null,
+      utmContent: null,
+      referralCode: 'X7K9QW2Z',
+    })
+
+    expect(clientCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ referredByCode: 'X7K9QW2Z' }),
+    })
+    expect(sendAdminSignupMock.mock.calls[0]![0].source).toBe('landed /start · ref X7K9QW2Z')
+  })
+
+  it('writes referredByCode = null when no attribution is passed (Google OAuth path)', async () => {
+    setRandomBytesSequence(['1234'])
+    membershipFindFirst.mockResolvedValueOnce(null)
+    clientCreate.mockResolvedValueOnce({ id: 'client-1' })
+    membershipCreate.mockResolvedValueOnce({ id: 'mem-1' })
+    storeFindUnique.mockResolvedValueOnce(null)
+    pickDefault.mockResolvedValueOnce('outcome-x')
+    storeCreate.mockResolvedValueOnce({ id: 'store-1' })
+    storeIcpCreate.mockResolvedValueOnce({ id: 'sicp-1' })
+
+    await ensureFreeClientForUser('acct-1', 'google@example.com')
+
+    expect(clientCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ referredByCode: null }),
+    })
+  })
+
+  it('does NOT re-attribute an existing client when a returning user logs in with a referral code attached', async () => {
+    membershipFindFirst.mockResolvedValueOnce({ id: 'existing-membership' })
+
+    await ensureFreeClientForUser('acct-1', 'returning@example.com', {
+      referrer: null,
+      landingPath: null,
+      utmSource: null,
+      utmMedium: null,
+      utmCampaign: null,
+      utmTerm: null,
+      utmContent: null,
+      referralCode: 'X7K9QW2Z',
+    })
+
+    // Early return: no Client is created and nothing is mutated, so the
+    // existing Client's referredByCode can never be overwritten.
+    expect(txMock).not.toHaveBeenCalled()
+    expect(clientCreate).not.toHaveBeenCalled()
   })
 
   it('writes null attribution columns and a "Direct / unknown" source when no attribution is passed', async () => {

@@ -102,6 +102,12 @@ export async function ensureFreeClientForUser(accountId: string, email: string, 
         attrUtmCampaign: attr.utmCampaign,
         attrUtmTerm: attr.utmTerm,
         attrUtmContent: attr.utmContent,
+        // Referral attribution (/r/:code → sessionStorage → magic-link →
+        // MagicLinkToken → here). Write-once at creation like the attr_*
+        // fields; the early-return above guarantees a returning user is never
+        // re-attributed. Self-referral is structurally impossible — a brand-new
+        // Client's own referralCode is null until lazily generated post-signup.
+        referredByCode: attr.referralCode,
       },
     })
     await tx.clientMembership.create({

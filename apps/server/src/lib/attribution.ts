@@ -16,6 +16,9 @@ export interface Attribution {
   utmCampaign: string | null
   utmTerm: string | null
   utmContent: string | null
+  // Referral code from /r/:code (dashboard sessionStorage). Rides the same
+  // pipeline as the attr fields; copied to Client.referredByCode at creation.
+  referralCode: string | null
 }
 
 export const EMPTY_ATTRIBUTION: Attribution = {
@@ -26,6 +29,7 @@ export const EMPTY_ATTRIBUTION: Attribution = {
   utmCampaign: null,
   utmTerm: null,
   utmContent: null,
+  referralCode: null,
 }
 
 // Field length caps. Referrer/landing URLs can be long (nested query strings);
@@ -39,6 +43,18 @@ function clamp(value: unknown, max: number): string | null {
   const trimmed = value.trim()
   if (!trimmed) return null
   return trimmed.length > max ? trimmed.slice(0, max) : trimmed
+}
+
+// Referral codes are server-generated slugs (see routes/me.ts
+// generateReferralCode: 8-char uppercased base64url → [A-Z0-9_-]). Sanitize
+// strictly: unlike the free-text attr fields, anything that doesn't look like
+// a code is dropped, not truncated.
+const REFERRAL_CODE_RE = /^[A-Za-z0-9_-]{1,64}$/
+
+function sanitizeReferralCode(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return REFERRAL_CODE_RE.test(trimmed) ? trimmed : null
 }
 
 /**
@@ -60,6 +76,7 @@ export function sanitizeAttribution(input: unknown): Attribution {
     utmCampaign: clamp(o.utmCampaign, MAX_UTM_LEN),
     utmTerm: clamp(o.utmTerm, MAX_UTM_LEN),
     utmContent: clamp(o.utmContent, MAX_UTM_LEN),
+    referralCode: sanitizeReferralCode(o.referralCode),
   }
 }
 
@@ -71,7 +88,8 @@ export function attributionIsEmpty(attr: Attribution): boolean {
     !attr.utmMedium &&
     !attr.utmCampaign &&
     !attr.utmTerm &&
-    !attr.utmContent
+    !attr.utmContent &&
+    !attr.referralCode
   )
 }
 
@@ -99,5 +117,6 @@ export function formatAttributionSummary(attr: Attribution): string {
   }
   if (attr.referrer) parts.push(`via ${hostOf(attr.referrer)}`)
   if (attr.landingPath) parts.push(`landed ${attr.landingPath}`)
+  if (attr.referralCode) parts.push(`ref ${attr.referralCode}`)
   return parts.length ? parts.join(' · ') : 'Direct / unknown'
 }

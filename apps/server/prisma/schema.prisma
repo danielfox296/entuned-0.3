@@ -1449,6 +1449,10 @@ model MagicLinkToken {
   attrUtmCampaign String? @map("attr_utm_campaign")
   attrUtmTerm     String? @map("attr_utm_term")
   attrUtmContent  String? @map("attr_utm_content")
+  // Referral code from /r/:code (dashboard sessionStorage), parked here
+  // alongside the attr_* fields; copied to Client.referredByCode at consume
+  // (Client creation only, never overwritten on return).
+  referralCode    String? @map("referral_code")
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([email])

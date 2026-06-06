@@ -26,7 +26,35 @@ describe('sanitizeAttribution', () => {
       utmCampaign: 'spring',
       utmTerm: 'shoes',
       utmContent: 'hero',
+      referralCode: null,
     })
+  })
+
+  it('accepts a valid referralCode (trimmed, server-generated charset)', () => {
+    const out = sanitizeAttribution({ referralCode: '  A1B2-C3_4  ' })
+    expect(out.referralCode).toBe('A1B2-C3_4')
+    // Real generated shape: 8-char uppercased base64url (routes/me.ts).
+    expect(sanitizeAttribution({ referralCode: 'X7K9QW2Z' }).referralCode).toBe('X7K9QW2Z')
+  })
+
+  it('nulls a referralCode with characters outside [A-Za-z0-9_-]', () => {
+    expect(sanitizeAttribution({ referralCode: 'has space' }).referralCode).toBeNull()
+    expect(sanitizeAttribution({ referralCode: 'semi;colon' }).referralCode).toBeNull()
+    expect(sanitizeAttribution({ referralCode: '<script>' }).referralCode).toBeNull()
+    expect(sanitizeAttribution({ referralCode: 'émoji✨' }).referralCode).toBeNull()
+  })
+
+  it('nulls a referralCode longer than 64 chars (rejected, not truncated)', () => {
+    expect(sanitizeAttribution({ referralCode: 'A'.repeat(64) }).referralCode).toBe('A'.repeat(64))
+    expect(sanitizeAttribution({ referralCode: 'A'.repeat(65) }).referralCode).toBeNull()
+  })
+
+  it('nulls a non-string / empty referralCode', () => {
+    expect(sanitizeAttribution({ referralCode: 123 }).referralCode).toBeNull()
+    expect(sanitizeAttribution({ referralCode: null }).referralCode).toBeNull()
+    expect(sanitizeAttribution({ referralCode: ['X7K9QW2Z'] }).referralCode).toBeNull()
+    expect(sanitizeAttribution({ referralCode: '' }).referralCode).toBeNull()
+    expect(sanitizeAttribution({ referralCode: '   ' }).referralCode).toBeNull()
   })
 
   it('coerces empty / whitespace / non-string fields to null', () => {
@@ -60,6 +88,7 @@ describe('attributionIsEmpty', () => {
   it('is true for the empty attribution and false when any field is set', () => {
     expect(attributionIsEmpty(EMPTY_ATTRIBUTION)).toBe(true)
     expect(attributionIsEmpty({ ...EMPTY_ATTRIBUTION, utmSource: 'reddit' })).toBe(false)
+    expect(attributionIsEmpty({ ...EMPTY_ATTRIBUTION, referralCode: 'X7K9QW2Z' })).toBe(false)
   })
 })
 
@@ -73,8 +102,20 @@ describe('formatAttributionSummary', () => {
       utmCampaign: 'spring-launch',
       utmTerm: null,
       utmContent: null,
+      referralCode: null,
     })
     expect(s).toBe('utm: reddit / social / spring-launch · via www.reddit.com · landed /for-apparel')
+  })
+
+  it('appends a "ref <code>" part when a referralCode is present', () => {
+    const s = formatAttributionSummary({
+      ...EMPTY_ATTRIBUTION,
+      landingPath: '/start',
+      referralCode: 'X7K9QW2Z',
+    })
+    expect(s).toBe('landed /start · ref X7K9QW2Z')
+    // referralCode alone still yields a non-"Direct" summary.
+    expect(formatAttributionSummary({ ...EMPTY_ATTRIBUTION, referralCode: 'X7K9QW2Z' })).toBe('ref X7K9QW2Z')
   })
 
   it('reduces a referrer URL to its host', () => {

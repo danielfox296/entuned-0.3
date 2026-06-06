@@ -319,6 +319,43 @@ describe('POST /magic-link', () => {
     const data = magicCreate.mock.calls[0]![0].data as Record<string, unknown>
     expect(data.attrReferrer).toBeNull()
     expect(data.attrUtmSource).toBeNull()
+    expect(data.referralCode).toBeNull()
+  })
+
+  it('parks a valid referralCode on the token', async () => {
+    magicCreate.mockResolvedValue({ id: 'mlt-ref' })
+
+    const app = await buildLoginApp()
+    const res = await app.inject({
+      method: 'POST',
+      url: '/magic-link',
+      payload: {
+        email: 'user@example.com',
+        attribution: { referralCode: 'X7K9QW2Z' },
+      },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const data = magicCreate.mock.calls[0]![0].data as Record<string, unknown>
+    expect(data.referralCode).toBe('X7K9QW2Z')
+  })
+
+  it('nulls an invalid referralCode (bad charset) instead of parking it', async () => {
+    magicCreate.mockResolvedValue({ id: 'mlt-badref' })
+
+    const app = await buildLoginApp()
+    const res = await app.inject({
+      method: 'POST',
+      url: '/magic-link',
+      payload: {
+        email: 'user@example.com',
+        attribution: { referralCode: 'nope; DROP TABLE clients' },
+      },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const data = magicCreate.mock.calls[0]![0].data as Record<string, unknown>
+    expect(data.referralCode).toBeNull()
   })
 })
 
@@ -390,6 +427,7 @@ describe('GET /verify', () => {
       attrUtmCampaign: 'spring',
       attrUtmTerm: null,
       attrUtmContent: null,
+      referralCode: null,
     })
     magicUpdate.mockResolvedValue({ id: 'mlt-1' })
     // findOrCreateUserByEmail: existing user, not disabled.
@@ -426,7 +464,41 @@ describe('GET /verify', () => {
       utmCampaign: 'spring',
       utmTerm: null,
       utmContent: null,
+      referralCode: null,
     })
+  })
+
+  it('forwards the parked referralCode to provisioning (where it lands on the created Client.referredByCode)', async () => {
+    magicFindUnique.mockResolvedValue({
+      id: 'mlt-ref',
+      email: 'ref@example.com',
+      tokenHash: 'h',
+      consumedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      attrReferrer: null,
+      attrLandingPath: '/start',
+      attrUtmSource: null,
+      attrUtmMedium: null,
+      attrUtmCampaign: null,
+      attrUtmTerm: null,
+      attrUtmContent: null,
+      referralCode: 'X7K9QW2Z',
+    })
+    magicUpdate.mockResolvedValue({ id: 'mlt-ref' })
+    // findOrCreateUserByEmail: no existing account → create (first sign-in).
+    accountFindUnique.mockResolvedValue(null)
+    accountCreate.mockResolvedValue({
+      id: 'acc-ref', email: 'ref@example.com', name: null, disabledAt: null, tokenVersion: 0,
+    })
+    membershipFindFirst.mockResolvedValue({ client: { industry: 'retail' } })
+
+    const app = await buildLoginApp()
+    const res = await app.inject({ method: 'GET', url: '/verify?token=abc' })
+
+    expect(res.statusCode).toBe(302)
+    expect(ensureFreeMock).toHaveBeenCalledWith('acc-ref', 'ref@example.com', expect.objectContaining({
+      referralCode: 'X7K9QW2Z',
+    }))
   })
 
   it('redirects to /onboard when the client industry is null', async () => {

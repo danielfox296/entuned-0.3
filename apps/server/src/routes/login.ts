@@ -37,6 +37,9 @@ const MagicLinkBody = z.object({
       utmCampaign: z.string().optional(),
       utmTerm: z.string().optional(),
       utmContent: z.string().optional(),
+      // /r/:code referral code (dashboard sessionStorage). Re-validated
+      // server-side against the code charset in sanitizeAttribution.
+      referralCode: z.string().optional(),
     })
     .partial()
     .optional(),
@@ -367,6 +370,7 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
             attrUtmCampaign: attribution.utmCampaign,
             attrUtmTerm: attribution.utmTerm,
             attrUtmContent: attribution.utmContent,
+            referralCode: attribution.referralCode,
           },
         })
 
@@ -423,6 +427,7 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
       utmCampaign: row.attrUtmCampaign,
       utmTerm: row.attrUtmTerm,
       utmContent: row.attrUtmContent,
+      referralCode: row.referralCode,
     }
     const acc = await findOrCreateUserByEmail(row.email, null, attribution)
     if (acc.disabledAt) {
