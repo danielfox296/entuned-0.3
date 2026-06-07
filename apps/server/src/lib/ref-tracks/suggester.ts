@@ -215,7 +215,7 @@ const TRACK_PROPS = {
   required: ['artist', 'title', 'rationale'],
 } as const
 
-const EMIT_SUGGESTIONS_TOOL = {
+export const EMIT_SUGGESTIONS_TOOL = {
   name: 'emit_suggestions',
   description: 'Emit the proposed reference tracks grouped by bucket plus adjacency reasoning.',
   input_schema: {
@@ -320,7 +320,10 @@ Output JSON only.${focusDirective}`
     // (Adjacent vectors). 0.5 keeps Adjacent picks varied without letting
     // PreFormation/FormationEra hallucinate fake tracks.
     temperature: 0.5,
-    stop_sequences: ['\n\n\n'],
+    // No stop_sequences: tool_choice forces structured emit_suggestions output,
+    // so there's no prose tail to cut — and a whitespace-only stop sequence is
+    // rejected by the API ('each stop sequence must contain non-whitespace').
+    // Same reasoning as lib/mars/style-anchor.ts, which removed its stop sequence.
     system: [{ type: 'text', text: prompt.templateText, cache_control: { type: 'ephemeral' } }],
     tools: [EMIT_SUGGESTIONS_TOOL] as any,
     tool_choice: { type: 'tool', name: 'emit_suggestions' } as any,
