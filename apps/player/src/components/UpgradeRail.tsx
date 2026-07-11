@@ -216,16 +216,6 @@ const SLOTS: Slot[] = [
     photo: "/promo/parallax-luxury-store.jpg",
   },
   {
-    anchor: "Help Them Decide: nudge browsers toward the till.",
-    points: [
-      "Steady, confident momentum",
-      "Cuts decision fatigue at the rack",
-      "For when traffic browses but doesn't buy",
-    ],
-    kind: "outcome_explainer",
-    photo: "/promo/shopping.jpg",
-  },
-  {
     anchor: "Trade Them Up: lift the average ticket.",
     points: [
       "Premium, considered energy",
@@ -234,16 +224,6 @@ const SLOTS: Slot[] = [
     ],
     kind: "outcome_explainer",
     photo: "/promo/parallax-cosmetics-store.jpg",
-  },
-  {
-    anchor: "Fill the Basket: more items per visit.",
-    points: [
-      "Curious, open mood",
-      "Encourages add-ons and second looks",
-      "Right for cart-friendly floors",
-    ],
-    kind: "outcome_explainer",
-    photo: "/promo/retail-store.jpg",
   },
   {
     anchor: "Grab It Now: drive impulse pickups.",
@@ -274,16 +254,6 @@ const SLOTS: Slot[] = [
     ],
     kind: "outcome_explainer",
     photo: "/promo/mara-icp.jpg",
-  },
-  {
-    anchor: "Swagger Spend: confidence to upgrade.",
-    points: [
-      "Status-forward, aspirational energy",
-      "Frames the spend as upgrade, not splurge",
-      "For premium drops and statement pieces",
-    ],
-    kind: "outcome_explainer",
-    photo: "/promo/parallax-cosmetics-store.jpg",
   },
 ];
 
@@ -387,14 +357,20 @@ export function UpgradeRail({ rotationKey, tier, compact = false, withPhoto = fa
   const padding = withPhoto
     ? (compact ? "0" : "0")             // no outer padding — photo flush to card edge
     : (compact ? "26px 26px 24px" : "40px 48px 36px 52px");
-  const textPadding = withPhoto ? (compact ? "22px 22px 20px" : "30px 32px 26px") : undefined;
+  const textPadding = withPhoto ? (compact ? "18px 20px 16px" : "30px 32px 26px") : undefined;
   // Anchor is a display heading (Manrope, weight 700, sentence case, tight
   // tracking). Bullets are body Inter weight 400.
-  const anchorSize = withPhoto ? (compact ? "1.35rem" : "1.7rem") : (compact ? "1.5rem" : "2.4rem");
-  const bulletSize = compact ? "0.875rem" : "1rem";
+  // withPhoto+compact runs on phones down to ~360px wide where the rail is
+  // capped at min(36vh, 300px) tall and the text lane is ~200px wide — the
+  // clamp()s ride viewport width so long anchors wrap 3 lines, not 5, and
+  // the slot's CTA stays on-card (it is also pinned below; see maskImage).
+  const anchorSize = withPhoto
+    ? (compact ? "clamp(1.05rem, 4.4vw, 1.35rem)" : "1.7rem")
+    : (compact ? "1.5rem" : "2.4rem");
+  const bulletSize = withPhoto && compact ? "clamp(0.78rem, 3.4vw, 0.875rem)" : (compact ? "0.875rem" : "1rem");
   const ctaSize = compact ? "0.7rem" : "0.75rem";
-  const headerGap = compact ? 14 : 22;
-  const bulletGap = compact ? 8 : 10;
+  const headerGap = withPhoto && compact ? 10 : (compact ? 14 : 22);
+  const bulletGap = withPhoto && compact ? 6 : (compact ? 8 : 10);
 
   // Photo lane width — ~38% of the card on portrait tablet, narrower on phone
   // so the text still has room for the anchor to read on one or two lines.
@@ -405,8 +381,11 @@ export function UpgradeRail({ rotationKey, tier, compact = false, withPhoto = fa
       style={{
         position: "relative",
         flexShrink: 0,
-        width: compact ? "38%" : "40%",
-        minWidth: 120,
+        // 34% on compact (was 38%) — on a ~390px phone the extra ~16px of
+        // text-lane width saves a wrap line on long anchors, which is the
+        // difference between the CTA fitting and clipping.
+        width: compact ? "34%" : "40%",
+        minWidth: 110,
         alignSelf: "stretch",
         overflow: "hidden",
         // Subtle teal tint at the right edge bleeds the photo into the text
@@ -469,6 +448,7 @@ export function UpgradeRail({ rotationKey, tier, compact = false, withPhoto = fa
           padding: textPadding,
           flex: 1,
           minWidth: 0,
+          minHeight: 0,
         } : { display: "contents" }}
       >
         <div
@@ -481,6 +461,19 @@ export function UpgradeRail({ rotationKey, tier, compact = false, withPhoto = fa
             gap: headerGap,
             textAlign: "left",
             maxWidth: withPhoto ? undefined : 540,
+            // withPhoto rides inside a height-capped rail (min(36vh, 300px) on
+            // phones). Slot copy length varies, so the anchor+bullets block is
+            // the flexible region: it clips behind a bottom fade when a long
+            // slot meets a short viewport, and the CTA below NEVER leaves the
+            // card (flexShrink 0). Without this the CTA renders off-card on
+            // ~390px-wide screens — unreachable on a no-scroll surface.
+            ...(withPhoto ? {
+              flex: "1 1 auto",
+              minHeight: 0,
+              overflow: "hidden",
+              maskImage: "linear-gradient(180deg, #000 calc(100% - 14px), transparent 100%)",
+              WebkitMaskImage: "linear-gradient(180deg, #000 calc(100% - 14px), transparent 100%)",
+            } : {}),
           }}
         >
           <div
@@ -551,7 +544,8 @@ export function UpgradeRail({ rotationKey, tier, compact = false, withPhoto = fa
             borderBottom: `1px solid ${ctaUnderline}`,
             paddingBottom: 6,
             alignSelf: "flex-start",
-            marginTop: withPhoto ? 18 : 0,
+            marginTop: withPhoto ? 14 : 0,
+            flexShrink: 0,
           }}
         >
           {cta.label}

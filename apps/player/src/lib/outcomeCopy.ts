@@ -9,26 +9,27 @@
 // anchor copy — eventually these should live on Outcome.description in
 // the DB so Dash can edit them, but for now this is the player SSOT.
 export const OUTCOME_EFFECT: Record<string, string> = {
-  // Boost / Pro outcomes
+  // Boost / Pro outcomes (post 2026-07-11 merge: 5 paid outcomes)
   "Stay & Browse": "linger longer on the floor",
-  "Help Them Decide": "nudge browsers toward the till",
-  "Trade Them Up": "lift the average ticket",
-  "Fill the Basket": "more items per visit",
-  "Grab It Now": "drive impulse pickups",
   "Keep It Moving": "speed turnover when it's busy",
+  "Trade Them Up": "lift the average ticket",
+  "Grab It Now": "drive impulse pickups",
   "Our Sound": "pure brand vibe",
-  "Swagger Spend": "confidence to upgrade",
   // Free-tier modes
   "Chill": "slow the room down",
   "Steady": "hold an even pace",
   "Upbeat": "lift the energy",
-  // Legacy outcome names — pre-rename equivalents still in use by older
-  // stores (e.g. Untuckit). Mapped to the same effect as their successor.
-  // See: prisma/seed/rename-outcomes-2026-05-14.ts.
+  // Legacy / retired outcome names — pre-rename equivalents and outcomes
+  // absorbed by the 2026-07-11 merge migration. Mapped to their successor's
+  // effect. See: prisma/seed/rename-outcomes-2026-05-14.ts and
+  // prisma/migrations/20260711120000_consolidate_and_merge_outcomes.
   "Linger": "linger longer on the floor",            // → Stay & Browse
-  "Convert Browsers": "nudge browsers toward the till", // → Help Them Decide
+  "Help Them Decide": "lift the average ticket",     // merged → Trade Them Up
+  "Convert Browsers": "lift the average ticket",     // merged → Trade Them Up
+  "Swagger Spend": "lift the average ticket",        // merged → Trade Them Up
   "Increase Order Value": "lift the average ticket", // → Trade Them Up
-  "Add More Items": "more items per visit",          // → Fill the Basket
+  "Fill the Basket": "drive impulse pickups",        // merged → Grab It Now
+  "Add More Items": "drive impulse pickups",         // merged → Grab It Now
   "Impulse Buy": "drive impulse pickups",            // → Grab It Now
   "Move Through": "speed turnover when it's busy",   // → Keep It Moving
   "Reinforce Brand": "pure brand vibe",              // → Our Sound

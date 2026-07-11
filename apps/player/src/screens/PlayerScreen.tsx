@@ -1239,7 +1239,11 @@ export function PlayerScreen({ session, onLogout }: Props) {
             >
               {currentItem ? trackLabel(currentItem) : reason === "no_pool" ? "Silent" : "Press play to stream"}
             </div>
-            {currentItem?.icpName ? (
+            {/* ICP eyebrow — a paid store's ICP name ("Mindful Mover") is a
+                feature cue; the shared free pool's ICP is literally named
+                "Free Tier", which reads as internal jargon under a song
+                title, so it's suppressed. */}
+            {currentItem?.icpName && currentItem.icpName.toLowerCase() !== "free tier" ? (
               <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "0.18em", color: "rgba(212,225,229,0.55)", textTransform: "uppercase", marginTop: 14, textAlign: "center" }}>
                 {currentItem.icpName}
               </div>

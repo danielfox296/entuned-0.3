@@ -5,7 +5,7 @@
 
 eyebrow: "Upgrade"
 heading: "More music. Made for your customer."
-subhead: "Step into Boost. All nine research-backed outcomes, music engineered for your specific Ideal Customer Profile, and a 300-song library that grows every month."
+subhead: "Step into Boost. Every research-backed outcome, music engineered for your specific Ideal Customer Profile, and a 300-song library that grows every month."
 price_line: "$99 / location / month — monthly billing, cancel anytime."
 cta_primary: "Upgrade to Boost — $99/loc/mo"
 cta_secondary_lead: "Need multi-fleet pricing?"
@@ -29,9 +29,9 @@ already_subscribed_banner: "You already have a paid subscription. Manage your pl
 sections:
   outcomes:
     eyebrow: "Outcomes"
-    headline: "All nine research-backed outcomes"
-    body: "Free gives you Linger and Lift Energy. Boost unlocks the full set — every outcome the research catalogue supports, ready to deploy on any floor moment."
-    proof: "Calm · Linger · Lift Energy · Move Through · Reinforce Brand · Convert Browsers · Impulse Buy · Increase Order Value · Add More Items"
+    headline: "Every research-backed outcome"
+    body: "Free gives you the three modes — Chill, Steady, and Upbeat. Boost unlocks the full outcome set — every behavior the research catalogue supports, ready to deploy on any floor moment."
+    proof: "Stay & Browse · Keep It Moving · Trade Them Up · Grab It Now · Our Sound"
 
   icp:
     eyebrow: "Customer Profile"

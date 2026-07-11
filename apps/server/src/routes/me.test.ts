@@ -43,8 +43,23 @@ vi.mock('../db.js', () => ({
       create: vi.fn(),
       update: vi.fn(),
     },
+    outcome: {
+      findMany: vi.fn(),
+    },
   },
 }))
+
+// Free-tier allowlist helpers — mocked so tests control allowlist membership
+// without wiring freeTierOutcome prisma mocks. pickSystemDefaultOutcomeId
+// keeps its real implementation (other routes use it; their tests mock prisma).
+vi.mock('../lib/outcomes.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/outcomes.js')>()
+  return {
+    ...actual,
+    isFreeTierAllowedOutcome: vi.fn(),
+    getFreeTierAllowedOutcomeIds: vi.fn(),
+  }
+})
 
 // Bypass auth by stubbing requireAuth to populate the same request fields the
 // real session plugin would. Default authed-as: client-test-001.
@@ -62,8 +77,11 @@ vi.mock('../lib/session.js', async (importOriginal) => {
 
 import { meRoutes } from './me.js'
 import { prisma } from '../db.js'
+import { isFreeTierAllowedOutcome, getFreeTierAllowedOutcomeIds } from '../lib/outcomes.js'
 import { buildTestApp } from '../test-utils/fastifyApp.js'
 
+const isFreeAllowedMock = isFreeTierAllowedOutcome as ReturnType<typeof vi.fn>
+const freeAllowedIdsMock = getFreeTierAllowedOutcomeIds as ReturnType<typeof vi.fn>
 const storeFindFirst = prisma.store.findFirst as ReturnType<typeof vi.fn>
 const slotFindMany = prisma.scheduleSlot.findMany as ReturnType<typeof vi.fn>
 const slotFindUnique = prisma.scheduleSlot.findUnique as ReturnType<typeof vi.fn>
@@ -108,6 +126,9 @@ function makeSlotRow(overrides: Partial<{
 describe('me schedule-slot routes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Permissive defaults — free-tier restriction tests override per-case.
+    isFreeAllowedMock.mockResolvedValue(true)
+    freeAllowedIdsMock.mockResolvedValue(new Set<string>())
   })
 
   // ---------- GET /stores/:storeId/schedule ----------
@@ -640,5 +661,124 @@ describe('me ICP intake — never mutates FREE_TIER_ICP singleton', () => {
     }))
     expect(icpCreate).toHaveBeenCalledTimes(1)
     expect(icpUpdate).not.toHaveBeenCalled()
+  })
+})
+
+// =========================================================================
+// Free-tier allowlist guard on schedule slots + /me/outcomes annotation
+// (HANDOFF-free-tier-outcome-leakage #2, customer-dashboard surface)
+// =========================================================================
+
+describe('me schedule-slot routes — free-tier allowlist guard', () => {
+  const outcomeFindMany = prisma.outcome.findMany as ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    isFreeAllowedMock.mockResolvedValue(true)
+    freeAllowedIdsMock.mockResolvedValue(new Set<string>())
+  })
+
+  const freeStore = { id: STORE_ID, tier: 'free', compTier: null, compExpiresAt: null }
+
+  it('POST rejects a non-allowlisted outcome on a free store with 409', async () => {
+    storeFindFirst.mockResolvedValue(freeStore)
+    isFreeAllowedMock.mockResolvedValue(false)
+
+    const app = await buildTestApp(meRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: `/stores/${STORE_ID}/schedule`,
+      payload: { dayOfWeek: 1, startTime: '09:00', endTime: '10:00', outcomeId: OUTCOME_ID },
+    })
+
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('outcome_not_in_free_tier_allowlist')
+    expect(slotCreate).not.toHaveBeenCalled()
+  })
+
+  it('POST accepts an allowlisted outcome on a free store', async () => {
+    storeFindFirst.mockResolvedValue(freeStore)
+    isFreeAllowedMock.mockResolvedValue(true)
+    slotFindMany.mockResolvedValue([])
+    slotCreate.mockResolvedValue(makeSlotRow())
+
+    const app = await buildTestApp(meRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: `/stores/${STORE_ID}/schedule`,
+      payload: { dayOfWeek: 1, startTime: '09:00', endTime: '10:00', outcomeId: OUTCOME_ID },
+    })
+
+    expect(res.statusCode).toBe(201)
+    expect(isFreeAllowedMock).toHaveBeenCalledWith(OUTCOME_ID)
+  })
+
+  it('POST does not consult the allowlist for a paid store', async () => {
+    storeFindFirst.mockResolvedValue({ id: STORE_ID, tier: 'pro', compTier: null, compExpiresAt: null })
+    slotFindMany.mockResolvedValue([])
+    slotCreate.mockResolvedValue(makeSlotRow())
+
+    const app = await buildTestApp(meRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: `/stores/${STORE_ID}/schedule`,
+      payload: { dayOfWeek: 1, startTime: '09:00', endTime: '10:00', outcomeId: OUTCOME_ID },
+    })
+
+    expect(res.statusCode).toBe(201)
+    expect(isFreeAllowedMock).not.toHaveBeenCalled()
+  })
+
+  it('POST on a comped free store (effectiveTier=core) skips the guard', async () => {
+    const farFuture = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    storeFindFirst.mockResolvedValue({ id: STORE_ID, tier: 'free', compTier: 'core', compExpiresAt: farFuture })
+    slotFindMany.mockResolvedValue([])
+    slotCreate.mockResolvedValue(makeSlotRow())
+
+    const app = await buildTestApp(meRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: `/stores/${STORE_ID}/schedule`,
+      payload: { dayOfWeek: 1, startTime: '09:00', endTime: '10:00', outcomeId: OUTCOME_ID },
+    })
+
+    expect(res.statusCode).toBe(201)
+    expect(isFreeAllowedMock).not.toHaveBeenCalled()
+  })
+
+  it('PUT rejects a non-allowlisted outcome on a free store with 409', async () => {
+    slotFindUnique.mockResolvedValue({
+      ...makeSlotRow(),
+      store: { clientId: CLIENT_ID, tier: 'free', compTier: null, compExpiresAt: null },
+    })
+    isFreeAllowedMock.mockResolvedValue(false)
+
+    const app = await buildTestApp(meRoutes)
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/schedule-rows/${SLOT_ID}`,
+      payload: { dayOfWeek: 1, startTime: '09:00', endTime: '10:00', outcomeId: OUTCOME_ID },
+    })
+
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toBe('outcome_not_in_free_tier_allowlist')
+    expect(slotUpdate).not.toHaveBeenCalled()
+  })
+
+  it('GET /outcomes annotates rows with availableOnFree from the allowlist', async () => {
+    outcomeFindMany.mockResolvedValue([
+      { id: 'oc-allowed', title: 'Chill', displayTitle: null },
+      { id: 'oc-locked', title: 'Value Lift', displayTitle: 'Trade Them Up' },
+    ])
+    freeAllowedIdsMock.mockResolvedValue(new Set(['oc-allowed']))
+
+    const app = await buildTestApp(meRoutes)
+    const res = await app.inject({ method: 'GET', url: '/outcomes' })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual([
+      { id: 'oc-allowed', title: 'Chill', displayTitle: null, availableOnFree: true },
+      { id: 'oc-locked', title: 'Value Lift', displayTitle: 'Trade Them Up', availableOnFree: false },
+    ])
   })
 })

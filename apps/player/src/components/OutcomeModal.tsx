@@ -123,7 +123,10 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
           <h2 style={{
             margin: 0,
             fontFamily: "'Manrope', sans-serif",
-            fontSize: compact ? 18 : 22,
+            // clamp keeps the title on one line down to ~360px-wide phones —
+            // wrapped, it pushes the × into the second line and eats a row
+            // of the (height-constrained) mode list.
+            fontSize: compact ? "clamp(15px, 4.6vw, 18px)" : "clamp(16px, 4.6vw, 22px)",
             fontWeight: 700,
             color: PLAYER_TEXT_BRIGHT,
             letterSpacing: "-0.01em",
@@ -157,7 +160,6 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
             {/* Play All Available Modes — same row treatment as a peer outcome */}
             <OutcomeRow
               label="Play All Available Modes"
-              count={available.reduce((sum, o) => sum + o.poolSize, 0)}
               active={allOutcomesMode}
               empty={false}
               locked={false}
@@ -169,7 +171,6 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
                 key={o.outcomeId}
                 label={o.title}
                 subtitle={effectFor(o.title)}
-                count={o.poolSize}
                 active={!allOutcomesMode && activeId === o.outcomeId}
                 empty={o.poolSize === 0}
                 locked={false}
@@ -281,11 +282,10 @@ function SectionLabel({ children, compact }: { children: string; compact: boolea
 }
 
 function OutcomeRow({
-  label, subtitle, count, active, empty, locked, compact, onClick,
+  label, subtitle, active, empty, locked, compact, onClick,
 }: {
   label: string;
   subtitle?: string | null;
-  count?: number;
   active: boolean;
   empty: boolean;
   locked: boolean;
@@ -358,15 +358,20 @@ function OutcomeRow({
           ) : null}
         </span>
       </span>
-      <span style={{
-        fontSize: 11,
-        fontWeight: 600,
-        letterSpacing: 1.2,
-        textTransform: "uppercase",
-        color: locked ? "rgba(212,225,229,0.45)" : "rgba(212,225,229,0.5)",
-      }}>
-        {locked ? "Boost" : empty ? "no songs" : `${count}`}
-      </span>
+      {/* Right column: tier badge or empty-state only. Raw pool counts are an
+          operator detail (Dash shows them) — printing "8" next to a mode reads
+          as thin inventory to a consumer, so the player never shows numbers. */}
+      {(locked || empty) ? (
+        <span style={{
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: 1.2,
+          textTransform: "uppercase",
+          color: "rgba(212,225,229,0.45)",
+        }}>
+          {locked ? "Boost" : "no songs"}
+        </span>
+      ) : null}
     </button>
   );
 }

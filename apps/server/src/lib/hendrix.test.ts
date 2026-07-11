@@ -39,9 +39,16 @@ vi.mock('./outcomeSchedule.js', () => ({
   resolveActiveOutcome: vi.fn(),
 }))
 
+// Free-tier allowlist lookup — mocked so tests control the allowed id set
+// without wiring freeTierOutcome/outcome prisma mocks.
+vi.mock('./outcomes.js', () => ({
+  getFreeTierAllowedOutcomeIds: vi.fn(),
+}))
+
 import { nextQueue } from './hendrix.js'
 import { prisma } from '../db.js'
 import { resolveActiveOutcome } from './outcomeSchedule.js'
+import { getFreeTierAllowedOutcomeIds } from './outcomes.js'
 import { FREE_TIER_AD_STORE_ID } from './freeTier.js'
 
 // --- mock handles ---------------------------------------------------------
@@ -58,6 +65,7 @@ const outcomeFindUnique = prisma.outcome.findUnique as unknown as ReturnType<typ
 const campaignFindMany = prisma.campaign.findMany as unknown as ReturnType<typeof vi.fn>
 const playStateUpsert = prisma.campaignPlayState.upsert as unknown as ReturnType<typeof vi.fn>
 const resolveOutcomeMock = resolveActiveOutcome as unknown as ReturnType<typeof vi.fn>
+const freeAllowedMock = getFreeTierAllowedOutcomeIds as unknown as ReturnType<typeof vi.fn>
 
 // --- fixtures -------------------------------------------------------------
 
@@ -115,8 +123,19 @@ function defaultMocks(opts: {
   resolvedOutcome?: { outcomeId: string; source: 'selection' | 'schedule' | 'default'; expiresAt?: Date } | null
   pool?: PoolRowInput[]
   rules?: { siblingSpacingMinutes: number; noRepeatWindowMinutes: number } | null
+  /** Free-tier allowlisted outcome ids. Defaults to permissive: every outcome
+   *  id referenced by the pool/resolvedOutcome, so pre-allowlist tests keep
+   *  their original behavior. Pass an explicit array to test restriction. */
+  freeAllowed?: string[]
 } = {}) {
   storeFindUnique.mockResolvedValue(opts.store === null ? null : makeStoreRow(opts.store))
+  freeAllowedMock.mockResolvedValue(new Set(
+    opts.freeAllowed ?? [
+      'oc-1',
+      ...(opts.pool ?? []).map((r) => r.outcomeId),
+      ...(opts.resolvedOutcome ? [opts.resolvedOutcome.outcomeId] : []),
+    ],
+  ))
   playbackRulesFindFirst.mockResolvedValue(opts.rules === undefined ? { siblingSpacingMinutes: 240, noRepeatWindowMinutes: 45 } : opts.rules)
   icpFindMany.mockResolvedValue((opts.icps ?? ['icp-1']).map((id) => ({ id })))
   retiredFindMany.mockResolvedValue((opts.retired ?? []).map((songId) => ({ songId })))
@@ -981,5 +1000,102 @@ describe('nextQueue — QueueItem shape', () => {
     expect(adItem.icpId).toBeNull()
     expect(adItem.icpName).toBeNull()
     expect(adItem.hookText).toBeNull()
+  })
+})
+
+// =========================================================================
+// Free-tier allowlist enforcement (HANDOFF-free-tier-outcome-leakage #1)
+// =========================================================================
+
+describe('nextQueue — free-tier allowlist enforcement', () => {
+  const mixedPool = [
+    poolRow({ id: 'lr-1', songId: 's1', outcomeId: 'oc-allowed' }),
+    poolRow({ id: 'lr-2', songId: 's2', outcomeId: 'oc-locked' }),
+    poolRow({ id: 'lr-3', songId: 's3', outcomeId: 'oc-allowed' }),
+  ]
+
+  it('allOutcomes mode on a free store drops rows outside the allowlist', async () => {
+    defaultMocks({ store: { tier: 'free' }, pool: mixedPool, freeAllowed: ['oc-allowed'] })
+    const res = await nextQueue('store-1', new Date(), { allOutcomes: true })
+    expect(res.queue.length).toBeGreaterThan(0)
+    for (const item of res.queue) expect(item.outcomeId).toBe('oc-allowed')
+  })
+
+  it('allOutcomes mode on a paid store never filters and never queries the allowlist', async () => {
+    defaultMocks({ store: { tier: 'pro' }, pool: mixedPool })
+    const res = await nextQueue('store-1', new Date(), { allOutcomes: true })
+    expect(new Set(res.queue.map((q) => q.outcomeId))).toEqual(new Set(['oc-allowed', 'oc-locked']))
+    expect(freeAllowedMock).not.toHaveBeenCalled()
+  })
+
+  it('free store with resolved outcome OUTSIDE the allowlist ignores the resolution and plays the restricted blend', async () => {
+    defaultMocks({
+      store: { tier: 'free' },
+      resolvedOutcome: { outcomeId: 'oc-locked', source: 'selection' },
+      pool: mixedPool,
+      freeAllowed: ['oc-allowed'],
+    })
+    const res = await nextQueue('store-1')
+    // Resolution outside the allowlist is treated as unresolved: no active
+    // outcome is reported and only allowlisted rows play.
+    expect(res.activeOutcome).toBeNull()
+    expect(res.queue.length).toBeGreaterThan(0)
+    for (const item of res.queue) expect(item.outcomeId).toBe('oc-allowed')
+  })
+
+  it('free store with resolved outcome INSIDE the allowlist plays it normally', async () => {
+    defaultMocks({
+      store: { tier: 'free' },
+      resolvedOutcome: { outcomeId: 'oc-allowed', source: 'default' },
+      pool: [poolRow({ id: 'lr-1', songId: 's1', outcomeId: 'oc-allowed' })],
+      freeAllowed: ['oc-allowed'],
+    })
+    const res = await nextQueue('store-1')
+    expect(res.activeOutcome?.outcomeId).toBe('oc-allowed')
+    expect(res.queue.length).toBeGreaterThan(0)
+  })
+
+  it('comp-upgraded free store (effectiveTier=pro) is not filtered', async () => {
+    const farFuture = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    defaultMocks({
+      store: { tier: 'free', compTier: 'pro', compExpiresAt: farFuture },
+      pool: mixedPool,
+    })
+    const res = await nextQueue('store-1', new Date(), { allOutcomes: true })
+    expect(new Set(res.queue.map((q) => q.outcomeId))).toEqual(new Set(['oc-allowed', 'oc-locked']))
+    expect(freeAllowedMock).not.toHaveBeenCalled()
+  })
+
+  it('free store whose entire pool is outside the allowlist returns no_pool instead of leaking', async () => {
+    defaultMocks({
+      store: { tier: 'free' },
+      resolvedOutcome: null,
+      pool: [poolRow({ id: 'lr-2', songId: 's2', outcomeId: 'oc-locked' })],
+      freeAllowed: ['oc-allowed'],
+    })
+    const res = await nextQueue('store-1')
+    expect(res.queue).toEqual([])
+    expect(res.reason).toBe('no_pool')
+  })
+
+  it('empty resolved-outcome pool on a free store falls back to the RESTRICTED all-outcomes pool', async () => {
+    // Pool query for the resolved outcome returns nothing; fallback all-pool
+    // returns mixed rows. Only allowlisted rows may survive the fallback.
+    const poolByCall = (args: any = {}) => {
+      const where = args?.where ?? {}
+      if (where.songSeedId && where.song?.playbackEvents) return []
+      if (where.id?.in) return (where.id.in as string[]).map((id: string) => ({ id, songSeed: null }))
+      if (where.outcomeId) return [] // resolved-outcome pool is empty
+      return mixedPool // fallback all-outcomes pool
+    }
+    defaultMocks({
+      store: { tier: 'free' },
+      resolvedOutcome: { outcomeId: 'oc-allowed', source: 'default' },
+      freeAllowed: ['oc-allowed'],
+    })
+    lineageFindMany.mockImplementation(async (args: any) => poolByCall(args))
+    const res = await nextQueue('store-1')
+    expect(res.queue.length).toBeGreaterThan(0)
+    for (const item of res.queue) expect(item.outcomeId).toBe('oc-allowed')
   })
 })

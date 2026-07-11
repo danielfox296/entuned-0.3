@@ -11,7 +11,7 @@ import { requireAuth } from '../lib/session.js'
 import { effectiveTier, compIsActive, tierRank, applyTierChange } from '../lib/tier.js'
 import { uniqueStoreSlug } from '../lib/account.js'
 import { FREE_TIER_ICP_ID } from '../lib/freeTier.js'
-import { pickSystemDefaultOutcomeId } from '../lib/outcomes.js'
+import { pickSystemDefaultOutcomeId, isFreeTierAllowedOutcome, getFreeTierAllowedOutcomeIds } from '../lib/outcomes.js'
 import {
   timeToHHMM,
   hhmmToTime,
@@ -578,12 +578,24 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
   app.post('/stores/:storeId/schedule', { preHandler: requireAuth }, async (req, reply) => {
     const ctx = getClient(req, reply); if (!ctx) return
     const storeId = (req.params as any).storeId as string
-    const store = await prisma.store.findFirst({ where: { id: storeId, clientId: ctx.clientId, archivedAt: null }, select: { id: true } })
+    const store = await prisma.store.findFirst({
+      where: { id: storeId, clientId: ctx.clientId, archivedAt: null },
+      select: { id: true, tier: true, compTier: true, compExpiresAt: true },
+    })
     if (!store) return reply.code(404).send({ error: 'store_not_found' })
     const parsed = ScheduleSlotBody.safeParse(req.body)
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
     if (hhmmToSec(parsed.data.startTime) >= hhmmToSec(parsed.data.endTime)) {
       return reply.code(400).send({ error: 'start_must_precede_end' })
+    }
+    // Free-tier guard: schedule slots may only reference allowlisted outcomes
+    // (same rule as the admin schedule routes and the player selection route).
+    // effectiveTier so a comped store keeps paid privileges while the comp runs.
+    if (effectiveTier(store) === 'free' && !(await isFreeTierAllowedOutcome(parsed.data.outcomeId))) {
+      return reply.code(409).send({
+        error: 'outcome_not_in_free_tier_allowlist',
+        message: 'This outcome is not available on the free tier.',
+      })
     }
     const existing = await prisma.scheduleSlot.findMany({ where: { storeId, dayOfWeek: parsed.data.dayOfWeek } })
     const clash = findOverlappingSlot(parsed.data, existing)
@@ -602,11 +614,18 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
     const current = await prisma.scheduleSlot.findUnique({
       where: { id },
-      include: { store: { select: { clientId: true } } },
+      include: { store: { select: { clientId: true, tier: true, compTier: true, compExpiresAt: true } } },
     })
     if (!current || current.store.clientId !== ctx.clientId) return reply.code(404).send({ error: 'not_found' })
     if (hhmmToSec(parsed.data.startTime) >= hhmmToSec(parsed.data.endTime)) {
       return reply.code(400).send({ error: 'start_must_precede_end' })
+    }
+    // Free-tier guard — same rule as create.
+    if (effectiveTier(current.store) === 'free' && !(await isFreeTierAllowedOutcome(parsed.data.outcomeId))) {
+      return reply.code(409).send({
+        error: 'outcome_not_in_free_tier_allowlist',
+        message: 'This outcome is not available on the free tier.',
+      })
     }
     const siblings = await prisma.scheduleSlot.findMany({ where: { storeId: current.storeId, dayOfWeek: parsed.data.dayOfWeek, id: { not: id } } })
     const clash = findOverlappingSlot(parsed.data, siblings)
@@ -632,13 +651,18 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
   })
 
   // GET /me/outcomes — active outcomes list, for the schedule slot outcome picker.
+  // Annotated with availableOnFree so the dashboard can filter/lock the picker
+  // for free-tier stores (mirrors GET /hendrix/outcomes).
   app.get('/outcomes', { preHandler: requireAuth }, async (_req, reply) => {
-    const rows = await prisma.outcome.findMany({
-      where: { supersededAt: null },
-      orderBy: { title: 'asc' },
-      select: { id: true, title: true, displayTitle: true },
-    })
-    return reply.send(rows)
+    const [rows, allowedIds] = await Promise.all([
+      prisma.outcome.findMany({
+        where: { supersededAt: null },
+        orderBy: { title: 'asc' },
+        select: { id: true, title: true, displayTitle: true },
+      }),
+      getFreeTierAllowedOutcomeIds(),
+    ])
+    return reply.send(rows.map((r) => ({ ...r, availableOnFree: allowedIds.has(r.id) })))
   })
 
   // POST /me/boost-trial — submit the onboarding ICP form and activate the

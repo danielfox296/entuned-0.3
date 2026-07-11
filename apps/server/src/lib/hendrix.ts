@@ -6,6 +6,7 @@ import { prisma } from '../db.js'
 import { resolveActiveOutcome } from './outcomeSchedule.js'
 import { effectiveTier, type StoreTierFields } from './tier.js'
 import { FREE_TIER_AD_STORE_ID } from './freeTier.js'
+import { getFreeTierAllowedOutcomeIds } from './outcomes.js'
 
 // `normal`: ≥1 song passed sibling-spacing + no-repeat filters.
 // `panic`:  pool exists but every song was filtered out — pick the least-played /
@@ -420,9 +421,20 @@ export async function nextQueue(
   const icpIds = icps.map((i) => i.id)
   const retiredSongIds = await fetchRetiredSongIds(storeId)
 
+  // Free-tier allowlist enforcement at the playback selection point. A free
+  // store may only hear allowlisted outcomes regardless of how the outcome
+  // was picked — selection, schedule, default, or the all-outcomes blend.
+  // The player UI and the selection/schedule routes gate too, but this is
+  // the last line of defense against stale selections, tier downgrades, and
+  // allowlist tightening. Null for paid tiers = no filtering.
+  const freeAllowedIds =
+    effectiveTier(store, now) === 'free' ? await getFreeTierAllowedOutcomeIds() : null
+  const restrictPool = (pool: PoolRow[]) =>
+    freeAllowedIds ? pool.filter((r) => freeAllowedIds.has(r.outcomeId)) : pool
+
   // All-outcomes mode: pull from every outcome's pool without restricting to the active one.
   if (opts.allOutcomes) {
-    const pool = dedupeBySong(await fetchAllPool(icpIds, retiredSongIds))
+    const pool = dedupeBySong(restrictPool(await fetchAllPool(icpIds, retiredSongIds)))
     const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, now, { interleaveOutcomes: true })
     return {
       storeId,
@@ -435,11 +447,17 @@ export async function nextQueue(
     }
   }
 
-  const resolved = await resolveActiveOutcome(storeId, now)
+  let resolved = await resolveActiveOutcome(storeId, now)
+  if (resolved && freeAllowedIds && !freeAllowedIds.has(resolved.outcomeId)) {
+    // Free store resolved to an outcome outside the allowlist (stale
+    // selection/schedule/default from before a downgrade or allowlist
+    // tightening). Ignore the resolution rather than leak the outcome.
+    resolved = null
+  }
   if (!resolved) {
     // No outcome configured (no selection, schedule, or default) — fall back to all-outcomes pool
     // so the player always plays something when songs exist.
-    const pool = dedupeBySong(await fetchAllPool(icpIds, retiredSongIds))
+    const pool = dedupeBySong(restrictPool(await fetchAllPool(icpIds, retiredSongIds)))
     const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, now, { interleaveOutcomes: true })
     return {
       storeId,
@@ -457,7 +475,7 @@ export async function nextQueue(
   if (unfilteredPool.length === 0) {
     // Resolved outcome exists but has no songs — fall back to all-outcomes pool
     // so the player always has something to play when songs exist under any outcome.
-    const pool = dedupeBySong(await fetchAllPool(icpIds, retiredSongIds))
+    const pool = dedupeBySong(restrictPool(await fetchAllPool(icpIds, retiredSongIds)))
     const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, now, { interleaveOutcomes: true })
     return {
       storeId,
