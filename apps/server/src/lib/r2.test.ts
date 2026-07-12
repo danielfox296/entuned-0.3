@@ -11,6 +11,14 @@ vi.mock('@aws-sdk/client-s3', () => {
   return { S3Client, PutObjectCommand }
 })
 
+// SSRF guard (lib/ssrf.ts, used by r2.ts) resolves hostnames via DNS. Mock it so
+// these tests stay offline — every host here (example.com, suno.com, *.suno.ai)
+// is legitimately public, so resolve them all to a public IP.
+// Plain function (not vi.fn) so the suite's vi.restoreAllMocks() can't wipe it.
+vi.mock('node:dns/promises', () => ({
+  lookup: async () => [{ address: '93.184.216.34', family: 4 }],
+}))
+
 // R2 client lazy-inits from env. Set minimum env so getClient() doesn't throw.
 process.env.R2_ACCOUNT_ID = 'test-account'
 process.env.R2_ACCESS_KEY_ID = 'test-key'

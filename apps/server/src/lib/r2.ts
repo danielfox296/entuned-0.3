@@ -8,6 +8,7 @@
 // Optional env: R2_BUCKET (default: 'entuned-payloads'), R2_PUBLIC_BASE_URL.
 
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { safeFetch } from './ssrf.js'
 
 const accountId = process.env.R2_ACCOUNT_ID
 const accessKeyId = process.env.R2_ACCESS_KEY_ID
@@ -61,8 +62,9 @@ export async function uploadBuffer(key: string, body: Buffer, contentType: strin
  */
 async function resolveAudioCandidates(url: string): Promise<string[]> {
   if (!/suno\.com\/(s\/|song\/)/i.test(url)) return [url]
-  // Follow redirects to reach the canonical /song/<uuid> URL.
-  const res = await fetch(url, { method: 'HEAD', headers: { 'User-Agent': 'Mozilla/5.0' }, redirect: 'follow' })
+  // Follow redirects to reach the canonical /song/<uuid> URL. safeFetch pins
+  // each redirect hop against the SSRF allowlist (SEC-5).
+  const res = await safeFetch(url, { method: 'HEAD', headers: { 'User-Agent': 'Mozilla/5.0' } })
   const finalUrl = res.url
   const m = finalUrl.match(/\/song\/([0-9a-f-]{36})/i)
   if (!m) throw new Error(`could not extract Suno song UUID from ${url} (resolved to ${finalUrl})`)
@@ -116,7 +118,9 @@ export async function downloadAndUploadFromUrl(sourceUrl: string, key: string): 
 }
 
 async function downloadAndValidate(audioUrl: string, key: string): Promise<UploadedObject> {
-  const res = await fetch(audioUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+  // safeFetch enforces the SSRF allowlist (https-only, no internal IPs) and
+  // pins redirects — the operator-supplied URL is untrusted (SEC-5).
+  const res = await safeFetch(audioUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } })
   if (!res.ok) throw new Error(`download failed: ${res.status} ${res.statusText}`)
 
   const contentType = res.headers.get('content-type')

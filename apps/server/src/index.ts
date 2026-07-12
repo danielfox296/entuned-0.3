@@ -30,6 +30,7 @@ import { runCompExpiryCron } from './lib/compExpiry.js'
 import { runBoostTrialClockActivation } from './lib/boostTrialClock.js'
 import { runPlaybackHeartbeat } from './lib/playbackHeartbeat.js'
 import { isPushConfigured } from './lib/push.js'
+import { isAllowedOrigin } from './lib/cors.js'
 
 const app = Fastify({
   logger: {
@@ -97,11 +98,15 @@ app.setNotFoundHandler((_request, reply) => {
 
 // `credentials: true` is required so browsers attach the session cookie on
 // cross-origin fetches from app.entuned.co → api.entuned.co. With it, the
-// CORS spec also requires Access-Control-Allow-Origin to be a specific
-// origin (not `*`); `origin: true` reflects the request origin, which
-// satisfies that. Without credentials:true, every dashboard fetch with
-// `credentials: 'include'` is blocked client-side ("Failed to fetch").
-await app.register(cors, { origin: true, credentials: true })
+// CORS spec also requires Access-Control-Allow-Origin to be a specific origin
+// (not `*`). SEC-4: rather than reflect ANY origin (`origin: true`), pin an
+// explicit allowlist (`isAllowedOrigin`) — the three app subdomains plus
+// localhost dev. Requests with no Origin (server-to-server, curl, healthcheck)
+// still pass. Foreign origins get no ACAO header, so the browser blocks them.
+await app.register(cors, {
+  origin: (origin, cb) => cb(null, isAllowedOrigin(origin)),
+  credentials: true,
+})
 await app.register(rateLimit, { global: false })
 await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024 } })
 // Cookie plugin registered at app scope so reply.setCookie is available to all routes.
