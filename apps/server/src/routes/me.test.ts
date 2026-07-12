@@ -323,6 +323,64 @@ describe('me schedule-slot routes', () => {
       })
       expect(slotCreate).not.toHaveBeenCalled()
     })
+
+    // FE-1 (2026-07-11 audit): an identical slot (same day, time range, AND
+    // outcome) already exists. The route must return it idempotently — 200 with
+    // the existing row — instead of 409'ing on self-overlap or duplicating it.
+    // This is what makes a partial-failure retry of a multi-day create safe: the
+    // client can resubmit the same set and already-persisted days come back OK.
+    it('returns 200 with the existing row when an identical slot already exists (idempotent)', async () => {
+      storeFindFirst.mockResolvedValue({ id: STORE_ID })
+      slotFindMany.mockResolvedValue([
+        { id: SLOT_ID, startTime: hhmmDate('09:00'), endTime: hhmmDate('10:00'), outcomeId: OUTCOME_ID },
+      ])
+      slotFindUnique.mockResolvedValue(makeSlotRow())
+
+      const app = await buildTestApp(meRoutes)
+      const res = await app.inject({
+        method: 'POST',
+        url: `/stores/${STORE_ID}/schedule`,
+        payload: { dayOfWeek: 1, startTime: '09:00', endTime: '10:00', outcomeId: OUTCOME_ID },
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toEqual({
+        id: SLOT_ID,
+        storeId: STORE_ID,
+        dayOfWeek: 1,
+        startTime: '09:00',
+        endTime: '10:00',
+        outcomeId: OUTCOME_ID,
+        outcomeTitle: 'Energize',
+        outcomeDisplayTitle: 'Morning Energize',
+      })
+      expect(slotCreate).not.toHaveBeenCalled()
+      expect(slotFindUnique).toHaveBeenCalledWith({
+        where: { id: SLOT_ID },
+        include: { outcome: { select: { title: true, displayTitle: true } } },
+      })
+    })
+
+    // Idempotency must NOT swallow a genuine clash: same day + overlapping time
+    // but a DIFFERENT outcome is not "identical" — it still 409s as an overlap.
+    it('still returns 409 when an overlapping slot has a different outcome (not idempotent)', async () => {
+      storeFindFirst.mockResolvedValue({ id: STORE_ID })
+      slotFindMany.mockResolvedValue([
+        { id: 'slot-other', startTime: hhmmDate('09:00'), endTime: hhmmDate('10:00'), outcomeId: '99999999-9999-9999-9999-999999999999' },
+      ])
+
+      const app = await buildTestApp(meRoutes)
+      const res = await app.inject({
+        method: 'POST',
+        url: `/stores/${STORE_ID}/schedule`,
+        payload: { dayOfWeek: 1, startTime: '09:00', endTime: '10:00', outcomeId: OUTCOME_ID },
+      })
+
+      expect(res.statusCode).toBe(409)
+      expect(res.json()).toEqual({ error: 'schedule_overlap', message: 'Overlaps with 09:00–10:00' })
+      expect(slotCreate).not.toHaveBeenCalled()
+      expect(slotFindUnique).not.toHaveBeenCalled()
+    })
   })
 
   // ---------- PUT /schedule-rows/:id ----------

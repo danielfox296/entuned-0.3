@@ -41,6 +41,10 @@ editor:
   create_prefix: "Create "
   create_suffix_singular: " rule"
   create_suffix_plural: " rules"
+  # Partial-success summary after a multi-day create
+  result_created_label: "Added"
+  result_skipped_label: "Already set"
+  result_failed_label: "Couldn't add"
 
 # Static preview shown inside LockScreen
 preview:

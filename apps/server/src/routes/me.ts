@@ -598,6 +598,25 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       })
     }
     const existing = await prisma.scheduleSlot.findMany({ where: { storeId, dayOfWeek: parsed.data.dayOfWeek } })
+    // Idempotent create: if an identical slot (same day, time range, outcome)
+    // already exists, return it instead of 409'ing on self-overlap. This makes
+    // a partial-failure retry of a multi-day create safe — days already
+    // persisted are returned as-is rather than re-erroring, so the client can
+    // resubmit the same set and only the missing days actually get created.
+    // See FE-1 (2026-07-11 audit).
+    const identical = existing.find(
+      (s) =>
+        s.outcomeId === parsed.data.outcomeId &&
+        hhmmToSec(timeToHHMM(s.startTime)) === hhmmToSec(parsed.data.startTime) &&
+        hhmmToSec(timeToHHMM(s.endTime)) === hhmmToSec(parsed.data.endTime),
+    )
+    if (identical) {
+      const row = await prisma.scheduleSlot.findUnique({
+        where: { id: identical.id },
+        include: { outcome: { select: { title: true, displayTitle: true } } },
+      })
+      if (row) return reply.send(fmtSlot(row))
+    }
     const clash = findOverlappingSlot(parsed.data, existing)
     if (clash) return reply.code(409).send({ error: 'schedule_overlap', message: `Overlaps with ${timeToHHMM(clash.startTime)}–${timeToHHMM(clash.endTime)}` })
     const row = await prisma.scheduleSlot.create({

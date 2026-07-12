@@ -66,6 +66,7 @@ function ScheduleEditor({ stores }: { stores: { id: string; name: string }[] }) 
   const [outcomes, setOutcomes] = useState<OutcomeOption[] | null>(null)
   const [adding, setAdding] = useState<{ daysOfWeek: number[]; startTime: string; endTime: string; outcomeId: string } | null>(null)
   const [addBusy, setAddBusy] = useState(false)
+  const [addResult, setAddResult] = useState<AddResult | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
@@ -111,33 +112,66 @@ function ScheduleEditor({ stores }: { stores: { id: string; name: string }[] }) 
           <div>
             <Button
               variant={adding ? 'ghost' : 'primary'}
-              onClick={() => setAdding(adding ? null : { daysOfWeek: [1], startTime: '09:00', endTime: '12:00', outcomeId: '' })}
+              onClick={() => { setAddResult(null); setAdding(adding ? null : { daysOfWeek: [1], startTime: '09:00', endTime: '12:00', outcomeId: '' }) }}
             >{adding ? content.editor.cancel : content.editor.new_rule}</Button>
           </div>
 
           {adding && (
-            <MultiDayForm
-              draft={adding}
-              outcomes={outcomes}
-              busy={addBusy}
-              onChange={setAdding}
-              onSubmit={async () => {
-                if (adding.daysOfWeek.length === 0) return
-                setAddBusy(true)
-                try {
-                  for (const dow of adding.daysOfWeek) {
-                    await api.createScheduleSlot(storeId, {
-                      dayOfWeek: dow,
-                      startTime: adding.startTime,
-                      endTime: adding.endTime,
-                      outcomeId: adding.outcomeId,
-                    })
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <MultiDayForm
+                draft={adding}
+                outcomes={outcomes}
+                busy={addBusy}
+                onChange={(next) => { setAddResult(null); setAdding(next) }}
+                onSubmit={async () => {
+                  if (adding.daysOfWeek.length === 0) return
+                  setAddBusy(true); setErr(null)
+                  const ok: number[] = []
+                  const skipped: number[] = []
+                  const failed: { dow: number; msg: string }[] = []
+                  try {
+                    for (const dow of adding.daysOfWeek) {
+                      // Skip a day that already has an identical slot — avoids a
+                      // needless round-trip and a self-overlap 409 when retrying
+                      // a partial failure. The server is idempotent for this case
+                      // too; this just keeps the client from asking.
+                      const dup = (grouped[dow] ?? []).some((s) =>
+                        s.outcomeId === adding.outcomeId &&
+                        s.startTime === adding.startTime &&
+                        s.endTime === adding.endTime)
+                      if (dup) { skipped.push(dow); continue }
+                      try {
+                        await api.createScheduleSlot(storeId, {
+                          dayOfWeek: dow,
+                          startTime: adding.startTime,
+                          endTime: adding.endTime,
+                          outcomeId: adding.outcomeId,
+                        })
+                        ok.push(dow)
+                      } catch (e: any) {
+                        failed.push({ dow, msg: e?.message ?? 'Failed' })
+                      }
+                    }
+                  } finally {
+                    // Always re-render persisted rows, even on partial failure —
+                    // this is the bug FE-1 fixed: created days were orphaned when
+                    // reload sat after the loop inside the try.
+                    await reload()
+                    setAddBusy(false)
                   }
-                  setAdding(null); reload()
-                } catch (e: any) { setErr(e.message) }
-                finally { setAddBusy(false) }
-              }}
-            />
+                  if (failed.length === 0) {
+                    // Everything landed (some may have already existed) — close.
+                    setAdding(null); setAddResult(null)
+                  } else {
+                    // Partial success — keep the form open, narrow it to the days
+                    // that still need creating, and report what happened.
+                    setAdding({ ...adding, daysOfWeek: failed.map((f) => f.dow) })
+                    setAddResult({ ok, skipped, failed })
+                  }
+                }}
+              />
+              {addResult && <AddResultSummary result={addResult} />}
+            </div>
           )}
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8 }}>
@@ -354,6 +388,39 @@ function MultiDayForm({ draft, outcomes, busy, onChange, onSubmit }: {
             : `${content.editor.create_prefix}${draft.daysOfWeek.length}${isSingular ? content.editor.create_suffix_singular : content.editor.create_suffix_plural}`}
         </Button>
       </div>
+    </div>
+  )
+}
+
+interface AddResult {
+  ok: number[]
+  skipped: number[]
+  failed: { dow: number; msg: string }[]
+}
+
+const shortFor = (dow: number) => DAYS.find((d) => d.dow === dow)?.short ?? String(dow)
+
+// Partial-success summary for a multi-day create — rendered only when at least
+// one day failed (see the onSubmit handler). Success/skip lines give context;
+// each failed day says why, so the customer knows exactly what to fix.
+function AddResultSummary({ result }: { result: AddResult }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontFamily: T.sans, fontSize: 12 }}>
+      {result.ok.length > 0 && (
+        <div style={{ color: T.textMuted }}>
+          {content.editor.result_created_label}: {result.ok.map(shortFor).join(', ')}
+        </div>
+      )}
+      {result.skipped.length > 0 && (
+        <div style={{ color: T.textDim }}>
+          {content.editor.result_skipped_label}: {result.skipped.map(shortFor).join(', ')}
+        </div>
+      )}
+      {result.failed.map((f) => (
+        <div key={f.dow} style={{ color: T.danger }}>
+          {content.editor.result_failed_label} {shortFor(f.dow)} — {f.msg}
+        </div>
+      ))}
     </div>
   )
 }
