@@ -247,12 +247,41 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: 'expected_raw_body' })
     }
 
+    // Fail CLOSED on a missing webhook secret (SEC-1). `constructEvent` verifies
+    // the HMAC against this key; an empty string makes every forged signature
+    // verifiable, so refuse to process rather than trust an unsigned payload.
+    // Mirrors the hard-fail posture of JWT_SECRET in lib/session.ts.
+    if (!STRIPE_WEBHOOK_SECRET) {
+      req.log.error('stripe_webhook_secret_missing — refusing to process webhook')
+      return reply.code(500).send({ error: 'webhook_not_configured' })
+    }
+
     let event: Stripe.Event
     try {
       event = stripe.webhooks.constructEvent(raw, sig, STRIPE_WEBHOOK_SECRET)
     } catch (err: any) {
       req.log.warn({ err }, 'stripe_signature_verify_failed')
       return reply.code(400).send({ error: 'bad_signature' })
+    }
+
+    // Idempotency guard. Stripe delivers at-least-once and retries any non-2xx
+    // delivery, so the same event.id can arrive multiple times. Insert-first-or-
+    // skip on a dedupe ledger keyed by event.id: if the row already exists this
+    // is a redelivery — ack 200 and return without re-running the handler. The
+    // marker is rolled back below if the handler fails, so a retry re-processes.
+    try {
+      await prisma.processedStripeEvent.create({
+        data: { id: event.id, type: event.type },
+      })
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        req.log.info({ eventId: event.id, type: event.type }, 'stripe_webhook_duplicate_skipped')
+        return reply.send({ received: true, duplicate: true })
+      }
+      req.log.error({ err, eventId: event.id }, 'stripe_event_dedupe_insert_failed')
+      // Couldn't record the marker — fail so Stripe retries rather than risk
+      // processing without a guard.
+      return reply.code(500).send({ error: 'dedupe_failed' })
     }
 
     try {
@@ -308,6 +337,11 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
       }
     } catch (err) {
       req.log.error({ err, type: event.type }, 'stripe_webhook_handler_failed')
+      // Roll back the idempotency marker so Stripe's retry re-processes this
+      // event instead of being short-circuited as a duplicate.
+      await prisma.processedStripeEvent
+        .delete({ where: { id: event.id } })
+        .catch(() => undefined)
       // Return 500 so Stripe retries.
       return reply.code(500).send({ error: 'handler_failed' })
     }
@@ -779,105 +813,134 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
     data: { stripeCustomerId: customerId },
   }).catch(() => undefined)
 
-  // 2) Store. If this Client has an auto-provisioned free Store with no Subscription
-  //    (the one created at first sign-in), transmute it into the paid Store rather
-  //    than creating a sibling. Keeps one Client = N paid Stores per billing decision
-  //    #6 and preserves any music.entuned.co/<slug> URL the customer already shared.
-  //    Falls through to a fresh Store if there's no orphan to absorb (e.g. user already
-  //    has a paid Store and is re-checking-out for some reason).
-  const orphanFreeStore = await prisma.store.findFirst({
-    where: {
-      clientId: client.id,
-      tier: 'free',
-      archivedAt: null,
-      subscription: { is: null },
-    },
-    orderBy: { createdAt: 'asc' },
+  // 2) Provision the paid Store + Subscription — idempotently and atomically.
+  //
+  //    If a Subscription already exists for this Stripe subscription id, this
+  //    checkout was already provisioned (a redelivery, or a retry whose first
+  //    run got far enough to write the Subscription). Return without creating a
+  //    duplicate Store. This is the safety net *below* the webhook-level event.id
+  //    guard: it also covers a retry of an event whose first run failed AFTER
+  //    transmuting the orphan free Store but BEFORE writing the Subscription.
+  const existingSub = await prisma.subscription.findUnique({
+    where: { stripeSubscriptionId: subscriptionId },
+    select: { id: true },
   })
+  if (existingSub) return
 
-  let store: { id: string; slug: string }
-  if (orphanFreeStore) {
-    // Look up the orphan's full state so we can compute fromEffective and
-    // run the comp-clear check (paid tier ≥ comp tier auto-clears comp).
-    const orphan = await prisma.store.findUnique({
-      where: { id: orphanFreeStore.id },
+  //    All Store + tierChangeLog + Subscription writes happen inside ONE
+  //    transaction so a partial failure (e.g. Subscription.create tripping the
+  //    stripeSubscriptionId UNIQUE constraint under a concurrent delivery) rolls
+  //    back cleanly and can never orphan a freshly-created paid Store.
+  const provisioned = await prisma.$transaction(async (tx) => {
+    // Re-check inside the transaction to close the concurrent-delivery race:
+    // if another delivery provisioned first, bail out (no writes).
+    const raced = await tx.subscription.findUnique({
+      where: { stripeSubscriptionId: subscriptionId },
+      select: { id: true },
+    })
+    if (raced) return null
+
+    // If this Client has an auto-provisioned free Store with no Subscription
+    // (the one created at first sign-in), transmute it into the paid Store
+    // rather than creating a sibling. Keeps one Client = N paid Stores per
+    // billing decision #6 and preserves any music.entuned.co/<slug> URL the
+    // customer already shared. Falls through to a fresh Store if there's no
+    // orphan to absorb (e.g. the customer already has a paid Store).
+    const orphan = await tx.store.findFirst({
+      where: {
+        clientId: client.id,
+        tier: 'free',
+        archivedAt: null,
+        subscription: { is: null },
+      },
+      orderBy: { createdAt: 'asc' },
       select: { id: true, slug: true, tier: true, compTier: true, compExpiresAt: true },
     })
-    if (!orphan) throw new Error(`orphan store vanished mid-checkout (id=${orphanFreeStore.id})`)
-    const fromEffective = effectiveTier(orphan)
-    const willClearComp =
-      !!orphan.compTier && tierRank(tier as Tier) >= tierRank(orphan.compTier as Tier)
 
-    await applyTierChange({
-      storeId: orphan.id,
-      fromTier: fromEffective,
-      data: {
-        tier,
-        ...(willClearComp
-          ? {
-              compTier: null,
-              compExpiresAt: null,
-              compReason: null,
-              compGrantedById: null,
-              compGrantedAt: null,
-            }
-          : {}),
-      },
-      source: willClearComp ? 'auto_cleared' : 'stripe_webhook',
-      actorId: null,
-      reason: willClearComp
-        ? `paid tier ${tier} via checkout; comp ${orphan.compTier} auto-cleared`
-        : null,
-    })
-    store = { id: orphan.id, slug: orphan.slug }
-  } else {
-    const baseName = client.name ?? (email ? email.split('@')[0] : 'Store')
-    const newSlug = await uniqueStoreSlug(baseName)
-    const defaultOutcomeId = await pickSystemDefaultOutcomeId(tier)
-    store = await prisma.store.create({
-      data: {
-        clientId: client.id,
-        name: `${baseName} — Main`,
-        slug: newSlug,
-        tier,
-        defaultOutcomeId,
-        // UTC default — the customer sets their real tz from the dashboard.
-        timezone: 'UTC',
-      },
-      select: { id: true, slug: true },
-    })
-    // Fresh paid Store — log a 'free → paid' transition (from is implicitly
-    // 'free' since the row was just created at the paid tier; we still want
-    // an entry in tier_change_logs for completeness).
-    await prisma.tierChangeLog.create({
+    let store: { id: string; slug: string }
+    if (orphan) {
+      const fromEffective = effectiveTier(orphan)
+      const willClearComp =
+        !!orphan.compTier && tierRank(tier as Tier) >= tierRank(orphan.compTier as Tier)
+
+      await applyTierChange({
+        storeId: orphan.id,
+        fromTier: fromEffective,
+        data: {
+          tier,
+          ...(willClearComp
+            ? {
+                compTier: null,
+                compExpiresAt: null,
+                compReason: null,
+                compGrantedById: null,
+                compGrantedAt: null,
+              }
+            : {}),
+        },
+        source: willClearComp ? 'auto_cleared' : 'stripe_webhook',
+        actorId: null,
+        reason: willClearComp
+          ? `paid tier ${tier} via checkout; comp ${orphan.compTier} auto-cleared`
+          : null,
+        tx,
+      })
+      store = { id: orphan.id, slug: orphan.slug }
+    } else {
+      const baseName = client.name ?? (email ? email.split('@')[0] : 'Store')
+      const newSlug = await uniqueStoreSlug(baseName)
+      const defaultOutcomeId = await pickSystemDefaultOutcomeId(tier)
+      const created = await tx.store.create({
+        data: {
+          clientId: client.id,
+          name: `${baseName} — Main`,
+          slug: newSlug,
+          tier,
+          defaultOutcomeId,
+          // UTC default — the customer sets their real tz from the dashboard.
+          timezone: 'UTC',
+        },
+        select: { id: true, slug: true },
+      })
+      // Fresh paid Store — log a 'free → paid' transition (from is implicitly
+      // 'free' since the row was just created at the paid tier; we still want
+      // an entry in tier_change_logs for completeness).
+      await tx.tierChangeLog.create({
+        data: {
+          storeId: created.id,
+          fromTier: 'free',
+          toTier: tier,
+          source: 'stripe_webhook',
+          reason: `initial paid checkout (${tier})`,
+        },
+      })
+      store = { id: created.id, slug: created.slug }
+    }
+
+    // 3) Subscription row — the UNIQUE(stripeSubscriptionId) constraint is the
+    //    last line of defense; if it trips here the whole transaction unwinds.
+    await tx.subscription.create({
       data: {
         storeId: store.id,
-        fromTier: 'free',
-        toTier: tier,
-        source: 'stripe_webhook',
-        reason: `initial paid checkout (${tier})`,
+        stripeSubscriptionId: subscriptionId,
+        stripeCustomerId: customerId,
+        stripePriceId,
+        status: stripeSub.status,
+        currentPeriodEnd: periodEnd,
+        cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
       },
     })
-  }
-  const slug = store.slug
 
-  // 3) Subscription row.
-  await prisma.subscription.create({
-    data: {
-      storeId: store.id,
-      stripeSubscriptionId: subscriptionId,
-      stripeCustomerId: customerId,
-      stripePriceId,
-      status: stripeSub.status,
-      currentPeriodEnd: periodEnd,
-      cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
-    },
+    return { slug: store.slug }
   })
+
+  // A concurrent delivery won the race and provisioned first — nothing to do.
+  if (!provisioned) return
 
   // 4) Welcome email.
   const dest = email ?? client.email
   if (dest) {
-    const playerUrl = `${PLAYER_URL}/${slug}`
+    const playerUrl = `${PLAYER_URL}/${provisioned.slug}`
     const dashboardUrl = APP_URL
     await sendWelcome(dest, tier, playerUrl, dashboardUrl).catch(() => undefined)
   }

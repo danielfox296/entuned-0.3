@@ -1508,6 +1508,24 @@ model Subscription {
   @@map("subscriptions")
 }
 
+// ---------- Billing: ProcessedStripeEvent ----------
+//
+// Idempotency ledger for the Stripe webhook (POST /webhooks/stripe). Stripe
+// delivers each event at-least-once and retries any non-2xx delivery. The
+// webhook inserts one row here keyed on the Stripe `event.id` BEFORE
+// dispatching the handler (insert-first-or-skip): a duplicate insert trips the
+// PK and is treated as "already processed → ack 200". If the handler then
+// fails, the row is deleted so Stripe's retry re-processes instead of being
+// skipped. See ../../../entune v0.3/schema/dashboard-billing.md.
+
+model ProcessedStripeEvent {
+  id          String   @id // the Stripe event id (e.g. evt_...)
+  type        String
+  processedAt DateTime @default(now()) @map("processed_at") @db.Timestamptz(6)
+
+  @@map("processed_stripe_events")
+}
+
 // ---------- Billing: PlayerBinding ----------
 //
 // First device that opens the player at a Store is bound by fingerprint /

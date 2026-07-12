@@ -62,8 +62,13 @@ vi.mock('stripe', () => {
 })
 
 // ---------- Prisma mock ----------
-vi.mock('../db.js', () => ({
-  prisma: {
+// `$transaction(cb)` invokes its callback against the SAME mocked client so
+// the inner tx.store.* / tx.subscription.* / tx.tierChangeLog.* calls land on
+// these mocks (canonical pattern — see tier.test.ts). The array form is
+// supported for completeness. NOTE: `vi.resetAllMocks()` in beforeEach wipes
+// this implementation, so it is re-installed there (see `installTxMock`).
+vi.mock('../db.js', () => {
+  const prisma: any = {
     account: {
       findUnique: vi.fn(),
       create: vi.fn(),
@@ -92,8 +97,14 @@ vi.mock('../db.js', () => ({
     tierChangeLog: {
       create: vi.fn(),
     },
-  },
-}))
+    processedStripeEvent: {
+      create: vi.fn(),
+      delete: vi.fn(),
+    },
+    $transaction: vi.fn(),
+  }
+  return { prisma }
+})
 
 // ---------- tier helpers mock ----------
 // Keep effectiveTier / tierRank real (cheap pure fns); stub applyTierChange.
@@ -209,6 +220,17 @@ const p = prisma as unknown as {
     updateMany: ReturnType<typeof vi.fn>
   }
   tierChangeLog: { create: ReturnType<typeof vi.fn> }
+  processedStripeEvent: { create: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> }
+  $transaction: ReturnType<typeof vi.fn>
+}
+
+// Re-install the canonical `$transaction(cb) → cb(prisma)` behavior. Called
+// from beforeEach because `vi.resetAllMocks()` wipes the implementation set at
+// mock-construction time (same gotcha as tier.test.ts).
+function installTxMock() {
+  p.$transaction.mockImplementation(async (arg: any) =>
+    typeof arg === 'function' ? arg(prisma) : Promise.all(arg),
+  )
 }
 
 const applyTierChangeMock = applyTierChange as unknown as ReturnType<typeof vi.fn>
@@ -229,6 +251,15 @@ beforeEach(() => {
   // gotcha noted in pauseAutoResume.test.ts.
   vi.resetAllMocks()
   setAuthed(true)
+  // Re-install $transaction(cb) → cb(prisma) (wiped by resetAllMocks).
+  installTxMock()
+  // Dedupe guard: default to "not seen before" (insert succeeds). The
+  // duplicate-skip path overrides create to reject with a P2002.
+  p.processedStripeEvent.create.mockResolvedValue({})
+  p.processedStripeEvent.delete.mockResolvedValue({})
+  // Provisioning idempotency pre-check + in-tx re-check default to "no existing
+  // subscription" so the happy path provisions. Duplicate tests override.
+  p.subscription.findUnique.mockResolvedValue(null)
   // Set sensible default resolutions for the cross-cutting Stripe calls so
   // tests don't have to redeclare them. Tests override as needed.
   stripeMocks.checkout.sessions.create.mockReset()
@@ -483,8 +514,9 @@ describe('webhook: checkout.session.completed', () => {
     }
   }
 
-  function mockEvent(session: any) {
+  function mockEvent(session: any, eventId = 'evt_test_001') {
     stripeMocks.webhooks.constructEvent.mockReturnValue({
+      id: eventId,
       type: 'checkout.session.completed',
       data: { object: session },
     } as any)
@@ -514,12 +546,6 @@ describe('webhook: checkout.session.completed', () => {
     })
     p.client.update.mockResolvedValue({})
     p.store.findFirst.mockResolvedValue({
-      id: STORE_ID,
-      tier: 'free',
-      compTier: null,
-      compExpiresAt: null,
-    })
-    p.store.findUnique.mockResolvedValue({
       id: STORE_ID,
       slug: 'orphan-slug',
       tier: 'free',
@@ -580,12 +606,6 @@ describe('webhook: checkout.session.completed', () => {
     })
     p.client.update.mockResolvedValue({})
     p.store.findFirst.mockResolvedValue({
-      id: STORE_ID,
-      tier: 'free',
-      compTier: 'core',
-      compExpiresAt: new Date('2099-01-01'),
-    })
-    p.store.findUnique.mockResolvedValue({
       id: STORE_ID,
       slug: 's',
       tier: 'free',
@@ -707,6 +727,105 @@ describe('webhook: checkout.session.completed', () => {
     })
     expect(res.statusCode).toBe(500)
     expect(p.subscription.create).not.toHaveBeenCalled()
+  })
+
+  // ---------- idempotency: SRV-1 ----------
+
+  it('(a) a duplicate event.id is a no-op — acks 200 and never runs the handler', async () => {
+    mockEvent(makeSession())
+    mockStripeSubRetrieve()
+    // The dedupe ledger already has this event.id → insert trips P2002.
+    p.processedStripeEvent.create.mockRejectedValue(
+      Object.assign(new Error('unique'), { code: 'P2002' }),
+    )
+
+    const app = await buildTestApp(billingRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/stripe',
+      headers: { 'content-type': 'application/json', 'stripe-signature': 's' },
+      payload: '{}',
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ received: true, duplicate: true })
+    // Handler short-circuited: no Stripe fetch, no provisioning, nothing mutated.
+    expect(stripeMocks.subscriptions.retrieve).not.toHaveBeenCalled()
+    expect(applyTierChangeMock).not.toHaveBeenCalled()
+    expect(p.store.create).not.toHaveBeenCalled()
+    expect(p.subscription.create).not.toHaveBeenCalled()
+    // A skipped duplicate must NOT delete the existing marker.
+    expect(p.processedStripeEvent.delete).not.toHaveBeenCalled()
+  })
+
+  it('(b) a redelivery after successful provisioning does NOT create a second Store', async () => {
+    mockEvent(makeSession())
+    mockStripeSubRetrieve()
+    p.account.findUnique.mockResolvedValue({
+      id: 'u',
+      memberships: [{ client: { id: 'c', companyName: 'Co' } }],
+    })
+    p.client.update.mockResolvedValue({})
+    // Provisioning safety net: a Subscription already exists for this Stripe
+    // subscription id (first delivery provisioned it), so the pre-check bails.
+    p.subscription.findUnique.mockResolvedValue({ id: 'existing-sub' })
+
+    const app = await buildTestApp(billingRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/stripe',
+      headers: { 'content-type': 'application/json', 'stripe-signature': 's' },
+      payload: '{}',
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ received: true })
+    // No duplicate Store, no duplicate tierChangeLog, no duplicate Subscription.
+    expect(p.$transaction).not.toHaveBeenCalled()
+    expect(p.store.create).not.toHaveBeenCalled()
+    expect(p.store.findFirst).not.toHaveBeenCalled()
+    expect(applyTierChangeMock).not.toHaveBeenCalled()
+    expect(p.subscription.create).not.toHaveBeenCalled()
+    expect(sendWelcomeMock).not.toHaveBeenCalled()
+  })
+
+  it('(c) rolls back cleanly and 500s when a write fails mid-transaction (Subscription.create trips the unique constraint)', async () => {
+    mockEvent(makeSession())
+    mockStripeSubRetrieve()
+    p.account.findUnique.mockResolvedValue({
+      id: 'u',
+      memberships: [{ client: { id: 'c-new', companyName: 'New Co' } }],
+    })
+    p.client.update.mockResolvedValue({})
+    p.store.findFirst.mockResolvedValue(null) // no orphan → fresh-store branch
+    p.store.create.mockResolvedValue({ id: 'store-new', slug: 'new-co-slug' })
+    p.tierChangeLog.create.mockResolvedValue({})
+    // A concurrent delivery inserted the Subscription first: the create inside
+    // the transaction trips UNIQUE(stripeSubscriptionId). The whole tx must
+    // unwind (no orphaned Store) and the webhook must 500 so Stripe retries.
+    p.subscription.create.mockRejectedValue(
+      Object.assign(new Error('unique'), { code: 'P2002' }),
+    )
+
+    const app = await buildTestApp(billingRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhooks/stripe',
+      headers: { 'content-type': 'application/json', 'stripe-signature': 's' },
+      payload: '{}',
+    })
+
+    expect(res.statusCode).toBe(500)
+    // The writes were wrapped in a single transaction.
+    expect(p.$transaction).toHaveBeenCalledOnce()
+    expect(p.store.create).toHaveBeenCalledOnce()
+    expect(p.subscription.create).toHaveBeenCalledOnce()
+    // Idempotency marker rolled back so Stripe's retry re-processes.
+    expect(p.processedStripeEvent.delete).toHaveBeenCalledWith({
+      where: { id: 'evt_test_001' },
+    })
+    // No welcome email on a failed provision.
+    expect(sendWelcomeMock).not.toHaveBeenCalled()
   })
 })
 
