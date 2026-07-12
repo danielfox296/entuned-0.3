@@ -40,6 +40,16 @@ function tokenMatches(provided: string, expected: string): boolean {
 
 export const devLoginRoutes: FastifyPluginAsync = async (app) => {
   app.post('/dev-login', async (request, reply) => {
+    // Belt-and-suspenders hard gate (SEC-2). Even if DEV_LOGIN_TOKEN is ever set
+    // on the production Railway service, refuse to mint tokens when we're
+    // clearly in production — either NODE_ENV says so or the request arrived on
+    // the prod API host. This route is also skipped at registration time under
+    // prod NODE_ENV (see index.ts), so this is the second line of defense.
+    const host = String(request.headers.host ?? '').toLowerCase()
+    if (process.env.NODE_ENV === 'production' || host === 'api.entuned.co') {
+      return reply.code(404).send({ error: 'not_found' })
+    }
+
     const expected = process.env.DEV_LOGIN_TOKEN
     if (!expected || expected.length < 16) {
       return reply.code(404).send({ error: 'not_found' })

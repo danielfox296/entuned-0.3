@@ -34,6 +34,9 @@ vi.mock('../db.js', () => ({
     adAsset: {
       count: vi.fn(),
     },
+    store: {
+      findUnique: vi.fn(),
+    },
   },
 }))
 
@@ -70,7 +73,14 @@ const cpsUpsertMock = prisma.campaignPlayState.upsert as ReturnType<typeof vi.fn
 const casFindUniqueMock = prisma.campaignAssetState.findUnique as ReturnType<typeof vi.fn>
 const casUpsertMock = prisma.campaignAssetState.upsert as ReturnType<typeof vi.fn>
 const adAssetCountMock = prisma.adAsset.count as ReturnType<typeof vi.fn>
+const storeFindUniqueMock = prisma.store.findUnique as ReturnType<typeof vi.fn>
 const authMock = isAccountAuthorizedForStore as ReturnType<typeof vi.fn>
+
+// All POST / tests below authenticate as an operator (Bearer good-token); the
+// mocked `isAccountAuthorizedForStore` returns true by default so the store
+// scope check passes. Auth-specific paths (missing/invalid credential, wrong
+// store, slug mode) are exercised in the dedicated 'POST / — auth' block.
+const AUTHED = { authorization: 'Bearer good-token' }
 
 const STORE_ID = '00000000-0000-0000-0000-000000000001'
 const SONG_ID = '00000000-0000-0000-0000-00000000beef'
@@ -109,6 +119,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent(),
     })
 
@@ -131,6 +142,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({ event_type: 'this_is_not_real' }),
     })
 
@@ -149,6 +161,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({ store_id: 'not-a-uuid' }),
     })
 
@@ -164,6 +177,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({ occurred_at: 'not-a-date' }),
     })
 
@@ -177,6 +191,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: {
         events: [
           baseEvent({ event_type: 'song_start' }),
@@ -198,6 +213,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: { events: [] },
     })
 
@@ -212,6 +228,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({
         event_type: 'song_report',
         song_id: SONG_ID,
@@ -228,6 +245,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({
         event_type: 'song_report',
         song_id: SONG_ID,
@@ -247,6 +265,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({ event_type: 'song_complete', song_id: SONG_ID, completion_reason: 'ended' }),
     })
 
@@ -263,6 +282,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({ event_type: 'song_start', song_id: SONG_ID, hook_id: HOOK_ID }),
     })
 
@@ -277,6 +297,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({ event_type: 'song_start', song_id: SONG_ID }),
     })
 
@@ -290,7 +311,7 @@ describe('POST /', () => {
       event_type: 'song_start',
       idempotency_key: 'abc12345-retry-key',
     })
-    const res = await app.inject({ method: 'POST', url: '/', payload: ev })
+    const res = await app.inject({ method: 'POST', url: '/', headers: AUTHED, payload: ev })
 
     expect(res.statusCode).toBe(201)
     expect(createManyMock.mock.calls[0]![0].skipDuplicates).toBe(true)
@@ -302,6 +323,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({ idempotency_key: 'short' }),
     })
 
@@ -314,6 +336,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({
         event_type: 'heartbeat',
         playback_session_id: SESSION_ID,
@@ -345,6 +368,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({ device_id: 'x'.repeat(81) }),
     })
 
@@ -357,6 +381,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({ play_duration_ms: -1 }),
     })
 
@@ -369,6 +394,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({
         event_type: 'song_complete',
         completion_reason: 'cancelled',
@@ -385,6 +411,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: {
         events: [
           baseEvent({ event_type: 'song_complete', completion_reason: 'ended' }),
@@ -407,6 +434,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({ event_type: 'song_start' }),
     })
 
@@ -421,6 +449,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({
         event_type: 'ad_play',
         extra: { campaignId: 'camp-1' },
@@ -449,6 +478,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({ event_type: 'ad_play', extra: { campaignId: 'camp-1' } }),
     })
 
@@ -466,6 +496,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({ event_type: 'ad_play', extra: { campaignId: 'camp-empty' } }),
     })
 
@@ -479,6 +510,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({ event_type: 'ad_play' }),
     })
 
@@ -498,6 +530,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({
         occurred_at: '2026-05-18T12:00:00.000Z',
         client_sent_at: '2026-05-18T12:00:05.000Z',
@@ -520,6 +553,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({ occurred_at: '2026-05-18T12:00:00.000-06:00' }),
     })
 
@@ -534,6 +568,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: { events },
     })
 
@@ -546,6 +581,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({ event_type: 'song_start' }),
     })
 
@@ -566,6 +602,7 @@ describe('POST /', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/',
+      headers: AUTHED,
       payload: baseEvent({
         event_type: 'outcome_selection',
         operator_id: OPERATOR_ID,
@@ -577,6 +614,136 @@ describe('POST /', () => {
     const row = createManyMock.mock.calls[0]![0].data[0]
     expect(row.accountId).toBe(OPERATOR_ID)
     expect(row.outcomeId).toBe(OUTCOME_ID)
+  })
+})
+
+describe('POST / — auth (SEC-3)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    createManyMock.mockResolvedValue({ count: 1 })
+    rawCreateMock.mockResolvedValue({ id: 'raw-1' })
+    lineageFindManyMock.mockResolvedValue([])
+    cpsUpdateManyMock.mockResolvedValue({ count: 0 })
+    cpsUpsertMock.mockResolvedValue({})
+    casFindUniqueMock.mockResolvedValue(null)
+    casUpsertMock.mockResolvedValue({})
+    adAssetCountMock.mockResolvedValue(0)
+  })
+
+  it('rejects an unauthenticated POST (no bearer, no slug) with 401 and writes nothing', async () => {
+    const app = await buildTestApp(eventsRoutes)
+    const res = await app.inject({ method: 'POST', url: '/', payload: baseEvent() })
+
+    expect(res.statusCode).toBe(401)
+    expect(res.json()).toEqual({ error: 'unauthorized' })
+    // The whole point of SEC-3: an anonymous caller creates no rows at all —
+    // not even a quarantine row for a malformed flood.
+    expect(createManyMock).not.toHaveBeenCalled()
+    expect(rawCreateMock).not.toHaveBeenCalled()
+  })
+
+  it('does not quarantine even a malformed event when unauthenticated', async () => {
+    const app = await buildTestApp(eventsRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/',
+      payload: baseEvent({ event_type: 'totally_bogus' }),
+    })
+
+    expect(res.statusCode).toBe(401)
+    expect(rawCreateMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid bearer token with 401 invalid_token', async () => {
+    const app = await buildTestApp(eventsRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/',
+      headers: { authorization: 'Bearer nope' },
+      payload: baseEvent(),
+    })
+
+    expect(res.statusCode).toBe(401)
+    expect(res.json()).toEqual({ error: 'invalid_token' })
+    expect(createManyMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a bearer not authorized for the event store with 403', async () => {
+    authMock.mockResolvedValue(false)
+    const app = await buildTestApp(eventsRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/',
+      headers: AUTHED,
+      payload: baseEvent(),
+    })
+
+    expect(res.statusCode).toBe(403)
+    expect(res.json()).toEqual({ error: 'forbidden' })
+    expect(createManyMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts an authorized bearer and writes the event (201)', async () => {
+    authMock.mockResolvedValue(true)
+    const app = await buildTestApp(eventsRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/',
+      headers: AUTHED,
+      payload: baseEvent(),
+    })
+
+    expect(res.statusCode).toBe(201)
+    expect(res.json()).toEqual({ accepted: 1, quarantined: 0 })
+    expect(createManyMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('accepts slug-mode auth when the slug resolves to the event store (201)', async () => {
+    storeFindUniqueMock.mockResolvedValue({ id: STORE_ID, archivedAt: null })
+    const app = await buildTestApp(eventsRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/?slug=good-slug',
+      payload: baseEvent(),
+    })
+
+    expect(res.statusCode).toBe(201)
+    expect(storeFindUniqueMock).toHaveBeenCalledWith({
+      where: { slug: 'good-slug' },
+      select: { id: true, archivedAt: true },
+    })
+    expect(createManyMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects slug-mode when the event store_id differs from the slug store (403)', async () => {
+    storeFindUniqueMock.mockResolvedValue({
+      id: '00000000-0000-0000-0000-0000000000ff',
+      archivedAt: null,
+    })
+    const app = await buildTestApp(eventsRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/?slug=other-store',
+      payload: baseEvent(), // store_id = STORE_ID
+    })
+
+    expect(res.statusCode).toBe(403)
+    expect(res.json()).toEqual({ error: 'forbidden' })
+    expect(createManyMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects slug-mode when the slug store is archived (403)', async () => {
+    storeFindUniqueMock.mockResolvedValue({ id: STORE_ID, archivedAt: new Date() })
+    const app = await buildTestApp(eventsRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/?slug=archived-store',
+      payload: baseEvent(),
+    })
+
+    expect(res.statusCode).toBe(403)
+    expect(res.json()).toEqual({ error: 'forbidden' })
+    expect(createManyMock).not.toHaveBeenCalled()
   })
 })
 

@@ -131,10 +131,14 @@ await app.register(billingRoutes)
 await app.register(meRoutes, { prefix: '/me' })
 await app.register(emailRoutes, { prefix: '/email' })
 await app.register(pushRoutes, { prefix: '/push' })
-// Dev-only auth bypass. Self-disables when DEV_LOGIN_TOKEN is unset (404s),
-// so leaving it always-registered is safe — production Railway must never
-// set DEV_LOGIN_TOKEN. See routes/dev-login.ts.
-await app.register(devLoginRoutes)
+// Dev-only auth bypass. Self-disables when DEV_LOGIN_TOKEN is unset (404s).
+// SEC-2 belt-and-suspenders: don't even register the plugin under production
+// NODE_ENV, so a stray DEV_LOGIN_TOKEN on Railway can't enable it. The handler
+// itself also refuses in prod (NODE_ENV or api.entuned.co host). See
+// routes/dev-login.ts.
+if (process.env.NODE_ENV !== 'production') {
+  await app.register(devLoginRoutes)
+}
 
 // Boot-time seed: ensure each DB-editable email template has a row. Idempotent —
 // never overwrites existing rows so operator edits survive deploys.

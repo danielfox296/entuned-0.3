@@ -178,6 +178,57 @@ describe('POST /dev-login', () => {
     expect(res.headers['set-cookie']).toBeUndefined()
   })
 
+  // SEC-2: hard prod gate. Even with a valid DEV_LOGIN_TOKEN + account, the
+  // route must refuse in production so a stray token on Railway can't mint
+  // admin bearers. Two independent signals gate it: NODE_ENV and the API host.
+  it('returns 404 in production NODE_ENV even with a valid token (never reaches the DB)', async () => {
+    const prev = process.env.NODE_ENV
+    process.env.NODE_ENV = 'production'
+    try {
+      ;(prisma.account.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(ACCOUNT_ROW)
+      const app = await makeApp()
+      const res = await app.inject({
+        method: 'POST',
+        url: '/dev-login',
+        payload: { token: VALID_TOKEN, email: 'dev@entuned.co', mode: 'bearer' },
+      })
+      expect(res.statusCode).toBe(404)
+      expect(res.json()).toEqual({ error: 'not_found' })
+      expect(prisma.account.findUnique).not.toHaveBeenCalled()
+      expect(signAccountToken).not.toHaveBeenCalled()
+    } finally {
+      if (prev === undefined) delete process.env.NODE_ENV
+      else process.env.NODE_ENV = prev
+    }
+  })
+
+  it('returns 404 when the request host is the prod API host (api.entuned.co)', async () => {
+    ;(prisma.account.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(ACCOUNT_ROW)
+    const app = await makeApp()
+    const res = await app.inject({
+      method: 'POST',
+      url: '/dev-login',
+      headers: { host: 'api.entuned.co' },
+      payload: { token: VALID_TOKEN, email: 'dev@entuned.co', mode: 'bearer' },
+    })
+    expect(res.statusCode).toBe(404)
+    expect(prisma.account.findUnique).not.toHaveBeenCalled()
+    expect(signAccountToken).not.toHaveBeenCalled()
+  })
+
+  it('still works for local dev (non-prod NODE_ENV, localhost host)', async () => {
+    ;(prisma.account.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(ACCOUNT_ROW)
+    const app = await makeApp()
+    const res = await app.inject({
+      method: 'POST',
+      url: '/dev-login',
+      headers: { host: 'localhost:3000' },
+      payload: { token: VALID_TOKEN, email: 'dev@entuned.co', mode: 'bearer' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toMatchObject({ mode: 'bearer', token: 'dev-bearer-token' })
+  })
+
   it('normalizes email to lowercase before lookup', async () => {
     ;(prisma.account.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(ACCOUNT_ROW)
     const app = await makeApp()

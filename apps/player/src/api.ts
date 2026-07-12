@@ -174,9 +174,13 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ slug }),
     }),
-  emit: (event: OutgoingEvent | OutgoingEvent[]) => {
+  // `/events` requires auth (SEC-3): operator mode sends the Bearer token,
+  // slug mode sends `?slug=` (the player URL is the auth). Pass whichever the
+  // current session carries.
+  emit: (event: OutgoingEvent | OutgoingEvent[], auth?: { slug?: string; token?: string }) => {
     const body = Array.isArray(event) ? { events: event } : event
-    return req<{ accepted: number }>('/events', { method: 'POST', body: JSON.stringify(body) })
+    const qs = auth?.slug ? `?slug=${encodeURIComponent(auth.slug)}` : ''
+    return req<{ accepted: number }>(`/events${qs}`, { method: 'POST', body: JSON.stringify(body) }, auth?.token || undefined)
   },
   loved: (storeId: string, token: string) =>
     req<{ songIds: string[] }>(`/events/loved?store_id=${encodeURIComponent(storeId)}`, {}, token),

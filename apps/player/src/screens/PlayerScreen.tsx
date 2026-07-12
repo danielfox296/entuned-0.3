@@ -4,7 +4,7 @@ import { PLAYER_ACCENT, PLAYER_GOLD } from "../theme.js";
 import { api, type QueueItem, type ActiveOutcome, type OutcomeOption, type AudioEventType, type ExtraFor } from "../api.js";
 import { CrossfadePlayer } from "../audio/crossfade-player.js";
 import { LoudnessSampler } from "../audio/loudness-sampler.js";
-import { bufferEvent, flushNow } from "../lib/event-buffer.js";
+import { bufferEvent, flushNow, setEventAuth } from "../lib/event-buffer.js";
 import { getDeviceId } from "../lib/device-id.js";
 import { prefetch as prefetchAudio, getCachedUrl, revokeCachedUrl } from "../lib/audio-cache.js";
 import { subscribePush, unsubscribePush } from "../lib/push-client.js";
@@ -205,6 +205,13 @@ export function PlayerScreen({ session, onLogout }: Props) {
     trackPlayerLanding(session.mode === 'slug' ? session.slug : undefined);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Credential for the (now authed) `/events` route — slug mode sends `?slug=`,
+  // operator mode sends the Bearer token. Push it into the module-singleton
+  // buffer so background flushes carry auth.
+  useEffect(() => {
+    setEventAuth(session.mode === 'slug' ? { slug: session.slug } : { token: session.token });
+  }, [session.mode, session.slug, session.token]);
+
   // Welcome flash — only on first visit, slug-mode only (operators don't need
   // a "your music is ready" greeting; they signed in deliberately).
   const [showWelcome, setShowWelcome] = useState<boolean>(
@@ -317,11 +324,12 @@ export function PlayerScreen({ session, onLogout }: Props) {
     // Session-boundary events flush immediately; everything else batches via
     // the persistent IDB buffer.
     if (event_type === 'operator_login' || event_type === 'operator_logout') {
-      api.emit(event).catch((e) => console.warn("[player] emit failed", e));
+      const auth = session.mode === 'slug' ? { slug: session.slug } : { token: session.token };
+      api.emit(event, auth).catch((e) => console.warn("[player] emit failed", e));
     } else {
       bufferEvent(event);
     }
-  }, [session.storeId, session.operatorId]);
+  }, [session.storeId, session.operatorId, session.mode, session.slug, session.token]);
 
   // Fire once on player mount so Dash can measure standalone (PWA) adoption.
   // is_standalone=true means the player launched from the home-screen icon

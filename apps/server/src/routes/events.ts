@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from 'fastify'
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../db.js'
 import { verify, isAccountAuthorizedForStore } from '../lib/auth.js'
@@ -114,9 +114,70 @@ async function parseOrQuarantine(raw: unknown): Promise<ParsedEvent | null> {
   return null
 }
 
+// Auth for the ingest route. Mirrors the slug-or-bearer pattern in
+// routes/push.ts and routes/hendrix.ts: an operator Bearer is checked per
+// store via isAccountAuthorizedForStore; the freemium player presents `?slug=`
+// (the URL is the auth) which pins exactly one store. Returns an `allows`
+// predicate on success; on failure it has already sent the 401/403 reply and
+// returns null. Callers MUST check the presence of a credential BEFORE any DB
+// write so an anonymous flood can't create PlaybackEventRaw / PlaybackEvent
+// rows (SEC-3).
+async function authorizeEventWrites(
+  req: FastifyRequest,
+  reply: FastifyReply,
+): Promise<{ allows: (storeId: string) => Promise<boolean> } | null> {
+  const auth = req.headers.authorization
+  if (auth?.startsWith('Bearer ')) {
+    const payload = verify(auth.slice(7))
+    if (!payload) {
+      reply.code(401).send({ error: 'invalid_token' })
+      return null
+    }
+    // A single operator may be authorized for several stores; memoize the
+    // per-store check so a batch spanning one store hits the DB once.
+    const cache = new Map<string, boolean>()
+    return {
+      allows: async (storeId) => {
+        const cached = cache.get(storeId)
+        if (cached !== undefined) return cached
+        const ok = await isAccountAuthorizedForStore(payload.accountId, storeId)
+        cache.set(storeId, ok)
+        return ok
+      },
+    }
+  }
+  const slug = (req.query as { slug?: string } | undefined)?.slug
+  if (slug) {
+    const store = await prisma.store.findUnique({
+      where: { slug },
+      select: { id: true, archivedAt: true },
+    })
+    if (!store || store.archivedAt) {
+      reply.code(403).send({ error: 'forbidden' })
+      return null
+    }
+    const allowedId = store.id
+    return { allows: async (storeId) => storeId === allowedId }
+  }
+  reply.code(401).send({ error: 'unauthorized' })
+  return null
+}
+
 export const eventsRoutes: FastifyPluginAsync = async (app) => {
   // POST /events — single or batch (offline-flush friendly).
-  app.post('/', async (req, reply) => {
+  //
+  // Auth (SEC-3): a Bearer operator token or a `?slug=` (freemium player URL is
+  // the auth). Global rate limiting is off (index.ts `{ global: false }`), so a
+  // per-route limit is opted in here to cap floods; the offline buffer flushes
+  // in ~50-event batches every 30s so a generous ceiling never bites real
+  // players even when draining a long backlog.
+  app.post('/', {
+    config: { rateLimit: { max: 300, timeWindow: '1 minute' } },
+  }, async (req, reply) => {
+    // Reject before any DB write when no credential is presented.
+    const authz = await authorizeEventWrites(req, reply)
+    if (!authz) return
+
     const body = req.body as any
     const isBatch = body && typeof body === 'object' && Array.isArray(body.events)
     const rawEvents = isBatch ? BatchSchema.parse(body).events : [body]
@@ -127,6 +188,18 @@ export const eventsRoutes: FastifyPluginAsync = async (app) => {
       // Everything quarantined — return 202 so the buffer treats it as
       // accepted and stops retrying. Rejections are not the client's bug.
       return reply.code(202).send({ accepted: 0, quarantined: rawEvents.length })
+    }
+
+    // Store-scope enforcement (SEC-3): every valid event must belong to a store
+    // the caller is authorized for. A slug pins exactly one store; a Bearer may
+    // cover several. Reject the whole batch on the first out-of-scope store_id
+    // so a stolen slug/token can't write events (incl. campaign-mutating
+    // ad_play/song_complete) for another operator's store.
+    const distinctStores = [...new Set(events.map((e) => e.store_id))]
+    for (const storeId of distinctStores) {
+      if (!(await authz.allows(storeId))) {
+        return reply.code(403).send({ error: 'forbidden' })
+      }
     }
 
     // Auto-fill hook_id from LineageRow when the event has a song_id but no hook_id.

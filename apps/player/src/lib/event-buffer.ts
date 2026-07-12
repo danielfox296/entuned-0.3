@@ -29,6 +29,15 @@ let flushTimer: number | null = null
 let flushing = false
 let backoffMs = 1000
 
+// Auth credential for `/events` (SEC-3). Set once when the PlayerScreen mounts
+// with the resolved session: operator sessions carry a Bearer token, slug
+// sessions carry the slug. The buffer is a module singleton with no session
+// context of its own, so the screen pushes the credential in here.
+let eventAuth: { slug?: string; token?: string } = {}
+export function setEventAuth(auth: { slug?: string; token?: string }): void {
+  eventAuth = auth
+}
+
 function openDb(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise
   dbPromise = new Promise((resolve, reject) => {
@@ -91,7 +100,7 @@ async function flush(): Promise<void> {
       if (batch.length === 0) break
       const payload = batch.map(({ _id: _, ...e }) => e)
       try {
-        await api.emit(payload)
+        await api.emit(payload, eventAuth)
         await deleteIds(batch.map((b) => b._id!).filter((id): id is number => typeof id === 'number'))
         backoffMs = 1000
       } catch (e) {
