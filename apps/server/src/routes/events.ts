@@ -243,31 +243,67 @@ export const eventsRoutes: FastifyPluginAsync = async (app) => {
       })),
     })
 
-    // Update campaign play state counters.
-    // song_complete → increment songs_played_since_ad by the exact number of
-    // completions for that store in this batch (batches may contain multiple
-    // song_completes when songs are short or events are held before flush).
-    // Only count ended/skipped — errored completions didn't actually play.
-    // updateMany is a no-op for stores with no CampaignPlayState row; the row
-    // is bootstrapped by injectAdIfDue the first time a campaign is active.
-    const songCompleteCountByStore = new Map<string, number>()
-    for (const e of events.filter((e) => e.event_type === 'song_complete' && e.completion_reason !== 'errored')) {
-      songCompleteCountByStore.set(e.store_id, (songCompleteCountByStore.get(e.store_id) ?? 0) + 1)
+    // Update campaign play state counters (songsPlayedSinceAd).
+    //
+    // A single flush batch can carry both song_completes and an ad_play in any
+    // chronological order — the offline buffer holds events and drains them
+    // together. Applying all increments first and THEN all resets (the old
+    // approach) ignores intra-batch order: for [complete, complete, ad_play,
+    // complete] it would do +3 and then set 0, losing the post-ad completion
+    // (correct is 1). The counter would then drift low and the next ad fire
+    // later than songsPerAd intends.
+    //
+    // Fix: per store, walk the counter-relevant events in occurredAt order and
+    // fold them in one pass — increment on completes, reset to 0 on ad_play.
+    // Only ended/skipped count; errored completions didn't actually play.
+    const counterEventsByStore = new Map<string, ParsedEvent[]>()
+    for (const e of events) {
+      if (
+        (e.event_type === 'song_complete' && e.completion_reason !== 'errored') ||
+        e.event_type === 'ad_play'
+      ) {
+        const arr = counterEventsByStore.get(e.store_id)
+        if (arr) arr.push(e)
+        else counterEventsByStore.set(e.store_id, [e])
+      }
     }
-    await Promise.all([...songCompleteCountByStore.entries()].map(([storeId, count]) =>
-      prisma.campaignPlayState.updateMany({
+    await Promise.all([...counterEventsByStore.entries()].map(([storeId, storeEvents]) => {
+      const ordered = [...storeEvents].sort(
+        (a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime(),
+      )
+      let sawAd = false
+      let counter = 0
+      for (const e of ordered) {
+        if (e.event_type === 'ad_play') {
+          sawAd = true
+          counter = 0
+        } else {
+          counter += 1
+        }
+      }
+      if (sawAd) {
+        // An ad reset the counter within this batch, so the pre-batch DB value
+        // is irrelevant — the final value is the number of completes AFTER the
+        // last ad. Set it absolutely; upsert bootstraps the row the same way
+        // the old ad_play reset path did.
+        return prisma.campaignPlayState.upsert({
+          where: { storeId },
+          update: { songsPlayedSinceAd: counter },
+          create: { storeId, songsPlayedSinceAd: counter },
+        })
+      }
+      // No ad in this batch — increment the existing counter by the completes.
+      // updateMany is a no-op for stores with no CampaignPlayState row; the row
+      // is bootstrapped by injectAdIfDue the first time a campaign is active.
+      return prisma.campaignPlayState.updateMany({
         where: { storeId },
-        data: { songsPlayedSinceAd: { increment: count } },
-      }),
-    ))
-
-    // ad_play → reset songs_played_since_ad, advance nextAssetIndex for that campaign.
-    for (const e of events.filter((e) => e.event_type === 'ad_play')) {
-      await prisma.campaignPlayState.upsert({
-        where: { storeId: e.store_id },
-        update: { songsPlayedSinceAd: 0 },
-        create: { storeId: e.store_id, songsPlayedSinceAd: 0 },
+        data: { songsPlayedSinceAd: { increment: counter } },
       })
+    }))
+
+    // ad_play → advance nextAssetIndex for that campaign. (The songsPlayedSinceAd
+    // reset is handled in the ordered fold above.)
+    for (const e of events.filter((e) => e.event_type === 'ad_play')) {
       const campaignId = (e.extra as any)?.campaignId as string | undefined
       if (campaignId) {
         const assetCount = await prisma.adAsset.count({ where: { campaignId } })

@@ -429,6 +429,40 @@ describe('POST /', () => {
     })
   })
 
+  it('folds a straddling [complete, complete, ad_play, complete] batch to songsPlayedSinceAd=1 (SRV-3)', async () => {
+    // Offline-flushed batch: an ad_play sits chronologically BETWEEN completes.
+    // Old code applied all +increments first (+3) then reset to 0, losing the
+    // post-ad completion. Correct post-ad counter is 1 (one complete after the
+    // last ad). The counter drifts LOW otherwise, firing the next ad late.
+    createManyMock.mockResolvedValue({ count: 4 })
+    const app = await buildTestApp(eventsRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/',
+      headers: AUTHED,
+      payload: {
+        events: [
+          baseEvent({ event_type: 'song_complete', completion_reason: 'ended', occurred_at: '2026-05-18T12:00:00.000Z' }),
+          baseEvent({ event_type: 'song_complete', completion_reason: 'ended', occurred_at: '2026-05-18T12:01:00.000Z' }),
+          baseEvent({ event_type: 'ad_play', occurred_at: '2026-05-18T12:02:00.000Z' }),
+          baseEvent({ event_type: 'song_complete', completion_reason: 'ended', occurred_at: '2026-05-18T12:03:00.000Z' }),
+        ],
+      },
+    })
+
+    expect(res.statusCode).toBe(201)
+    // The batch contains an ad_play, so the counter is set absolutely to the
+    // post-ad completion count (1) — NOT incremented, NOT reset to 0.
+    expect(cpsUpsertMock).toHaveBeenCalledTimes(1)
+    expect(cpsUpsertMock).toHaveBeenCalledWith({
+      where: { storeId: STORE_ID },
+      update: { songsPlayedSinceAd: 1 },
+      create: { storeId: STORE_ID, songsPlayedSinceAd: 1 },
+    })
+    // No blind increment path when an ad reset the counter mid-batch.
+    expect(cpsUpdateManyMock).not.toHaveBeenCalled()
+  })
+
   it('does not increment CampaignPlayState for non-completion events', async () => {
     const app = await buildTestApp(eventsRoutes)
     const res = await app.inject({
