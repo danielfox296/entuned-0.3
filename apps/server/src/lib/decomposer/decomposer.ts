@@ -8,11 +8,11 @@
 // Or programmatic:
 //   const result = await decompose({ artist, title, year, decade, genreSlug })
 //
-// EXPERIMENT SURFACE — versioned rules sweep (v1–v12).
-//   This module ships twelve versions of the MusicologicalRules prompt
-//   (rules-v1.ts through rules-v12.ts). All twelve are imported into the
+// EXPERIMENT SURFACE — versioned rules sweep (v1–v13).
+//   This module ships thirteen versions of the MusicologicalRules prompt
+//   (rules-v1.ts through rules-v13.ts). All thirteen are imported into the
 //   RULES_BY_VERSION lookup so any past version can be restored without
-//   code edits. Default is v12 (LATEST_RULES_VERSION below); v1–v11 are
+//   code edits. Default is v13 (LATEST_RULES_VERSION below); v1–v12 are
 //   reachable only via DECOMPOSER_RULES_VERSION env override or a
 //   styleAnalyzerInstructions DB row pinned to an older version. This is
 //   an active experiment surface — new versions may be added or existing

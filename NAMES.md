@@ -14,7 +14,7 @@ Old names listed for grep/blame reference only.
 | `StyleAnalysis` | `Decomposition` |
 | `SongSeed` | `Submission` |
 | `SongSeedBatch` | `EnoRun` |
-| `HookWriterPrompt` | `HookDrafterPrompt` |
+| `HookDrafterPrompt` | `HookWriterPrompt` |
 | `OutcomeFactorPrompt` | `OutcomePrependTemplate` |
 | `PlaybackEvent` | `AudioEvent` |
 | `ScheduleSlot` | `ScheduleRow` |
@@ -38,7 +38,7 @@ Old names listed for grep/blame reference only.
 | Canonical enum | Old enum |
 |---|---|
 | `TasteCategory` (`FormationEra \| Subculture \| Aspirational`) | `Bucket` |
-| `SongSeedStatus` (`queued \| assembling \| accepted \| abandoned \| skipped \| failed`) | `SubmissionStatus` |
+| `SongSeedStatus` (`assembling \| queued \| accepted \| failed`) | `SubmissionStatus` |
 
 ---
 
@@ -50,14 +50,11 @@ Old names listed for grep/blame reference only.
 | `GET/POST/PUT/DELETE /admin/style-exclusion-rules[/:id]` | `/admin/failure-rules[/:id]` |
 | `GET/POST /admin/style-template` | same — unchanged |
 | `GET/POST /admin/outcome-factor-prompt` | `/admin/outcome-prepend-template` |
-| `GET/PUT /admin/icps/:id/hook-writer-prompt` | `/admin/icps/:id/hook-drafter-prompt` |
+| `GET/PUT /admin/hook-drafter-prompt` | `/admin/icps/:id/hook-writer-prompt` |
 | `POST /admin/icps/:id/hook-writer/run` | `/admin/icps/:id/hook-drafter/run` |
 | `GET /admin/song-seeds` | `/admin/submissions` |
 | `GET /admin/song-seeds/:id` | `/admin/submissions/:id` |
-| `POST /admin/song-seeds/:id/claim` | `/admin/submissions/:id/claim` |
 | `POST /admin/song-seeds/:id/accept` | `/admin/submissions/:id/accept` |
-| `POST /admin/song-seeds/:id/abandon` | `/admin/submissions/:id/abandon` |
-| `POST /admin/song-seeds/:id/skip` | `/admin/submissions/:id/skip` |
 | `POST /admin/stores/:id/outcome-selection` | `/admin/stores/:id/override` |
 | `POST /admin/stores/:id/outcome-selection/clear` | `/admin/stores/:id/override/clear` |
 | `POST /hendrix/outcome-selection` | `/hendrix/override` |
@@ -122,14 +119,11 @@ Old names listed for grep/blame reference only.
 | `deleteStyleExclusionRule()` | `deleteFailureRule()` |
 | `outcomeFactorPrompt()` | `outcomePrependTemplate()` |
 | `saveOutcomeFactorPrompt()` | `saveOutcomePrependTemplate()` |
-| `hookWriterPrompt()` | `hookDrafterPrompt()` |
-| `saveHookWriterPrompt()` | `saveHookDrafterPrompt()` |
+| `hookDrafterPrompt()` | `hookWriterPrompt()` |
+| `saveHookDrafterPrompt()` | `saveHookWriterPrompt()` |
 | `songSeeds()` | `submissions()` |
 | `songSeedDetail()` | `submissionDetail()` |
-| `claimSongSeed()` | `claimSubmission()` |
 | `acceptSongSeed()` | `acceptSubmission()` |
-| `abandonSongSeed()` | `abandonSubmission()` |
-| `skipSongSeed()` | `skipSubmission()` |
 | `runSeedBuilder()` | `runEno()` |
 | `setOutcomeSelection()` | `setOverride()` |
 | `clearOutcomeSelection()` | `clearOverride()` |
@@ -154,7 +148,7 @@ Old names listed for grep/blame reference only.
 | Canonical | Old |
 |---|---|
 | `StyleExclusionRuleBody` | `FailureRuleBody` |
-| `HookWriterPromptBody` | `HookDrafterPromptBody` |
+| `HookDrafterPromptBody` | `HookWriterPromptBody` |
 | `SongSeedsListQuery` | `SubmissionsListQuery` |
 | `SeedBuilderRunBody` | `EnoRunBody` |
 

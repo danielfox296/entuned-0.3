@@ -193,8 +193,6 @@ async function findOrCreateUserByEmail(email: string, name?: string | null, attr
   return { id: acc.id, email: acc.email, name: acc.name, disabledAt: acc.disabledAt, tokenVersion: acc.tokenVersion }
 }
 
-// Google OAuth handlers — defined but NOT registered in v1.
-// TODO(google-oauth): re-enable when OAuth credentials are configured.
 // Cookie that carries `next` across the OAuth roundtrip. Same scope/lifetime
 // as the other handshake cookies. Plain string (already validated against
 // safeNext before being set), 10-minute max age.
