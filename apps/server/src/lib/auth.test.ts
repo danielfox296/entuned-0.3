@@ -263,3 +263,46 @@ describe('requireAdmin', () => {
     expect(reply.body).toEqual({ error: 'invalid_token' })
   })
 })
+
+// ── AUTH_SECRET production guard ─────────────────────────────────────────────
+// The secret is resolved lazily inside sign/verify (getAuthSecret), so a
+// misconfigured production process fails closed on the first token op rather
+// than silently minting HMACs under an ephemeral key. These tests flip env at
+// call time and restore it after each case.
+describe('AUTH_SECRET production guard', () => {
+  const savedSecret = process.env.AUTH_SECRET
+  const savedNodeEnv = process.env.NODE_ENV
+
+  afterEach(() => {
+    if (savedSecret === undefined) delete process.env.AUTH_SECRET
+    else process.env.AUTH_SECRET = savedSecret
+    if (savedNodeEnv === undefined) delete process.env.NODE_ENV
+    else process.env.NODE_ENV = savedNodeEnv
+  })
+
+  const acc = { id: 'acct-1', email: 'op@example.com', isAdmin: true, tokenVersion: 0 }
+
+  it('throws when AUTH_SECRET is unset in production', () => {
+    delete process.env.AUTH_SECRET
+    process.env.NODE_ENV = 'production'
+    expect(() => signAccountToken(acc)).toThrow(/AUTH_SECRET is not set/)
+  })
+
+  it('throws when AUTH_SECRET is too short in production', () => {
+    process.env.AUTH_SECRET = 'short'
+    process.env.NODE_ENV = 'production'
+    expect(() => signAccountToken(acc)).toThrow(/AUTH_SECRET is not set \(or too short\)/)
+  })
+
+  it('does not throw in production when AUTH_SECRET is present and long enough', () => {
+    process.env.AUTH_SECRET = 'a-sufficiently-long-production-secret-000'
+    process.env.NODE_ENV = 'production'
+    expect(() => signAccountToken(acc)).not.toThrow()
+  })
+
+  it('outside production, falls back to an ephemeral secret when unset (no throw)', () => {
+    delete process.env.AUTH_SECRET
+    process.env.NODE_ENV = 'test'
+    expect(() => signAccountToken(acc)).not.toThrow()
+  })
+})

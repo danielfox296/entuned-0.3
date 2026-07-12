@@ -414,7 +414,15 @@ export const loginRoutes: FastifyPluginAsync = async (app) => {
     if (row.consumedAt) return failRedirect('token_already_used')
     if (row.expiresAt.getTime() < Date.now()) return failRedirect('token_expired')
 
-    await prisma.magicLinkToken.update({ where: { id: row.id }, data: { consumedAt: new Date() } })
+    // Consume atomically: only the request that flips consumedAt from null wins.
+    // Two concurrent requests with the same token would both pass the read-time
+    // `row.consumedAt` check above, so gate the mint on the write's affected-row
+    // count. count === 0 means another request already consumed it (TOCTOU).
+    const consumed = await prisma.magicLinkToken.updateMany({
+      where: { id: row.id, consumedAt: null },
+      data: { consumedAt: new Date() },
+    })
+    if (consumed.count === 0) return failRedirect('token_already_used')
     // Carry first-touch attribution from the token onto the new Client (no-op
     // for returning accounts — the Client already exists).
     const attribution: Attribution = {

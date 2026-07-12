@@ -96,7 +96,7 @@ export function clearSessionCookie(reply: FastifyReply): void {
 /** Verify a JWT string and return its payload, or null if invalid/expired. */
 export function verifySessionToken(token: string): SessionPayload | null {
   try {
-    const decoded = jwt.verify(token, getJwtSecret()) as SessionPayload & { iat: number; exp: number }
+    const decoded = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] }) as SessionPayload & { iat: number; exp: number }
     if (!decoded.accountId) return null
     return { accountId: decoded.accountId, tv: decoded.tv ?? 0 }
   } catch {

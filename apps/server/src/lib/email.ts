@@ -163,7 +163,7 @@ export function verifyUnsubToken(token: string): string | null {
   const secret = process.env.JWT_SECRET
   if (!secret) return null
   try {
-    const decoded = jwt.verify(token, secret) as UnsubPayload
+    const decoded = jwt.verify(token, secret, { algorithms: ['HS256'] }) as UnsubPayload
     if (decoded.act !== 'unsub' || !decoded.sub) return null
     return decoded.sub
   } catch {

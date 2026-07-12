@@ -18,6 +18,7 @@
 //                                                  (gated by INTERNAL_ADMIN_TOKEN, header x-admin-token)
 
 import type { FastifyPluginAsync } from 'fastify'
+import { timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
@@ -56,6 +57,18 @@ import {
 
 // Time helpers + ScheduleSlotBody schema live in ../lib/scheduleSlots.js
 // (shared with /me/* routes — see ASSESSMENT.md §2.2).
+
+/**
+ * Constant-time string comparison. Guards the INTERNAL_ADMIN_TOKEN check
+ * against timing side-channels. Length mismatch short-circuits (the lengths
+ * themselves aren't secret), avoiding timingSafeEqual's equal-length throw.
+ */
+function constantTimeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a)
+  const bb = Buffer.from(b)
+  if (ab.length !== bb.length) return false
+  return timingSafeEqual(ab, bb)
+}
 
 // Schemas
 const RulesPostBody = z.object({ rulesText: z.string().min(1), notes: z.string().optional() })
@@ -4605,7 +4618,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const expected = process.env.INTERNAL_ADMIN_TOKEN
     if (!expected) return reply.code(503).send({ error: 'internal_admin_token_unset' })
     const provided = req.headers['x-admin-token']
-    if (typeof provided !== 'string' || provided !== expected) {
+    if (typeof provided !== 'string' || !constantTimeEqual(provided, expected)) {
       return reply.code(401).send({ error: 'unauthorized' })
     }
 

@@ -43,6 +43,7 @@ vi.mock('../db.js', () => ({
       create: vi.fn(),
       findUnique: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
     clientMembership: {
       findFirst: vi.fn(),
@@ -124,6 +125,7 @@ const accountCreate = prisma.account.create as ReturnType<typeof vi.fn>
 const magicCreate = prisma.magicLinkToken.create as ReturnType<typeof vi.fn>
 const magicFindUnique = prisma.magicLinkToken.findUnique as ReturnType<typeof vi.fn>
 const magicUpdate = prisma.magicLinkToken.update as ReturnType<typeof vi.fn>
+const magicUpdateMany = prisma.magicLinkToken.updateMany as ReturnType<typeof vi.fn>
 const membershipFindFirst = prisma.clientMembership.findFirst as ReturnType<typeof vi.fn>
 const storeFindFirst = prisma.store.findFirst as ReturnType<typeof vi.fn>
 const clientFindUnique = prisma.client.findUnique as ReturnType<typeof vi.fn>
@@ -149,6 +151,9 @@ const ORIGINAL_ENV = { ...process.env }
 beforeEach(() => {
   vi.clearAllMocks()
   authHandle.authed = false
+  // Default: the atomic consume succeeds (one row flipped). Tests that exercise
+  // the TOCTOU race override this to { count: 0 }.
+  magicUpdateMany.mockResolvedValue({ count: 1 })
   process.env.APP_URL = 'https://app.entuned.co'
   process.env.API_URL = 'https://api.entuned.co'
   process.env.MAGIC_LINK_BASE_URL = 'https://api.entuned.co/login/verify'
@@ -412,6 +417,30 @@ describe('GET /verify', () => {
     expect(res.headers.location).toBe('https://app.entuned.co/start?error=token_expired')
   })
 
+  it('rejects the losing side of a concurrent double-consume (TOCTOU): updateMany flips 0 rows → token_already_used, no session minted', async () => {
+    // Both requests pass the read-time consumedAt check (row is unconsumed when
+    // each does findUnique), so the guard has to be the atomic write. Simulate
+    // the request that LOST the race: updateMany affects 0 rows because the
+    // other request already flipped consumedAt.
+    magicFindUnique.mockResolvedValue({
+      id: 'mlt-race',
+      email: 'race@example.com',
+      tokenHash: 'h',
+      consumedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+    })
+    magicUpdateMany.mockResolvedValue({ count: 0 })
+
+    const app = await buildLoginApp()
+    const res = await app.inject({ method: 'GET', url: '/verify?token=abc' })
+
+    expect(res.statusCode).toBe(302)
+    expect(res.headers.location).toBe('https://app.entuned.co/start?error=token_already_used')
+    // The losing request must not mint a session or provision an account.
+    expect(setSessionCookieMock).not.toHaveBeenCalled()
+    expect(ensureFreeMock).not.toHaveBeenCalled()
+  })
+
   it('happy path: consumes token, sets session cookie, redirects to APP_URL when no next is given and onboarding is complete', async () => {
     magicFindUnique.mockResolvedValue({
       id: 'mlt-1',
@@ -429,7 +458,6 @@ describe('GET /verify', () => {
       attrUtmContent: null,
       referralCode: null,
     })
-    magicUpdate.mockResolvedValue({ id: 'mlt-1' })
     // findOrCreateUserByEmail: existing user, not disabled.
     accountFindUnique.mockResolvedValue({
       id: 'acc-1',
@@ -453,7 +481,10 @@ describe('GET /verify', () => {
 
     expect(res.statusCode).toBe(302)
     expect(res.headers.location).toBe('https://app.entuned.co/')
-    expect(magicUpdate).toHaveBeenCalledWith({ where: { id: 'mlt-1' }, data: { consumedAt: expect.any(Date) } })
+    expect(magicUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'mlt-1', consumedAt: null },
+      data: { consumedAt: expect.any(Date) },
+    })
     expect(setSessionCookieMock).toHaveBeenCalledWith(expect.anything(), 'acc-1', 3)
     // Attribution from the token is mapped + forwarded to provisioning.
     expect(ensureFreeMock).toHaveBeenCalledWith('acc-1', 'u@example.com', {

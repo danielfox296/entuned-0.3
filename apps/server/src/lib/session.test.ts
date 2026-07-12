@@ -129,6 +129,17 @@ describe('setSessionCookie / verifySessionToken', () => {
     expect(verifySessionToken('')).toBeNull()
     expect(verifySessionToken('not-a-jwt')).toBeNull()
   })
+
+  it('rejects an unsigned alg:none token (algorithms pinned to HS256)', () => {
+    // Forge a token with the "none" algorithm and an empty signature. verify()
+    // pins algorithms:['HS256'], so this must be rejected rather than accepted
+    // as an unsigned payload.
+    const none = jwt.sign({ accountId: 'acct-attacker', tv: 0 }, '', {
+      algorithm: 'none',
+      expiresIn: 3600,
+    })
+    expect(verifySessionToken(none)).toBeNull()
+  })
 })
 
 // ── clearSessionCookie ──────────────────────────────────────────────────────

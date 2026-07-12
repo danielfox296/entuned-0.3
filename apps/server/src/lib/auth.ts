@@ -9,12 +9,29 @@ import type { FastifyInstance, FastifyReply, FastifyRequest, preHandlerAsyncHook
 import bcrypt from 'bcryptjs'
 import { prisma } from '../db.js'
 
-const SECRET = process.env.AUTH_SECRET ?? (() => {
-  // Stable-ish per-process fallback for dev; production must set AUTH_SECRET.
-  const s = randomBytes(32).toString('hex')
-  console.warn('[auth] AUTH_SECRET not set; using ephemeral secret. Sessions will not survive restart.')
-  return s
-})()
+// Resolved lazily so a misconfigured production process fails closed on the
+// first token operation rather than silently minting HMACs under an ephemeral
+// key (which would invalidate every operator token on redeploy and break
+// multi-instance). Mirrors `getJwtSecret()` in lib/session.ts.
+let cachedDevSecret: string | null = null
+
+function getAuthSecret(): string {
+  const s = process.env.AUTH_SECRET
+  if (process.env.NODE_ENV === 'production') {
+    if (!s || s.length < 16) {
+      throw new Error('AUTH_SECRET is not set (or too short) in production. Set it in Railway env.')
+    }
+    return s
+  }
+  // Dev/test convenience: use a provided secret, else a stable-ish per-process
+  // ephemeral one. Never reached in production (throws above when unset).
+  if (s) return s
+  if (!cachedDevSecret) {
+    cachedDevSecret = randomBytes(32).toString('hex')
+    console.warn('[auth] AUTH_SECRET not set; using ephemeral secret. Sessions will not survive restart.')
+  }
+  return cachedDevSecret
+}
 
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
@@ -31,14 +48,14 @@ export interface TokenPayload {
 
 function sign(payload: TokenPayload): string {
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url')
-  const sig = createHmac('sha256', SECRET).update(body).digest('base64url')
+  const sig = createHmac('sha256', getAuthSecret()).update(body).digest('base64url')
   return `${body}.${sig}`
 }
 
 export function verify(token: string): TokenPayload | null {
   const [body, sig] = token.split('.')
   if (!body || !sig) return null
-  const expected = createHmac('sha256', SECRET).update(body).digest('base64url')
+  const expected = createHmac('sha256', getAuthSecret()).update(body).digest('base64url')
   const a = Buffer.from(sig)
   const b = Buffer.from(expected)
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null

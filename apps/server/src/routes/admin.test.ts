@@ -32,7 +32,7 @@
 // /me which omits "existing slot" — legacy admin clients depend on the
 // exact string.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Hoisted Prisma mock. Path is literal (relative to this test file), per
 // TESTING.md "Mocking conventions". Only the models the schedule routes
@@ -1903,5 +1903,74 @@ describe('admin routes — outcome variance levers', () => {
         }),
       }),
     )
+  })
+})
+
+// The /email/preview route is behind the admin Bearer guard AND a separate
+// INTERNAL_ADMIN_TOKEN (header x-admin-token) checked in constant time. These
+// tests exercise the reject + accept paths of that constant-time compare.
+describe('admin routes — POST /email/preview token gate', () => {
+  const SAVED_TOKEN = process.env.INTERNAL_ADMIN_TOKEN
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    seedAdminAccount() // pass the Bearer admin guard
+    process.env.INTERNAL_ADMIN_TOKEN = 'the-real-internal-admin-token-000'
+  })
+
+  afterEach(() => {
+    if (SAVED_TOKEN === undefined) delete process.env.INTERNAL_ADMIN_TOKEN
+    else process.env.INTERNAL_ADMIN_TOKEN = SAVED_TOKEN
+  })
+
+  it('rejects a wrong x-admin-token with 401 (constant-time compare)', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/email/preview',
+      headers: { ...AUTH, 'x-admin-token': 'the-wrong-token' },
+      payload: { template: 'anything', props: {} },
+    })
+    expect(res.statusCode).toBe(401)
+    expect(res.json()).toEqual({ error: 'unauthorized' })
+  })
+
+  it('rejects a missing x-admin-token with 401', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/email/preview',
+      headers: { ...AUTH },
+      payload: { template: 'anything', props: {} },
+    })
+    expect(res.statusCode).toBe(401)
+    expect(res.json()).toEqual({ error: 'unauthorized' })
+  })
+
+  it('503s when INTERNAL_ADMIN_TOKEN is unset', async () => {
+    delete process.env.INTERNAL_ADMIN_TOKEN
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/email/preview',
+      headers: { ...AUTH, 'x-admin-token': 'anything' },
+      payload: { template: 'anything', props: {} },
+    })
+    expect(res.statusCode).toBe(503)
+    expect(res.json()).toEqual({ error: 'internal_admin_token_unset' })
+  })
+
+  it('accepts the correct x-admin-token, then fails downstream on an unknown template (proves the compare passed)', async () => {
+    const app = await buildTestApp(adminRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/email/preview',
+      headers: { ...AUTH, 'x-admin-token': 'the-real-internal-admin-token-000' },
+      payload: { template: 'definitely-not-a-real-template-name', props: {} },
+    })
+    // Passed the constant-time token gate (else 401); 400 comes from the
+    // template lookup that runs only after the token is accepted.
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toBe('unknown_template')
   })
 })

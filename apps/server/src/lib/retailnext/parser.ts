@@ -79,9 +79,17 @@ function parseHourStart(label: string): number | null {
 function parseTitleRow(title: string): { storeId: string | null; reportDate: Date | null } {
   const storeIdMatch = title.match(/^(\d+)\s/)
   const dateMatch = title.match(/for\s+(.+)$/)
+  let reportDate: Date | null = null
+  if (dateMatch) {
+    const d = new Date(dateMatch[1])
+    // `new Date('garbage')` yields an Invalid Date object (not null), so guard
+    // on the timestamp — an unparseable date must surface as null, not slip
+    // through as a NaN-valued Date.
+    reportDate = Number.isNaN(d.getTime()) ? null : d
+  }
   return {
     storeId: storeIdMatch ? storeIdMatch[1] : null,
-    reportDate: dateMatch ? new Date(dateMatch[1]) : null,
+    reportDate,
   }
 }
 
@@ -95,12 +103,21 @@ export function parseRetailNextXls(buf: Buffer): RetailNextParseResult {
   const titleCell = rows1[0]?.[0]
   const { storeId: retailNextStoreId, reportDate: parsedDate } = parseTitleRow(String(titleCell ?? ''))
 
+  // Fail loudly rather than defaulting to today: an absent/unparseable report
+  // date would otherwise key the snapshot to the ingest day and overwrite a
+  // real day's row on upsert. The caller surfaces this as a 422 parse_failed.
+  if (!parsedDate) {
+    throw new Error(
+      `RetailNext report date could not be parsed from title row: ${JSON.stringify(String(titleCell ?? ''))}`,
+    )
+  }
+
   // Row index 3 = "Today"
   const todayRow = rows1[3] as unknown[]
 
   const daily: RetailNextDaily = {
     retailNextStoreId,
-    reportDate: parsedDate ?? new Date(),
+    reportDate: parsedDate,
     traffic: parseNum(todayRow[1]),
     salesCents: parseSalesCents(todayRow[2]),
     saleTrxCount: parseNum(todayRow[3]) !== null ? Math.round(parseNum(todayRow[3])!) : null,
