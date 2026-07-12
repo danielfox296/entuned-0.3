@@ -14,3 +14,20 @@ coverage
 # macOS Finder duplicates (filename with " 2" suffix before extension)
 *\ 2.*
 *\ 2
+
+# --- Credential hardening (added 2026-07-12, SECR-2) ---
+# Never commit secrets. .env.example stays tracked (placeholder values only).
+.env*
+!.env.example
+*secret*.json
+*secret*.txt
+*_token.json
+*token*.json
+*.pem
+*.p12
+*.key
+*service-account*.json
+*credentials*.json
+*seed phrase*
+*recovery_codes*
+*two_factor*

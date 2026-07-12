@@ -8,14 +8,22 @@
 import { Client as PgClient } from 'pg'
 import { PrismaClient } from '@prisma/client'
 
-const MINGUS_URL =
-  process.env.MINGUS_DATABASE_URL ??
-  'postgresql://postgres:OFSsqacSWIqjCMnqeOeVyJsAGtkWRFNP@nozomi.proxy.rlwy.net:31079/railway'
+// Resolve the source (Mingus) connection string from the environment.
+// No literal fallback — a hardcoded credential here would leak into git history.
+export function requireMingusUrl(env: NodeJS.ProcessEnv = process.env): string {
+  const url = env.MINGUS_DATABASE_URL
+  if (!url) {
+    throw new Error(
+      'MINGUS_DATABASE_URL is not set. Export the Mingus source connection string before running this port script — there is no default.',
+    )
+  }
+  return url
+}
 
 const prisma = new PrismaClient()
 
 async function main() {
-  const src = new PgClient({ connectionString: MINGUS_URL })
+  const src = new PgClient({ connectionString: requireMingusUrl() })
   await src.connect()
 
   const { rows } = await src.query(`
@@ -99,6 +107,10 @@ async function main() {
   }
 }
 
-main()
-  .catch((e) => { console.error(e); process.exit(1) })
-  .finally(() => prisma.$disconnect())
+// Only run when executed directly (`pnpm tsx scripts/port-era-reference.ts`),
+// not when imported by a test.
+if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
+  main()
+    .catch((e) => { console.error(e); process.exit(1) })
+    .finally(() => prisma.$disconnect())
+}
