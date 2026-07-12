@@ -723,47 +723,61 @@ function Login({ onLogin, onLeaveReset }: { onLogin: (token: string) => void; on
         )}
 
         {mode === 'login' && (
-          <div style={{ display: 'grid', gap: 12 }}>
+          // A real <form> with autocomplete hints — password managers only offer
+          // to save credentials when they see a form submission with named
+          // username/current-password fields, not bare inputs + onClick.
+          <form
+            onSubmit={(e) => { e.preventDefault(); submitLogin() }}
+            style={{ display: 'grid', gap: 12 }}
+          >
             <input
+              type="email" name="email" autoComplete="username"
               value={email} onChange={(e) => setEmail(e.target.value)}
               placeholder="email" style={authInputStyle}
             />
             <input
-              type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-              placeholder="password" onKeyDown={(e) => e.key === 'Enter' && submitLogin()}
+              type="password" name="password" autoComplete="current-password"
+              value={password} onChange={(e) => setPassword(e.target.value)}
+              placeholder="password"
               style={authInputStyle}
             />
-            <button onClick={submitLogin} disabled={busy} style={authPrimaryBtn(busy)}>
+            <button type="submit" disabled={busy} style={authPrimaryBtn(busy)}>
               {busy ? 'signing in…' : 'sign in'}
             </button>
             <button
+              type="button"
               onClick={() => { setMode('forgot'); setError(null); setInfo(null) }}
               style={authLinkBtn}
             >Forgot password?</button>
             {error && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.sans }}>{error}</div>}
-          </div>
+          </form>
         )}
 
         {mode === 'forgot' && (
-          <div style={{ display: 'grid', gap: 12 }}>
+          <form
+            onSubmit={(e) => { e.preventDefault(); submitForgot() }}
+            style={{ display: 'grid', gap: 12 }}
+          >
             <div style={{ fontSize: 14, color: T.textMuted, fontFamily: T.sans, lineHeight: 1.5 }}>
               Enter your Dash email and we&rsquo;ll send a reset link.
             </div>
             <input
+              type="email" name="email" autoComplete="username"
               value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="email" onKeyDown={(e) => e.key === 'Enter' && submitForgot()}
+              placeholder="email"
               style={authInputStyle}
             />
-            <button onClick={submitForgot} disabled={busy} style={authPrimaryBtn(busy)}>
+            <button type="submit" disabled={busy} style={authPrimaryBtn(busy)}>
               {busy ? 'sending…' : 'send reset link'}
             </button>
             <button
+              type="button"
               onClick={() => { setMode('login'); setError(null); setInfo(null) }}
               style={authLinkBtn}
             >← back to sign in</button>
             {info && <div style={{ fontSize: 13, color: T.textMuted, fontFamily: T.sans, lineHeight: 1.5 }}>{info}</div>}
             {error && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.sans }}>{error}</div>}
-          </div>
+          </form>
         )}
       </div>
     </div>
@@ -807,26 +821,31 @@ function ResetPasswordForm({ onDone, onBack }: { onDone: (token: string) => void
   }
 
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
+    <form
+      onSubmit={(e) => { e.preventDefault(); submit() }}
+      style={{ display: 'grid', gap: 12 }}
+    >
       <div style={{ fontSize: 16, fontWeight: 600, color: T.text, fontFamily: T.sans }}>Set a new password</div>
       <div style={{ fontSize: 13, color: T.textMuted, fontFamily: T.sans, lineHeight: 1.5 }}>
         At least 10 characters. You&rsquo;ll be signed in automatically when this saves.
       </div>
       <input
-        type="password" value={pw1} onChange={(e) => setPw1(e.target.value)}
+        type="password" name="new-password" autoComplete="new-password"
+        value={pw1} onChange={(e) => setPw1(e.target.value)}
         placeholder="new password" style={authInputStyle}
       />
       <input
-        type="password" value={pw2} onChange={(e) => setPw2(e.target.value)}
-        placeholder="confirm new password" onKeyDown={(e) => e.key === 'Enter' && submit()}
+        type="password" name="confirm-password" autoComplete="new-password"
+        value={pw2} onChange={(e) => setPw2(e.target.value)}
+        placeholder="confirm new password"
         style={authInputStyle}
       />
-      <button onClick={submit} disabled={busy} style={authPrimaryBtn(busy)}>
+      <button type="submit" disabled={busy} style={authPrimaryBtn(busy)}>
         {busy ? 'saving…' : 'save & sign in'}
       </button>
-      <button onClick={onBack} style={authLinkBtn}>← back to sign in</button>
+      <button type="button" onClick={onBack} style={authLinkBtn}>← back to sign in</button>
       {error && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.sans }}>{error}</div>}
-    </div>
+    </form>
   )
 }
 
@@ -874,19 +893,19 @@ function ChangePasswordModal({ onClose, onChanged }: { onClose: () => void; onCh
         <div style={{ fontSize: 13, color: T.textMuted, marginBottom: 16, lineHeight: 1.5 }}>
           You&rsquo;ll stay signed in on this device. Other devices get signed out.
         </div>
-        <div style={{ display: 'grid', gap: 10 }}>
-          <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="current password" style={authInputStyle} />
-          <input type="password" value={pw1} onChange={(e) => setPw1(e.target.value)} placeholder="new password (≥10 chars)" style={authInputStyle} />
-          <input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="confirm new password" onKeyDown={(e) => e.key === 'Enter' && submit()} style={authInputStyle} />
+        <form onSubmit={(e) => { e.preventDefault(); submit() }} style={{ display: 'grid', gap: 10 }}>
+          <input type="password" name="current-password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="current password" style={authInputStyle} />
+          <input type="password" name="new-password" autoComplete="new-password" value={pw1} onChange={(e) => setPw1(e.target.value)} placeholder="new password (≥10 chars)" style={authInputStyle} />
+          <input type="password" name="confirm-password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="confirm new password" style={authInputStyle} />
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-            <button onClick={submit} disabled={busy} style={authPrimaryBtn(busy)}>{busy ? 'saving…' : 'save'}</button>
-            <button onClick={onClose} style={{
+            <button type="submit" disabled={busy} style={authPrimaryBtn(busy)}>{busy ? 'saving…' : 'save'}</button>
+            <button type="button" onClick={onClose} style={{
               background: 'transparent', border: `1px solid ${T.border}`, color: T.textMuted,
               borderRadius: 4, padding: '10px 12px', fontFamily: T.sans, fontSize: 14, cursor: 'pointer',
             }}>cancel</button>
           </div>
           {error && <div style={{ fontSize: 13, color: T.danger }}>{error}</div>}
-        </div>
+        </form>
       </div>
     </div>
   )
