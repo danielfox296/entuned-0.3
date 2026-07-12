@@ -56,11 +56,20 @@ const ACCOUNT_ROW = {
 }
 
 describe('POST /dev-login', () => {
+  // Pin NODE_ENV deterministically. The Railway build runs `pnpm test` with
+  // NODE_ENV=production, which would trip the SEC-2 prod gate and 404 every
+  // success-path test; locally vitest defaults it to 'test'. Force a non-prod
+  // value so these tests behave identically in both environments. The prod-gate
+  // test overrides it locally and restores in its own finally.
+  const ORIGINAL_NODE_ENV = process.env.NODE_ENV
   beforeEach(() => {
     vi.clearAllMocks()
+    process.env.NODE_ENV = 'test'
     process.env.DEV_LOGIN_TOKEN = VALID_TOKEN
   })
   afterEach(() => {
+    if (ORIGINAL_NODE_ENV === undefined) delete process.env.NODE_ENV
+    else process.env.NODE_ENV = ORIGINAL_NODE_ENV
     delete process.env.DEV_LOGIN_TOKEN
   })
 
