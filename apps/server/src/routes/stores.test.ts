@@ -51,6 +51,24 @@ describe('GET /by-slug/:slug', () => {
     )
   })
 
+  // DAT-8: slugs are stored lowercase (slugify() lowercases on create), but the
+  // URL param arrives verbatim. A mixed-case slug must lowercase before the DB
+  // lookup, otherwise `music.entuned.co/MyStore` 404s against stored `mystore`.
+  it('lowercases a mixed-case slug before looking it up', async () => {
+    findUniqueMock.mockResolvedValue(
+      makeStore({ slug: 'test-store-1234', tier: 'pro' }),
+    )
+
+    const app = await buildTestApp(storeRoutes)
+    const res = await app.inject({ method: 'GET', url: '/by-slug/Test-Store-1234' })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json().slug).toBe('test-store-1234')
+    expect(findUniqueMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { slug: 'test-store-1234' } }),
+    )
+  })
+
   it('returns 404 when the slug does not exist', async () => {
     findUniqueMock.mockResolvedValue(null)
 

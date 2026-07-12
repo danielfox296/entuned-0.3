@@ -13,10 +13,14 @@ import { effectiveTier } from '../lib/tier.js'
 export const storeRoutes: FastifyPluginAsync = async (app) => {
   // GET /stores/by-slug/:slug → resolves a player URL slug to its Store.
   app.get('/by-slug/:slug', async (req, reply) => {
-    const slug = (req.params as { slug?: string } | undefined)?.slug
-    if (!slug || typeof slug !== 'string') {
+    const rawSlug = (req.params as { slug?: string } | undefined)?.slug
+    if (!rawSlug || typeof rawSlug !== 'string') {
       return reply.code(400).send({ error: 'bad_slug' })
     }
+    // Slugs are always stored lowercase (slugify() lowercases on create), but
+    // the URL param arrives verbatim. Lowercase it so `music.entuned.co/MyStore`
+    // resolves the same Store as `.../mystore`.
+    const slug = rawSlug.toLowerCase()
 
     const store = await prisma.store.findUnique({
       where: { slug },

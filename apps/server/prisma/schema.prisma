@@ -201,6 +201,11 @@ model Store {
   pushSubscriptions         PushSubscription[]
 
   @@index([clientId])
+  // Daily crons scan Store on these columns: comp-expiry (lib/compExpiry.ts)
+  // filters on compExpiresAt, pause-auto-resume (lib/pauseAutoResume.ts) on
+  // pausedUntil. Preventive indexes so the seq-scan doesn't grow with the table.
+  @@index([compExpiresAt])
+  @@index([pausedUntil])
   @@map("stores")
 }
 
@@ -480,12 +485,13 @@ model LyricEditPrompt {
   @@map("lyric_edit_prompts")
 }
 
-// Mars LLM builders — DB-backed system prompts so operators can iterate
-// without code deploys. Each table is global, single-row-per-version, same
-// shape as LyricDraftPrompt. Schema SSOT: ../../../entune v0.3/schema/light-cards.md
-// (Card 12 — Mars, "StyleAnchorPrompt and StyleRouterPrompt" section).
+// Mars LLM builder — DB-backed system prompt so operators can iterate
+// without code deploys. Global, single-row-per-version, same shape as
+// LyricDraftPrompt. Schema SSOT: ../../../entune v0.3/schema/light-cards.md
+// (Card 12 — Mars, "StyleAnchorPrompt" section). The sibling
+// StyleRouterPrompt below is RETIRED (see its comment).
 //
-// Cold-start: `getOrSeed*Prompt()` in lib/mars/style-{anchor,router}.ts inserts
+// Cold-start: `getOrSeedStyleAnchorPrompt()` in lib/mars/style-anchor.ts inserts
 // v1 from a TS const seed when the table is empty. After v1 exists, the TS
 // const is NEVER consulted at runtime — operators edit through Dash.
 
@@ -500,6 +506,13 @@ model StyleAnchorPrompt {
   @@map("style_anchor_prompts")
 }
 
+// StyleRouterPrompt — RETIRED 2026-05-26. The Mars "router" style builder
+// (STYLE_BUILDER=router, which emitted 6 slot strings via lib/mars/style-router.ts)
+// was superseded by the anchor builder (STYLE_BUILDER=anchor), the only prod
+// path since 2026-05-26. The router builder and lib/mars/style-router.ts no
+// longer exist; nothing in apps/server/src reads or writes this table. The
+// table and any historical rows are retained for provenance only. SSOT:
+// ../../../entune v0.3/schema/light-cards.md (StyleAnchorPrompt section).
 model StyleRouterPrompt {
   id          String   @id @default(uuid()) @db.Uuid
   version     Int      @unique
@@ -1232,7 +1245,14 @@ model POSEvent {
   storeId               String   @map("store_id") @db.Uuid
   clientId              String   @map("client_id") @db.Uuid
   posProvider           String   @map("pos_provider")
-  posExternalId         String?  @map("pos_external_id")
+  // Non-null so the @@unique([posProvider, posExternalId]) index actually
+  // dedups (Postgres treats NULLs as distinct — a nullable column would let
+  // duplicate null-id events slip past the constraint). The ingest route
+  // (admin.ts POST /stores/:id/pos/ingest) always supplies a value: the
+  // provider's real transaction id, or a synthetic `<runId>:<index>` key for
+  // providers that don't return one. SSOT: 21-pos-ingestion.md declares this
+  // column NOT NULL.
+  posExternalId         String   @map("pos_external_id")
   occurredAt            DateTime @map("occurred_at") @db.Timestamptz(6)
   transactionValueCents BigInt   @map("transaction_value_cents")
   currency              String   @default("USD")
@@ -1528,9 +1548,17 @@ model ProcessedStripeEvent {
 
 // ---------- Billing: PlayerBinding ----------
 //
-// First device that opens the player at a Store is bound by fingerprint /
-// IP / UA. Used as a soft anti-piracy signal — second devices either fall
-// through to a "this Store is already bound" screen or trigger a manual
+// UNIMPLEMENTED (as of 2026-07-12). The table exists but no device-binding
+// flow has been built: nothing in apps/server/src creates, reads, or updates
+// a PlayerBinding row, and the player does not fingerprint devices or gate on
+// binding. The description below is the INTENDED design, not a live control —
+// do not treat binding as enforced. The player is currently gated by the
+// unguessable Store.slug alone. SSOT (also marked not-yet-built):
+// ../../../entune v0.3/schema/dashboard-billing.md (PlayerBinding section).
+//
+// Intended: first device that opens the player at a Store is bound by
+// fingerprint / IP / UA as a soft anti-piracy signal — second devices either
+// fall through to a "this Store is already bound" screen or trigger a manual
 // review. Not enforced cryptographically.
 
 model PlayerBinding {

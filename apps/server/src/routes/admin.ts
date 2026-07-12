@@ -4114,18 +4114,25 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
     for (const evt of events) {
       try {
+        // posExternalId is the idempotency key for the @@unique([posProvider,
+        // posExternalId]) index. Providers that don't return a transaction id
+        // get a synthetic `<runId>:<index>` key so the column is never null —
+        // otherwise Postgres treats the nulls as distinct and the constraint
+        // stops deduping. Same value in `where` and `create` so re-inserts of a
+        // real-id event within a run collapse to a no-op update.
+        const externalId = evt.posExternalId ?? `${run.id}:${ingested + skipped}`
         await prisma.pOSEvent.upsert({
           where: {
             posProvider_posExternalId: {
               posProvider,
-              posExternalId: evt.posExternalId ?? `${run.id}:${ingested + skipped}`,
+              posExternalId: externalId,
             },
           },
           create: {
             storeId,
             clientId: store.clientId,
             posProvider,
-            posExternalId: evt.posExternalId ?? null,
+            posExternalId: externalId,
             occurredAt: new Date(evt.occurredAt),
             transactionValueCents: BigInt(evt.transactionValueCents),
             currency: evt.currency,

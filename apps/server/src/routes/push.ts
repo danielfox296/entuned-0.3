@@ -41,7 +41,9 @@ export const pushRoutes: FastifyPluginAsync = async (app) => {
       if (!ok) return reply.code(403).send({ error: 'forbidden' })
       accountId = payload.accountId
     } else if (parsed.data.slug) {
-      const store = await prisma.store.findUnique({ where: { slug: parsed.data.slug }, select: { id: true } })
+      // Stored slugs are lowercase (slugify() on create); lowercase the incoming
+      // param so a mixed-case player URL still resolves. Mirrors stores.ts.
+      const store = await prisma.store.findUnique({ where: { slug: parsed.data.slug.toLowerCase() }, select: { id: true } })
       if (!store || store.id !== parsed.data.store_id) {
         return reply.code(403).send({ error: 'forbidden' })
       }
