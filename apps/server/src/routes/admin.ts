@@ -1430,23 +1430,28 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         where: { id },
         data: { status: 'approved', approvedAt: new Date(), approvedById: op.accountId },
       })
-      // Fire-and-forget: auto-decompose on approval
-      decompose({
-        artist: row.artist,
-        title: row.title,
-        year: row.year ?? undefined,
-        operatorNotes: row.operatorNotes ?? undefined,
-      }).then(async (result) => {
+      // Auto-decompose on approval. Awaited (not fire-and-forget) so a
+      // decompose failure surfaces in the response instead of being silently
+      // console.error'd — mirrors `decompose-all`'s per-track error handling.
+      let decomposeError: string | null = null
+      try {
+        const result = await decompose({
+          artist: row.artist,
+          title: row.title,
+          year: row.year ?? undefined,
+          operatorNotes: row.operatorNotes ?? undefined,
+        })
         const data = toStyleAnalysisData(result)
         await prisma.styleAnalysis.upsert({
           where: { referenceTrackId: id },
           create: { referenceTrackId: id, ...data },
           update: data,
         })
-      }).catch((e) => {
-        console.error(`[auto-decompose] failed for ${row.artist} — ${row.title}:`, e.message)
-      })
-      return row
+      } catch (e: any) {
+        decomposeError = e?.message ?? 'unknown'
+        console.error(`[auto-decompose] failed for ${row.artist} — ${row.title}:`, decomposeError)
+      }
+      return { ...row, decomposeError }
     } catch {
       return reply.code(404).send({ error: 'not_found' })
     }
@@ -1490,25 +1495,36 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       where: { id: { in: ids } },
       data: { status: 'approved', approvedAt: new Date(), approvedById: op.accountId },
     })
-    // Fire-and-forget: auto-decompose all approved tracks
+    // Auto-decompose all approved tracks. Sequential + awaited (not
+    // fire-and-forget) so we don't fire N simultaneous Claude+web_search calls
+    // into Anthropic 429s, and so per-track failures surface in the response
+    // instead of being silently console.error'd. Mirrors `decompose-all`.
+    let decomposed = 0
+    let decomposeFailed = 0
+    const errors: { id: string; artist: string; title: string; error: string }[] = []
     for (const ref of targets) {
-      decompose({
-        artist: ref.artist,
-        title: ref.title,
-        year: ref.year ?? undefined,
-        operatorNotes: ref.operatorNotes ?? undefined,
-      }).then(async (result) => {
+      try {
+        const result = await decompose({
+          artist: ref.artist,
+          title: ref.title,
+          year: ref.year ?? undefined,
+          operatorNotes: ref.operatorNotes ?? undefined,
+        })
         const data = toStyleAnalysisData(result)
         await prisma.styleAnalysis.upsert({
           where: { referenceTrackId: ref.id },
           create: { referenceTrackId: ref.id, ...data },
           update: data,
         })
-      }).catch((e) => {
-        console.error(`[auto-decompose] failed for ${ref.artist} — ${ref.title}:`, e.message)
-      })
+        decomposed++
+      } catch (e: any) {
+        decomposeFailed++
+        const error = e?.message ?? 'unknown'
+        errors.push({ id: ref.id, artist: ref.artist, title: ref.title, error })
+        console.error(`[auto-decompose] failed for ${ref.artist} — ${ref.title}:`, error)
+      }
     }
-    return { approvedCount: ids.length, ids }
+    return { approvedCount: ids.length, ids, decomposed, decomposeFailed, errors }
   })
 
   // --- Decompose now: runs Claude with web search; upserts StyleAnalysis row. ---
