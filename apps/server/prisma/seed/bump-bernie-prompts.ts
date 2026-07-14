@@ -30,7 +30,18 @@
 //   \""
 
 import { PrismaClient } from '@prisma/client'
-import { DRAFT_PROMPT_SEED, EDIT_PROMPT_SEED } from '../../src/lib/proto-bernie/lyrics.js'
+// Import repointed 2026-07-14: src/lib/proto-bernie/lyrics.ts was deleted when
+// Bernie collapsed to a single-pass drafter (2026-05-25). DRAFT_PROMPT_SEED now
+// lives in src/lib/bernie/seeds.ts. EDIT_PROMPT_SEED was retired in the same
+// collapse — its final text survives only in the `lyric_edit_prompts` DB rows
+// (the SSOT), so this script can no longer promote it and fails loudly if run.
+import { DRAFT_PROMPT_SEED } from '../../src/lib/bernie/seeds.js'
+
+const EDIT_PROMPT_SEED: string = (() => {
+  throw new Error(
+    'EDIT_PROMPT_SEED was retired 2026-05-25 (single-pass Bernie). The final edit-prompt text lives in the lyric_edit_prompts DB rows — this deprecated script cannot promote it.'
+  )
+})()
 
 ;(async () => {
   const p = new PrismaClient()

@@ -64,7 +64,7 @@ The happy path *does* work end-to-end. These are the issues found along the way,
 ### B5. Hook drafter blocks ~2.5 min on a single "drafting…" label
 **Symptom:** Click `draft hooks`, button → `drafting…`, no progress / ETA / streaming for ~150 s. An automation that doesn't know typical duration will time out or kill it.
 
-**Where to look:** `HookQueue` drafter — stream the stages (voiceNotes → sonic anchor → Bernie draft) or at minimum show elapsed seconds + expected range.
+**Where to look:** `HookQueue` drafter — since the 2026-05-24 refactor it's a single Claude call (`draftHooks()` in `apps/server/src/lib/hooks/drafter.ts`: fast DB context assembly, then one long LLM call), so there are no pipeline stages to stream. Show elapsed seconds + expected range, or stream tokens from the one call.
 
 **Why P0:** hangs the perception of an entire flow.
 

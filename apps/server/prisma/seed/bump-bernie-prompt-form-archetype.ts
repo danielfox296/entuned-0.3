@@ -34,7 +34,11 @@
 // occurrences against the draft.
 
 import { PrismaClient } from '@prisma/client'
-import { DRAFT_PROMPT_SEED } from '../../src/lib/proto-bernie/lyrics.js'
+// Import repointed 2026-07-14: src/lib/proto-bernie/lyrics.ts was deleted when
+// Bernie collapsed to a single-pass drafter (2026-05-25). DRAFT_PROMPT_SEED now
+// lives in src/lib/bernie/seeds.ts. The runtime SSOT is the LyricDraftPrompt DB
+// row (Dash → Prompts & Rules), not this constant.
+import { DRAFT_PROMPT_SEED } from '../../src/lib/bernie/seeds.js'
 
 ;(async () => {
   const p = new PrismaClient()

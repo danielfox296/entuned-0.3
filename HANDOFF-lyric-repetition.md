@@ -1,5 +1,7 @@
 # Handoff: Fix lyric repetition at the outcome factor prompt level
 
+> **Staleness note (2026-07-14):** This is a point-in-time analysis; file paths below are as of the analysis date. `src/lib/proto-bernie/lyrics.ts` no longer exists — Bernie collapsed to a single-pass drafter on 2026-05-25. The live lyric module is `apps/server/src/lib/bernie/` (cold-start seed: `seeds.ts` `DRAFT_PROMPT_SEED`; runtime prompt: the `LyricDraftPrompt` DB row, editable in Dash → Prompts & Rules). The "two-pass lyric generation (draft → edit)" description of `bernie.ts` below is likewise stale — Bernie is single-pass, with the Professor handling post-draft craft finishing.
+
 ## Context
 
 Analyzed all 149 generated songs. The ban list works fine (only 20 word-level violations). The real problem is **phrase-level ruts** driven by thin outcome lyric factor prompts.
