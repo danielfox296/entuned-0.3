@@ -219,7 +219,14 @@ javascript_tool(tabId: tab4, text: <inject JS for seed 4>)
 
 (The inject JS text comes from `/tmp/inject.json` from Step 4.)
 
-**Skip the verify step — the unconditional toggle dance makes it unnecessary.** Go straight to Create:
+**Verify the lyrics textarea BEFORE every Create — no exceptions.** (Added 2026-07-14: two tabs in a 6-seed run silently dropped the injected lyrics while keeping the style field; Create then produced lyric-less instrumentals that were accepted into a live pool. The toggle dance fixes the no-op quirk, NOT field loss — they are independent failures.)
+
+```js
+const tas = document.querySelectorAll('textarea');
+({lyricsLen: tas[0]?.value.length ?? 0, styleLen: tas[1]?.value.length ?? 0});
+```
+
+`lyricsLen` must match the seed's lyrics length exactly. If it is 0 or wrong, RE-RUN the full inject script for that seed before creating. Only when the verify passes, click Create:
 
 ```js
 const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Create');
@@ -262,7 +269,7 @@ const links = Array.from(document.querySelectorAll('a'))
 ({takes: links});
 ```
 
-Each seed must produce **exactly 2 takes**. If <2 after the screenshot+scan: a tab silently no-op'd Create. Recover by firing the toggle-and-Create dance again on just that tab — same script as the inject's vocal section, then `Create.click()`. Wait another 60s and re-scan. Don't ask the operator; the silent-no-op is a known Suno quirk and the dance handles it.
+Each seed must produce **exactly 2 takes**. If <2 after the screenshot+scan: a tab silently no-op'd Create. Recover by RE-RUNNING THE FULL INJECT SCRIPT for that seed (never just toggle+Create — a no-op'd tab may have dropped the lyrics field while keeping style, and a bare retry-Create renders a lyric-less instrumental; this shipped 2 defective songs on 2026-07-14), then run the pre-Create lyrics verify, then Create. Wait another 60s and re-scan. Don't ask the operator; the silent-no-op is a known Suno quirk and the full re-inject handles it.
 
 If `Create` silently no-ops on multiple tabs in the same wave, re-fire the dance across all those tabs in one batch and re-scan. Side effect: the original Create may also fire on retry, producing 4 takes. Just take the first 2 — those are the newest.
 
@@ -324,7 +331,8 @@ End the report with `N/N accepted · 0 failures · drafted with lyric-draft v<X>
 | `mcp__Claude_in_Chrome` (no method) error | Wrong tool name | Correct names: `mcp__Claude_in_Chrome__browser_batch`, `mcp__Claude_in_Chrome__javascript_tool`, `mcp__Claude_in_Chrome__computer`, `mcp__Claude_in_Chrome__tabs_context_mcp`, `mcp__Claude_in_Chrome__tabs_create_mcp`, `mcp__Claude_in_Chrome__navigate` |
 | ToolSearch `"Claude_in_Chrome"` returns 0 results | Keyword search doesn't always match Chrome MCP tools | Use the explicit form: `select:mcp__Claude_in_Chrome__navigate,...` (see Step 0) |
 | `sleep 90` blocked by harness | Long leading sleeps are blocked | Use `Bash(command: "sleep 90 && echo done", run_in_background: true)` and wait for task-notification |
-| Create silently no-ops (sidebar shows no new card after 60s) | Conditional vocal-toggle never fired because target gender unchanged from previous wave | Re-fire toggle dance unconditionally (click opposite, click target, click Create) — this is built into the Step 4 inject template now |
+| Create silently no-ops (sidebar shows no new card after 60s) | Conditional vocal-toggle never fired, OR the tab dropped injected fields (lyrics can vanish while style persists) | Re-run the FULL inject script for that seed, verify lyricsLen, then Create. Never retry with toggle+Create alone — see Step 5/7 (2026-07-14 lyric-less instrumental incident) |
+| Take renders but page shows no lyrics / take is instrumental when it shouldn't be | Create fired with an empty lyrics textarea (field loss on inject or after a no-op) | Prevented by the mandatory pre-Create lyricsLen verify in Step 5. If already accepted: deactivate the lineage rows and regenerate |
 | `accept` returns 404 on r2Url | Take was still rendering at the moment of accept | Re-screenshot to check if duration now shown, then re-POST accept |
 | `accept` returns `502 r2_upload_failed` | Server's audio-integrity guard fired (empty/short body or non-audio content-type from audiopipe.suno.ai — take wasn't rendered) | Wait 30–60s, re-POST that seed. Do not bypass — guard exists to prevent 0-byte R2 objects. |
 | `accept` returns 409 `hook_already_accepted` | Previous SongSeed for the same hook already accepted | Skip — the hook can only back one accepted song; either rotate the hook or delete the old SongSeed |
