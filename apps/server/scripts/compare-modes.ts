@@ -1,4 +1,22 @@
-// Generate two Suno-ready submissions for the same track + outcome + hook:
+// ═══════════════════════════════════════════════════════════════════════════
+// DEPRECATED — HISTORICAL COMPARISON SCRIPT (marked 2026-07-14)
+//
+// This script no longer runs. Both halves of its experiment were deleted in
+// commit 01a859c (2026-05-25, "retire dead code"):
+//   * ../src/lib/proto-bernie/lyrics.js — proto-Bernie retired; the live
+//     drafter is generateLyrics() in ../src/lib/bernie/bernie.ts.
+//   * ../src/lib/mars/style-template-compact.js — assembleCompactStyle()
+//     deleted with zero callers. The COMPACT style variant no longer exists,
+//     so the FULL-vs-COMPACT comparison this script existed to run cannot be
+//     reconstructed by repointing imports.
+//
+// Kept for audit/historical reference only, per the pattern in
+// prisma/seed/bump-bernie-prompts.ts. scripts/ is not deployed and not in
+// tsconfig include, so this file does not gate builds.
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Original purpose: generate two Suno-ready submissions for the same
+// track + outcome + hook:
 //   FULL    — current Mars assembly (~1200 chars)
 //   COMPACT — reduced field set (~600 chars)
 // Same lyrics, same vocal_gender, same negative_style. The only thing that varies
