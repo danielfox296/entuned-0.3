@@ -35,6 +35,16 @@ type Slot = {
 const SLOTS: Slot[] = [
   // ── Core upsell (Free → Core) ────────────────────────────────────────────
   {
+    anchor: "Heard a track that isn't your store?",
+    points: [
+      "Free plays the shared catalogue — every store starts there",
+      "Broad on purpose, tuned to a mood, not to you",
+      "Boost builds a private library around your customer",
+    ],
+    kind: "core_upsell",
+    photo: "/promo/retail-store.jpg",
+  },
+  {
     anchor: "Music shaped by your customer.",
     points: [
       "Tuned to your single ICP",
@@ -42,10 +52,10 @@ const SLOTS: Slot[] = [
       "Not the general catalogue",
     ],
     kind: "core_upsell",
-    photo: "/promo/retail-store.jpg",
+    photo: "/promo/mara-icp.jpg",
   },
   {
-    anchor: "More outcomes than Chill, Steady, and Upbeat.",
+    anchor: "Beyond Chill, Steady, and Upbeat.",
     points: [
       "Every research-backed outcome unlocked",
       "Switch the floor's mood any moment",

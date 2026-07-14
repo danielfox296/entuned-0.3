@@ -13,7 +13,7 @@ lock:
     - "Set opening calm, peak-hour energy, and closing wind-down as timed rules"
     - "The mode switches automatically — no one on your floor has to remember to change it"
     - "Rules run per location, independently"
-  detail: "On Pro you'd schedule Linger for the morning lull and Lift Energy for Saturday afternoon — automatically, with one rule."
+  detail: "On Pro you'd schedule Stay & Browse for the morning lull and Grab It Now for Saturday afternoon — automatically, with one rule."
 
 # Editor — multi-day form, day columns, slot rows
 editor:
@@ -50,16 +50,16 @@ editor:
 preview:
   weekday_label: "Weekday mornings"
   weekday_when: "Mon–Fri · 9:00–11:00 AM"
-  weekday_outcome: "Linger"
+  weekday_outcome: "Stay & Browse"
   lunch_label: "Lunch rush"
   lunch_when: "Mon–Fri · 12:00–2:00 PM"
-  lunch_outcome: "Lift Energy"
+  lunch_outcome: "Keep It Moving"
   saturday_label: "Saturday floor"
   saturday_when: "Sat · 11:00 AM–4:00 PM"
-  saturday_outcome: "Lift Energy"
+  saturday_outcome: "Grab It Now"
   sunday_label: "Sunday wind-down"
   sunday_when: "Sun · 3:00–6:00 PM"
-  sunday_outcome: "Linger"
+  sunday_outcome: "Stay & Browse"
 
 # Day-of-week labels
 days:

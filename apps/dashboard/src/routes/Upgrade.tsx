@@ -334,15 +334,14 @@ function OutcomesGrid() {
   // by hand because this is marketing copy on the upgrade page, not a live
   // pool view. If the catalogue changes meaningfully, edit here.
   const all = [
-    { name: 'Calm', free: false },
-    { name: 'Linger', free: true },
-    { name: 'Lift Energy', free: true },
-    { name: 'Move Through', free: false },
-    { name: 'Reinforce Brand', free: false },
-    { name: 'Convert Browsers', free: false },
-    { name: 'Impulse Buy', free: false },
-    { name: 'Increase Order Value', free: false },
-    { name: 'Add More Items', free: false },
+    { name: 'Chill', free: true },
+    { name: 'Steady', free: true },
+    { name: 'Upbeat', free: true },
+    { name: 'Stay & Browse', free: false },
+    { name: 'Keep It Moving', free: false },
+    { name: 'Trade Them Up', free: false },
+    { name: 'Grab It Now', free: false },
+    { name: 'Our Sound', free: false },
   ]
   return (
     <div style={{

@@ -36,7 +36,7 @@ sections:
   icp:
     eyebrow: "Customer Profile"
     headline: "Music tailored to YOUR customer"
-    body: "Free plays a general retail catalogue. Boost builds the music around the specific Ideal Customer Profile you describe — taste preferences, era, sonic adjacencies, the cultural context they walk in with."
+    body: "Free plays the shared retail catalogue — broad on purpose, spanning styles and eras, the same one every free store streams. Boost builds the music around the specific Ideal Customer Profile you describe — taste preferences, era, sonic adjacencies, the cultural context they walk in with."
     proof: "Tell us about your customer once. Every song after that is tuned to who walks in."
 
   library:
@@ -72,7 +72,7 @@ faq:
     - q: "What happens to my settings if I upgrade?"
       a: "Your store name, login, and any custom configuration carry over. The free plan becomes Boost; you'll be prompted to fill out the Customer Profile (ICP) so the new music can be tuned to your floor."
     - q: "Is the music actually different on Boost?"
-      a: "Yes. Free music is engineered to general retail outcomes — it works for any store. Boost music is engineered to your specific customer's taste, era, and cultural context. Different libraries, different sonic decisions, same outcome science underneath."
+      a: "Yes. Free music is engineered to general retail moods — deliberately broad, shared by every free store, which is why some tracks won't sound like yours. Boost music is engineered to your specific customer's taste, era, and cultural context. Different libraries, different sonic decisions, same outcome science underneath."
 
 # Final block — single primary CTA + soft enterprise out
 final:
