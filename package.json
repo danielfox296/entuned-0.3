@@ -25,8 +25,11 @@
   "pnpm": {
     "overrides": {
       "fast-xml-builder": "^1.1.7",
-      "js-yaml": "^4.1.1",
-      "fast-uri": "^3.1.2"
+      "js-yaml": "^4.2.0",
+      "fast-uri": "^3.1.2",
+      "qs": "^6.15.2",
+      "@babel/core": "^7.29.6",
+      "uuid": "^11.1.1"
     }
   }
 }
