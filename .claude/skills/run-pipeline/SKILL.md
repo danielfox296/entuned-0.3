@@ -146,7 +146,7 @@ Re-run the Step 1 query for every combo in ARGUMENTS. Any combo with 0 queued se
 Run the `populate-songs` skill. Critical points learned this run:
 
 1. **Use 4 Suno tabs in parallel.** Per the populate-songs skill table.
-2. **Slider setup** (Weirdness 75%, Style Influence 62%) needs 2 separate JS calls per slider (dblclick + setReactValue).
+2. **Slider setup** (Weirdness 61%, Style Influence 61% — Daniel confirmed 2026-07-14; populate-songs SKILL.md is the SSOT) needs 2 separate JS calls per slider (dblclick + setReactValue).
 3. **Inject pattern**: read full prompt from `window.__seeds` on Dash tab, embed values directly in the Suno-tab JS (cross-origin blocks `window.__prompts` sharing).
 4. **Verify vocal selection in a separate JS call after inject** — React state lags. Then click Create.
 5. **Create silently no-ops on tabs that have just been navigated and configured** for the first time. Symptom: form values look right, sidebar empty after ~10s. Fix: vocal-toggle trick (click opposite gender, click target gender) then Create. Side effect: the original Create may also fire on retry, producing 4 takes. Accept only top 2.
