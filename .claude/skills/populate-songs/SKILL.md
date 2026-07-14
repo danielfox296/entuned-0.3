@@ -219,14 +219,35 @@ javascript_tool(tabId: tab4, text: <inject JS for seed 4>)
 
 (The inject JS text comes from `/tmp/inject.json` from Step 4.)
 
-**Verify the lyrics textarea BEFORE every Create — no exceptions.** (Added 2026-07-14: two tabs in a 6-seed run silently dropped the injected lyrics while keeping the style field; Create then produced lyric-less instrumentals that were accepted into a live pool. The toggle dance fixes the no-op quirk, NOT field loss — they are independent failures.)
+**CRITICAL — Suno v5.5 lyrics field is a Lexical contenteditable, NOT a textarea (discovered 2026-07-14).** The Lyrics editor is `div.lyrics-editor-content` (`contenteditable="true"`, Lexical framework). On tabs with the new UI, `document.querySelectorAll('textarea')[0]` is the **"Ask anything" AI-chat box** — the old `tas[0]` recipe silently writes lyrics into the chat box and generates lyric-less instrumentals. This shipped 2 defective songs before it was caught (both were deactivated). A `tas[0].value.length` check does NOT catch it — it reads back the same wrong box. Some tabs still serve the old all-textarea layout, which is why the failure is intermittent.
+
+**Working lyrics-inject recipe — three SEPARATE javascript_tool calls per tab** (Lexical applies updates asynchronously; combining these into one call drops or duplicates content):
 
 ```js
-const tas = document.querySelectorAll('textarea');
-({lyricsLen: tas[0]?.value.length ?? 0, styleLen: tas[1]?.value.length ?? 0});
+// Call 1: clear via the Lexical API (execCommand selectAll/delete is unreliable here)
+const ed = document.querySelector('.lyrics-editor-content');
+ed.__lexicalEditor.setEditorState(ed.__lexicalEditor.parseEditorState(
+  '{"root":{"children":[{"children":[],"direction":null,"format":"","indent":0,"type":"paragraph","version":1}],"direction":null,"format":"","indent":0,"type":"root","version":1}}'));
+// Call 2: focus via the Lexical API (restores an editor selection — paste no-ops without one)
+document.querySelector('.lyrics-editor-content').__lexicalEditor.focus();
+// Call 3: paste the lyrics as a ClipboardEvent (execCommand insertText does not stick)
+const dt = new DataTransfer(); dt.setData('text/plain', LYRICS);
+document.querySelector('.lyrics-editor-content').dispatchEvent(
+  new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true}));
 ```
 
-`lyricsLen` must match the seed's lyrics length exactly. If it is 0 or wrong, RE-RUN the full inject script for that seed before creating. Only when the verify passes, click Create:
+Style / Exclude styles / Title are still plain elements — set them with the `setRV` React-setter pattern. Select the style textarea by its Styles-section placeholder (a rotating genre-examples string), never by index.
+
+**Verify BEFORE every Create — no exceptions**, in a separate call after a ~2s wait:
+
+```js
+const ed = document.querySelector('.lyrics-editor-content');
+({brackets: (ed.textContent.match(/\[/g) || []).length,          // must equal the seed's section count
+  startsIntro: ed.textContent.startsWith('['),                    // first section marker intact
+  len: ed.textContent.length});                                   // = lyrics length minus newline count
+```
+
+If any check fails, redo calls 1–3. Only when the verify passes, click Create:
 
 ```js
 const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Create');
@@ -332,7 +353,7 @@ End the report with `N/N accepted · 0 failures · drafted with lyric-draft v<X>
 | ToolSearch `"Claude_in_Chrome"` returns 0 results | Keyword search doesn't always match Chrome MCP tools | Use the explicit form: `select:mcp__Claude_in_Chrome__navigate,...` (see Step 0) |
 | `sleep 90` blocked by harness | Long leading sleeps are blocked | Use `Bash(command: "sleep 90 && echo done", run_in_background: true)` and wait for task-notification |
 | Create silently no-ops (sidebar shows no new card after 60s) | Conditional vocal-toggle never fired, OR the tab dropped injected fields (lyrics can vanish while style persists) | Re-run the FULL inject script for that seed, verify lyricsLen, then Create. Never retry with toggle+Create alone — see Step 5/7 (2026-07-14 lyric-less instrumental incident) |
-| Take renders but page shows no lyrics / take is instrumental when it shouldn't be | Create fired with an empty lyrics textarea (field loss on inject or after a no-op) | Prevented by the mandatory pre-Create lyricsLen verify in Step 5. If already accepted: deactivate the lineage rows and regenerate |
+| Take renders but page shows no lyrics / take is instrumental when it shouldn't be | Lyrics were injected into the wrong element — on Suno v5.5 tabs `textarea[0]` is the "Ask anything" chat box; the real lyrics field is the Lexical `div.lyrics-editor-content` | Use the Lexical clear/focus/paste recipe in Step 5 and its bracket-count verify. If already accepted: deactivate the lineage rows and regenerate |
 | `accept` returns 404 on r2Url | Take was still rendering at the moment of accept | Re-screenshot to check if duration now shown, then re-POST accept |
 | `accept` returns `502 r2_upload_failed` | Server's audio-integrity guard fired (empty/short body or non-audio content-type from audiopipe.suno.ai — take wasn't rendered) | Wait 30–60s, re-POST that seed. Do not bypass — guard exists to prevent 0-byte R2 objects. |
 | `accept` returns 409 `hook_already_accepted` | Previous SongSeed for the same hook already accepted | Skip — the hook can only back one accepted song; either rotate the hook or delete the old SongSeed |
