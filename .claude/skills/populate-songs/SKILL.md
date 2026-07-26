@@ -467,8 +467,11 @@ deactivated in earlier incidents and will make a correct run look short.
 Report includes:
 
 - N prompts accepted / N requested
-- ICP affected (and, for free-tier work, that it's the sentinel `Free Tier` ICP — songs under
-  FTSB archetype ICPs are not audible to real free-tier stores)
+- ICP affected. For free-tier work, say which path the songs took: generated **directly** under
+  the sentinel `Free Tier` ICP (audible immediately), or generated under an archetype/paid ICP,
+  which is audible to free-tier customers **only after** an operator promotes each row via Dash
+  (`POST /admin/lineage-rows/:id/toggle-general`). Don't report archetype-generated songs as
+  "live on the free tier" until that step has happened.
 - Any failures (with reason)
 - The R2 URLs grouped by song (this is what Daniel listens to)
 
