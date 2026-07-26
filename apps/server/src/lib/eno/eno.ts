@@ -60,7 +60,14 @@ export function composeFinalStyle(
 ): string {
   const vocal = vocalIdentity || legacyVocalDescriptor || null
   const parts = [outcomePrepend, vocal, stylePortion].filter(Boolean)
-  return parts.join(vocal ? ', ' : ' ')
+  // Always comma-join. The outcome prepend ends with {mode} (template v8 is
+  // "{mood}, {tempo_bpm}bpm, {mode}"), so a space-join fused the mode onto the
+  // genre anchor and handed Suno a nonsense compound tag — "major pentatonic
+  // 2020s trap", "dorian 2010s alternative R&B". Genre is Suno's dominant
+  // signal, so this corrupted the single most load-bearing token in the prompt.
+  // It only fired when vocal was null (no GenreGravityRule vocal arrays matched),
+  // which was 61% of the sentinel library. Found 2026-07-26.
+  return parts.join(', ')
 }
 
 // Kept for backward compat with any external callers or tests.

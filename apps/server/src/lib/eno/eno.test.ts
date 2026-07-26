@@ -373,7 +373,22 @@ describe('composeFinalStyle — vocal identity placement', () => {
       null,
       '1970s jazz-rock, jazz guitar solo',
     )
-    expect(result).toBe('relaxed, 95bpm, dorian 1970s jazz-rock, jazz guitar solo')
+    expect(result).toBe('relaxed, 95bpm, dorian, 1970s jazz-rock, jazz guitar solo')
+  })
+
+  // Regression: this case previously asserted 'dorian 1970s jazz-rock' — the
+  // space-join fused the outcome prepend's trailing {mode} onto the genre
+  // anchor. The malformed compound ("major pentatonic 2020s trap") became the
+  // dominant tag Suno reads. Guard the boundary explicitly.
+  it('never fuses the mode onto the genre anchor when vocal is absent', () => {
+    const result = composeFinalStyle(
+      'optimistic, danceable, 112bpm, major pentatonic',
+      null,
+      null,
+      '2020s trap, minimal synth loop',
+    )
+    expect(result).toBe('optimistic, danceable, 112bpm, major pentatonic, 2020s trap, minimal synth loop')
+    expect(result).not.toMatch(/major pentatonic 2020s/)
   })
 
   it('handles empty outcome prepend', () => {
