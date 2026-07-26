@@ -60,11 +60,23 @@ cd entuned-0.3 && railway ssh "cd /app && node -e '
     select: { id: true, title: true, status: true, vocalGender: true, style: true, negativeStyle: true, lyrics: true },
     orderBy: { createdAt: \"asc\" },
   });
-  console.log(Buffer.from(JSON.stringify(seeds),\"utf-8\").toString(\"base64\"));
+  const z = await import(\"zlib\");
+  console.log(\"BEGINB64\" + z.gzipSync(Buffer.from(JSON.stringify(seeds),\"utf-8\")).toString(\"base64\") + \"ENDB64\");
   process.exit(0);
 })();
-'" | tail -1 | base64 -d > /tmp/seeds.json
+'" > /tmp/raw.txt
+
+python3 -c "
+import re,base64,gzip
+m=re.search(r'BEGINB64(.*?)ENDB64', open('/tmp/raw.txt').read(), re.S)
+open('/tmp/seeds.json','wb').write(gzip.decompress(base64.b64decode(re.sub(r'\s','',m.group(1)))))
+"
 ```
+
+**Gzip + markers are required, not optional (2026-07-26).** `railway ssh` stdout truncates at
+exactly 48 KB, and a plain `... | tail -1 | base64 -d` silently writes a *truncated* JSON file —
+the failure surfaces much later as `SyntaxError: Unexpected end of JSON input`. A 24-seed pull is
+~56 KB raw but ~14 KB gzipped, well under the cap.
 
 Verify locally:
 
@@ -236,7 +248,14 @@ document.querySelector('.lyrics-editor-content').dispatchEvent(
   new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true}));
 ```
 
-Style / Exclude styles / Title are still plain elements — set them with the `setRV` React-setter pattern. Select the style textarea by its Styles-section placeholder (a rotating genre-examples string), never by index.
+Style / Exclude styles / Title are still plain elements — set them with the `setRV` React-setter pattern.
+
+**Select the Styles textarea by `maxLength === 1000`** — it is the only stable handle. Never by
+index (`textarea[0]` is the AI chat box), never by placeholder (the genre-examples string
+rotates), and not by walking up to an ancestor containing the text `Styles` — that lookup works
+on an empty form but stops matching once lyrics are pasted, so a pre-Create verify silently
+reports `styleLen: null` on a field that is actually populated. Reference maxLengths: Styles
+1000, Song Description 3000, Sound 500, chat box none.
 
 **Verify BEFORE every Create — no exceptions**, in a separate call after a ~2s wait:
 
@@ -247,12 +266,24 @@ const ed = document.querySelector('.lyrics-editor-content');
   len: ed.textContent.length});                                   // = lyrics length minus newline count
 ```
 
-If any check fails, redo calls 1–3. Only when the verify passes, click Create:
+If any check fails, redo calls 1–3. Only when the verify passes, click Create.
 
-```js
-const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Create');
-btn?.click(); ({clicked: !!btn});
+**CRITICAL — `btn.click()` does NOT fire Create on Suno v5.5 (discovered 2026-07-26).** A
+programmatic click returns `{clicked: true, disabled: false}` and does nothing: no card appears,
+no credits are drawn. Suno's handler requires a trusted event. Use a real mouse click, and
+**screenshot the same tab immediately before clicking it, in the same `browser_batch`** — the
+screenshot is what brings the tab to focus, and a `computer` click on an unfocused background tab
+is silently dropped:
+
 ```
+mcp__Claude_in_Chrome__computer({ action: "screenshot", tabId: <tab> })
+mcp__Claude_in_Chrome__computer({ action: "left_click", coordinate: [<x>, <y>], tabId: <tab> })
+```
+
+Take the coordinates from that screenshot — the Create button sits at the bottom of the form
+(~`[663, 679]` on a 1400×843 tab). **Confirm the credit counter dropped** (10 credits per
+generation) before treating the wave as fired; that is the only reliable signal, since the form
+keeps its contents either way.
 
 ## Step 6 — Wait for renders (background bash)
 
@@ -357,7 +388,11 @@ End the report with `N/N accepted · 0 failures · drafted with lyric-draft v<X>
 | `accept` returns 404 on r2Url | Take was still rendering at the moment of accept | Re-screenshot to check if duration now shown, then re-POST accept |
 | `accept` returns `502 r2_upload_failed` | Server's audio-integrity guard fired (empty/short body or non-audio content-type from audiopipe.suno.ai — take wasn't rendered) | Wait 30–60s, re-POST that seed. Do not bypass — guard exists to prevent 0-byte R2 objects. |
 | `accept` returns 409 `hook_already_accepted` | Previous SongSeed for the same hook already accepted | Skip — the hook can only back one accepted song; either rotate the hook or delete the old SongSeed |
+| `__create()` returns `{clicked: true, disabled: false}` but no card appears and credits don't move | `btn.click()` is untrusted; Suno v5.5 ignores it | Use a real `computer left_click`, preceded by a `screenshot` **of the same tab in the same batch** to focus it. See Step 5. |
+| Real click fires on one tab but the other 3 do nothing | Those tabs weren't focused — a `computer` click on a background tab is dropped | Never batch `click(tabA), screenshot(tabB)`. Pair every click with a screenshot of *its own* tab, immediately before. |
+| Accepted song is 50–200 KB / plays for 2–8 seconds | Suno's generation itself failed (workspace card shows `Credits Refunded`), not a download race — re-downloading returns the same bytes | Deactivate those `LineageRow`s, then re-fire Create for that seed and repair the rows in place with the new audio. Always check `byteSize` after a batch: healthy takes are 1.5–5 MB. |
 | Suno captcha | Suno occasionally requires human verification | **STOP.** Don't try to bypass. Report to Daniel. |
+| `fetch('http://localhost:...')` from a suno.com tab hangs, then the CDP call times out at 45 s | Chrome Private Network Access blocks HTTPS→localhost | Don't serve seed data over a local HTTP server. Inline the payload into the `javascript_tool` text. |
 | `accept` returns 401 | Bearer token missing/expired | Re-grab `localStorage.getItem('entuned.admin.token')` from the Dash tab; tokens last ~weeks but can be invalidated |
 | `accept` returns 401 with `invalid_token`, OR `localStorage.getItem` returns `null`/`[BLOCKED: JWT token]` | Chrome MCP credential filter is intercepting the bearer — the token never reaches the fetch as plaintext, even when passed through JS | Skip HTTP. Replicate the route's accept transaction via `railway ssh`: import `downloadAndUploadFromUrl` from `file:///app/dist/lib/r2.js`, then mirror the upsert-song + create-lineage + status-flip transaction from `admin.ts:3711`. Memory: `feedback_chrome_mcp_jwt_filter`. Keep the script short-lived (write to `/app/_accept-seeds.mjs`, run with `node --import tsx`, delete after). |
 
