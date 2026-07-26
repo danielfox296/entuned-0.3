@@ -220,6 +220,19 @@ for (const [id, v] of Object.entries(out)) console.log(v.title, '|', v.vocal);
 - **Wave 1:** inject seeds 1–4 into tabs 1–4
 - **Wave 2 (if N>4):** inject seeds 5+ into reused tabs 1, 2, ... in order
 
+**Interleave, don't serialize (validated on a 24-seed run, 2026-07-26).** Suno's render is the
+only slow part. Once wave N's takes are scraped, inject and fire wave N+1 *first*, then accept
+wave N while N+1 renders. Accepting is a `railway ssh` call that doesn't touch the browser, so it
+overlaps cleanly. Serial injecting→waiting→accepting→injecting roughly doubles wall-clock.
+
+**Inject a helper library once per tab, then pass only the seed.** Rather than building one giant
+per-seed JS blob (Step 4), define `window.__clear/__focus/__paste/__fields/__verify/__create/
+__scan` on each tab once, all reading from a single `window.__s` seed object. Each wave then costs
+one small `window.__s = {...}` assignment plus one-word calls. Page state survives Create (the
+create page is an SPA and doesn't navigate), so this holds for the whole run and makes a re-inject
+after a silent no-op essentially free. Keep clear → focus → paste as three separate
+`javascript_tool` calls even so — that's a Lexical constraint, not a transport one.
+
 For each wave, in one `browser_batch`:
 
 ```
@@ -308,17 +321,26 @@ mcp__Claude_in_Chrome__computer({ action: "screenshot", tabId: <tab> })
 javascript_tool(tabId: <tab>, text: <UUID scan script>)
 ```
 
-UUID scan script per tab (replace `<TITLE>` with the seed's title):
+UUID scan script per tab (replace `<TITLE>` with the seed's title). **Always scrape the duration
+alongside the UUID** — the duration is the only reliable "this take is finished" signal, and a
+UUID alone will happily let you accept a still-rendering or failed take:
 
 ```js
 // Click "Show new clips ↑ N" if Suno is hiding them
 const sn = Array.from(document.querySelectorAll('button')).find(b => /show new clips/i.test(b.textContent));
 sn?.click();
+await new Promise(r => setTimeout(r, 600));
 // Scan for the title — title-match beats href-based scan because spinning cards have <a> text content before the href transitions
-const links = Array.from(document.querySelectorAll('a'))
+const takes = Array.from(document.querySelectorAll('a'))
   .filter(a => a.textContent.trim() === '<TITLE>')
-  .map(a => ({uuid: a.href.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0], href: a.href}));
-({takes: links});
+  .map(a => {
+    const uuid = (a.href.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i) || [])[0];
+    let el = a, dur = null;
+    for (let i = 0; i < 6 && el; i++) { el = el.parentElement; const m = el && el.textContent.match(/\d+:\d\d/); if (m) { dur = m[0]; break; } }
+    return { uuid, dur };
+  })
+  .filter(t => t.uuid);
+({takes});
 ```
 
 Each seed must produce **exactly 2 takes**. If <2 after the screenshot+scan: a tab silently no-op'd Create. Recover by RE-RUNNING THE FULL INJECT SCRIPT for that seed (never just toggle+Create — a no-op'd tab may have dropped the lyrics field while keeping style, and a bare retry-Create renders a lyric-less instrumental; this shipped 2 defective songs on 2026-07-14), then run the pre-Create lyrics verify, then Create. Wait another 60s and re-scan. Don't ask the operator; the silent-no-op is a known Suno quirk and the full re-inject handles it.
@@ -327,39 +349,58 @@ If `Create` silently no-ops on multiple tabs in the same wave, re-fire the dance
 
 ## Step 7.5 — Pre-accept render check
 
-The take URLs become valid in the DOM **before** the audio finishes rendering on Suno's CDN. If you accept while a take is still spinning, the server-side audio-integrity guard fires a 502.
+The take URLs become valid in the DOM **before** the audio finishes rendering on Suno's CDN.
 
-**Heuristic, not a gate:** if more than one take card in your batch still shows a spinner (no duration), wait another 20–30s before posting accepts. Otherwise go straight to Step 8 — the guard catches anything that isn't ready and you just retry that one seed (Step 8 covers the retry).
+**This is a hard gate, not a heuristic (tightened 2026-07-26).** Every take you are about to
+accept must show a duration (`dur` non-null from the Step 7 scan). A card with no duration is
+still rendering. Wait 30s and re-scan rather than accepting it.
 
-## Step 8 — Accept via admin API (parallel curl)
+The earlier guidance — "go straight to Step 8, the server guard catches anything that isn't
+ready" — **is wrong and shipped a defective song.** The server's audio-integrity floor passes
+57 KB, so a 2-second clip accepts cleanly with HTTP 200 and a populated `r2Url`. Nothing
+downstream flags it. Two distinct failures both present as a short clip:
 
-Skip the Dash modal entirely. POST to `/admin/song-seeds/:id/accept` for each seed in parallel.
+- **Still rendering** — waiting fixes it.
+- **Suno-side generation failure** — the workspace card shows `Credits Refunded` and a `0:02`
+  duration. Re-downloading returns byte-identical short audio; waiting never fixes it. The seed
+  must be regenerated (Step 5 again) and the rows repaired via `repair-takes.mjs`.
 
-Bash recipe — paste the cached admin token from Step 2 into `$TOKEN`, then call `accept` once per seed in the background, `wait` for all:
+Both are caught by the same rule: no duration, or a duration under ~0:30, means do not accept.
+
+## Step 8 — Accept via `railway ssh` (primary path)
+
+**The HTTP accept path is not available from a browser-driven run.** Chrome MCP's credential
+filter masks the bearer: `localStorage.getItem('entuned.admin.token')` returns the literal string
+`[BLOCKED: JWT token]` — deterministically, every run, not intermittently. Don't spend a round
+trip discovering this; go straight to the script. (Memory: `feedback_chrome_mcp_jwt_filter`.)
+
+Use the checked-in [`accept-song-seeds.mjs`](accept-song-seeds.mjs), which mirrors the accept
+transaction in `apps/server/src/routes/admin.ts` and adds a 500 KB per-take floor. Upload it,
+run it, delete it:
 
 ```bash
-TOKEN='<the bearer token from Step 2>'
-accept() {
-  local TITLE=$1 SEED_ID=$2 U1=$3 U2=$4
-  echo "=== $TITLE ($SEED_ID) ==="
-  curl -sS -X POST "https://api.entuned.co/admin/song-seeds/$SEED_ID/accept" \
-    -H "Authorization: Bearer $TOKEN" \
-    -H "Content-Type: application/json" \
-    -d "{\"takes\":[{\"sourceUrl\":\"https://suno.com/song/$U1\"},{\"sourceUrl\":\"https://suno.com/song/$U2\"}]}" \
-    -w "\nHTTP %{http_code}\n"
-}
-export -f accept; export TOKEN
-
-accept "Drifting"    "34d9757d-..." "343bea42-..." "108cf58f-..." &
-accept "Golden Air"  "22e0607f-..." "82f309dd-..." "c50341ab-..." &
-# ... one per seed ...
-wait
-echo "all done"
+cd entuned-0.3
+B64=$(base64 < .claude/skills/populate-songs/accept-song-seeds.mjs | tr -d '\n')
+J=$(base64 < /tmp/wave.json | tr -d '\n')   # [{seedId, urls:[u1,u2]}, ...]
+railway ssh "cd /app && echo '$B64' | base64 -d > _accept-seeds.mjs \
+  && node --import tsx _accept-seeds.mjs '$J' && rm -f _accept-seeds.mjs"
 ```
 
-Each call returns JSON with the updated `songSeed` (status should be `"accepted"`) and a `lineageRows[]` array with 2 entries, each containing an `r2Url`. **Verify `HTTP 200` and `r2Url` populated on every lineage row** — these are the URLs Daniel listens to.
+Parse the `ACCEPTREPORT…ENDREPORT` payload and confirm `ok: true` plus 2 `r2` URLs per seed.
 
-**If any accept returns `502 r2_upload_failed`** with a message about "still rendering" / "below floor" / "content-length 0", the server's audio-integrity guard fired: that take wasn't actually ready on Suno's CDN at the moment of accept. Wait 30–60s (background `sleep`) and re-POST that single seed automatically. Don't ask the operator; this is a known timing race and the retry succeeds. The guard exists because the prior failure mode was silent: 0-byte R2 objects accepted, then every free-tier user hit `MEDIA_ERR_SRC_NOT_SUPPORTED` in the player. Trust the 502; don't try to work around it.
+**Do not hand-author this script per run.** It duplicates a real transaction (Song upsert,
+LineageRow create, status flip, `useCount` bumps on both hook and reference track); an
+improvised version that forgets a side effect writes rows that look correct and silently differ
+from what the browser path would have written. If the route changes, update the checked-in copy.
+
+`error: truncated_take_<n>b` means the floor fired — the seed stays `queued`, so re-fire Create
+for it (Step 5) and re-run accept once the cards show real durations. For a seed already accepted
+with bad audio, use [`repair-takes.mjs`](repair-takes.mjs) instead; accept can't be re-run because
+the hook is consumed.
+
+Two gotchas on the container: every `railway ssh` must run from the monorepo root (a `cat <<EOF`
+heredoc earlier in the same Bash call resets the cwd and you'll get `No linked project found`),
+and Node warns about AWS SDK wanting node>=22 — that warning is noise, not a failure.
 
 ## Step 9 — Return R2 URLs to the user
 
@@ -393,15 +434,41 @@ End the report with `N/N accepted · 0 failures · drafted with lyric-draft v<X>
 | Accepted song is 50–200 KB / plays for 2–8 seconds | Suno's generation itself failed (workspace card shows `Credits Refunded`), not a download race — re-downloading returns the same bytes | Deactivate those `LineageRow`s, then re-fire Create for that seed and repair the rows in place with the new audio. Always check `byteSize` after a batch: healthy takes are 1.5–5 MB. |
 | Suno captcha | Suno occasionally requires human verification | **STOP.** Don't try to bypass. Report to Daniel. |
 | `fetch('http://localhost:...')` from a suno.com tab hangs, then the CDP call times out at 45 s | Chrome Private Network Access blocks HTTPS→localhost | Don't serve seed data over a local HTTP server. Inline the payload into the `javascript_tool` text. |
-| `accept` returns 401 | Bearer token missing/expired | Re-grab `localStorage.getItem('entuned.admin.token')` from the Dash tab; tokens last ~weeks but can be invalidated |
-| `accept` returns 401 with `invalid_token`, OR `localStorage.getItem` returns `null`/`[BLOCKED: JWT token]` | Chrome MCP credential filter is intercepting the bearer — the token never reaches the fetch as plaintext, even when passed through JS | Skip HTTP. Replicate the route's accept transaction via `railway ssh`: import `downloadAndUploadFromUrl` from `file:///app/dist/lib/r2.js`, then mirror the upsert-song + create-lineage + status-flip transaction from `admin.ts:3711`. Memory: `feedback_chrome_mcp_jwt_filter`. Keep the script short-lived (write to `/app/_accept-seeds.mjs`, run with `node --import tsx`, delete after). |
+| `localStorage.getItem('entuned.admin.token')` returns `[BLOCKED: JWT token]` | Chrome MCP credential filter — expected, deterministic, not a fault | Don't try to work around it. Step 8's `railway ssh` script is the primary accept path. |
+| `railway ssh` → `No linked project found` mid-run | A `cat <<EOF` heredoc earlier in the same Bash call reset the shell cwd | Re-`cd` to the monorepo root in the same command as the `railway ssh` call. |
 
 ## Done condition
 
-All targeted SongSeed rows have `status: 'accepted'` + `r2Url` populated on both lineage rows. Report includes:
+All targeted SongSeed rows have `status: 'accepted'` + `r2Url` populated on both lineage rows —
+**and every new Song passes a byte-size audit.** `status: accepted` + populated `r2Url` is not
+sufficient; a 2-second failed render satisfies both. Run this before reporting done:
+
+```bash
+cd entuned-0.3 && railway ssh "cd /app && node -e '
+import(\"@prisma/client\").then(async m=>{
+  const p=new m.PrismaClient();
+  const songs=await p.song.findMany({
+    where:{lineageRows:{some:{songSeed:{songSeedBatchId:{in:[<BATCH_IDS>]}}}}},
+    select:{byteSize:true}});
+  const bad=songs.filter(s=>!s.byteSize || Number(s.byteSize) < 500000);
+  console.log(\"songs:\", songs.length, \"| under-500KB:\", bad.length,
+    \"| min:\", Math.round(Math.min(...songs.map(s=>Number(s.byteSize)))/1024)+\"KB\");
+  await p.\$disconnect();
+})'"
+```
+
+`under-500KB` must be 0. Anything flagged gets deactivated and regenerated (Step 7.5) before you
+call the batch done.
+
+Also confirm the pool actually grew by `2 × seeds` in **active** rows. Count with
+`active: true` on both sides of the comparison — a raw `lineageRow.count` includes rows
+deactivated in earlier incidents and will make a correct run look short.
+
+Report includes:
 
 - N prompts accepted / N requested
-- ICP affected
+- ICP affected (and, for free-tier work, that it's the sentinel `Free Tier` ICP — songs under
+  FTSB archetype ICPs are not audible to real free-tier stores)
 - Any failures (with reason)
 - The R2 URLs grouped by song (this is what Daniel listens to)
 
