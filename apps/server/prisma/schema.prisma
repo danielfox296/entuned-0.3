@@ -557,6 +557,26 @@ model BpmLookupPrompt {
 // Mirrors LyricDraftPrompt / StyleAnchorPrompt: append-only, latest version wins
 // at runtime. Migrated from hardcoded HOOK_SYSTEM_PROMPT on 2026-05-25 per the
 // no-prompt-content-in-code rule. Editable in Dash → Prompts & Rules → Hook Drafter.
+// Hook Editor — system prompt for the finishing pass that runs after the
+// drafter (lib/hooks/editor.ts). Global, append-only per version, latest wins
+// at runtime; same shape as HookDrafterPrompt. Schema SSOT:
+// ../../../entune v0.3/schema/10-hooks.md.
+//
+// Exists because hooks were the only generated artifact with a single model
+// pass — lyrics get Bernie then the Professor, hooks went drafter -> approved.
+// Cold-start: getOrSeedHookEditorPrompt() inserts v1 from a TS const when the
+// table is empty; after that the const is never consulted.
+model HookEditorPrompt {
+  id          String   @id @default(uuid()) @db.Uuid
+  version     Int      @unique
+  promptText  String   @map("prompt_text")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdById String?  @map("created_by") @db.Uuid
+
+  @@map("hook_editor_prompts")
+}
+
 model HookDrafterPrompt {
   id          String   @id @default(uuid()) @db.Uuid
   version     Int      @unique

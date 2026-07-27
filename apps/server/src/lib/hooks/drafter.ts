@@ -20,6 +20,7 @@ import type Anthropic from '@anthropic-ai/sdk'
 import { getAnthropic, resolveModel, extractToolUse } from '../_llm/client.js'
 import { prisma } from '../../db.js'
 import { formatHardBanBlock } from '../bernie/lyric-craft-rules.js'
+import { editHooks } from './editor.js'
 
 const MODEL = resolveModel(process.env.HOOK_DRAFTER_MODEL, 'claude-sonnet-4-6')
 
@@ -145,6 +146,14 @@ export interface DraftHooksResult {
   rawText: string
   /** The full user message sent (system prompt is the latest HookDrafterPrompt DB row). */
   userMessage: string
+  /** Editor finishing pass — see lib/hooks/editor.ts. Null when the pass fell back. */
+  editorVersion: number | null
+  /** Hooks the editor rewrote to remove inanimate agency. */
+  editorChangedCount: number
+  /** Hooks the editor judged unfixable and dropped. */
+  editorDroppedCount: number
+  /** Per-hook edit notes, for operator review. */
+  editorNotes: string[]
 }
 
 /**
@@ -253,7 +262,21 @@ export async function draftHooks(opts: {
     })
     .filter((h): h is DraftedHook => h !== null)
 
-  return { hooks, rawText: JSON.stringify(parsed), userMessage }
+  // Finishing pass. The drafter generates; the editor enforces the
+  // inanimate-agency rule. Splitting the two is deliberate — loading the
+  // generator with enforcement measurably degraded both compliance and yield.
+  // editHooks never throws; on any failure it returns `hooks` unchanged.
+  const edited = await editHooks(hooks)
+
+  return {
+    hooks: edited.hooks,
+    rawText: JSON.stringify(parsed),
+    userMessage,
+    editorVersion: edited.editorVersion,
+    editorChangedCount: edited.changedCount,
+    editorDroppedCount: edited.droppedCount,
+    editorNotes: edited.notes,
+  }
 }
 
 /** DB-backed prompt loader. Mirrors getOrSeedAnchorPrompt / getOrSeedRouterPrompt:

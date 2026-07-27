@@ -376,6 +376,18 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     schema: LyricPromptPostBody,
   })
 
+  // ----- Hook Editor prompt (finishing pass that runs after the drafter) -----
+  // Same shape as the drafter prompt. Cold-start v1 happens in lib/hooks/editor.ts.
+  // The drafter generates; this pass enforces. Loading enforcement onto the
+  // generator measurably degraded both compliance and yield — see editor.ts.
+
+  registerVersionedText(app, {
+    getPath: '/hook-editor-prompt',
+    model: prisma.hookEditorPrompt,
+    field: 'promptText',
+    schema: LyricPromptPostBody,
+  })
+
   // ----- The Professor (finishing editor for song lyrics) -----
   // Persona is a versioned system prompt (same shape as lyric-prompts).
   // Modules are a CRUD'd curriculum list. Cold-start of both happens in
