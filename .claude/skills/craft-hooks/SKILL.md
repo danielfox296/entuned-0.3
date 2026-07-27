@@ -9,7 +9,9 @@ In-chat hook writing. Not a DB skill, not an admin-route caller. The output is a
 
 This skill exists because the production drafter — DB-backed `templateText` + universal system prompt + per-outcome overlay — consistently produces flattened, therapy-coded hooks even with sharpened prompts. The methodology below is what worked when I iterated with Daniel in chat: a small set of transferable craft principles plus voice-first register selection, run with a hard therapy-code filter on the back end.
 
-Craft baseline (what a great hook is, mouth-feel, mode/tempo coupling, banned diction) lives in [`apps/server/src/lib/hooks/drafter.ts`](../../apps/server/src/lib/hooks/drafter.ts) → `HOOK_SYSTEM_PROMPT_SEED`. Do not duplicate it here. The hard runtime bans live in the `lyric_ban_entries` DB table; this skill operates at chat-time, so I keep those bans in mind manually.
+Craft baseline (what a great hook is, mouth-feel, mode/tempo coupling, banned diction) is the **live `hook_drafter_prompts` row** — Dash → Prompts & Rules → Hook Drafter. Do not duplicate it here, and do not read it from `HOOK_SYSTEM_PROMPT_SEED` in [`apps/server/src/lib/hooks/drafter.ts`](../../apps/server/src/lib/hooks/drafter.ts): that const is a frozen cold-start seed, never consulted at runtime, and is many versions behind the live prompt. The hard runtime bans live in the `lyric_ban_entries` DB table; this skill operates at chat-time, so I keep those bans in mind manually.
+
+The one craft rule restated here rather than inherited is **No inanimate agency** (below) — it is a hard ban, it was violated by hooks that shipped, and a chat-time skill that only points at the DB will not fire it reliably.
 
 ## What a hook is
 
@@ -33,6 +35,27 @@ Markers to flag and cut:
 - **Reframe language:** "It's enough to ___," "I belong to what I ___"
 
 Any line that reads like a sentence from a recovery meeting or a CBT worksheet is out, regardless of how true it is. The hook should sound like the *world*, not like a person describing their relationship to it.
+
+## No inanimate agency — hard ban
+
+Objects do not act. If the grammatical subject of the hook's main clause is a thing — an object, a body part, a room, a light, a sound, a garment, an abstraction — the hook is out. Hard ban, not a stylistic preference; "it's poetic" is not an exception.
+
+Two shapes, both out:
+
+1. **A thing given intent, volition, discovery, or knowledge.** found, decided, chose, waited, refused, knew, wanted, remembered, held on, gave up, tried, forgave, agreed. A shoulder cannot find anything. A bench cannot know your weight.
+2. **A thing that changes itself, or performs its own mechanical verb, as the main clause.** "The room got smaller." "The kettle ticks." "Two cups cool on the sill." No intent word appears and it is still out — the thing has taken the person's place as the actor of their own song. A kettle arguably does tick; that is not the point.
+
+The fix is always the same move: **put the person back in as the grammatical subject and let them do the verb.**
+
+- "your shoulder found the wall and stayed" → "I leaned my shoulder on the wall and stayed"
+- "the kettle ticks" → "I wait out the kettle"
+- "the room got smaller" → "I keep my back to the door"
+
+The thing does not have to leave the hook — it moves out of the subject slot into the object, a prepositional phrase, or a subordinate clause. "I watch the kettle tick" passes; "the kettle ticks" does not. "We're three steps out before the door clicks" passes — a person governs the main clause.
+
+This interacts with **Length and grammar** below: dropping the subject is fine when the dropped subject is the *person* ("leaning on the wall" carries an implied "I"). It is not a licence to promote a thing into the subject slot. A thing-subject does not become acceptable by being short, concrete, or beautiful.
+
+Two of the ten craft principles need reading through this rule: **"Address a thing as if it could grant a wish"** stays legal — apostrophe puts the thing in the *vocative*, not the subject slot ("hold on, old porch light" passes; "the porch light held on" does not). **"Name a place; let the place do the work of the emotion"** means the place carries connotation, not that the place performs a verb.
 
 ## Cliché — the primary anchor
 
