@@ -38,22 +38,28 @@ Any line that reads like a sentence from a recovery meeting or a CBT worksheet i
 
 ## No inanimate agency — hard ban
 
-Objects do not act. If the grammatical subject of the hook's main clause is a thing — an object, a body part, a room, a light, a sound, a garment, an abstraction — the hook is out. Hard ban, not a stylistic preference; "it's poetic" is not an exception.
+Objects do not act. **An inanimate noun may not be the grammatical subject of any verb, in any clause, anywhere in the hook.** Hard ban, not a stylistic preference; "it's poetic" is not an exception, and there is no earned-and-rare allowance.
 
-Two shapes, both out:
+Inanimate is broad: objects, body parts, rooms, buildings, places, substances, weather and natural phenomena, sounds, light, machines, garments, times and days, abstractions. **People act. Animals act. Nothing else does.**
+
+Three shapes, all out:
 
 1. **A thing given intent, volition, discovery, or knowledge.** found, decided, chose, waited, refused, knew, wanted, remembered, held on, gave up, tried, forgave, agreed. A shoulder cannot find anything. A bench cannot know your weight.
-2. **A thing that changes itself, or performs its own mechanical verb, as the main clause.** "The room got smaller." "The kettle ticks." "Two cups cool on the sill." No intent word appears and it is still out — the thing has taken the person's place as the actor of their own song. A kettle arguably does tick; that is not the point.
+2. **A thing that changes itself, or performs its own bare mechanical verb.** "The room got smaller." "The kettle ticks." "Two cups cool on the sill." No intent word appears and it is still out. A kettle arguably does tick; that is not the point.
+3. **A thing-subject hidden in a subordinate clause while a person governs the main clause.** This is the leak — it reads as correct because the person is present. All out: "I watch the kettle tick", "I let the phone ring out twice", "I was halfway laughing before the joke landed", "the bench that knows my weight", "we're three steps out before the door clicks". If you reach for "before the [thing] [verbs]" as a time-stamp, cut it.
+
+**The one exception: the plain copula.** An inanimate subject may take *be* as a plain state — "the light's not on", "it's all the same song". It does not extend to change-of-state verbs (got, grew, turned, went, came, became, fell, kept, stayed), and it does not license calling a thing "she" or "he" — "the flame, she's just a flicker" is out.
 
 The fix is always the same move: **put the person back in as the grammatical subject and let them do the verb.**
 
 - "your shoulder found the wall and stayed" → "I leaned my shoulder on the wall and stayed"
 - "the kettle ticks" → "I wait out the kettle"
 - "the room got smaller" → "I keep my back to the door"
+- "I let the phone ring out twice" → "I ignored the phone twice"
 
-The thing does not have to leave the hook — it moves out of the subject slot into the object, a prepositional phrase, or a subordinate clause. "I watch the kettle tick" passes; "the kettle ticks" does not. "We're three steps out before the door clicks" passes — a person governs the main clause.
+The thing does not have to leave the hook — it moves out of *every* subject slot into the object, a prepositional phrase, a possessive, or a passive where the thing is acted upon ("one sock still on, the other forgotten" is legal — the sock is the patient).
 
-This interacts with **Length and grammar** below: dropping the subject is fine when the dropped subject is the *person* ("leaning on the wall" carries an implied "I"). It is not a licence to promote a thing into the subject slot. A thing-subject does not become acceptable by being short, concrete, or beautiful.
+This interacts with **Length and grammar** below: dropping the subject is fine when the dropped subject is the *person* ("leaning on the wall" carries an implied "I"). It is not a licence to promote a thing into the subject slot. A thing-subject does not become acceptable by being short, concrete, beautiful, idiomatic, or buried in a subordinate clause.
 
 Two of the ten craft principles need reading through this rule: **"Address a thing as if it could grant a wish"** stays legal — apostrophe puts the thing in the *vocative*, not the subject slot ("hold on, old porch light" passes; "the porch light held on" does not). **"Name a place; let the place do the work of the emotion"** means the place carries connotation, not that the place performs a verb.
 
