@@ -3,14 +3,14 @@
 // to `displayTitle ?? rawTitle`).
 //
 // Why this exists: the outcome names alone don't communicate that the
-// product lever is *music*. "Stay & Browse" reads like a merchandising
-// tactic; the effect line ("linger longer on the floor") makes the
+// product lever is *music*. "Dwell" names the behavior but not the
+// mechanism; the effect line ("linger longer on the floor") makes the
 // behavioral promise legible. Same strings already feed UpgradeRail's
 // anchor copy — eventually these should live on Outcome.description in
 // the DB so Dash can edit them, but for now this is the player SSOT.
 export const OUTCOME_EFFECT: Record<string, string> = {
   // Boost / Pro outcomes (post 2026-07-11 merge: 5 paid outcomes)
-  "Stay & Browse": "linger longer on the floor",
+  "Dwell": "linger longer on the floor",
   "Keep It Moving": "speed turnover when it's busy",
   "Trade Them Up": "lift the average ticket",
   "Grab It Now": "drive impulse pickups",
@@ -23,7 +23,8 @@ export const OUTCOME_EFFECT: Record<string, string> = {
   // absorbed by the 2026-07-11 merge migration. Mapped to their successor's
   // effect. See: prisma/seed/rename-outcomes-2026-05-14.ts and
   // prisma/migrations/20260711120000_consolidate_and_merge_outcomes.
-  "Linger": "linger longer on the floor",            // → Stay & Browse
+  "Stay & Browse": "linger longer on the floor",     // → Dwell (2026-08-06)
+  "Linger": "linger longer on the floor",            // → Stay & Browse → Dwell
   "Help Them Decide": "lift the average ticket",     // merged → Trade Them Up
   "Convert Browsers": "lift the average ticket",     // merged → Trade Them Up
   "Swagger Spend": "lift the average ticket",        // merged → Trade Them Up

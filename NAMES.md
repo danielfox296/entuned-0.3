@@ -165,3 +165,28 @@ Old names listed for grep/blame reference only.
 | `App.tsx` sidebar | "Closed Song Seeds" | "Abandoned Log" |
 | `App.tsx` sidebar | "Outcome Factor Prompt" | "Outcome Prepend Template" |
 | `player App.tsx` | "Clear selection" | "Clear override" |
+
+---
+
+## Outcome display names
+
+`Outcome.title` is the internal, LLM-load-bearing name and does **not** change on a
+rename. `Outcome.displayTitle` is what operators and customers see. Renames update
+`displayTitle` only; `outcomeKey` and `id` are untouched, so no FK repoint is needed.
+
+| `title` (internal, unchanged) | Current `displayTitle` | Previous display names |
+|---|---|---|
+| `Dwell Extension` | "Dwell" (2026-08-06) | "Stay & Browse" (2026-05-14), "Linger" |
+| `Dwell Compression` | "Keep It Moving" | "Move Through" |
+| `Value Lift` | "Trade Them Up" | "Increase Order Value" |
+| `Impulse` | "Grab It Now" | "Impulse Buy" |
+| `Brand Match` | "Our Sound" | "Reinforce Brand" |
+
+⚠️ **`Dwell Extension` and `Dwell Compression` are opposites.** Since 2026-08-06 the
+public name of `Dwell Extension` is "Dwell", so an internal title containing "Dwell"
+is *not* a reliable signal that a row is the Dwell product. `Dwell Compression`
+speeds turnover and is publicly "Keep It Moving". Match on `displayTitle`, or on the
+exact internal title, never on a substring.
+
+Legacy display names stay mapped in `apps/player/src/lib/outcomeCopy.ts` so historical
+rows keep rendering an effect line. Add the old name there on every rename; don't delete.

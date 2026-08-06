@@ -337,7 +337,7 @@ function OutcomesGrid() {
     { name: 'Chill', free: true },
     { name: 'Steady', free: true },
     { name: 'Upbeat', free: true },
-    { name: 'Stay & Browse', free: false },
+    { name: 'Dwell', free: false },
     { name: 'Keep It Moving', free: false },
     { name: 'Trade Them Up', free: false },
     { name: 'Grab It Now', free: false },

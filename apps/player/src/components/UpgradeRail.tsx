@@ -216,7 +216,7 @@ const SLOTS: Slot[] = [
   // give the texture (mood, when to switch to it). Order roughly follows the
   // dash.entuned.co outcome list.
   {
-    anchor: "Stay & Browse: linger longer on the floor.",
+    anchor: "Dwell: linger longer on the floor.",
     points: [
       "Slower tempo, warmer feel",
       "Customers settle in instead of breezing through",

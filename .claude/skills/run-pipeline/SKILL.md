@@ -68,7 +68,7 @@ Boost outcomes — `title` is the internal/hook-gen name; Dash + player show the
 
 | title (code / hook-gen) | Display label (Dash / player) | KPI |
 |---|---|---|
-| Linger | Stay & Browse | Dwell time |
+| Dwell Extension | Dwell | Dwell time |
 | Browse to Buy | Help Them Decide | Conversion |
 | Value Lift | Trade Them Up | AOV |
 | Add Items | Fill the Basket | UPT |
