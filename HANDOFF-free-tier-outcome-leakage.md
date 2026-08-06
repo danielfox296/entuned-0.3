@@ -1,8 +1,24 @@
 # HANDOFF — Free-tier outcome leakage (2026-05-11)
 
-Daniel flagged two related issues on 2026-05-11. The default-outcome path was partially fixed that day; the runtime-playback and schedule-slot paths remain broken and are the main reason this handoff exists.
+> **STATUS: RESOLVED. Verified against prod 2026-08-06.** Every path named in this
+> handoff now enforces the `FreeTierOutcome` allowlist. Nothing here is open work —
+> the file stays because `GENERATION.md`, `src/lib/README.md`, and two test files
+> cite it for **the rule**, not for a backlog. Do not re-implement any of it.
+>
+> | Path | Enforcement | Where |
+> |---|---|---|
+> | Default outcome | shipped 2026-05-11/18 | `lib/outcomes.ts` `pickSystemDefaultOutcomeId` |
+> | Runtime playback | shipped 2026-07-11 | `lib/hendrix.ts` (allowlist filter at the selection point) |
+> | Schedule slots (server) | shipped | `routes/admin.ts` — 409 on `POST /stores/:id/schedule` and `PUT /schedule-rows/:id` |
+> | Schedule slots (client) | shipped | `apps/admin/src/panels/schedule/OutcomeSchedule.tsx` filters the dropdown |
+> | Backfill / purge | shipped | migration `20260511030000_purge_free_tier_outcome_leakage` |
+>
+> Prod state on 2026-08-06: **0** free-tier schedule slots outside the allowlist, **0**
+> free stores with a non-allowlisted default. Allowlist resolves to Chill / Steady / Upbeat.
+>
+> Tests: `hendrix.test.ts` (#1) and `me.test.ts` (#2) both reference this doc by number.
 
-> **2026-05-18 update**: the default-outcome path was further hardened — `pickSystemDefaultOutcomeId` now returns `null` for free tier when the `FreeTierOutcome` allowlist is empty (was: silent fall-through to the global default, which would leak paid-only outcomes into free Stores). The two issues below — runtime playback selection in `hendrix.ts` and schedule-slot validation in `admin.ts` — are unchanged and still need to be fixed.
+Daniel flagged two related issues on 2026-05-11. The default-outcome path was partially fixed that day; the runtime-playback and schedule-slot paths were the reason this handoff was written. Both were subsequently fixed — see the status table above. The sections below are kept as the record of the rule and the original diagnosis.
 
 ## The rule (single source of truth)
 
@@ -22,9 +38,9 @@ Commits on `main`: `f72f7eb`, `14b3ac3`.
 
 Migration runs on Railway boot via `prisma migrate deploy` in `railway.json` startCommand.
 
-## What's still broken (the work)
+## The original diagnosis (both items now FIXED — see status banner)
 
-### 1. Free-tier playback selects outside the allowlist
+### 1. Free-tier playback selects outside the allowlist — FIXED 2026-07-11
 Daniel: "i have 'calm' outcome selected on the free tier and it's playing music. this shouldn't be selectable."
 
 Even after today's fix removes Calm from the default-outcome picker, **somehow Calm is still being chosen for playback on a free-tier store**. The default for the affected store should have been re-pointed by the backfill migration — confirm it actually ran and the store no longer has `default_outcome_id` pointing at Calm. Then trace where the runtime playback actually picks its outcome.
@@ -36,7 +52,7 @@ Likely starting points:
 
 The fix shape: filter the outcome candidate set by the FreeTierOutcome allowlist when the store is free tier. Same allowlist, same join, applied at the selection point.
 
-### 2. Free-tier schedule slots use outside-the-allowlist outcomes
+### 2. Free-tier schedule slots use outside-the-allowlist outcomes — FIXED (all three layers)
 Daniel: "users are also getting scheduling artifacts on the free tier. that shouldn't be."
 
 The Outcome Schedule UI (per-day-of-week outcome slots) lets you assign any outcome to a slot — there's no free-tier filter. Schedule routes:
@@ -50,7 +66,8 @@ Two layers to fix:
 
 ## Verification checklist
 
-After fixing, confirm against the live `*Free Tier Song Builder* · Mid` location:
+Items 1 and 5 were re-run against prod on 2026-08-06 and both returned zero rows.
+Kept as the standing regression check for this rule:
 
 1. SQL on Railway: `SELECT id, name, default_outcome_id FROM stores WHERE tier='free';` — every row's `default_outcome_id` should be in `free_tier_outcomes` by `outcome_key`.
 2. `dash.entuned.co` → that location → Location settings → default-outcome picker — Calm should not appear.
@@ -62,7 +79,7 @@ After fixing, confirm against the live `*Free Tier Song Builder* · Mid` locatio
 
 - Daniel runs everything live (memory: `feedback_always_push.md`). Commit and push after edits. Server changes need `cd entuned-0.3 && railway up` from monorepo root (memory: `feedback_railway_monorepo_deploy.md`).
 - The previous chat made the user mad several times by over-eager full-row UIs and lazy chip layouts. When proposing UI changes, lead with "what is this surface FOR" — see `project_suno_style_steering.md` and the recent Pipeline/Launch Checklist commits for examples of the redesign style he wants.
-- The `FreeTierOutcome` table is operator-toggleable from the Free Tier Outcomes panel in Dash. The allowlist is small (currently seeds `Linger` + `Lift Energy`). Don't expand it without asking.
+- The `FreeTierOutcome` table is operator-toggleable from the Free Tier Outcomes panel in Dash. The allowlist is small — as of 2026-08-06 it is **Chill / Steady / Upbeat** (re-pointed by migration `20260514130000_free_tier_chill_steady_upbeat`; the `Linger` + `Lift Energy` seed named below is the original 2026-05-10 state). Don't expand it without asking.
 - When writing migrations, follow the existing pattern: a directory named `YYYYMMDDHHMMSS_snake_case_name/` with a single `migration.sql` inside. Railway applies them automatically on `prisma migrate deploy` at startup.
 
 ## Files of interest

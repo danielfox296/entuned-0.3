@@ -62,31 +62,36 @@ To make songs for a single ICP under a store, you only need gates 3, 4, 5 (the I
 
 ### Step 0a — Set default outcome (if missing)
 
-11 named outcomes in the live system. Free-tier stores use Chill / Steady / Upbeat (mood only, no lyrical priming). Boost stores unlock all 8 behavioral outcomes below.
+**8 active outcomes in the live system** (verified against prod 2026-08-06): 3 free modes
+— Chill / Steady / Upbeat, mood only, no lyrical priming — plus the 5 Boost outcomes
+below. The 2026-07-11 merge migration cut the paid catalogue from 8 to 5.
 
 Boost outcomes — `title` is the internal/hook-gen name; Dash + player show the display label:
 
 | title (code / hook-gen) | Display label (Dash / player) | KPI |
 |---|---|---|
 | Dwell Extension | Dwell | Dwell time |
-| Browse to Buy | Help Them Decide | Conversion |
 | Value Lift | Trade Them Up | AOV |
-| Add Items | Fill the Basket | UPT |
 | Impulse | Grab It Now | Conversion (spontaneous) |
-| Move Through | Keep It Moving | Throughput |
+| Dwell Compression | Keep It Moving | Throughput |
 | Brand Match | Our Sound | Brand affinity |
-| Status Lift | Swagger Spend | AOV (bravado) |
+
+Gone since 2026-07-11 — do not pick these, they will not resolve: Browse to Buy /
+Help Them Decide, Add Items / Fill the Basket, Status Lift / Swagger Spend.
+
+⚠️ `Dwell Extension` and `Dwell Compression` are **opposites** (stay vs. move through),
+and "Dwell" is the public name of `Dwell Extension` only. Never match on a substring.
 
 Heuristic for picking from ICP psychographic intake:
 | ICP signal | → title to use |
 |---|---|
-| "browsing", "looking around", "discover" | Browse to Buy |
-| "in and out", "low patience", "task-oriented" | Move Through |
-| "wants to stay", "relaxed", "linger" | Linger |
+| "browsing", "looking around", "discover" | Dwell Extension |
+| "in and out", "low patience", "task-oriented" | Dwell Compression |
+| "wants to stay", "relaxed", "linger" | Dwell Extension |
 | "high-energy", "impulsive", "spontaneous" | Impulse |
 | "wants to spend more", "treat myself" | Value Lift |
 | "brand loyalty", "our aesthetic" | Brand Match |
-| (default if unsure) | Browse to Buy |
+| (default if unsure) | Dwell Extension |
 
 Set via Clients → Location tab → "Default outcome" dropdown → save changes.
 
