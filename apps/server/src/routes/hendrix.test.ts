@@ -37,6 +37,9 @@ vi.mock('../db.js', () => ({
     lineageRow: {
       groupBy: vi.fn(),
     },
+    station: {
+      findMany: vi.fn(),
+    },
     playbackEvent: {
       create: vi.fn(),
     },
@@ -51,6 +54,10 @@ vi.mock('../lib/hendrix.js', () => ({
 vi.mock('../lib/outcomeSchedule.js', () => ({
   setOverride: vi.fn(),
   clearOverride: vi.fn(),
+}))
+vi.mock('../lib/stations.js', () => ({
+  listActiveStations: vi.fn(),
+  setStoreStation: vi.fn(),
 }))
 
 // outcomes / tier / auth helpers — mocked so we control the free-tier guard
@@ -78,6 +85,7 @@ import { prisma } from '../db.js'
 import { buildTestApp } from '../test-utils/fastifyApp.js'
 import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
+import { listActiveStations, setStoreStation } from '../lib/stations.js'
 import { isFreeTierAllowedOutcome } from '../lib/outcomes.js'
 import { effectiveTier } from '../lib/tier.js'
 import { verify, isAccountAuthorizedForStore } from '../lib/auth.js'
@@ -90,6 +98,9 @@ const playbackEventCreate = prisma.playbackEvent.create as ReturnType<typeof vi.
 const nextQueueMock = nextQueue as ReturnType<typeof vi.fn>
 const setOverrideMock = setOverride as ReturnType<typeof vi.fn>
 const clearOverrideMock = clearOverride as ReturnType<typeof vi.fn>
+const stationFindMany = prisma.station.findMany as ReturnType<typeof vi.fn>
+const listActiveStationsMock = listActiveStations as ReturnType<typeof vi.fn>
+const setStoreStationMock = setStoreStation as ReturnType<typeof vi.fn>
 const isFreeTierAllowedOutcomeMock = isFreeTierAllowedOutcome as ReturnType<typeof vi.fn>
 const effectiveTierMock = effectiveTier as ReturnType<typeof vi.fn>
 const verifyMock = verify as ReturnType<typeof vi.fn>
@@ -109,6 +120,7 @@ function happyNextQueueResponse() {
     queue: [],
     fallbackTier: 'normal' as const,
     reason: null,
+    activeStation: null,
     roomLoudnessSamplingEnabled: false,
   }
 }
@@ -696,6 +708,171 @@ describe('hendrix routes', () => {
       expect(res.statusCode).toBe(403)
       expect(res.json()).toEqual({ error: 'forbidden' })
       expect(clearOverrideMock).not.toHaveBeenCalled()
+    })
+  })
+
+  // ----------------------------------------------------------------------
+  // GET /stations  — the player's picker catalogue
+  // ----------------------------------------------------------------------
+
+  describe('GET /stations', () => {
+    const STATION_ID = '44444444-4444-4444-4444-444444444444'
+    const STATION_ICP = '55555555-5555-5555-5555-555555555555'
+
+    function seedCatalogue() {
+      listActiveStationsMock.mockResolvedValue([
+        { id: STATION_ID, stationKey: 'solo-piano', displayName: 'Solo Piano', subtitle: 'furniture, home goods, jewelry, craft', sortOrder: 1 },
+      ])
+      stationFindMany.mockResolvedValue([{ id: STATION_ID, icpId: STATION_ICP }])
+    }
+
+    it('400s when neither store_id nor slug is given', async () => {
+      const app = await buildTestApp(hendrixRoutes, { prefix: '/hendrix' })
+      const res = await app.inject({ method: 'GET', url: '/hendrix/stations' })
+      expect(res.statusCode).toBe(400)
+    })
+
+    it('resolves the store by slug without a token', async () => {
+      seedCatalogue()
+      storeFindUnique.mockResolvedValue({ id: STORE_ID, archivedAt: null, stationId: null })
+      lineageGroupBy.mockResolvedValue([])
+      const app = await buildTestApp(hendrixRoutes, { prefix: '/hendrix' })
+
+      const res = await app.inject({ method: 'GET', url: `/hendrix/stations?slug=${SLUG}` })
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json().stations).toHaveLength(1)
+    })
+
+    it('marks a station unstocked when its ICP has no active songs', async () => {
+      seedCatalogue()
+      storeFindUnique.mockResolvedValue({ id: STORE_ID, archivedAt: null, stationId: null })
+      lineageGroupBy.mockResolvedValue([])
+      const app = await buildTestApp(hendrixRoutes, { prefix: '/hendrix' })
+
+      const res = await app.inject({ method: 'GET', url: `/hendrix/stations?slug=${SLUG}` })
+
+      expect(res.json().stations[0]).toMatchObject({ stationKey: 'solo-piano', stocked: false })
+    })
+
+    it('marks a station stocked once its ICP has songs', async () => {
+      seedCatalogue()
+      storeFindUnique.mockResolvedValue({ id: STORE_ID, archivedAt: null, stationId: STATION_ID })
+      lineageGroupBy.mockResolvedValue([{ icpId: STATION_ICP, _count: { _all: 12 } }])
+      const app = await buildTestApp(hendrixRoutes, { prefix: '/hendrix' })
+
+      const res = await app.inject({ method: 'GET', url: `/hendrix/stations?slug=${SLUG}` })
+
+      expect(res.json().stations[0].stocked).toBe(true)
+      expect(res.json().selectedStationId).toBe(STATION_ID)
+    })
+
+    it('never leaks a raw pool count to the client', async () => {
+      // A number next to a station reads as thin inventory to a shop owner —
+      // the boolean is the whole contract.
+      seedCatalogue()
+      storeFindUnique.mockResolvedValue({ id: STORE_ID, archivedAt: null, stationId: null })
+      lineageGroupBy.mockResolvedValue([{ icpId: STATION_ICP, _count: { _all: 3 } }])
+      const app = await buildTestApp(hendrixRoutes, { prefix: '/hendrix' })
+
+      const res = await app.inject({ method: 'GET', url: `/hendrix/stations?slug=${SLUG}` })
+
+      expect(JSON.stringify(res.json())).not.toContain('poolSize')
+      expect(res.json().stations[0].icpId).toBeUndefined()
+    })
+
+    it('404s on an archived store', async () => {
+      storeFindUnique.mockResolvedValue({ id: STORE_ID, archivedAt: new Date() })
+      const app = await buildTestApp(hendrixRoutes, { prefix: '/hendrix' })
+      const res = await app.inject({ method: 'GET', url: `/hendrix/stations?slug=${SLUG}` })
+      expect(res.statusCode).toBe(404)
+    })
+  })
+
+  // ----------------------------------------------------------------------
+  // POST /station-selection
+  // ----------------------------------------------------------------------
+
+  describe('POST /station-selection', () => {
+    const STATION_ID = '44444444-4444-4444-4444-444444444444'
+    const summary = { id: STATION_ID, stationKey: 'solo-piano', displayName: 'Solo Piano', subtitle: null }
+
+    it('switches by slug with no token — the slug is the auth', async () => {
+      storeFindUnique.mockResolvedValue({ id: STORE_ID, archivedAt: null })
+      setStoreStationMock.mockResolvedValue({ station: summary, previousStationId: null, changed: true })
+      const app = await buildTestApp(hendrixRoutes, { prefix: '/hendrix' })
+
+      const res = await app.inject({
+        method: 'POST', url: '/hendrix/station-selection',
+        payload: { slug: SLUG, station_id: STATION_ID },
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toEqual({ station: summary, changed: true })
+      expect(setStoreStationMock).toHaveBeenCalledWith(STORE_ID, STATION_ID)
+    })
+
+    it('requires operator auth on the store_id path', async () => {
+      verifyMock.mockReturnValue(null)
+      const app = await buildTestApp(hendrixRoutes, { prefix: '/hendrix' })
+
+      const res = await app.inject({
+        method: 'POST', url: '/hendrix/station-selection',
+        headers: { authorization: BEARER },
+        payload: { store_id: STORE_ID, station_id: STATION_ID },
+      })
+
+      expect(res.statusCode).toBe(401)
+      expect(setStoreStationMock).not.toHaveBeenCalled()
+    })
+
+    it('reports changed:false when re-picking the current station', async () => {
+      // Idempotent by design — tapping the station you are already on is not
+      // an error and must not churn the pool.
+      storeFindUnique.mockResolvedValue({ id: STORE_ID, archivedAt: null })
+      setStoreStationMock.mockResolvedValue({ station: summary, previousStationId: STATION_ID, changed: false })
+      const app = await buildTestApp(hendrixRoutes, { prefix: '/hendrix' })
+
+      const res = await app.inject({
+        method: 'POST', url: '/hendrix/station-selection',
+        payload: { slug: SLUG, station_id: STATION_ID },
+      })
+
+      expect(res.json().changed).toBe(false)
+    })
+
+    it('maps an AppError from setStoreStation onto its status and code', async () => {
+      const { AppError } = await import('../lib/http-errors.js')
+      storeFindUnique.mockResolvedValue({ id: STORE_ID, archivedAt: null })
+      setStoreStationMock.mockRejectedValue(new AppError(409, 'station_inactive'))
+      const app = await buildTestApp(hendrixRoutes, { prefix: '/hendrix' })
+
+      const res = await app.inject({
+        method: 'POST', url: '/hendrix/station-selection',
+        payload: { slug: SLUG, station_id: STATION_ID },
+      })
+
+      expect(res.statusCode).toBe(409)
+      expect(res.json()).toEqual({ error: 'station_inactive' })
+    })
+
+    it('400s on a non-uuid station_id', async () => {
+      const app = await buildTestApp(hendrixRoutes, { prefix: '/hendrix' })
+      const res = await app.inject({
+        method: 'POST', url: '/hendrix/station-selection',
+        payload: { slug: SLUG, station_id: 'not-a-uuid' },
+      })
+      expect(res.statusCode).toBe(400)
+      expect(setStoreStationMock).not.toHaveBeenCalled()
+    })
+
+    it('400s when neither store_id nor slug is given', async () => {
+      const app = await buildTestApp(hendrixRoutes, { prefix: '/hendrix' })
+      const res = await app.inject({
+        method: 'POST', url: '/hendrix/station-selection',
+        payload: { station_id: STATION_ID },
+      })
+      expect(res.statusCode).toBe(400)
     })
   })
 })

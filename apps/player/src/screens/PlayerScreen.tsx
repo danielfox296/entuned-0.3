@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { T } from "@entuned/tokens";
 import { PLAYER_ACCENT, PLAYER_GOLD } from "../theme.js";
-import { api, type QueueItem, type ActiveOutcome, type OutcomeOption, type AudioEventType, type ExtraFor } from "../api.js";
+import { api, type QueueItem, type ActiveOutcome, type OutcomeOption, type ActiveStation, type StationOption, type AudioEventType, type ExtraFor } from "../api.js";
 import { CrossfadePlayer } from "../audio/crossfade-player.js";
 import { LoudnessSampler } from "../audio/loudness-sampler.js";
 import { bufferEvent, flushNow, setEventAuth } from "../lib/event-buffer.js";
@@ -12,6 +12,7 @@ import { IconButton } from "../components/IconButton.js";
 import { DarkHalo } from "../components/DarkHalo.js";
 import { ProgressBar } from "../components/ProgressBar.js";
 import { OutcomeModal } from "../components/OutcomeModal.js";
+import { StationModal } from "../components/StationModal.js";
 import { ReportModal, type ReportReason } from "../components/ReportModal.js";
 import { TooltipTour, tourSeen, type TourStep } from "../components/TooltipTour.js";
 import { UpgradeRail } from "../components/UpgradeRail.js";
@@ -162,6 +163,12 @@ export function PlayerScreen({ session, onLogout }: Props) {
   const [activeOutcome, setActiveOutcome] = useState<ActiveOutcome | null>(null);
   const [reason, setReason] = useState<string | null>(null);
   const [outcomes, setOutcomes] = useState<OutcomeOption[]>([]);
+  // Station — what the music sounds like, as opposed to the Outcome (what it's
+  // for). Free-tier only, so activeStation is null on paid stores and the chip
+  // below hides itself.
+  const [activeStation, setActiveStation] = useState<ActiveStation | null>(null);
+  const [stations, setStations] = useState<StationOption[]>([]);
+  const [showStationModal, setShowStationModal] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showOutcomeModal, setShowOutcomeModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -391,6 +398,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
       const allOutcomes = allOutcomesModeRef.current;
       const r = await fetchNext(allOutcomes);
       setActiveOutcome(r.activeOutcome);
+      setActiveStation(r.activeStation);
       setReason(r.reason);
       setNetworkError(null);
       samplingEnabledRef.current = r.roomLoudnessSamplingEnabled;
@@ -453,6 +461,15 @@ export function PlayerScreen({ session, onLogout }: Props) {
         : await api.outcomes(session.storeId, session.token);
       setOutcomes(r);
     } catch (e) { console.warn("[player] outcomes failed", e); }
+  }, [session.mode, session.slug, session.storeId, session.token]);
+
+  const refreshStations = useCallback(async () => {
+    try {
+      const r = session.mode === 'slug' && session.slug
+        ? await api.stationsBySlug(session.slug)
+        : await api.stations(session.storeId, session.token);
+      setStations(r.stations);
+    } catch (e) { console.warn("[player] stations failed", e); }
   }, [session.mode, session.slug, session.storeId, session.token]);
 
   const currentBlobUrlRef = useRef<string | null>(null);
@@ -598,6 +615,27 @@ export function PlayerScreen({ session, onLogout }: Props) {
     }
   }, [session.mode, session.slug, session.storeId, session.token, refill, refreshOutcomes, playFromQueue, setAllOutcomesMode]);
 
+  // Switching stations is free and unlimited — no tier check, no confirm, no
+  // cooldown. Same refill-and-resume shape as an outcome change so the music
+  // turns over immediately instead of finishing the old station's queue.
+  const handleSelectStation = useCallback(async (stationId: string) => {
+    try {
+      if (session.mode === 'slug' && session.slug) {
+        await api.selectStationBySlug(session.slug, stationId);
+      } else {
+        await api.selectStation(session.storeId, stationId, session.token);
+      }
+      setShowStationModal(false);
+      setQueue([]);
+      await refill();
+      await refreshStations();
+      if (!currentRef.current && wasPlayingRef.current) void playFromQueue();
+    } catch (e) {
+      console.error(e);
+      setError("Could not change station.");
+    }
+  }, [session.mode, session.slug, session.storeId, session.token, refill, refreshStations, playFromQueue]);
+
   const handleSelectAll = useCallback(async () => {
     try {
       // Clear any server-side operator selection so we're not overriding a schedule.
@@ -704,6 +742,7 @@ export function PlayerScreen({ session, onLogout }: Props) {
 
     void refill();
     void refreshOutcomes();
+    void refreshStations();
     if (session.mode !== 'slug') {
       // Server is authoritative for this (account, store) pair — replace local
       // state rather than merge so cached loves from a prior account on the
@@ -1358,7 +1397,52 @@ export function PlayerScreen({ session, onLogout }: Props) {
         ) : null}
       </div>
 
-      <div style={{ flexShrink: 0, display: "flex", justifyContent: "center", padding: twoCol ? "0 60px 36px 60px" : (narrowPromo ? "14px 14px 18px" : "20px 24px 32px") }}>
+      <div style={{ flexShrink: 0, display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center", padding: twoCol ? "0 60px 36px 60px" : (narrowPromo ? "14px 14px 18px" : "20px 24px 32px") }}>
+        {/* Station chip — current sound, switcher one tap away. Sits beside the
+            outcome chip so both axes of the mix are visible at a glance rather
+            than one being buried in a menu.
+            Gated on tier, NOT on activeStation: a free store that has never
+            picked one still needs a way into the picker, and activeStation is
+            null both for "no station yet" and for "paid tier". Paid stores
+            don't show it at all — stations are a free-tier concept. */}
+        {session.tier === 'free' ? (
+          <div
+            onClick={() => setShowStationModal(true)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 16,
+              padding: "14px 22px",
+              borderRadius: 0,
+              background: "rgba(255, 255, 255, 0.03)",
+              border: "1px solid rgba(80, 146, 156, 0.30)",
+              cursor: "pointer",
+              userSelect: "none",
+              transition: "all 300ms cubic-bezier(.4,0,.2,1)",
+            }}
+          >
+            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: "0.18em", color: PLAYER_ACCENT, textTransform: "uppercase" }}>
+              Sound
+            </span>
+            <span style={{ width: 1, height: 18, background: "rgba(80, 146, 156, 0.30)" }} />
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+              <span style={{ fontFamily: "'Manrope', sans-serif", fontSize: 15, fontWeight: 600, letterSpacing: "0.01em", color: T.text, whiteSpace: "nowrap" }}>
+                {activeStation?.displayName ?? "Tap to choose"}
+              </span>
+              {/* Say plainly when the pick isn't shaping playback yet, rather
+                  than letting the chip imply a station that isn't actually on. */}
+              {activeStation && !activeStation.poolActive ? (
+                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 400, letterSpacing: "0.02em", color: "rgba(212,225,229,0.55)", whiteSpace: "nowrap" }}>
+                  Playing the general mix
+                </span>
+              ) : null}
+            </div>
+            <svg width="12" height="8" viewBox="0 0 12 8" fill="none" style={{ marginLeft: 4 }}>
+              <path d="M1 1l5 5 5-5" stroke={PLAYER_ACCENT} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        ) : null}
+
         <div
           ref={outcomeRef}
           onClick={() => setShowOutcomeModal(true)}
@@ -1411,6 +1495,15 @@ export function PlayerScreen({ session, onLogout }: Props) {
           onSelect={handleSelectOutcome}
           onSelectAll={handleSelectAll}
           onClose={() => setShowOutcomeModal(false)}
+        />
+      ) : null}
+
+      {showStationModal ? (
+        <StationModal
+          stations={stations}
+          activeId={activeStation?.id ?? null}
+          onSelect={handleSelectStation}
+          onClose={() => setShowStationModal(false)}
         />
       ) : null}
 

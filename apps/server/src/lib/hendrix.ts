@@ -49,6 +49,12 @@ export interface HendrixResponse {
   queue: QueueItem[]
   fallbackTier: FallbackTier
   reason: EmptyReason
+  // The Station this Store is on, or null when it has none (or isn't free —
+  // stations are a free-tier concept). `poolActive` is false when a station is
+  // picked but its pool isn't scoping playback yet: deactivated, or no songs
+  // generated for it. The player uses it to say "playing the general mix"
+  // instead of implying a station that isn't actually on.
+  activeStation: { id: string; stationKey: string; displayName: string; subtitle: string | null; poolActive: boolean } | null
   // Per-store opt-in for mic-based room-loudness sampling on the player.
   // Server-level kill switch (ROOM_LOUDNESS_SAMPLING_KILL=true) forces false.
   roomLoudnessSamplingEnabled: boolean
@@ -429,7 +435,7 @@ export async function nextQueue(
   const decidedAt = now.toISOString()
   const store = await prisma.store.findUnique({ where: { id: storeId } })
   if (!store) {
-    return { storeId, decidedAt, activeOutcome: null, queue: [], fallbackTier: 'normal', reason: 'no_pool', roomLoudnessSamplingEnabled: false }
+    return { storeId, decidedAt, activeOutcome: null, queue: [], fallbackTier: 'normal', reason: 'no_pool', activeStation: null, roomLoudnessSamplingEnabled: false }
   }
 
   const roomLoudness = roomLoudnessFlag(store.roomLoudnessSamplingEnabled)
@@ -478,6 +484,28 @@ export async function nextQueue(
   // station pool has no songs yet — all three fall back to the store's full
   // StoreICP set rather than returning silence. See resolveStationPoolIcpId.
   const stationIcpId = isFree ? await resolveStationPoolIcpId(store) : null
+  // Surfaced so the player can name the current station. Read even when
+  // stationIcpId is null (deactivated / empty pool) — the Store is still ON
+  // that station, it just isn't shaping playback yet, and hiding it would make
+  // the picker look like it forgot the choice.
+  const stationRow = isFree && store.stationId
+    ? await prisma.station.findUnique({
+        where: { id: store.stationId },
+        select: { id: true, stationKey: true, displayName: true, subtitle: true },
+      })
+    : null
+  // Built field-by-field rather than spread: `icpId` is an internal pool
+  // pointer and must never ride out on a client payload just because someone
+  // widens the select above.
+  const activeStation = stationRow
+    ? {
+        id: stationRow.id,
+        stationKey: stationRow.stationKey,
+        displayName: stationRow.displayName,
+        subtitle: stationRow.subtitle,
+        poolActive: stationIcpId !== null,
+      }
+    : null
   const poolIcpIds = stationIcpId ? [stationIcpId] : icpIds
   // Pool-size-tuned no-repeat spacing applies only on station-scoped requests;
   // paid stores and free stores with no station keep the flat global window.
@@ -495,6 +523,7 @@ export async function nextQueue(
       queue: await injectAdIfDue(store, queue, now),
       fallbackTier,
       reason: queue.length === 0 ? 'no_pool' : null,
+      activeStation,
       roomLoudnessSamplingEnabled: roomLoudness,
     }
   }
@@ -518,6 +547,7 @@ export async function nextQueue(
       queue: await injectAdIfDue(store, queue, now),
       fallbackTier,
       reason: queue.length === 0 ? 'no_pool' : null,
+      activeStation,
       roomLoudnessSamplingEnabled: roomLoudness,
     }
   }
@@ -536,6 +566,7 @@ export async function nextQueue(
       queue: await injectAdIfDue(store, queue, now),
       fallbackTier,
       reason: queue.length === 0 ? 'no_pool' : null,
+      activeStation,
       roomLoudnessSamplingEnabled: roomLoudness,
     }
   }
@@ -548,6 +579,7 @@ export async function nextQueue(
     queue: await injectAdIfDue(store, queue, now),
     fallbackTier,
     reason: queue.length === 0 ? 'no_pool' : null,
+    activeStation,
     roomLoudnessSamplingEnabled: roomLoudness,
   }
 }

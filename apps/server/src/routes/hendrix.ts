@@ -5,6 +5,8 @@ import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
 import { isFreeTierAllowedOutcome, isPickerHiddenOutcome } from '../lib/outcomes.js'
 import { effectiveTier } from '../lib/tier.js'
 import { verify, isAccountAuthorizedForStore } from '../lib/auth.js'
+import { listActiveStations, setStoreStation } from '../lib/stations.js'
+import { AppError } from '../lib/http-errors.js'
 import { prisma } from '../db.js'
 
 const NextQuery = z.object({
@@ -24,6 +26,15 @@ const OverrideBody = z.object({
 const ClearBody = z.object({
   store_id: z.string().uuid().optional(),
   slug: z.string().min(1).optional(),
+})
+const StationsQuery = z.object({
+  store_id: z.string().uuid().optional(),
+  slug: z.string().min(1).optional(),
+})
+const StationSelectionBody = z.object({
+  store_id: z.string().uuid().optional(),
+  slug: z.string().min(1).optional(),
+  station_id: z.string().uuid(),
 })
 
 /** Resolve a Store from a slug (slug-mode auth). 404s if unknown or archived. */
@@ -212,5 +223,84 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
       },
     })
     return { ok: true }
+  })
+
+  // GET /hendrix/stations?store_id=... (operator) | ?slug=... (slug-as-auth)
+  //
+  // The player's twin of GET /me/stations. Same catalogue, different auth: the
+  // dashboard has a session cookie, the in-store player has a Bearer token or
+  // just the slug in its URL.
+  app.get('/stations', async (req, reply) => {
+    const parsed = StationsQuery.safeParse(req.query)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_query' })
+
+    let storeId = parsed.data.store_id
+    if (parsed.data.slug && !storeId) {
+      const s = await resolveStoreBySlug(parsed.data.slug, reply); if (!s) return
+      storeId = s.id
+    } else if (storeId) {
+      const op = await requireOperatorForStore(req, reply, storeId); if (!op) return
+    } else {
+      return reply.code(400).send({ error: 'need_store_id_or_slug' })
+    }
+
+    const [stations, store, stationIcps] = await Promise.all([
+      listActiveStations(),
+      prisma.store.findUnique({ where: { id: storeId }, select: { stationId: true } }),
+      prisma.station.findMany({ where: { active: true }, select: { id: true, icpId: true } }),
+    ])
+
+    // `stocked` = this station's ICP has at least one active song. Stations are
+    // assigned before their pools are generated, so the picker marks the empty
+    // ones rather than implying every choice is live. No counts go over the
+    // wire — a raw pool size reads as thin inventory to a shop owner.
+    const icpByStation = new Map(stationIcps.map((s) => [s.id, s.icpId]))
+    const icpIds = [...new Set(stationIcps.map((s) => s.icpId))]
+    const counts = icpIds.length === 0 ? [] : await prisma.lineageRow.groupBy({
+      by: ['icpId'],
+      where: { icpId: { in: icpIds }, active: true },
+      _count: { _all: true },
+    })
+    const stockedIcps = new Set(counts.filter((c) => c._count._all > 0).map((c) => c.icpId))
+
+    return {
+      stations: stations.map((s) => ({
+        ...s,
+        stocked: stockedIcps.has(icpByStation.get(s.id) ?? ''),
+      })),
+      selectedStationId: store?.stationId ?? null,
+    }
+  })
+
+  // POST /hendrix/station-selection { store_id|slug, station_id }
+  //
+  // Switching is free and unlimited — no tier gate, no cooldown, no expiry
+  // (Daniel, 2026-08-06: retention beats friction). Slug-mode writes are
+  // allowed for the same reason outcome selection allows them: the slug is
+  // already enough to shape this store's playback.
+  //
+  // setStoreStation owns the StoreICP pool swap and the
+  // station_selected / station_switched telemetry.
+  app.post('/station-selection', async (req, reply) => {
+    const parsed = StationSelectionBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body' })
+
+    let storeId = parsed.data.store_id
+    if (parsed.data.slug && !storeId) {
+      const s = await resolveStoreBySlug(parsed.data.slug, reply); if (!s) return
+      storeId = s.id
+    } else if (storeId) {
+      const op = await requireOperatorForStore(req, reply, storeId); if (!op) return
+    } else {
+      return reply.code(400).send({ error: 'need_store_id_or_slug' })
+    }
+
+    try {
+      const res = await setStoreStation(storeId, parsed.data.station_id)
+      return { station: res.station, changed: res.changed }
+    } catch (err) {
+      if (err instanceof AppError) return reply.code(err.status).send({ error: err.code })
+      throw err
+    }
   })
 }

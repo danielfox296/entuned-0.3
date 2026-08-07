@@ -144,8 +144,19 @@ function defaultMocks(opts: {
       ? null
       : makeStoreRow({ ...(opts.station ? { stationId: opts.station.id } : {}), ...opts.store }),
   )
+  // Superset of both station selects: resolveStationPoolIcpId reads
+  // icpId/active, and nextQueue's display lookup reads the summary fields.
   stationFindUnique.mockResolvedValue(
-    opts.station ? { icpId: opts.station.icpId, active: opts.station.active ?? true } : null,
+    opts.station
+      ? {
+          id: opts.station.id,
+          stationKey: 'solo-piano',
+          displayName: 'Solo Piano',
+          subtitle: 'furniture, home goods, jewelry, craft',
+          icpId: opts.station.icpId,
+          active: opts.station.active ?? true,
+        }
+      : null,
   )
   // resolveStationPoolIcpId's "does this station have any songs yet" probe.
   lineageFindFirst.mockResolvedValue((opts.station?.hasSongs ?? true) ? { id: 'lr-station-probe' } : null)
@@ -1391,5 +1402,83 @@ describe('nextQueue — station anti-repeat window', () => {
       .map((c) => c[0]?.where)
       .find((w) => w?.hookId?.in && w?.eventType === 'song_start')
     expect(minutesBack(now, siblingCall.occurredAt.gte)).toBe(240)
+  })
+})
+
+// =========================================================================
+// activeStation on the response — what the player renders in its chip.
+//
+// Separate from pool scoping (covered above): this is purely about telling the
+// client WHICH station is on and whether it's actually shaping playback.
+// =========================================================================
+
+describe('nextQueue — activeStation', () => {
+  const STATION_ID = '00000000-0000-0000-0000-0000000002a1'
+  const STATION_ICP = '00000000-0000-0000-0000-0000000001a1'
+
+  it('is null for a store with no station', async () => {
+    defaultMocks({ store: { tier: 'free' }, pool: [poolRow({ id: 'l1', songId: 's1' })] })
+    const res = await nextQueue('store-1')
+    expect(res.activeStation).toBeNull()
+  })
+
+  it('names the station and reports the pool live when it has songs', async () => {
+    defaultMocks({
+      store: { tier: 'free' },
+      station: { id: STATION_ID, icpId: STATION_ICP },
+      pool: [poolRow({ id: 'l1', songId: 's1', icpId: STATION_ICP })],
+    })
+    const res = await nextQueue('store-1')
+
+    expect(res.activeStation).toEqual({
+      id: STATION_ID,
+      stationKey: 'solo-piano',
+      displayName: 'Solo Piano',
+      subtitle: 'furniture, home goods, jewelry, craft',
+      poolActive: true,
+    })
+  })
+
+  it('still names the station when its pool is empty, but flags poolActive false', async () => {
+    // The launch state: the store is genuinely ON this station, the songs just
+    // aren't generated yet. Hiding the station here would make the picker look
+    // like it forgot the choice.
+    defaultMocks({
+      store: { tier: 'free' },
+      station: { id: STATION_ID, icpId: STATION_ICP, hasSongs: false },
+      pool: [poolRow({ id: 'l1', songId: 's1' })],
+    })
+    const res = await nextQueue('store-1')
+
+    expect(res.activeStation?.displayName).toBe('Solo Piano')
+    expect(res.activeStation?.poolActive).toBe(false)
+    // And music still plays — the fallback is the whole point.
+    expect(res.queue.length).toBeGreaterThan(0)
+  })
+
+  it('flags poolActive false for a deactivated station', async () => {
+    defaultMocks({
+      store: { tier: 'free' },
+      station: { id: STATION_ID, icpId: STATION_ICP, active: false },
+      pool: [poolRow({ id: 'l1', songId: 's1' })],
+    })
+    const res = await nextQueue('store-1')
+    expect(res.activeStation?.poolActive).toBe(false)
+  })
+
+  it('is null for a paid store even when one is set — stations are free-tier', async () => {
+    defaultMocks({
+      store: { tier: 'pro' },
+      station: { id: STATION_ID, icpId: STATION_ICP },
+      pool: [poolRow({ id: 'l1', songId: 's1' })],
+    })
+    const res = await nextQueue('store-1')
+    expect(res.activeStation).toBeNull()
+  })
+
+  it('is null when the store does not exist', async () => {
+    defaultMocks({ store: null })
+    const res = await nextQueue('nope')
+    expect(res.activeStation).toBeNull()
   })
 })

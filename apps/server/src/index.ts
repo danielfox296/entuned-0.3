@@ -22,6 +22,7 @@ import { meRoutes } from './routes/me.js'
 import { emailRoutes } from './routes/email.js'
 import { pushRoutes } from './routes/push.js'
 import { devLoginRoutes } from './routes/dev-login.js'
+import { stationRoutes } from './routes/stations.js'
 import { sessionPlugin } from './lib/session.js'
 import { seedEmailTemplates } from './lib/email.js'
 import { runLifecycleEmails } from './lib/lifecycleEmails.js'
@@ -116,6 +117,8 @@ await app.register(sessionPlugin)
 await app.register(healthRoutes)
 await app.register(hendrixRoutes, { prefix: '/hendrix' })
 await app.register(storeRoutes, { prefix: '/stores' })
+// Public station catalogue — the signup picker renders before auth exists.
+await app.register(stationRoutes, { prefix: '/stations' })
 await app.register(eventsRoutes, { prefix: '/events' })
 await app.register(authRoutes, { prefix: '/auth' })
 // Customer dashboard auth routes. Mounted at `/login` (NOT `/auth`) to avoid a route

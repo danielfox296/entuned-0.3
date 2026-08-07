@@ -45,6 +45,30 @@ export interface ActiveOutcome {
   expiresAt?: string
 }
 
+/** The Station a free Store is on — what the music sounds like, as opposed to
+ *  the Outcome (what it's for). Null on paid tiers: stations are free-tier.
+ *  See `entune v0.3/schema/23-stations.md`. */
+export interface ActiveStation {
+  id: string
+  stationKey: string
+  displayName: string
+  subtitle: string | null
+  /** False when the station is picked but isn't scoping playback yet —
+   *  deactivated, or its songs aren't generated. Drives the
+   *  "playing the general mix" note in the player. */
+  poolActive: boolean
+}
+
+export interface StationOption {
+  id: string
+  stationKey: string
+  displayName: string
+  subtitle: string | null
+  sortOrder: number
+  /** False when no song exists on this station's pool yet. */
+  stocked: boolean
+}
+
 export interface NextResponse {
   storeId: string
   decidedAt: string
@@ -52,6 +76,7 @@ export interface NextResponse {
   queue: QueueItem[]
   fallbackTier: 'normal' | 'panic'
   reason: 'no_pool' | null
+  activeStation: ActiveStation | null
   roomLoudnessSamplingEnabled: boolean
 }
 
@@ -164,6 +189,26 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ slug, outcome_id: outcomeId }),
     }),
+  // ── Stations ────────────────────────────────────────────────────
+  // Both auth modes mirror the outcome routes: operator Bearer, or slug-as-auth
+  // for the freemium player. Switching is free and unlimited — no tier gate.
+  stations: (storeId: string, token: string) =>
+    req<{ stations: StationOption[]; selectedStationId: string | null }>(
+      `/hendrix/stations?store_id=${encodeURIComponent(storeId)}`, {}, token),
+  stationsBySlug: (slug: string) =>
+    req<{ stations: StationOption[]; selectedStationId: string | null }>(
+      `/hendrix/stations?slug=${encodeURIComponent(slug)}`),
+  selectStation: (storeId: string, stationId: string, token: string) =>
+    req<{ station: ActiveStation; changed: boolean }>('/hendrix/station-selection', {
+      method: 'POST',
+      body: JSON.stringify({ store_id: storeId, station_id: stationId }),
+    }, token),
+  selectStationBySlug: (slug: string, stationId: string) =>
+    req<{ station: ActiveStation; changed: boolean }>('/hendrix/station-selection', {
+      method: 'POST',
+      body: JSON.stringify({ slug, station_id: stationId }),
+    }),
+
   clearOutcomeSelection: (storeId: string, token: string) =>
     req<{ ok: true }>('/hendrix/outcome-selection/clear', {
       method: 'POST',

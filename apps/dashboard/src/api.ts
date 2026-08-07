@@ -135,6 +135,20 @@ export interface MeIcpResponse {
   store: { id: string } | null
 }
 
+// ── Stations ──────────────────────────────────────────────────────
+//
+// A Station is the sonic identity a shop picks — what the music sounds like.
+// Orthogonal to Outcome, which is what the music is for. Free-tier concept.
+// See `entune v0.3/schema/23-stations.md`.
+
+export interface StationRow {
+  id: string
+  stationKey: string
+  displayName: string
+  subtitle: string | null
+  sortOrder: number
+}
+
 export interface OnboardProfileInput {
   industry: string
   zip?: string
@@ -210,8 +224,19 @@ export const api = {
       body: JSON.stringify({ sessionId }),
     }),
 
+  // Public station catalogue — no auth. The signup picker on /start renders
+  // before an account exists, so it can't use the /me/* twin.
+  stationCatalogue: () => req<{ stations: StationRow[] }>('/stations'),
+
   // ── /me/* (customer-facing, scoped to the authed Client) ──
   meStores: () => req<{ stores: StoreRow[] }>('/me/stores'),
+
+  meStations: () => req<{ stations: StationRow[] }>('/me/stations'),
+  setStoreStation: (storeId: string, stationId: string) =>
+    req<{ station: StationRow; changed: boolean }>(
+      `/me/stores/${encodeURIComponent(storeId)}/station`,
+      { method: 'PUT', body: JSON.stringify({ stationId }) },
+    ),
   meIcp: () => req<MeIcpResponse>('/me/icp'),
   saveMeIcp: (input: IcpInput) =>
     req<{ icp: IcpRow }>('/me/icp', {

@@ -17,10 +17,21 @@ generic_error: "something went wrong"
 # LEFT — value prop
 value:
   headline: "Music that works your floor."
-  body: "Original, retail-licensed music with a job to do. Start free on the shared catalogue — Dwell, the outcome that holds browsers on the floor longer. Upgrade when you want it built around your customer. No card. Plays through your existing speakers."
+  body: "Original, retail-licensed music with a job to do. Start free on the shared catalogue — pick Chill, Steady, or Upbeat and feel the floor change. Upgrade when you want it built around your customer. No card. Plays through your existing speakers."
   bullet_1: "Licensed from day one — no ASCAP, BMI, or SESAC fees, no surprise letters"
   bullet_2: "Music with a job — stay longer, spend more — not just background"
   bullet_3: "No app: plays from a web browser on any device"
+
+# STATION PICKER — pick your sound at signup.
+# The name says what it sounds like; the subtitle says whose store it's for.
+# Selection in five seconds without preview.
+stations:
+  eyebrow: "Pick your sound"
+  headline: "What should your floor sound like?"
+  sub: "Pick one now — you can change it any time, as often as you like."
+  # Confirmation under the grid once a choice is made.
+  chosen_pre: "You picked "
+  chosen_post: ". We'll set it up when you sign in."
 
 # RIGHT — auth panel
 auth:

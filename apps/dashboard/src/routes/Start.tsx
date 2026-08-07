@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { T } from '@entuned/tokens'
-import { Button, Eyebrow, Input, Logo } from '../ui/index.js'
+import { Button, CardChoice, Eyebrow, Input, Logo } from '../ui/index.js'
+import type { ChoiceOption } from '../ui/index.js'
 import { api } from '../api.js'
+import type { StationRow } from '../api.js'
 import { trackDashboardLanding, trackSignUp } from '../lib/ga4.js'
 import { captureFirstTouch, readAttribution } from '../lib/attribution.js'
+import { setPendingStation, readPendingStation } from '../lib/pendingStation.js'
 import content from '../content/start.yaml'
 
 function useMobile() {
@@ -18,8 +21,25 @@ function useMobile() {
   return mobile
 }
 
+/** Picker column count: 1 phone, 2 tablet, 3 desktop. */
+function useStationColumns() {
+  const read = () => {
+    if (window.matchMedia('(max-width: 599px)').matches) return 1
+    if (window.matchMedia('(max-width: 1023px)').matches) return 2
+    return 3
+  }
+  const [columns, setColumns] = useState(read)
+  useEffect(() => {
+    const handler = () => setColumns(read())
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+  return columns
+}
+
 export function Start() {
   const mobile = useMobile()
+  const stationColumns = useStationColumns()
   const [searchParams] = useSearchParams()
   const next = searchParams.get('next') ?? undefined
   const errorParam = searchParams.get('error')
@@ -44,6 +64,23 @@ export function Start() {
   const [busy, setBusy] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Station picker. /start is pre-auth, so the pick is held client-side and
+  // applied to the Store by the post-auth applier once the account exists.
+  const [stations, setStations] = useState<Omit<StationRow, 'poolSize'>[]>([])
+  const [station, setStation] = useState<string | null>(() => readPendingStation())
+  useEffect(() => {
+    // Catalogue is public and non-blocking: if it fails, signup still works —
+    // the picker just doesn't render. Never gate the email form on it.
+    api.stationCatalogue()
+      .then((r) => setStations(r.stations))
+      .catch(() => setStations([]))
+  }, [])
+
+  const chooseStation = (id: string) => {
+    setStation(id)
+    setPendingStation(id)
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -250,6 +287,67 @@ export function Start() {
           )}
         </div>
       </div>
+
+      {/* STATION PICKER — pick your sound.
+          Full-width below the fold-grid so six cards get room to breathe
+          without squeezing the auth panel. Renders only once the public
+          catalogue resolves; signup never waits on it. */}
+      {stations.length > 0 && (
+        <div style={{
+          maxWidth: 1040,
+          width: '100%',
+          marginTop: mobile ? 40 : 64,
+          paddingTop: mobile ? 32 : 44,
+          borderTop: `1px solid ${T.borderSubtle}`,
+          // The page shell is a centered flex column. Without this the grid
+          // shrinks to fit the viewport instead of pushing the page taller,
+          // and the lower station cards get clipped with nothing to scroll to.
+          flexShrink: 0,
+        }}>
+          <Eyebrow>{content.stations.eyebrow}</Eyebrow>
+          <h2 style={{
+            fontFamily: T.heading,
+            fontWeight: 600,
+            fontSize: 'clamp(1.4rem, 2.4vw, 1.9rem)',
+            letterSpacing: '-0.015em',
+            lineHeight: 1.15,
+            color: T.text,
+            margin: '10px 0 8px',
+          }}>
+            {content.stations.headline}
+          </h2>
+          <p style={{
+            fontSize: 15,
+            lineHeight: 1.55,
+            color: T.textDim,
+            margin: '0 0 22px',
+            maxWidth: '52ch',
+          }}>
+            {content.stations.sub}
+          </p>
+
+          <CardChoice
+            columns={stationColumns}
+            value={station}
+            onChange={chooseStation}
+            options={stations.map<ChoiceOption>((s) => ({
+              id: s.id,
+              label: s.displayName,
+              hint: s.subtitle,
+            }))}
+          />
+
+          {station && (
+            <p style={{ fontSize: 14, color: T.textMuted, margin: '18px 0 0' }}>
+              {content.stations.chosen_pre}
+              <span style={{ color: T.accent }}>
+                {stations.find((s) => s.id === station)?.displayName}
+              </span>
+              {content.stations.chosen_post}
+            </p>
+          )}
+        </div>
+      )}
 
       <style>{`
         @media (max-width: 768px) {
