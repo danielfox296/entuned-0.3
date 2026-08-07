@@ -15,9 +15,20 @@ link_errors:
 generic_error: "something went wrong"
 
 # LEFT — value prop
+#
+# The body must NOT contain a second "pick one thing" invitation. The station
+# picker below this block is the only choice offered on this screen; the old
+# "pick Chill, Steady, or Upbeat" line competed with it AND named outcomes the
+# free tier no longer ships (repointed to Dwell alone in f473ed2).
+#
+# "Free plays Dwell — music that holds browsers on the floor longer" is the
+# shipped formulation, matching apps/player UpgradeRail/PlayerScreen and
+# apps/dashboard upgrade.yaml. Keep it in sync if any of those change.
+# Never write "Dwell extends dwell time" and never put the Milliman 38.2%
+# figure next to Dwell copy — see VOICE.md.
 value:
   headline: "Music that works your floor."
-  body: "Original, retail-licensed music with a job to do. Start free on the shared catalogue — pick Chill, Steady, or Upbeat and feel the floor change. Upgrade when you want it built around your customer. No card. Plays through your existing speakers."
+  body: "Original, retail-licensed music with a job to do. Free plays Dwell — music that holds browsers on the floor longer. Upgrade when you want it built around your customer. No card. Plays through your existing speakers."
   bullet_1: "Licensed from day one — no ASCAP, BMI, or SESAC fees, no surprise letters"
   bullet_2: "Music with a job — stay longer, spend more — not just background"
   bullet_3: "No app: plays from a web browser on any device"

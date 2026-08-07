@@ -888,7 +888,7 @@ describe('me station routes', () => {
 
   it('GET /stations returns the active picker list', async () => {
     listActiveStationsMock.mockResolvedValue([
-      { id: STATION_ID, stationKey: 'solo-piano', displayName: 'Solo Piano', subtitle: 'Unhurried keys, nothing in the way', sortOrder: 1 },
+      { id: STATION_ID, stationKey: 'solo-piano', displayName: 'Solo Piano', subtitle: 'furniture, home goods, jewelry, craft', sortOrder: 1 },
     ])
 
     const app = await buildTestApp(meRoutes)

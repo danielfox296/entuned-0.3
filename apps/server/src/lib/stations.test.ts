@@ -63,7 +63,7 @@ function stationRow(overrides: Record<string, unknown> = {}) {
     id: SOLO_PIANO.id,
     stationKey: SOLO_PIANO.stationKey,
     displayName: 'Solo Piano',
-    subtitle: 'Unhurried keys, nothing in the way',
+    subtitle: 'furniture, home goods, jewelry, craft',
     icpId: SOLO_PIANO.icpId,
     active: true,
     ...overrides,
