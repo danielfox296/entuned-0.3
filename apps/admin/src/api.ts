@@ -366,7 +366,6 @@ export interface StoreSummary {
 export interface IcpRow {
   id: string
   clientId: string
-  storeId: string
   name: string
   ageRange: string | null
   location: string | null
@@ -453,11 +452,68 @@ export interface TierHistoryResponse {
   history: TierHistoryRow[]
 }
 
+/** The station a Store is listening to, as it appears on store/ICP payloads. */
+export interface StationRef {
+  id: string
+  stationKey: string
+  displayName: string
+  subtitle: string | null
+  active: boolean
+}
+
 export interface StoreDetail {
-  store: { id: string; name: string; timezone: string; clientId: string; clientName: string; goLiveDate: string | null; defaultOutcomeId: string | null; roomLoudnessSamplingEnabled: boolean; tier: 'free' | 'core' | 'pro' | 'enterprise' | 'mvp_pilot'; includeFreeTierPool: boolean }
+  store: { id: string; name: string; timezone: string; clientId: string; clientName: string; goLiveDate: string | null; defaultOutcomeId: string | null; roomLoudnessSamplingEnabled: boolean; tier: 'free' | 'core' | 'pro' | 'enterprise' | 'mvp_pilot'; includeFreeTierPool: boolean; stationId: string | null; station: StationRef | null }
   icps: (IcpRow & { referenceTracks: ReferenceTrackRow[] })[]
   sharedWith: { id: string; name: string; clientName: string }[]
 }
+
+/** One row of `GET /admin/icps` — the store-independent ICP index the
+ *  Client → Location → ICP selector reads. Station ICPs have `stores: []`
+ *  until a Store actually picks that station. */
+export interface IcpSummary {
+  id: string
+  name: string
+  clientId: string
+  clientName: string
+  stores: { id: string; name: string }[]
+  station: { id: string; stationKey: string; displayName: string; active: boolean } | null
+}
+
+/** `GET /admin/icps/:id` — the same ICP payload `storeDetail` carries, keyed by
+ *  icpId so an ICP with no Store link is still reachable. */
+export interface IcpDetail {
+  icp: IcpRow & {
+    referenceTracks: ReferenceTrackRow[]
+    station: (StationRef & { sortOrder: number }) | null
+  }
+  client: { id: string; name: string }
+  stores: { id: string; name: string; clientName: string }[]
+}
+
+/** One row of `GET /admin/stations` — the operator catalogue view. Includes
+ *  inactive stations; `listActiveStations` on the server owns the picker. */
+export interface StationRow {
+  id: string
+  stationKey: string
+  displayName: string
+  subtitle: string | null
+  genreSteering: string
+  sortOrder: number
+  active: boolean
+  icpId: string
+  icpName: string
+  /** Client the station's ICP is parented to — the Free Tier client in practice. */
+  icpClientId: string
+  icpArchived: boolean
+  /** Active LineageRows on the station's ICP — the pool Hendrix plays from. */
+  poolSize: number
+  stores: { id: string; name: string; tier: string; clientName: string }[]
+  updatedAt: string
+}
+
+export type StationUpdate = Partial<
+  Pick<StationRow, 'displayName' | 'subtitle' | 'genreSteering' | 'sortOrder' | 'active'>
+>
 
 export interface NewReferenceTrack {
   bucket: TasteCategory
@@ -1345,10 +1401,33 @@ export const api = {
         retailNextRuns: number
       }
     }>(`/admin/stores/${id}`, { method: 'DELETE' }, token),
+  // ICPs addressed directly — no Store required. Station ICPs have no StoreICP
+  // link until a Store picks that station, so the store-scoped path can't see
+  // them at all. See ../../server/src/routes/admin.ts.
+  // `clientId` and `storeId` are independent filters (ANDed if both are sent).
+  // Pass storeId to list a location's ICPs — which may be owned by another
+  // client, as every free location's are; pass clientId to list a client's own.
+  icps: (token: string, filter: { clientId?: string; storeId?: string } = {}) => {
+    const qs = new URLSearchParams()
+    if (filter.clientId) qs.set('clientId', filter.clientId)
+    if (filter.storeId) qs.set('storeId', filter.storeId)
+    const q = qs.toString()
+    return req<IcpSummary[]>(`/admin/icps${q ? `?${q}` : ''}`, {}, token)
+  },
+  icpDetail: (id: string, token: string) =>
+    req<IcpDetail>(`/admin/icps/${id}`, {}, token),
   createIcp: (body: IcpCreateBody, token: string) =>
     req<IcpRow>('/admin/icps', { method: 'POST', body: JSON.stringify(body) }, token),
   updateIcp: (id: string, body: IcpUpdate, token: string) =>
     req<IcpRow>(`/admin/icps/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+
+  // ── Stations (Card 23) ──
+  stations: (token: string) =>
+    req<StationRow[]>('/admin/stations', {}, token),
+  updateStation: (id: string, body: StationUpdate, token: string) =>
+    req<Omit<StationRow, 'icpName' | 'icpClientId' | 'icpArchived' | 'poolSize' | 'stores'>>(
+      `/admin/stations/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, token,
+    ),
   createReferenceTrack: (icpId: string, body: NewReferenceTrack, token: string) =>
     req<ReferenceTrackRow>(`/admin/icps/${icpId}/reference-tracks`, { method: 'POST', body: JSON.stringify(body) }, token),
   updateReferenceTrack: (id: string, body: RefTrackUpdate, token: string) =>

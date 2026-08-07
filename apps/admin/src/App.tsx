@@ -6,9 +6,12 @@ import {
   FlaskConical, Lightbulb, Activity, ListChecks, Target, ShoppingCart, Mail,
 } from 'lucide-react'
 import { api, getToken, setToken, clearToken } from './api.js'
-import type { MeResponse, ClientListRow, StoreSummary, StoreDetail } from './api.js'
+import type { MeResponse } from './api.js'
 import { T } from '@entuned/tokens'
-import { ToastProvider, useClientSelection, useStoreSelection, useIcpSelection, HeaderSelect } from './ui/index.js'
+import {
+  ToastProvider, useClientSelection, useStoreSelection, useIcpSelection,
+  useSelectionCascade, CascadeSelectors,
+} from './ui/index.js'
 import { useClientLogo } from './ui/clientLogo.js'
 import { DecomposerRules } from './panels/engine/DecomposerRules.js'
 import { LyricPrompts } from './panels/engine/LyricPrompts.js'
@@ -39,6 +42,7 @@ import { PoolDepth } from './panels/catalogue/PoolDepth.js'
 import { SongBrowser } from './panels/catalogue/SongBrowser.js'
 import { FlaggedReview } from './panels/catalogue/FlaggedReview.js'
 import { FreeTierOutcomes } from './panels/catalogue/FreeTierOutcomes.js'
+import { Stations } from './panels/catalogue/Stations.js'
 import { SongRepair } from './panels/catalogue/SongRepair.js'
 import { BulkImport } from './panels/catalogue/BulkImport.js'
 import { WorkflowRouter } from './panels/workflow/WorkflowRouter.js'
@@ -72,7 +76,7 @@ const GROUPS: SurfaceGroup[] = [
     cards: [],
     description: '' },
   { key: 'catalogue', label: 'Library', short: 'Library', icon: Music2,
-    cards: ['Song Browser', 'Flagged Review', 'Pool Depth', 'Free Tier Outcomes', 'Bulk Import', 'Song Repair'],
+    cards: ['Song Browser', 'Flagged Review', 'Pool Depth', 'Stations', 'Free Tier Outcomes', 'Bulk Import', 'Song Repair'],
     description: '' },
   { key: 'salesdata', label: 'Sales Data', short: 'Sales Data', icon: ShoppingCart,
     cards: ['Ingest'],
@@ -409,47 +413,13 @@ function BrandRouter({ cards }: { cards: string[] }) {
   const [clientId, setClientId] = useClientSelection()
   const [storeId, setStoreId] = useStoreSelection()
   const [icpId, setIcpId] = useIcpSelection()
-  const [clients, setClients] = useState<ClientListRow[] | null>(null)
-  const [stores, setStores] = useState<StoreSummary[] | null>(null)
-  const [storeDetail, setStoreDetail] = useState<StoreDetail | null>(null)
+  const cascade = useSelectionCascade({
+    clientId, setClientId, storeId, setStoreId, icpId, setIcpId,
+  })
   const [, setTick] = useState(0)
   const reload = () => setTick((n) => n + 1)
 
-  useEffect(() => {
-    const token = getToken(); if (!token) return
-    api.clients(token).then(setClients).catch(() => {})
-    api.stores(token).then(setStores).catch(() => {})
-  }, [])
-
-  // Reconcile store when client changes — if the persisted store doesn't
-  // belong to the selected client, snap to the first matching store.
-  useEffect(() => {
-    if (!clientId || !stores) return
-    const match = stores.filter((s) => s.clientId === clientId)
-    if (match.length === 0) { if (storeId) setStoreId(null); return }
-    if (!storeId || !match.some((s) => s.id === storeId)) {
-      setStoreId(match[0]!.id)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId, stores])
-
-  // Load store detail (for ICP list) when store changes; reconcile ICP.
-  useEffect(() => {
-    if (!storeId) { setStoreDetail(null); return }
-    const token = getToken(); if (!token) return
-    setStoreDetail(null)
-    api.storeDetail(storeId, token).then((d) => {
-      setStoreDetail(d)
-      const valid = d.icps.find((i) => i.id === icpId)
-      if (!valid) setIcpId(d.icps[0]?.id ?? null)
-    }).catch(() => {})
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeId])
-
-  const clientStores = stores && clientId
-    ? stores.filter((s) => s.clientId === clientId)
-    : []
-  const selectedClient = clients?.find((c) => c.id === clientId) ?? null
+  const selectedClient = cascade.selectedClient
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -468,31 +438,9 @@ function BrandRouter({ cards }: { cards: string[] }) {
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <ClientLogoThumb clientId={clientId} />
-          <HeaderSelect
-            label="client"
-            value={clientId ?? ''}
-            onChange={(v) => setClientId(v || null)}
-            placeholder={clients ? '— pick a client —' : 'loading…'}
-            options={(clients ?? []).map((c) => ({
-              value: c.id,
-              label: c.ownerEmail ? `${c.companyName} · ${c.ownerEmail}` : c.companyName,
-            }))}
-          />
-          <HeaderSelect
-            label="location"
-            value={storeId ?? ''}
-            onChange={(v) => setStoreId(v || null)}
-            placeholder={!clientId ? '— pick a client first —' : (clientStores.length === 0 ? 'no locations' : '— pick a location —')}
-            options={clientStores.map((s) => ({ value: s.id, label: s.name }))}
-            disabled={!clientId || clientStores.length === 0}
-          />
-          <HeaderSelect
-            label="icp"
-            value={icpId ?? ''}
-            onChange={(v) => setIcpId(v || null)}
-            placeholder={!storeDetail ? '— pick a location —' : (storeDetail.icps.length === 0 ? 'no ICPs' : '— pick an ICP —')}
-            options={(storeDetail?.icps ?? []).map((i) => ({ value: i.id, label: i.name }))}
-            disabled={!storeDetail || storeDetail.icps.length === 0}
+          <CascadeSelectors
+            cascade={cascade}
+            clientLabel={(c) => (c.ownerEmail ? `${c.companyName} · ${c.ownerEmail}` : c.companyName)}
           />
         </div>
       </div>
@@ -506,9 +454,9 @@ function BrandRouter({ cards }: { cards: string[] }) {
             )
           })}
         </div>
-        {active === 'Details' && <ClientDetail onClientsChanged={() => { const tk = getToken(); if (tk) api.clients(tk).then(setClients).catch(() => {}); reload() }} selectedClient={selectedClient} />}
-        {active === 'Location' && <StoreEditor onStoresChanged={() => { const tk = getToken(); if (tk) api.stores(tk).then(setStores).catch(() => {}); reload() }} />}
-        {active === 'ICP Editor' && <IcpEditor />}
+        {active === 'Details' && <ClientDetail onClientsChanged={() => { cascade.reloadClients(); reload() }} selectedClient={selectedClient} />}
+        {active === 'Location' && <StoreEditor onStoresChanged={() => { cascade.reloadStores(); reload() }} />}
+        {active === 'ICP Editor' && <IcpEditor onIcpsChanged={cascade.reloadIcps} />}
         {active === 'Logins' && <LoginsPanel />}
         {active === 'Campaigns' && <Campaigns />}
         {active === 'Event Stream' && <LiveStoreView />}
@@ -603,6 +551,7 @@ function CatalogueRouter({ cards }: { cards: string[] }) {
       {active === 'Pool Depth' && <PoolDepth />}
       {active === 'Song Browser' && <SongBrowser />}
       {active === 'Flagged Review' && <FlaggedReview />}
+      {active === 'Stations' && <Stations />}
       {active === 'Free Tier Outcomes' && <FreeTierOutcomes />}
       {active === 'Bulk Import' && <BulkImport />}
       {active === 'Song Repair' && <SongRepair />}

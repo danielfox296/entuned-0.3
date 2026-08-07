@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { api, getToken } from '../../api.js'
-import type { StoreDetail, IcpUpdate } from '../../api.js'
+import type { IcpDetail, IcpUpdate } from '../../api.js'
 import { T } from '@entuned/tokens'
-import { S, useToast, useStoreSelection } from '../../ui/index.js'
+import { S, useToast, useStoreSelection, useIcpSelection } from '../../ui/index.js'
 
 // Width per field (px). Compact for short scalars, prose for paragraphs.
 type FieldWidth = 'compact' | 'short' | 'prose'
@@ -26,35 +26,33 @@ const ICP_FIELDS: { key: keyof IcpUpdate; label: string; rows: number; width: Fi
   { key: 'turnOffs', label: 'turn-offs', rows: 3, width: 'prose', hint: 'aesthetics, sounds, behaviors that break the spell' },
 ]
 
-export function IcpEditor() {
+export function IcpEditor({ onIcpsChanged }: { onIcpsChanged?: () => Promise<void> | void } = {}) {
+  // The ICP comes from the shell's header selector, which can reach an ICP with
+  // no location — that's the only way to edit a Station's ICP (Card 23).
+  // `storeId` is still read, but only to decide whether "+ new ICP" is possible:
+  // POST /admin/icps parents the new ICP to a location.
   const [storeId] = useStoreSelection()
-  const [detail, setDetail] = useState<StoreDetail | null>(null)
-  const [icpId, setIcpId] = useState<string | null>(null)
+  const [icpId, setIcpId] = useIcpSelection()
+  const [detail, setDetail] = useState<IcpDetail | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [newIcpName, setNewIcpName] = useState('')
   const [createBusy, setCreateBusy] = useState(false)
 
-  useEffect(() => {
-    if (!storeId) { setDetail(null); setIcpId(null); return }
-    const token = getToken(); if (!token) return
-    setDetail(null); setIcpId(null)
-    api.storeDetail(storeId, token).then((d) => {
-      setDetail(d)
-      setIcpId(d.icps[0]?.id ?? null)
-    }).catch((e) => setErr(e.message))
-  }, [storeId])
-
   const reloadDetail = async () => {
-    if (!storeId) return
+    if (!icpId) { setDetail(null); return }
     const token = getToken(); if (!token) return
     try {
-      const d = await api.storeDetail(storeId, token)
-      setDetail(d)
-      // Keep current selection if still present, else default to first ICP.
-      setIcpId((cur) => (cur && d.icps.some((i) => i.id === cur)) ? cur : (d.icps[0]?.id ?? null))
+      setDetail(await api.icpDetail(icpId, token))
+      setErr(null)
     } catch (e: any) { setErr(e.message) }
   }
+
+  useEffect(() => {
+    setDetail(null)
+    void reloadDetail()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [icpId])
 
   const createIcp = async () => {
     if (!storeId || !newIcpName.trim()) return
@@ -63,77 +61,70 @@ export function IcpEditor() {
     try {
       const created = await api.createIcp({ storeId, name: newIcpName.trim() }, token)
       setCreating(false); setNewIcpName('')
-      await reloadDetail()
+      // Await the list refresh before selecting — the header's reconcile snaps
+      // an unknown icpId back to the first row of whatever list it has.
+      await onIcpsChanged?.()
       setIcpId(created.id)
     } catch (e: any) { setErr(e.message) }
     finally { setCreateBusy(false) }
   }
 
-  const selectedIcp = detail && icpId ? detail.icps.find((i) => i.id === icpId) ?? null : null
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: S.xl }}>
-      {!storeId && <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>pick a location to begin</div>}
+      {!icpId && !storeId && (
+        <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>
+          pick a client above to begin
+        </div>
+      )}
+      {!icpId && storeId && (
+        <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>
+          this location has no ICPs yet — click <strong>+ new ICP</strong> below to create the first one
+        </div>
+      )}
 
       {err && <div style={{ fontSize: 14, color: T.danger, fontFamily: T.mono }}>{err}</div>}
 
-      {storeId && !detail && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 14 }}>loading…</div>}
-
-      {detail && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: T.mono, fontSize: 13, color: T.textDim, textTransform: 'uppercase' }}>
-            ICPs ({detail.icps.length})
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {!creating && (
+          <button
+            onClick={() => setCreating(true)}
+            disabled={!storeId}
+            title={storeId ? undefined : 'pick a location above — a new ICP is parented to one'}
+            style={primaryBtn(!!storeId, false)}
+          >+ new ICP</button>
+        )}
+        {!storeId && (
+          <span style={{ fontFamily: T.sans, fontSize: 11, color: T.textDim, fontStyle: 'italic' }}>
+            pick a location to create a new ICP
           </span>
-          {detail.icps.length > 0 && (
-            <select
-              value={icpId ?? ''}
-              onChange={(e) => setIcpId(e.target.value || null)}
-              style={{ ...inputStyle, maxWidth: 320, width: 'auto' }}
-            >
-              {detail.icps.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-            </select>
-          )}
-          {!creating && (
-            <button onClick={() => setCreating(true)} style={primaryBtn(true, false)}>+ new ICP</button>
-          )}
-          {creating && (
-            <>
-              <input
-                autoFocus
-                placeholder="ICP name"
-                value={newIcpName}
-                onChange={(e) => setNewIcpName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') void createIcp(); if (e.key === 'Escape') { setCreating(false); setNewIcpName('') } }}
-                style={{ ...inputStyle, maxWidth: 260, width: 'auto' }}
-              />
-              <button onClick={() => void createIcp()} disabled={!newIcpName.trim() || createBusy} style={primaryBtn(!!newIcpName.trim(), createBusy)}>
-                {createBusy ? 'creating…' : 'create'}
-              </button>
-              <button onClick={() => { setCreating(false); setNewIcpName('') }} style={ghostBtn}>cancel</button>
-            </>
-          )}
-        </div>
-      )}
+        )}
+        {creating && (
+          <>
+            <input
+              autoFocus
+              placeholder="ICP name"
+              value={newIcpName}
+              onChange={(e) => setNewIcpName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void createIcp(); if (e.key === 'Escape') { setCreating(false); setNewIcpName('') } }}
+              style={{ ...inputStyle, maxWidth: 260, width: 'auto' }}
+            />
+            <button onClick={() => void createIcp()} disabled={!newIcpName.trim() || createBusy} style={primaryBtn(!!newIcpName.trim(), createBusy)}>
+              {createBusy ? 'creating…' : 'create'}
+            </button>
+            <button onClick={() => { setCreating(false); setNewIcpName('') }} style={ghostBtn}>cancel</button>
+          </>
+        )}
+      </div>
 
-      {detail && detail.icps.length === 0 && !creating && (
-        <div style={{
-          background: T.surface, border: `1px solid ${T.border}`, borderRadius: 4, padding: 20,
-          fontFamily: T.mono, fontSize: 14, color: T.textMuted,
-        }}>
-          This store has no ICPs yet. Click <strong>+ new ICP</strong> above to create the first one.
-        </div>
-      )}
+      {icpId && !detail && !err && <div style={{ color: T.textMuted, fontFamily: T.mono, fontSize: 14 }}>loading…</div>}
 
-      {detail && selectedIcp && (
-        <IcpFields detail={detail} icp={selectedIcp} onSaved={reloadDetail} />
-      )}
+      {detail && <IcpFields detail={detail} onSaved={reloadDetail} />}
     </div>
   )
 }
 
-type IcpWithRefs = StoreDetail['icps'][number]
-
-function IcpFields({ detail: _detail, icp, onSaved }: { detail: StoreDetail; icp: IcpWithRefs; onSaved: () => void }) {
+function IcpFields({ detail, onSaved }: { detail: IcpDetail; onSaved: () => void }) {
+  const icp = detail.icp
   const [draft, setDraft] = useState<IcpUpdate>(() => extractIcp(icp))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -155,8 +146,19 @@ function IcpFields({ detail: _detail, icp, onSaved }: { detail: StoreDetail; icp
     finally { setBusy(false) }
   }
 
+  // Where this ICP lives. A station ICP has no locations, which without this
+  // line reads as "something is missing" rather than "this is a shared pool".
+  const scope = icp.station
+    ? `station pool · ${icp.station.displayName}${detail.stores.length > 0 ? ` · ${detail.stores.length} location${detail.stores.length === 1 ? '' : 's'} listening` : ' · no locations on it yet'}`
+    : detail.stores.length > 0
+      ? detail.stores.map((s) => s.name).join(', ')
+      : 'no locations'
+
   return (
-    <Section title={`Psychographic profile — ${icp.name}`} subtitle={`updated ${new Date(icp.updatedAt).toLocaleString()}`}>
+    <Section
+      title={`Psychographic profile — ${icp.name}`}
+      subtitle={`${detail.client.name} · ${scope} · updated ${new Date(icp.updatedAt).toLocaleString()}`}
+    >
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
         {ICP_FIELDS.filter((f) => f.rows === 1).map((f) => (
           <div key={String(f.key)} style={{
@@ -204,7 +206,7 @@ function IcpFields({ detail: _detail, icp, onSaved }: { detail: StoreDetail; icp
   )
 }
 
-function extractIcp(icp: IcpWithRefs): IcpUpdate {
+function extractIcp(icp: IcpDetail['icp']): IcpUpdate {
   const out: IcpUpdate = {}
   for (const f of ICP_FIELDS) (out as any)[f.key] = (icp as any)[f.key] ?? null
   return out

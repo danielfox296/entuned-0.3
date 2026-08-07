@@ -20,7 +20,12 @@ export function HeaderSelect({ label, value, onChange, options, placeholder, dis
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         style={{
-          minWidth: 220, background: T.bg, color: T.text,
+          // A <select> sizes itself to its widest option. Client labels carry
+          // an owner email and ICP labels a station tag, which is enough to
+          // push the third selector off the right edge of the header. Cap it —
+          // the full text is still there in the open dropdown.
+          minWidth: 220, maxWidth: 280, textOverflow: 'ellipsis',
+          background: T.bg, color: T.text,
           border: `1px solid ${T.border}`, padding: '6px 10px',
           fontFamily: T.sans, fontSize: 14, borderRadius: S.r4,
           opacity: disabled ? 0.6 : 1,

@@ -44,7 +44,10 @@ function relTime(iso: string | null): string {
 }
 
 export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
-  const { storeId, store, icpId } = ctx
+  // ICP-scoped throughout: both endpoints below take an icpId and nothing here
+  // reads the Store. The old `storeId` gate was vestigial and locked out
+  // Station ICPs, which have no Store.
+  const { icpId } = ctx
   const [inv, setInv] = useState<SongCreationQueueInventory | null>(null)
   const [songSeeds, setSongSeeds] = useState<SongSeedRow[] | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -53,8 +56,6 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
   const [optimistic, setOptimistic] = useState<Record<string, number>>({})
   const [lastResult, setLastResult] = useState<{ outcomeId: string; res: SeedBuilderResult } | null>(null)
   const [batchSize, setBatchSize] = useState<Record<string, number>>({})
-
-  const storeIcps = store?.icps ?? []
 
   const reload = useCallback(async () => {
     if (!icpId) { setInv(null); setSongSeeds(null); return }
@@ -139,8 +140,6 @@ export function SongSeedQueue({ ctx }: { ctx: WorkflowContext }) {
     return { buildable, needsHooksCount, needsRefsCount }
   }, [inv])
 
-  if (!storeId) return <div style={infoBox}>pick a client and location above to begin</div>
-  if (storeIcps.length === 0) return <div style={{ color: T.textDim, fontFamily: T.mono, fontSize: 14 }}>this location has no ICPs yet — create one in the ICP Editor first</div>
   if (!icpId) return <div style={infoBox}>pick an ICP above to see the pipeline</div>
 
   return (

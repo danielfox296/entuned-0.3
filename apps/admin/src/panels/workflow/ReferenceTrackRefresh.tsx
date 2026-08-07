@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, getToken } from '../../api.js'
-import type { ReferenceTrackRow, StoreDetail, TasteCategory, RefTrackUpdate, StyleAnalysisRow, StyleAnalysisUpdate } from '../../api.js'
+import type { ReferenceTrackRow, IcpDetail, TasteCategory, RefTrackUpdate, StyleAnalysisRow, StyleAnalysisUpdate } from '../../api.js'
 import { T } from '@entuned/tokens'
 import { Button, S, useToast, LlmProgress, Modal } from '../../ui/index.js'
 import type { WorkflowContext } from './WorkflowRouter.js'
@@ -17,7 +17,10 @@ const BUCKET_LABEL: Record<TasteCategory, string> = {
 
 export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
   const toast = useToast()
-  const [detail, setDetail] = useState<StoreDetail | null>(null)
+  // Keyed by ICP, not by Store. Reference tracks belong to an ICP and every
+  // endpoint on this panel takes an icpId; reading them out of the store-detail
+  // payload was what made Station ICPs — which have no Store — unreachable.
+  const [detail, setDetail] = useState<IcpDetail | null>(null)
   const [suggesting, setSuggesting] = useState(false)
   const [approvingAll, setApprovingAll] = useState(false)
   const [analyzing, setAnalyzing] = useState<Set<string>>(new Set())
@@ -37,10 +40,10 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
   const prefetchedTrackIds = useRef<Set<string>>(new Set())
 
   const refetch = async () => {
-    if (!ctx.storeId) return
+    if (!ctx.icpId) return
     const token = getToken(); if (!token) return
     try {
-      const d = await api.storeDetail(ctx.storeId, token)
+      const d = await api.icpDetail(ctx.icpId, token)
       setDetail(d)
     } catch (e: any) {
       setErr(e.message)
@@ -50,15 +53,11 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
   useEffect(() => {
     setDetail(null)
     setEdits({})
-    if (ctx.storeId) refetch()
+    if (ctx.icpId) refetch()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctx.storeId])
+  }, [ctx.icpId])
 
-  const tracks: ReferenceTrackRow[] = useMemo(() => {
-    if (!detail || !ctx.icpId) return []
-    const icp = detail.icps.find((i) => i.id === ctx.icpId)
-    return icp?.referenceTracks ?? []
-  }, [detail, ctx.icpId])
+  const tracks: ReferenceTrackRow[] = detail?.icp.referenceTracks ?? []
 
   const pending = tracks.filter((t) => t.status === 'pending')
   const approved = tracks.filter((t) => t.status === 'approved')
@@ -278,7 +277,7 @@ export function ReferenceTrackRefresh({ ctx }: { ctx: WorkflowContext }) {
         borderRadius: 4, padding: '14px 18px', color: T.textMuted,
         fontFamily: T.sans, fontSize: 14,
       }}>
-        select a store and ICP above to begin
+        select an ICP above to begin
       </div>
     )
   }

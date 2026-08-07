@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, getToken } from '../../api.js'
-import type { ClientListRow, OutcomeRowFull, StoreCreateBody, StoreUpdateBody } from '../../api.js'
+import type { ClientListRow, OutcomeRowFull, StationRef, StoreCreateBody, StoreUpdateBody } from '../../api.js'
 import { T } from '@entuned/tokens'
 import {
   Button, Input, Select, Section, Field, KV,
@@ -19,7 +19,7 @@ export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void 
   const [outcomes, setOutcomes] = useState<OutcomeRowFull[] | null>(null)
   const [freeTierAllowedKeys, setFreeTierAllowedKeys] = useState<Set<string> | null>(null)
   const [storeId, setStoreId] = useStoreSelection()
-  const [detail, setDetail] = useState<{ id: string; name: string; timezone: string; clientId: string; clientName: string; icps: { id: string; name: string }[]; goLiveDate: string | null; defaultOutcomeId: string | null; roomLoudnessSamplingEnabled: boolean; tier: 'free' | 'core' | 'pro' | 'enterprise' | 'mvp_pilot'; includeFreeTierPool: boolean } | null>(null)
+  const [detail, setDetail] = useState<{ id: string; name: string; timezone: string; clientId: string; clientName: string; icps: { id: string; name: string }[]; goLiveDate: string | null; defaultOutcomeId: string | null; roomLoudnessSamplingEnabled: boolean; tier: 'free' | 'core' | 'pro' | 'enterprise' | 'mvp_pilot'; includeFreeTierPool: boolean; station: StationRef | null } | null>(null)
   const [draft, setDraft] = useState<StoreUpdateBody | null>(null)
   const [creating, setCreating] = useState<StoreCreateBody | null>(null)
   const [busy, setBusy] = useState(false)
@@ -62,6 +62,7 @@ export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void 
         roomLoudnessSamplingEnabled: d.store.roomLoudnessSamplingEnabled,
         tier: d.store.tier,
         includeFreeTierPool: d.store.includeFreeTierPool,
+        station: d.store.station,
       })
       setDraft({})
     }).catch((e) => setErr(e.message))
@@ -145,6 +146,15 @@ export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void 
       )}
 
       {storeId && !detail && <div style={{ color: T.textMuted, fontFamily: T.sans, fontSize: S.small }}>loading…</div>}
+
+      {/* The location selector can sit on "— all locations —", which is what
+          makes station ICPs reachable elsewhere. This panel edits one location,
+          so say so rather than rendering an empty page. */}
+      {!storeId && !creating && (
+        <div style={{ color: T.textDim, fontFamily: T.sans, fontSize: S.small }}>
+          pick a single location above to edit it
+        </div>
+      )}
 
       {detail && draft && (
         <>
@@ -231,6 +241,16 @@ export function StoreEditor({ onStoresChanged }: { onStoresChanged?: () => void 
               v={detail.icps.length === 0
                 ? '(none yet — add in ICP Editor)'
                 : detail.icps.map((i) => i.name).join(', ')}
+            />
+            {/* Card 23. The customer switches this themselves in the player;
+                operators edit the catalogue in Library › Stations. */}
+            <KV
+              k="Station"
+              v={detail.station
+                ? `${detail.station.displayName}${detail.station.subtitle ? ` — ${detail.station.subtitle}` : ''}${detail.station.active ? '' : ' (inactive — still playing here)'}`
+                : detail.tier === 'free'
+                  ? '(none picked — plays the general free pool)'
+                  : '(n/a — stations are free-tier only)'}
             />
           </Section>
 

@@ -1248,7 +1248,14 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const id = (req.params as any).id as string
     const store = await prisma.store.findUnique({
       where: { id },
-      include: { client: { select: { id: true, companyName: true } } },
+      include: {
+        client: { select: { id: true, companyName: true } },
+        // Card 23. Free-tier Stores play a Station's pool; without this the
+        // only way to see which one was a DB query.
+        station: {
+          select: { id: true, stationKey: true, displayName: true, subtitle: true, active: true },
+        },
+      },
     })
     if (!store) return reply.code(404).send({ error: 'not_found' })
     const icps = await prisma.iCP.findMany({
@@ -1277,9 +1284,91 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         // can re-enable via PUT /stores/:id { includeFreeTierPool: true } if
         // a client wants the extra pool.
         includeFreeTierPool,
+        // Null on paid Stores and on free Stores that predate Card 23.
+        stationId: store.stationId,
+        station: store.station,
       },
       icps,
       sharedWith: [],
+    }
+  })
+
+  // ----- ICP: list + detail, addressed directly (no Store required) -----
+  //
+  // Dash's navigation is Client → Location → ICP, and every ICP surface used to
+  // read its data out of `GET /admin/stores/:id`. That makes an ICP with no
+  // StoreICP link unreachable — which is every Station ICP until a Store
+  // actually picks that station (Card 23). These two routes are the same ICP
+  // payload keyed by icpId instead of storeId, so the selector can offer an
+  // ICP the moment it exists rather than the moment a Store links to it.
+
+  // `clientId` and `storeId` are independent filters, ANDed if both are given.
+  // They are NOT interchangeable and callers generally want exactly one:
+  // an ICP linked to a Store is not necessarily owned by that Store's Client
+  // — every free Store links to the Free Tier Client's ICPs. Filtering by
+  // client would silently drop them.
+  app.get('/icps', async (req) => {
+    const q = req.query as { clientId?: string; storeId?: string }
+    const rows = await prisma.iCP.findMany({
+      where: {
+        archivedAt: null,
+        ...(q.clientId ? { clientId: q.clientId } : {}),
+        ...(q.storeId ? { storeLinks: { some: { storeId: q.storeId } } } : {}),
+      },
+      select: {
+        id: true,
+        name: true,
+        clientId: true,
+        client: { select: { companyName: true } },
+        storeLinks: { select: { store: { select: { id: true, name: true } } } },
+        station: { select: { id: true, stationKey: true, displayName: true, active: true } },
+      },
+      orderBy: [{ client: { companyName: 'asc' } }, { name: 'asc' }],
+    })
+    return rows.map((i) => ({
+      id: i.id,
+      name: i.name,
+      clientId: i.clientId,
+      clientName: i.client.companyName,
+      stores: i.storeLinks.map((l) => l.store),
+      station: i.station,
+    }))
+  })
+
+  app.get('/icps/:id', async (req, reply) => {
+    const id = (req.params as any).id as string
+    const icp = await prisma.iCP.findUnique({
+      where: { id },
+      include: {
+        client: { select: { id: true, companyName: true } },
+        // Same ordering as the store-detail payload so the two are drop-in
+        // interchangeable for the panels that render reference tracks.
+        referenceTracks: {
+          orderBy: [{ bucket: 'asc' }, { status: 'desc' }, { artist: 'asc' }, { title: 'asc' }],
+          include: { styleAnalysis: true },
+        },
+        storeLinks: {
+          select: {
+            store: {
+              select: { id: true, name: true, client: { select: { companyName: true } } },
+            },
+          },
+        },
+        station: {
+          select: { id: true, stationKey: true, displayName: true, subtitle: true, sortOrder: true, active: true },
+        },
+      },
+    })
+    if (!icp) return reply.code(404).send({ error: 'not_found' })
+    const { client, storeLinks, ...rest } = icp
+    return {
+      icp: rest,
+      client: { id: client.id, name: client.companyName },
+      stores: storeLinks.map((l) => ({
+        id: l.store.id,
+        name: l.store.name,
+        clientName: l.store.client.companyName,
+      })),
     }
   })
 
@@ -2069,6 +2158,96 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
     await prisma.freeTierOutcome.create({ data: { outcomeKey } })
     return { availableOnFree: true }
+  })
+
+  // ----- Stations (Card 23) -----
+  // The free tier's music choice. One Station owns one ICP; the Station's pool
+  // IS that ICP's active LineageRow set. Operators need to see the catalogue,
+  // how deep each pool is, and which Stores are listening — and to edit the
+  // user-facing copy, which the seed migration only ever set once.
+  //
+  // Inactive stations are included here on purpose: this is the catalogue view,
+  // not the picker (`listActiveStations` in lib/stations.ts owns that), and
+  // reactivating a pulled station is an operator action that needs it visible.
+
+  app.get('/stations', async () => {
+    const stations = await prisma.station.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { displayName: 'asc' }],
+      include: {
+        icp: { select: { id: true, name: true, clientId: true, archivedAt: true } },
+        stores: {
+          where: { archivedAt: null },
+          select: { id: true, name: true, tier: true, client: { select: { companyName: true } } },
+          orderBy: { name: 'asc' },
+        },
+      },
+    })
+    // Pool depth is the same count Hendrix selects over: active LineageRows on
+    // the station's ICP, across all outcomes.
+    const poolCounts = await prisma.lineageRow.groupBy({
+      by: ['icpId'],
+      where: { active: true, icpId: { in: stations.map((s) => s.icpId) } },
+      _count: { _all: true },
+    })
+    const poolByIcp = new Map(poolCounts.map((c) => [c.icpId, c._count._all]))
+
+    return stations.map((s) => ({
+      id: s.id,
+      stationKey: s.stationKey,
+      displayName: s.displayName,
+      subtitle: s.subtitle,
+      genreSteering: s.genreSteering,
+      sortOrder: s.sortOrder,
+      active: s.active,
+      icpId: s.icpId,
+      icpName: s.icp.name,
+      // The Free Tier client in practice, but read off the row rather than
+      // hard-coded — Dash's ICP selector is client-scoped and needs to know
+      // which client to open to reach this pool.
+      icpClientId: s.icp.clientId,
+      icpArchived: s.icp.archivedAt !== null,
+      poolSize: poolByIcp.get(s.icpId) ?? 0,
+      stores: s.stores.map((st) => ({
+        id: st.id,
+        name: st.name,
+        tier: st.tier,
+        clientName: st.client.companyName,
+      })),
+      updatedAt: s.updatedAt,
+    }))
+  })
+
+  // `.strict()` is load-bearing: `stationKey` is the durable identity that
+  // telemetry keys off, and `icpId` carries a UNIQUE that enforces the 1:1 with
+  // the pool. Sending either should fail loudly, not be silently dropped.
+  const StationUpdateBody = z.object({
+    displayName: z.string().min(1).optional(),
+    subtitle: z.string().nullable().optional(),
+    genreSteering: z.string().min(1).optional(),
+    sortOrder: z.number().int().optional(),
+    active: z.boolean().optional(),
+  }).strict()
+
+  app.patch('/stations/:id', async (req, reply) => {
+    const id = (req.params as any).id as string
+    const parsed = StationUpdateBody.safeParse(req.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'bad_body', details: parsed.error.flatten() })
+    try {
+      const row = await prisma.station.update({ where: { id }, data: parsed.data })
+      return {
+        id: row.id,
+        stationKey: row.stationKey,
+        displayName: row.displayName,
+        subtitle: row.subtitle,
+        genreSteering: row.genreSteering,
+        sortOrder: row.sortOrder,
+        active: row.active,
+        icpId: row.icpId,
+        updatedAt: row.updatedAt,
+      }
+    } catch {
+      return reply.code(404).send({ error: 'not_found' })
+    }
   })
 
   // ----- Pool Depth (per-(ICP, Outcome) active LineageRow counts) -----
