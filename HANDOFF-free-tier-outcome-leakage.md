@@ -14,7 +14,8 @@
 > | Backfill / purge | shipped | migration `20260511030000_purge_free_tier_outcome_leakage` |
 >
 > Prod state on 2026-08-06: **0** free-tier schedule slots outside the allowlist, **0**
-> free stores with a non-allowlisted default. Allowlist resolves to Chill / Steady / Upbeat.
+> free stores with a non-allowlisted default. Allowlist resolves to **Dwell** — re-run
+> and still zero after the 2026-08-06 Dwell repoint (see note below).
 >
 > Tests: `hendrix.test.ts` (#1) and `me.test.ts` (#2) both reference this doc by number.
 
@@ -79,7 +80,9 @@ Kept as the standing regression check for this rule:
 
 - Daniel runs everything live (memory: `feedback_always_push.md`). Commit and push after edits. Server changes need `cd entuned-0.3 && railway up` from monorepo root (memory: `feedback_railway_monorepo_deploy.md`).
 - The previous chat made the user mad several times by over-eager full-row UIs and lazy chip layouts. When proposing UI changes, lead with "what is this surface FOR" — see `project_suno_style_steering.md` and the recent Pipeline/Launch Checklist commits for examples of the redesign style he wants.
-- The `FreeTierOutcome` table is operator-toggleable from the Free Tier Outcomes panel in Dash. The allowlist is small — as of 2026-08-06 it is **Chill / Steady / Upbeat** (re-pointed by migration `20260514130000_free_tier_chill_steady_upbeat`; the `Linger` + `Lift Energy` seed named below is the original 2026-05-10 state). Don't expand it without asking.
+- The `FreeTierOutcome` table is operator-toggleable from the Free Tier Outcomes panel in Dash. The allowlist is small — as of 2026-08-06 it is **Dwell**, and only Dwell (migration `20260806140000_free_tier_dwell_only`, the Dwell launch). Lineage of this table: `Linger` + `Lift Energy` seed 2026-05-10 → `Chill / Steady / Upbeat` 2026-05-14 → `Dwell` 2026-08-06. Don't expand it without asking.
+- **Never let this table go empty.** `getFreeTierAllowedOutcomeIds()` returns an empty set for an empty table, and every caller reads an empty set as "nothing is allowed" — which filters the free pool to silence rather than opening it up. Any migration that swaps the allowlist must INSERT the new row before DELETEing the old ones, and guard the delete on the new row existing. `20260806140000_free_tier_dwell_only` is the reference implementation.
+- Chill / Steady / Upbeat were **not** superseded by the Dwell repoint. The rows are still live and their songs still play; `isPickerHiddenOutcome()` in `lib/outcomes.ts` just drops them from the two customer-facing outcome routes (`GET /hendrix/outcomes`, `GET /me/outcomes`). Operator surfaces under `/admin/*` deliberately still show the whole catalogue.
 - When writing migrations, follow the existing pattern: a directory named `YYYYMMDDHHMMSS_snake_case_name/` with a single `migration.sql` inside. Railway applies them automatically on `prisma migrate deploy` at startup.
 
 ## Files of interest
