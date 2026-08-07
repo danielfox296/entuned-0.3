@@ -13,6 +13,7 @@ import { prisma } from '../db.js'
 import { sendAdminSignup, sendWelcome } from './email.js'
 import { FREE_TIER_ICP_ID } from './freeTier.js'
 import { pickSystemDefaultOutcomeId } from './outcomes.js'
+import { pickDefaultStationId, setStoreStation } from './stations.js'
 import { EMPTY_ATTRIBUTION, formatAttributionSummary, type Attribution } from './attribution.js'
 
 const PLAYER_URL = process.env.PLAYER_URL ?? 'https://music.entuned.co'
@@ -91,7 +92,7 @@ export async function ensureFreeClientForUser(accountId: string, email: string, 
   const localPart = normalized.split('@')[0] || 'account'
   const attr = attribution ?? EMPTY_ATTRIBUTION
 
-  const slug = await prisma.$transaction(async (tx) => {
+  const { slug, storeId } = await prisma.$transaction(async (tx) => {
     const client = await tx.client.create({
       data: {
         companyName: localPart,
@@ -137,8 +138,23 @@ export async function ensureFreeClientForUser(accountId: string, email: string, 
     await tx.storeICP.create({
       data: { storeId: store.id, icpId: FREE_TIER_ICP_ID },
     })
-    return s
+    return { slug: s, storeId: store.id }
   })
+
+  // Put the new free Store on a station (Card 23) — the first one in picker
+  // order. Deliberately after the transaction: setStoreStation is the single
+  // writer of Store.stationId and owns the StoreICP sync + station_selected
+  // telemetry, and reusing it here beats duplicating that logic inline.
+  //
+  // Best-effort, like the emails below. If the station catalogue is empty or
+  // unreachable, the Store keeps stationId NULL and plays the canonical Free
+  // Tier ICP pool — exactly the behavior that predates stations — and the
+  // customer can pick one from the dashboard at any time. Failing signup over
+  // it would be worse, because ensureFreeClientForUser early-returns on the
+  // retry and the Store would never get created at all.
+  await pickDefaultStationId()
+    .then((stationId) => (stationId ? setStoreStation(storeId, stationId) : undefined))
+    .catch(() => undefined)
 
   const playerUrl = `${PLAYER_URL}/${slug}`
 

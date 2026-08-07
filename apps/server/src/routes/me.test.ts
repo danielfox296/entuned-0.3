@@ -61,6 +61,15 @@ vi.mock('../lib/outcomes.js', async (importOriginal) => {
   }
 })
 
+// Card 23 stations. The two route handlers are thin wrappers over this lib,
+// which has its own unit coverage in lib/stations.test.ts — mock it here so
+// these tests stay about the HTTP surface (ownership check, validation, error
+// mapping) rather than re-testing the station writes.
+vi.mock('../lib/stations.js', () => ({
+  listActiveStations: vi.fn(),
+  setStoreStation: vi.fn(),
+}))
+
 // Bypass auth by stubbing requireAuth to populate the same request fields the
 // real session plugin would. Default authed-as: client-test-001.
 vi.mock('../lib/session.js', async (importOriginal) => {
@@ -79,10 +88,14 @@ import { meRoutes } from './me.js'
 import { prisma } from '../db.js'
 import { isFreeTierAllowedOutcome, getFreeTierAllowedOutcomeIds } from '../lib/outcomes.js'
 import { buildTestApp } from '../test-utils/fastifyApp.js'
+import { listActiveStations, setStoreStation } from '../lib/stations.js'
+import { AppError } from '../lib/http-errors.js'
 
 const isFreeAllowedMock = isFreeTierAllowedOutcome as ReturnType<typeof vi.fn>
 const freeAllowedIdsMock = getFreeTierAllowedOutcomeIds as ReturnType<typeof vi.fn>
 const storeFindFirst = prisma.store.findFirst as ReturnType<typeof vi.fn>
+const listActiveStationsMock = listActiveStations as ReturnType<typeof vi.fn>
+const setStoreStationMock = setStoreStation as ReturnType<typeof vi.fn>
 const slotFindMany = prisma.scheduleSlot.findMany as ReturnType<typeof vi.fn>
 const slotFindUnique = prisma.scheduleSlot.findUnique as ReturnType<typeof vi.fn>
 const slotCreate = prisma.scheduleSlot.create as ReturnType<typeof vi.fn>
@@ -838,5 +851,129 @@ describe('me schedule-slot routes — free-tier allowlist guard', () => {
       { id: 'oc-allowed', title: 'Chill', displayTitle: null, availableOnFree: true },
       { id: 'oc-locked', title: 'Value Lift', displayTitle: 'Trade Them Up', availableOnFree: false },
     ])
+  })
+})
+
+// =========================================================================
+// Stations (Card 23)
+// =========================================================================
+
+describe('me station routes', () => {
+  const STATION_ID = '00000000-0000-0000-0000-000000000201'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('GET /stations returns the active picker list', async () => {
+    listActiveStationsMock.mockResolvedValue([
+      { id: STATION_ID, stationKey: 'solo-piano', displayName: 'Solo Piano', subtitle: 'Unhurried keys, nothing in the way', sortOrder: 1 },
+    ])
+
+    const app = await buildTestApp(meRoutes)
+    const res = await app.inject({ method: 'GET', url: '/stations' })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json().stations).toHaveLength(1)
+    expect(res.json().stations[0].stationKey).toBe('solo-piano')
+  })
+
+  it('PUT /stores/:storeId/station switches the station', async () => {
+    storeFindFirst.mockResolvedValue({ id: STORE_ID })
+    setStoreStationMock.mockResolvedValue({
+      station: { id: STATION_ID, stationKey: 'solo-piano', displayName: 'Solo Piano', subtitle: null },
+      previousStationId: null,
+      changed: true,
+    })
+
+    const app = await buildTestApp(meRoutes)
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/stores/${STORE_ID}/station`,
+      payload: { stationId: STATION_ID },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json().changed).toBe(true)
+    expect(res.json().station.stationKey).toBe('solo-piano')
+    expect(setStoreStationMock).toHaveBeenCalledWith(STORE_ID, STATION_ID)
+  })
+
+  it('PUT /stores/:storeId/station reports changed:false on a re-select', async () => {
+    storeFindFirst.mockResolvedValue({ id: STORE_ID })
+    setStoreStationMock.mockResolvedValue({
+      station: { id: STATION_ID, stationKey: 'solo-piano', displayName: 'Solo Piano', subtitle: null },
+      previousStationId: STATION_ID,
+      changed: false,
+    })
+
+    const app = await buildTestApp(meRoutes)
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/stores/${STORE_ID}/station`,
+      payload: { stationId: STATION_ID },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json().changed).toBe(false)
+  })
+
+  it('PUT /stores/:storeId/station 400s on a non-uuid stationId', async () => {
+    const app = await buildTestApp(meRoutes)
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/stores/${STORE_ID}/station`,
+      payload: { stationId: 'solo-piano' },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error).toBe('invalid_body')
+    expect(setStoreStationMock).not.toHaveBeenCalled()
+  })
+
+  it('PUT /stores/:storeId/station 404s for another client\'s store, before any write', async () => {
+    // storeId is caller-supplied; the ownership check must gate the write.
+    storeFindFirst.mockResolvedValue(null)
+
+    const app = await buildTestApp(meRoutes)
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/stores/${OTHER_STORE_ID}/station`,
+      payload: { stationId: STATION_ID },
+    })
+
+    expect(res.statusCode).toBe(404)
+    expect(res.json().error).toBe('store_not_found')
+    expect(setStoreStationMock).not.toHaveBeenCalled()
+  })
+
+  it('PUT /stores/:storeId/station maps station_not_found to 404', async () => {
+    storeFindFirst.mockResolvedValue({ id: STORE_ID })
+    setStoreStationMock.mockRejectedValue(new AppError(404, 'station_not_found'))
+
+    const app = await buildTestApp(meRoutes)
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/stores/${STORE_ID}/station`,
+      payload: { stationId: STATION_ID },
+    })
+
+    expect(res.statusCode).toBe(404)
+    expect(res.json()).toEqual({ error: 'station_not_found' })
+  })
+
+  it('PUT /stores/:storeId/station maps station_inactive to 409', async () => {
+    storeFindFirst.mockResolvedValue({ id: STORE_ID })
+    setStoreStationMock.mockRejectedValue(new AppError(409, 'station_inactive'))
+
+    const app = await buildTestApp(meRoutes)
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/stores/${STORE_ID}/station`,
+      payload: { stationId: STATION_ID },
+    })
+
+    expect(res.statusCode).toBe(409)
+    expect(res.json()).toEqual({ error: 'station_inactive' })
   })
 })

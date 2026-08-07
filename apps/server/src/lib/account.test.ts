@@ -22,6 +22,14 @@ vi.mock('./outcomes.js', () => ({
   pickSystemDefaultOutcomeId: vi.fn(),
 }))
 
+// Card 23 stations. ensureFreeClientForUser puts the new free Store on the
+// first station in picker order; mocked here so these tests assert the wiring
+// (which station, in what order) without a station prisma model.
+vi.mock('./stations.js', () => ({
+  pickDefaultStationId: vi.fn(),
+  setStoreStation: vi.fn(),
+}))
+
 // Mock the email module so we don't actually try to send mail and can assert
 // the welcome email was triggered exactly when expected.
 vi.mock('./email.js', () => ({
@@ -50,6 +58,7 @@ import { prisma } from '../db.js'
 import { pickSystemDefaultOutcomeId } from './outcomes.js'
 import { sendWelcome, sendAdminSignup } from './email.js'
 import { FREE_TIER_ICP_ID } from './freeTier.js'
+import { pickDefaultStationId, setStoreStation } from './stations.js'
 
 const storeFindUnique = prisma.store.findUnique as unknown as ReturnType<typeof vi.fn>
 const storeCreate = prisma.store.create as unknown as ReturnType<typeof vi.fn>
@@ -61,6 +70,8 @@ const txMock = prisma.$transaction as unknown as ReturnType<typeof vi.fn>
 const pickDefault = pickSystemDefaultOutcomeId as unknown as ReturnType<typeof vi.fn>
 const sendWelcomeMock = sendWelcome as unknown as ReturnType<typeof vi.fn>
 const sendAdminSignupMock = sendAdminSignup as unknown as ReturnType<typeof vi.fn>
+const pickStation = pickDefaultStationId as unknown as ReturnType<typeof vi.fn>
+const setStation = setStoreStation as unknown as ReturnType<typeof vi.fn>
 
 function setRandomBytesSequence(values: string[]): void {
   randomBytesSequence.length = 0
@@ -77,6 +88,9 @@ beforeEach(() => {
   // Default: sendWelcome resolves successfully (best-effort, never throws in test).
   sendWelcomeMock.mockResolvedValue({ ok: true })
   sendAdminSignupMock.mockResolvedValue({ ok: true })
+  // Default: a station catalogue exists and the assignment succeeds.
+  pickStation.mockResolvedValue('00000000-0000-0000-0000-000000000201')
+  setStation.mockResolvedValue({ changed: true })
 })
 
 // ============================================================================
@@ -659,5 +673,72 @@ describe('ensureFreeClientForUser', () => {
       where: { accountId: 'acct-1' },
       select: { id: true },
     })
+  })
+})
+
+// ============================================================================
+// ensureFreeClientForUser — station assignment (Card 23)
+// ============================================================================
+
+describe('ensureFreeClientForUser — station assignment', () => {
+  const STATION_ID = '00000000-0000-0000-0000-000000000201'
+
+  function mockHappyPath() {
+    setRandomBytesSequence(['1234'])
+    membershipFindFirst.mockResolvedValueOnce(null)
+    clientCreate.mockResolvedValueOnce({ id: 'client-new' })
+    membershipCreate.mockResolvedValueOnce({ id: 'mem-new' })
+    storeFindUnique.mockResolvedValueOnce(null)
+    pickDefault.mockResolvedValueOnce('outcome-default')
+    storeCreate.mockResolvedValueOnce({ id: 'store-new' })
+    storeIcpCreate.mockResolvedValueOnce({ id: 'sicp-new' })
+  }
+
+  it('puts the new free Store on the default station', async () => {
+    mockHappyPath()
+    await ensureFreeClientForUser('acct-1', 'alice@example.com')
+    expect(pickStation).toHaveBeenCalledTimes(1)
+    expect(setStation).toHaveBeenCalledWith('store-new', STATION_ID)
+  })
+
+  it('assigns the station after the Store transaction commits', async () => {
+    // setStoreStation opens its own transaction — calling it inside the signup
+    // transaction would nest. Ordering is the guard.
+    mockHappyPath()
+    await ensureFreeClientForUser('acct-1', 'alice@example.com')
+    expect(txMock.mock.invocationCallOrder[0]).toBeLessThan(setStation.mock.invocationCallOrder[0])
+  })
+
+  it('skips assignment when the station catalogue is empty', async () => {
+    // Fresh DB without the seed migration: Store keeps stationId NULL and
+    // plays the canonical Free Tier ICP pool, exactly as it did pre-stations.
+    mockHappyPath()
+    pickStation.mockResolvedValue(null)
+
+    await ensureFreeClientForUser('acct-1', 'alice@example.com')
+
+    expect(setStation).not.toHaveBeenCalled()
+    // Signup still completes.
+    expect(sendWelcomeMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('completes signup when station assignment fails', async () => {
+    // Best-effort: failing signup here would be worse than a NULL station,
+    // because the early-return on retry means the Store is never created.
+    mockHappyPath()
+    setStation.mockRejectedValue(new Error('stations table unreachable'))
+
+    await expect(ensureFreeClientForUser('acct-1', 'alice@example.com')).resolves.toBeUndefined()
+
+    expect(storeCreate).toHaveBeenCalledTimes(1)
+    expect(sendWelcomeMock).toHaveBeenCalledTimes(1)
+    expect(sendAdminSignupMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not touch stations for a returning user', async () => {
+    membershipFindFirst.mockResolvedValueOnce({ id: 'existing-membership' })
+    await ensureFreeClientForUser('acct-1', 'user@example.com')
+    expect(pickStation).not.toHaveBeenCalled()
+    expect(setStation).not.toHaveBeenCalled()
   })
 })

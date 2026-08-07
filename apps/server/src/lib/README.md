@@ -21,6 +21,7 @@ For the load-bearing rules that apply across these subsystems (Outcome-prepend w
 | File | Role |
 |---|---|
 | `hendrix.ts` | Outcome resolution + queue building. The `/hendrix` routes thin-wrap this. **The player's only steady-state dependency.** |
+| `stations.ts` | Card 23 Stations — the free tier's music choice. A Station owns one ICP; its pool IS that ICP's LineageRows, so scoping is just a narrower ICP set on the existing `StoreICP` path. Also owns the pool-size-tuned anti-repeat window and `setStoreStation` (the single writer of `Store.stationId`). SSOT: `../../../../entune v0.3/schema/23-stations.md`. |
 | `outcomes.ts` | Outcome catalogue + per-store selection logic. |
 | `outcomeSchedule.ts` | Outcome Scheduling — time-of-day outcome rotation. **Never call this "day-parting" in user-facing copy.** |
 | `scheduleSlots.ts` | Schedule-slot persistence + validation. |

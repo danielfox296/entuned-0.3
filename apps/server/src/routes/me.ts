@@ -12,6 +12,8 @@ import { effectiveTier, compIsActive, tierRank, applyTierChange } from '../lib/t
 import { uniqueStoreSlug } from '../lib/account.js'
 import { FREE_TIER_ICP_ID } from '../lib/freeTier.js'
 import { pickSystemDefaultOutcomeId, isFreeTierAllowedOutcome, getFreeTierAllowedOutcomeIds } from '../lib/outcomes.js'
+import { listActiveStations, setStoreStation } from '../lib/stations.js'
+import { AppError, sendError } from '../lib/http-errors.js'
 import {
   timeToHHMM,
   hhmmToTime,
@@ -156,10 +158,16 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     const ctx = getClient(req, reply)
     if (!ctx) return
 
+    const storeInclude = {
+      subscription: true,
+      // Card 23 — the picker needs to know what's currently selected.
+      station: { select: { id: true, stationKey: true, displayName: true, subtitle: true } },
+    } as const
+
     let stores = await prisma.store.findMany({
       where: { clientId: ctx.clientId, archivedAt: null },
       orderBy: { createdAt: 'asc' },
-      include: { subscription: true },
+      include: storeInclude,
     })
 
     // Backstop: every authenticated Client must have ≥1 active Store so the
@@ -189,7 +197,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       stores = await prisma.store.findMany({
         where: { clientId: ctx.clientId, archivedAt: null },
         orderBy: { createdAt: 'asc' },
-        include: { subscription: true },
+        include: storeInclude,
       })
     }
 
@@ -206,6 +214,8 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       compTier: compIsActive(s) ? s.compTier : null,
       compExpiresAt: compIsActive(s) ? s.compExpiresAt : null,
       pausedUntil: s.pausedUntil,
+      // Null until the customer picks one (or when a station was deleted).
+      station: s.station ?? null,
       subscription: s.subscription
         ? {
             status: s.subscription.status,
@@ -683,6 +693,48 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     ])
     return reply.send(rows.map((r) => ({ ...r, availableOnFree: allowedIds.has(r.id) })))
   })
+
+  // ----- Stations (Card 23) -----------------------------------------------
+
+  // GET /me/stations — the station picker. Active stations in picker order.
+  // Deliberately not tier-gated: the picker is readable by everyone so the
+  // dashboard can render it without branching, and only the Store write below
+  // actually changes playback.
+  app.get('/stations', { preHandler: requireAuth }, async (_req, reply) => {
+    return reply.send({ stations: await listActiveStations() })
+  })
+
+  // PUT /me/stores/:storeId/station — switch this Store's station. Switchable
+  // at any time; setStoreStation owns the StoreICP sync and the
+  // station_selected / station_switched telemetry.
+  app.put<{ Params: { storeId: string } }>(
+    '/stores/:storeId/station',
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const ctx = getClient(req, reply)
+      if (!ctx) return
+
+      const parsed = z.object({ stationId: z.string().uuid() }).safeParse(req.body)
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'invalid_body', issues: parsed.error.issues })
+      }
+
+      // Ownership check before the write — the storeId is caller-supplied.
+      const store = await prisma.store.findFirst({
+        where: { id: req.params.storeId, clientId: ctx.clientId, archivedAt: null },
+        select: { id: true },
+      })
+      if (!store) return reply.code(404).send({ error: 'store_not_found' })
+
+      try {
+        const res = await setStoreStation(store.id, parsed.data.stationId)
+        return reply.send({ station: res.station, changed: res.changed })
+      } catch (err) {
+        if (err instanceof AppError) return sendError(reply, err.status, err.code)
+        throw err
+      }
+    },
+  )
 
   // POST /me/boost-trial — submit the onboarding ICP form and activate the
   // Boost Trial comp. Creates an ICP with source='onboarding', links it to the

@@ -26,7 +26,8 @@ vi.mock('../db.js', () => ({
     playbackRules: { findFirst: vi.fn() },
     iCP: { findMany: vi.fn() },
     storeRetiredSong: { findMany: vi.fn() },
-    lineageRow: { findMany: vi.fn() },
+    lineageRow: { findMany: vi.fn(), findFirst: vi.fn() },
+    station: { findUnique: vi.fn() },
     playbackEvent: { findMany: vi.fn(), groupBy: vi.fn() },
     hook: { findMany: vi.fn() },
     outcome: { findUnique: vi.fn() },
@@ -58,6 +59,8 @@ const playbackRulesFindFirst = prisma.playbackRules.findFirst as unknown as Retu
 const icpFindMany = prisma.iCP.findMany as unknown as ReturnType<typeof vi.fn>
 const retiredFindMany = prisma.storeRetiredSong.findMany as unknown as ReturnType<typeof vi.fn>
 const lineageFindMany = prisma.lineageRow.findMany as unknown as ReturnType<typeof vi.fn>
+const lineageFindFirst = prisma.lineageRow.findFirst as unknown as ReturnType<typeof vi.fn>
+const stationFindUnique = prisma.station.findUnique as unknown as ReturnType<typeof vi.fn>
 const eventFindMany = prisma.playbackEvent.findMany as unknown as ReturnType<typeof vi.fn>
 const eventGroupBy = prisma.playbackEvent.groupBy as unknown as ReturnType<typeof vi.fn>
 const hookFindMany = prisma.hook.findMany as unknown as ReturnType<typeof vi.fn>
@@ -76,6 +79,9 @@ interface FullStore {
   compExpiresAt: Date | null
   timezone: string
   roomLoudnessSamplingEnabled: boolean
+  // Card 23 Stations. Null on every pre-station fixture, which is what keeps
+  // the rest of this file exercising the unscoped path.
+  stationId: string | null
 }
 
 function makeStoreRow(overrides: Partial<FullStore> = {}): FullStore {
@@ -86,6 +92,7 @@ function makeStoreRow(overrides: Partial<FullStore> = {}): FullStore {
     compExpiresAt: null,
     timezone: 'UTC',
     roomLoudnessSamplingEnabled: false,
+    stationId: null,
     ...overrides,
   }
 }
@@ -127,8 +134,21 @@ function defaultMocks(opts: {
    *  id referenced by the pool/resolvedOutcome, so pre-allowlist tests keep
    *  their original behavior. Pass an explicit array to test restriction. */
   freeAllowed?: string[]
+  /** Card 23 station the store sits on. Omit for the unscoped path (every
+   *  pre-station test). `hasSongs: false` simulates a station whose pool has
+   *  not been generated yet. */
+  station?: { id: string; icpId: string; active?: boolean; hasSongs?: boolean }
 } = {}) {
-  storeFindUnique.mockResolvedValue(opts.store === null ? null : makeStoreRow(opts.store))
+  storeFindUnique.mockResolvedValue(
+    opts.store === null
+      ? null
+      : makeStoreRow({ ...(opts.station ? { stationId: opts.station.id } : {}), ...opts.store }),
+  )
+  stationFindUnique.mockResolvedValue(
+    opts.station ? { icpId: opts.station.icpId, active: opts.station.active ?? true } : null,
+  )
+  // resolveStationPoolIcpId's "does this station have any songs yet" probe.
+  lineageFindFirst.mockResolvedValue((opts.station?.hasSongs ?? true) ? { id: 'lr-station-probe' } : null)
   freeAllowedMock.mockResolvedValue(new Set(
     opts.freeAllowed ?? [
       'oc-1',
@@ -158,8 +178,17 @@ function defaultMocks(opts: {
       // hydrateQueue lineage lookup — return one row per id with no songSeed title.
       return (where.id.in as string[]).map((id) => ({ id, songSeed: null }))
     }
-    // Default to opts.pool when present; else empty.
-    return opts.pool ?? []
+    // Pool query. Honor the icp scoping the caller asked for so station tests
+    // observe a real narrowing rather than a mock that ignores the filter.
+    // Rows with a null icpId are synthetic legacy shapes (LineageRow.icp_id is
+    // NOT NULL in the DB) used by the hydration tests — pass them through
+    // rather than have icp scoping silently eat them.
+    const pool = opts.pool ?? []
+    const scoped = (match: (icpId: string) => boolean) =>
+      pool.filter((r) => r.icpId === null || match(r.icpId))
+    if (typeof where.icpId === 'string') return scoped((id) => id === where.icpId)
+    if (Array.isArray(where.icpId?.in)) return scoped((id) => (where.icpId.in as string[]).includes(id))
+    return pool
   })
 
   eventFindMany.mockResolvedValue([])
@@ -1097,5 +1126,270 @@ describe('nextQueue — free-tier allowlist enforcement', () => {
     const res = await nextQueue('store-1')
     expect(res.queue.length).toBeGreaterThan(0)
     for (const item of res.queue) expect(item.outcomeId).toBe('oc-allowed')
+  })
+})
+
+// =========================================================================
+// Station scoping (Card 23)
+// =========================================================================
+
+describe('nextQueue — station scoping', () => {
+  const STATION_ID = '00000000-0000-0000-0000-000000000201'
+  const STATION_ICP = '00000000-0000-0000-0000-000000000101'
+
+  // A store linked to both its station's ICP and the canonical Free Tier ICP.
+  // Station scoping must pick only the former.
+  const splitPool = [
+    poolRow({ id: 'lr-st1', songId: 'station-1', icpId: STATION_ICP }),
+    poolRow({ id: 'lr-st2', songId: 'station-2', icpId: STATION_ICP }),
+    poolRow({ id: 'lr-fx1', songId: 'freetier-1', icpId: 'icp-free' }),
+    poolRow({ id: 'lr-fx2', songId: 'freetier-2', icpId: 'icp-free' }),
+  ]
+
+  it('narrows a free store to its station pool', async () => {
+    defaultMocks({
+      store: { tier: 'free' },
+      station: { id: STATION_ID, icpId: STATION_ICP },
+      icps: [STATION_ICP, 'icp-free'],
+      pool: splitPool,
+    })
+    const res = await nextQueue('store-1')
+    expect(res.queue.length).toBeGreaterThan(0)
+    for (const item of res.queue) expect(item.icpId).toBe(STATION_ICP)
+  })
+
+  it('queries only the station ICP, never the store\'s other ICP links', async () => {
+    defaultMocks({
+      store: { tier: 'free' },
+      station: { id: STATION_ID, icpId: STATION_ICP },
+      icps: [STATION_ICP, 'icp-free'],
+      pool: splitPool,
+    })
+    await nextQueue('store-1')
+    const poolQueries = lineageFindMany.mock.calls
+      .map((c) => c[0]?.where)
+      .filter((w) => w?.active === true && w?.icpId !== undefined)
+    expect(poolQueries.length).toBeGreaterThan(0)
+    for (const w of poolQueries) {
+      const ids = typeof w.icpId === 'string' ? [w.icpId] : w.icpId.in
+      expect(ids).toEqual([STATION_ICP])
+    }
+  })
+
+  it('scopes the allOutcomes blend to the station pool too', async () => {
+    defaultMocks({
+      store: { tier: 'free' },
+      station: { id: STATION_ID, icpId: STATION_ICP },
+      icps: [STATION_ICP, 'icp-free'],
+      pool: splitPool,
+    })
+    const res = await nextQueue('store-1', new Date(), { allOutcomes: true })
+    expect(res.queue.length).toBeGreaterThan(0)
+    for (const item of res.queue) expect(item.icpId).toBe(STATION_ICP)
+  })
+
+  it('scopes the no-outcome-resolved fallback blend to the station pool too', async () => {
+    defaultMocks({
+      store: { tier: 'free' },
+      station: { id: STATION_ID, icpId: STATION_ICP },
+      icps: [STATION_ICP, 'icp-free'],
+      resolvedOutcome: null,
+      pool: splitPool,
+    })
+    const res = await nextQueue('store-1')
+    expect(res.queue.length).toBeGreaterThan(0)
+    for (const item of res.queue) expect(item.icpId).toBe(STATION_ICP)
+  })
+
+  it('falls back to the full ICP set when the station pool has no songs yet', async () => {
+    // Launch case: the station is assigned before its library is generated.
+    // Silence is a worse failure than an off-station song.
+    defaultMocks({
+      store: { tier: 'free' },
+      station: { id: STATION_ID, icpId: STATION_ICP, hasSongs: false },
+      icps: [STATION_ICP, 'icp-free'],
+      pool: splitPool,
+    })
+    const res = await nextQueue('store-1')
+    expect(res.queue.length).toBeGreaterThan(0)
+    expect(res.queue.some((q) => q.icpId === 'icp-free')).toBe(true)
+  })
+
+  it('falls back to the full ICP set when the station was deactivated', async () => {
+    defaultMocks({
+      store: { tier: 'free' },
+      station: { id: STATION_ID, icpId: STATION_ICP, active: false },
+      icps: [STATION_ICP, 'icp-free'],
+      pool: splitPool,
+    })
+    const res = await nextQueue('store-1')
+    expect(res.queue.some((q) => q.icpId === 'icp-free')).toBe(true)
+  })
+
+  it('ignores station_id on a paid store', async () => {
+    // Stations are a free-tier concept. Nothing sets one on a paid Store, but
+    // a tier upgrade leaves the column populated — it must not narrow the pool.
+    defaultMocks({
+      store: { tier: 'pro' },
+      station: { id: STATION_ID, icpId: STATION_ICP },
+      icps: [STATION_ICP, 'icp-free'],
+      pool: splitPool,
+    })
+    const res = await nextQueue('store-1', new Date(), { allOutcomes: true })
+    expect(res.queue.some((q) => q.icpId === 'icp-free')).toBe(true)
+    expect(stationFindUnique).not.toHaveBeenCalled()
+  })
+
+  it('ignores station_id on a comp-upgraded free store', async () => {
+    const farFuture = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    defaultMocks({
+      store: { tier: 'free', compTier: 'pro', compExpiresAt: farFuture },
+      station: { id: STATION_ID, icpId: STATION_ICP },
+      icps: [STATION_ICP, 'icp-free'],
+      pool: splitPool,
+    })
+    const res = await nextQueue('store-1', new Date(), { allOutcomes: true })
+    expect(res.queue.some((q) => q.icpId === 'icp-free')).toBe(true)
+    expect(stationFindUnique).not.toHaveBeenCalled()
+  })
+
+  it('does not resolve a station for a free store that has not picked one', async () => {
+    defaultMocks({ store: { tier: 'free' }, icps: ['icp-free'], pool: splitPool })
+    await nextQueue('store-1')
+    expect(stationFindUnique).not.toHaveBeenCalled()
+  })
+
+  it('still applies the free-tier outcome allowlist inside the station pool', async () => {
+    // The two axes compose: station narrows which ICP, allowlist narrows which
+    // outcome. Neither replaces the other.
+    defaultMocks({
+      store: { tier: 'free' },
+      station: { id: STATION_ID, icpId: STATION_ICP },
+      icps: [STATION_ICP, 'icp-free'],
+      resolvedOutcome: null,
+      pool: [
+        poolRow({ id: 'lr-a', songId: 's-allowed', icpId: STATION_ICP, outcomeId: 'oc-allowed' }),
+        poolRow({ id: 'lr-b', songId: 's-locked', icpId: STATION_ICP, outcomeId: 'oc-locked' }),
+      ],
+      freeAllowed: ['oc-allowed'],
+    })
+    const res = await nextQueue('store-1')
+    expect(res.queue.length).toBeGreaterThan(0)
+    for (const item of res.queue) {
+      expect(item.icpId).toBe(STATION_ICP)
+      expect(item.outcomeId).toBe('oc-allowed')
+    }
+  })
+})
+
+// =========================================================================
+// Station anti-repeat spacing (Card 23)
+// =========================================================================
+
+describe('nextQueue — station anti-repeat window', () => {
+  const STATION_ID = '00000000-0000-0000-0000-000000000201'
+  const STATION_ICP = '00000000-0000-0000-0000-000000000101'
+
+  function poolOfSize(n: number) {
+    return Array.from({ length: n }, (_, i) =>
+      poolRow({ id: `lr-${i}`, songId: `s-${i}`, icpId: STATION_ICP }),
+    )
+  }
+
+  // The no-repeat cutoff is the `occurredAt.gte` on the song_start lookup —
+  // the only place the window is observable from outside nextQueue.
+  function noRepeatCutoff(): Date {
+    const call = eventFindMany.mock.calls
+      .map((c) => c[0]?.where)
+      .find((w) => w?.songId?.in && w?.eventType === 'song_start')
+    return call.occurredAt.gte
+  }
+  const minutesBack = (now: Date, cutoff: Date) => Math.round((now.getTime() - cutoff.getTime()) / 60000)
+
+  it('derives a 3-hour window from a 100-track station pool', async () => {
+    // 100 tracks * 3 min * 0.6 coverage = 180 min. The flat 45-minute default
+    // would let a track return up to 16 times in a store day at this pool size.
+    const now = new Date('2026-08-06T12:00:00.000Z')
+    defaultMocks({
+      store: { tier: 'free' },
+      station: { id: STATION_ID, icpId: STATION_ICP },
+      icps: [STATION_ICP],
+      pool: poolOfSize(100),
+    })
+    await nextQueue('store-1', now)
+    expect(minutesBack(now, noRepeatCutoff())).toBe(180)
+  })
+
+  it('clamps a small station pool up to the floor', async () => {
+    const now = new Date('2026-08-06T12:00:00.000Z')
+    defaultMocks({
+      store: { tier: 'free' },
+      station: { id: STATION_ID, icpId: STATION_ICP },
+      icps: [STATION_ICP],
+      pool: poolOfSize(10),
+    })
+    await nextQueue('store-1', now)
+    expect(minutesBack(now, noRepeatCutoff())).toBe(45)
+  })
+
+  it('clamps a very large station pool down to the ceiling', async () => {
+    const now = new Date('2026-08-06T12:00:00.000Z')
+    defaultMocks({
+      store: { tier: 'free' },
+      station: { id: STATION_ID, icpId: STATION_ICP },
+      icps: [STATION_ICP],
+      pool: poolOfSize(400),
+    })
+    await nextQueue('store-1', now)
+    expect(minutesBack(now, noRepeatCutoff())).toBe(480)
+  })
+
+  it('honors operator-tuned station knobs from PlaybackRules', async () => {
+    const now = new Date('2026-08-06T12:00:00.000Z')
+    defaultMocks({
+      store: { tier: 'free' },
+      station: { id: STATION_ID, icpId: STATION_ICP },
+      icps: [STATION_ICP],
+      pool: poolOfSize(100),
+      rules: {
+        siblingSpacingMinutes: 240,
+        noRepeatWindowMinutes: 45,
+        stationNoRepeatCoverage: 1,
+        stationNoRepeatMinMinutes: 45,
+        stationNoRepeatMaxMinutes: 600,
+      } as any,
+    })
+    await nextQueue('store-1', now)
+    expect(minutesBack(now, noRepeatCutoff())).toBe(300)
+  })
+
+  it('leaves the flat window alone for a free store with no station', async () => {
+    const now = new Date('2026-08-06T12:00:00.000Z')
+    defaultMocks({ store: { tier: 'free' }, icps: ['icp-free'], pool: poolOfSize(100).map((r) => ({ ...r, icpId: 'icp-free' })) })
+    await nextQueue('store-1', now)
+    expect(minutesBack(now, noRepeatCutoff())).toBe(45)
+  })
+
+  it('leaves the flat window alone for a paid store', async () => {
+    const now = new Date('2026-08-06T12:00:00.000Z')
+    defaultMocks({ store: { tier: 'pro' }, icps: ['icp-1'], pool: poolOfSize(100).map((r) => ({ ...r, icpId: 'icp-1' })) })
+    await nextQueue('store-1', now)
+    expect(minutesBack(now, noRepeatCutoff())).toBe(45)
+  })
+
+  it('does not widen sibling spacing on station-scoped requests', async () => {
+    // Only the no-repeat window is pool-size-tuned; sibling spacing stays put.
+    const now = new Date('2026-08-06T12:00:00.000Z')
+    defaultMocks({
+      store: { tier: 'free' },
+      station: { id: STATION_ID, icpId: STATION_ICP },
+      icps: [STATION_ICP],
+      pool: poolOfSize(100).map((r, i) => ({ ...r, hookId: `h-${i}` })),
+    })
+    await nextQueue('store-1', now)
+    const siblingCall = eventFindMany.mock.calls
+      .map((c) => c[0]?.where)
+      .find((w) => w?.hookId?.in && w?.eventType === 'song_start')
+    expect(minutesBack(now, siblingCall.occurredAt.gte)).toBe(240)
   })
 })
