@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { nextQueue } from '../lib/hendrix.js'
 import { setOverride, clearOverride } from '../lib/outcomeSchedule.js'
-import { isFreeTierAllowedOutcome } from '../lib/outcomes.js'
+import { isFreeTierAllowedOutcome, isPickerHiddenOutcome } from '../lib/outcomes.js'
 import { effectiveTier } from '../lib/tier.js'
 import { verify, isAccountAuthorizedForStore } from '../lib/auth.js'
 import { prisma } from '../db.js'
@@ -119,7 +119,10 @@ export const hendrixRoutes: FastifyPluginAsync = async (app) => {
       _count: { _all: true },
     })
     const countMap = new Map(counts.map((c) => [c.outcomeId, c._count._all]))
-    return outcomes.map((o) => ({
+    // Picker-hidden outcomes never reach the player. They stay live in the
+    // catalogue and their songs still play under All Outcomes — they're just
+    // not something a customer is offered. Operator surfaces don't filter.
+    return outcomes.filter((o) => !isPickerHiddenOutcome(o)).map((o) => ({
       outcomeId: o.id,
       outcomeKey: o.outcomeKey,
       title: o.displayTitle ?? o.title,

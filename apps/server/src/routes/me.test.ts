@@ -825,7 +825,7 @@ describe('me schedule-slot routes — free-tier allowlist guard', () => {
 
   it('GET /outcomes annotates rows with availableOnFree from the allowlist', async () => {
     outcomeFindMany.mockResolvedValue([
-      { id: 'oc-allowed', title: 'Chill', displayTitle: null },
+      { id: 'oc-allowed', title: 'Dwell Extension', displayTitle: 'Dwell' },
       { id: 'oc-locked', title: 'Value Lift', displayTitle: 'Trade Them Up' },
     ])
     freeAllowedIdsMock.mockResolvedValue(new Set(['oc-allowed']))
@@ -835,8 +835,29 @@ describe('me schedule-slot routes — free-tier allowlist guard', () => {
 
     expect(res.statusCode).toBe(200)
     expect(res.json()).toEqual([
-      { id: 'oc-allowed', title: 'Chill', displayTitle: null, availableOnFree: true },
+      { id: 'oc-allowed', title: 'Dwell Extension', displayTitle: 'Dwell', availableOnFree: true },
       { id: 'oc-locked', title: 'Value Lift', displayTitle: 'Trade Them Up', availableOnFree: false },
     ])
+  })
+
+  // Dwell Launch Spec v1 (2026-08-06). Chill / Steady / Upbeat stay live in the
+  // catalogue — nothing is superseded and their songs keep playing — but they
+  // are no longer offered on any customer surface. This is the dashboard half;
+  // routes/hendrix.test.ts pins the player half.
+  it('GET /outcomes drops the retired Chill/Steady/Upbeat modes from the customer picker', async () => {
+    outcomeFindMany.mockResolvedValue([
+      { id: 'oc-chill', title: 'Chill', displayTitle: null },
+      { id: 'oc-dwell', title: 'Dwell Extension', displayTitle: 'Dwell' },
+      { id: 'oc-steady', title: 'Steady', displayTitle: null },
+      { id: 'oc-trade', title: 'Value Lift', displayTitle: 'Trade Them Up' },
+      { id: 'oc-upbeat', title: 'Upbeat', displayTitle: null },
+    ])
+    freeAllowedIdsMock.mockResolvedValue(new Set(['oc-dwell']))
+
+    const app = await buildTestApp(meRoutes)
+    const res = await app.inject({ method: 'GET', url: '/outcomes' })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json().map((r: { id: string }) => r.id)).toEqual(['oc-dwell', 'oc-trade'])
   })
 })

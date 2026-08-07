@@ -17,6 +17,7 @@ vi.mock('../db.js', () => ({
 import {
   getFreeTierAllowedOutcomeIds,
   isFreeTierAllowedOutcome,
+  isPickerHiddenOutcome,
   pickSystemDefaultOutcomeId,
 } from './outcomes.js'
 import { prisma } from '../db.js'
@@ -32,49 +33,95 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-// -- Pin the canonical FREE_TIER_PREFERENCE order via observable behavior. --
-// The source defines FREE_TIER_PREFERENCE = ['chill', 'steady', 'upbeat'] and
-// the picker iterates that array in order. If someone renames or reorders, the
-// "preference order" tests below will fail.
+// -- Pin the canonical FREE_TIER_PREFERENCE chain via observable behavior. --
+// Dwell Launch Spec v1 (2026-08-06): the free tier is a SINGLE outcome, so
+// FREE_TIER_PREFERENCE = ['dwell']. Prod's Dwell row is title='Dwell Extension',
+// displayTitle='Dwell' — the picker matches on `displayTitle ?? title`, so the
+// displayTitle path below is the one that fires in production.
 describe('FREE_TIER_PREFERENCE (pinned via behavior)', () => {
-  it('picks "chill" first when all three preferences are present and allowlisted', async () => {
+  it('picks Dwell by displayTitle when title is the internal "Dwell Extension"', async () => {
     outcomeFindMany.mockResolvedValueOnce([
-      { id: 'id-chill', outcomeKey: 'chill', title: 'Chill', displayTitle: null, version: 1 },
-      { id: 'id-steady', outcomeKey: 'steady', title: 'Steady', displayTitle: null, version: 1 },
-      { id: 'id-upbeat', outcomeKey: 'upbeat', title: 'Upbeat', displayTitle: null, version: 1 },
+      {
+        id: 'id-dwell',
+        outcomeKey: 'key-dwell',
+        title: 'Dwell Extension',
+        displayTitle: 'Dwell',
+        version: 1,
+      },
     ])
-    freeTierFindMany.mockResolvedValueOnce([
-      { outcomeKey: 'chill' },
-      { outcomeKey: 'steady' },
-      { outcomeKey: 'upbeat' },
-    ])
+    freeTierFindMany.mockResolvedValueOnce([{ outcomeKey: 'key-dwell' }])
 
     const result = await pickSystemDefaultOutcomeId('free')
-    expect(result).toBe('id-chill')
+    expect(result).toBe('id-dwell')
   })
 
-  it('picks "steady" when "chill" is missing but "steady" and "upbeat" are allowlisted', async () => {
-    outcomeFindMany.mockResolvedValueOnce([
-      { id: 'id-steady', outcomeKey: 'steady', title: 'Steady', displayTitle: null, version: 1 },
-      { id: 'id-upbeat', outcomeKey: 'upbeat', title: 'Upbeat', displayTitle: null, version: 1 },
-    ])
+  it('does NOT pick Chill/Steady/Upbeat even when they are the only allowlisted rows', async () => {
+    // Regression guard for the repoint: the old three modes must no longer be
+    // preferred. With no name match, the picker falls through to the
+    // alphabetical allowlist fallback rather than short-circuiting on 'chill'.
+    outcomeFindMany.mockResolvedValueOnce([]) // nothing matches the name 'dwell'
     freeTierFindMany.mockResolvedValueOnce([
-      { outcomeKey: 'steady' },
-      { outcomeKey: 'upbeat' },
+      { outcomeKey: 'key-chill' },
+      { outcomeKey: 'key-steady' },
+      { outcomeKey: 'key-upbeat' },
     ])
+    outcomeFindFirst.mockResolvedValueOnce({ id: 'id-alphabetical-fallback' })
 
     const result = await pickSystemDefaultOutcomeId('free')
-    expect(result).toBe('id-steady')
+
+    expect(result).toBe('id-alphabetical-fallback')
+    // It reached the constrained fallback — i.e. no preference short-circuit.
+    expect(outcomeFindFirst).toHaveBeenCalledTimes(1)
   })
 
-  it('picks "upbeat" when only "upbeat" is allowlisted among the preferences', async () => {
+  it('skips Dwell when it exists but is not allowlisted', async () => {
     outcomeFindMany.mockResolvedValueOnce([
-      { id: 'id-upbeat', outcomeKey: 'upbeat', title: 'Upbeat', displayTitle: null, version: 1 },
+      { id: 'id-dwell', outcomeKey: 'key-dwell', title: 'Dwell Extension', displayTitle: 'Dwell', version: 1 },
     ])
-    freeTierFindMany.mockResolvedValueOnce([{ outcomeKey: 'upbeat' }])
+    // Allowlist holds something else entirely — Dwell must not be returned.
+    freeTierFindMany.mockResolvedValueOnce([{ outcomeKey: 'key-other' }])
+    outcomeFindFirst.mockResolvedValueOnce({ id: 'id-other' })
 
     const result = await pickSystemDefaultOutcomeId('free')
-    expect(result).toBe('id-upbeat')
+    expect(result).toBe('id-other')
+  })
+})
+
+describe('isPickerHiddenOutcome', () => {
+  // The three retired free modes. Rows stay live in the catalogue (nothing is
+  // superseded, songs keep playing) — they're only hidden from the customer
+  // pickers in GET /hendrix/outcomes and GET /me/outcomes.
+  it.each(['Chill', 'Steady', 'Upbeat'])('hides %s', (title) => {
+    expect(isPickerHiddenOutcome({ title, displayTitle: null })).toBe(true)
+  })
+
+  it('matches case-insensitively and ignores surrounding whitespace', () => {
+    expect(isPickerHiddenOutcome({ title: '  CHILL ', displayTitle: null })).toBe(true)
+  })
+
+  it('matches on displayTitle when it differs from title', () => {
+    expect(isPickerHiddenOutcome({ title: 'Energetic Chill', displayTitle: 'Chill' })).toBe(true)
+  })
+
+  it('does NOT hide an outcome whose title contains a hidden name as a substring', () => {
+    expect(isPickerHiddenOutcome({ title: 'Chill Extension', displayTitle: null })).toBe(false)
+  })
+
+  it('does not hide Dwell — the free-tier outcome', () => {
+    expect(isPickerHiddenOutcome({ title: 'Dwell Extension', displayTitle: 'Dwell' })).toBe(false)
+  })
+
+  it.each([
+    ['Dwell Compression', 'Keep It Moving'],
+    ['Value Lift', 'Trade Them Up'],
+    ['Impulse', 'Grab It Now'],
+    ['Brand Match', 'Our Sound'],
+  ])('does not hide the paid outcome %s / %s', (title, displayTitle) => {
+    expect(isPickerHiddenOutcome({ title, displayTitle })).toBe(false)
+  })
+
+  it('tolerates a missing displayTitle field', () => {
+    expect(isPickerHiddenOutcome({ title: 'Steady' })).toBe(true)
   })
 })
 
@@ -212,7 +259,7 @@ describe('pickSystemDefaultOutcomeId — non-free path', () => {
 })
 
 describe('pickSystemDefaultOutcomeId — free-tier path', () => {
-  it('falls back to alphabetically-first allowlisted outcome when none of chill/steady/upbeat match', async () => {
+  it('falls back to alphabetically-first allowlisted outcome when nothing matches the preference chain', async () => {
     // Candidate query returns nothing matching the preference names.
     outcomeFindMany.mockResolvedValueOnce([])
     // Allowlist has entries.
@@ -268,7 +315,7 @@ describe('pickSystemDefaultOutcomeId — free-tier path', () => {
   })
 
   it('NEVER returns an outcome outside the allowlist (negative test: no fall-through to global default)', async () => {
-    // Preference query returns nothing matching chill/steady/upbeat names.
+    // Preference query returns nothing matching the 'dwell' name.
     outcomeFindMany.mockResolvedValueOnce([])
     // Allowlist contains only 'steady', but no live outcomes have outcomeKey 'steady'.
     freeTierFindMany.mockResolvedValueOnce([{ outcomeKey: 'steady' }])
@@ -292,44 +339,48 @@ describe('pickSystemDefaultOutcomeId — free-tier path', () => {
 
   it('matches preference by displayTitle when title differs (case-insensitive)', async () => {
     outcomeFindMany.mockResolvedValueOnce([
-      // title is something else but displayTitle is "Chill".
+      // Production shape: internal title is "Dwell Extension", display is "Dwell".
       {
-        id: 'id-display-chill',
-        outcomeKey: 'energetic-chill',
-        title: 'Energetic Chill',
-        displayTitle: 'Chill',
+        id: 'id-display-dwell',
+        outcomeKey: 'key-dwell',
+        title: 'Dwell Extension',
+        displayTitle: 'DWELL',
         version: 1,
       },
     ])
-    freeTierFindMany.mockResolvedValueOnce([{ outcomeKey: 'energetic-chill' }])
+    freeTierFindMany.mockResolvedValueOnce([{ outcomeKey: 'key-dwell' }])
 
     const result = await pickSystemDefaultOutcomeId('free')
 
-    expect(result).toBe('id-display-chill')
+    expect(result).toBe('id-display-dwell')
   })
 
   it('matches preference by title (case-insensitive) when displayTitle is null', async () => {
     outcomeFindMany.mockResolvedValueOnce([
-      { id: 'id-chill', outcomeKey: 'chill', title: 'CHILL', displayTitle: null, version: 1 },
+      { id: 'id-dwell', outcomeKey: 'key-dwell', title: 'dwell', displayTitle: null, version: 1 },
     ])
-    freeTierFindMany.mockResolvedValueOnce([{ outcomeKey: 'chill' }])
+    freeTierFindMany.mockResolvedValueOnce([{ outcomeKey: 'key-dwell' }])
 
     const result = await pickSystemDefaultOutcomeId('free')
 
-    expect(result).toBe('id-chill')
+    expect(result).toBe('id-dwell')
   })
 
-  it('skips a preference whose outcomeKey is NOT in the allowlist (chill exists but not allowlisted; steady allowlisted)', async () => {
+  it('prefers Dwell over an allowlisted non-preference outcome', async () => {
+    // Both are allowlisted; the name in FREE_TIER_PREFERENCE must win over the
+    // alphabetical fallback, so no findFirst should be needed at all.
     outcomeFindMany.mockResolvedValueOnce([
-      { id: 'id-chill', outcomeKey: 'chill', title: 'Chill', displayTitle: null, version: 1 },
-      { id: 'id-steady', outcomeKey: 'steady', title: 'Steady', displayTitle: null, version: 1 },
+      { id: 'id-dwell', outcomeKey: 'key-dwell', title: 'Dwell Extension', displayTitle: 'Dwell', version: 1 },
     ])
-    // Only 'steady' is allowlisted; 'chill' must be skipped even though it matches.
-    freeTierFindMany.mockResolvedValueOnce([{ outcomeKey: 'steady' }])
+    freeTierFindMany.mockResolvedValueOnce([
+      { outcomeKey: 'key-brand' },
+      { outcomeKey: 'key-dwell' },
+    ])
 
     const result = await pickSystemDefaultOutcomeId('free')
 
-    expect(result).toBe('id-steady')
+    expect(result).toBe('id-dwell')
+    expect(outcomeFindFirst).not.toHaveBeenCalled()
   })
 
   it('filters candidate query with supersededAt: null', async () => {
@@ -343,8 +394,8 @@ describe('pickSystemDefaultOutcomeId — free-tier path', () => {
     expect(candidateCall?.where?.supersededAt).toBeNull()
     // And the OR shape exists (matching FREE_TIER_PREFERENCE titles/displayTitles).
     expect(Array.isArray(candidateCall?.where?.OR)).toBe(true)
-    // 3 preferences × 2 fields (title + displayTitle) = 6 OR branches.
-    expect(candidateCall?.where?.OR?.length).toBe(6)
+    // 1 preference ('dwell') × 2 fields (title + displayTitle) = 2 OR branches.
+    expect(candidateCall?.where?.OR?.length).toBe(2)
   })
 
   it('orders candidate query by version desc (so newest version of a name wins)', async () => {
