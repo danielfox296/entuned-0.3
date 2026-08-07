@@ -333,11 +333,10 @@ function OutcomesGrid() {
   // Hard-coded list mirrors the production outcome catalogue — kept in sync
   // by hand because this is marketing copy on the upgrade page, not a live
   // pool view. If the catalogue changes meaningfully, edit here.
+  // Dwell Launch Spec v1 (2026-08-06): Free ships one outcome. The Chill /
+  // Steady / Upbeat modes are retired from customer surfaces.
   const all = [
-    { name: 'Chill', free: true },
-    { name: 'Steady', free: true },
-    { name: 'Upbeat', free: true },
-    { name: 'Dwell', free: false },
+    { name: 'Dwell', free: true },
     { name: 'Keep It Moving', free: false },
     { name: 'Trade Them Up', free: false },
     { name: 'Grab It Now', free: false },

@@ -55,9 +55,16 @@ vi.mock('../lib/outcomeSchedule.js', () => ({
 
 // outcomes / tier / auth helpers — mocked so we control the free-tier guard
 // and the operator-auth gate from the test directly.
-vi.mock('../lib/outcomes.js', () => ({
-  isFreeTierAllowedOutcome: vi.fn(),
-}))
+// Partial mock: only the DB-touching guard is stubbed. `isPickerHiddenOutcome`
+// is a pure name check with no I/O, and the route's picker filter is exactly
+// what the tests below assert on — so it passes through for real.
+vi.mock('../lib/outcomes.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/outcomes.js')>()
+  return {
+    ...actual,
+    isFreeTierAllowedOutcome: vi.fn(),
+  }
+})
 vi.mock('../lib/tier.js', () => ({
   effectiveTier: vi.fn(),
 }))
@@ -328,6 +335,31 @@ describe('hendrix routes', () => {
           availableOnFree: false,
         },
       ])
+    })
+
+    // Dwell Launch Spec v1 (2026-08-06). Chill / Steady / Upbeat stay live in
+    // the catalogue — nothing is superseded and their songs keep playing under
+    // All Outcomes — but the player must never offer them again. Matched on
+    // `displayTitle ?? title`, so a renamed row still gets caught.
+    it('drops the retired Chill/Steady/Upbeat modes from the player picker', async () => {
+      setupOutcomesHappy()
+      outcomeFindMany.mockResolvedValue([
+        { id: 'oc-chill', outcomeKey: 'k-chill', title: 'Chill', displayTitle: null, tempoBpm: 70, mode: 'major' },
+        { id: 'oc-dwell', outcomeKey: 'k-dwell', title: 'Dwell Extension', displayTitle: 'Dwell', tempoBpm: 80, mode: 'major' },
+        { id: 'oc-steady', outcomeKey: 'k-steady', title: 'Sustain', displayTitle: 'Steady', tempoBpm: 95, mode: 'major' },
+        { id: 'oc-upbeat', outcomeKey: 'k-upbeat', title: 'Upbeat', displayTitle: null, tempoBpm: 120, mode: 'major' },
+        { id: 'oc-trade', outcomeKey: 'k-trade', title: 'Value Lift', displayTitle: 'Trade Them Up', tempoBpm: 100, mode: 'major' },
+      ])
+      freeTierFindMany.mockResolvedValue([{ outcomeKey: 'k-dwell' }])
+
+      const app = await buildTestApp(hendrixRoutes)
+      const res = await app.inject({ method: 'GET', url: `/outcomes?slug=${SLUG}` })
+
+      expect(res.statusCode).toBe(200)
+      const body = res.json() as { outcomeId: string; availableOnFree: boolean }[]
+      expect(body.map((o) => o.outcomeId)).toEqual(['oc-dwell', 'oc-trade'])
+      // Dwell is the one thing a free store is offered.
+      expect(body.filter((o) => o.availableOnFree).map((o) => o.outcomeId)).toEqual(['oc-dwell'])
     })
 
     it('skips the LineageRow.groupBy call when the store has zero ICPs (load-bearing perf guard)', async () => {

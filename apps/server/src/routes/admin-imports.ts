@@ -39,7 +39,7 @@ export const adminImportRoutes: FastifyPluginAsync = async (app) => {
   app.post('/free-tier-imports', async (req, reply) => {
     const outcomeName = (req.query as Record<string, string>).outcome?.trim()
     if (!outcomeName) {
-      return reply.code(400).send({ error: 'missing_outcome', message: 'Pass ?outcome=<name> (e.g. chill, steady, upbeat).' })
+      return reply.code(400).send({ error: 'missing_outcome', message: 'Pass ?outcome=<name> (e.g. dwell).' })
     }
 
     // Resolve outcome by title OR displayTitle, newest version first. Matching

@@ -1447,7 +1447,9 @@ export function PlayerScreen({ session, onLogout }: Props) {
           steps={[
             {
               target: outcomeRef.current,
-              body: "Pick what the music should do — Chill, Steady, or Upbeat. Or play All Outcomes. Unlock more with Boost.",
+              body: session.tier === "free"
+                ? "Pick what the music should do. Free plays Dwell — music that holds browsers on the floor longer. Boost unlocks the rest."
+                : "Pick what the music should do. Switch the outcome any time, or play them all.",
               placement: "above",
             },
           ] satisfies TourStep[]}

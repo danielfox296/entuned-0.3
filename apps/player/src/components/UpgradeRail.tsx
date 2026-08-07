@@ -14,10 +14,10 @@ type SlotKind =
   | "pro_upsell"
   | "core_reminder"
   | "pro_reminder"
-  // Outcome explainer — one slot per Boost/Pro Outcome, naming what the
-  // outcome promotes in associate-legible language. Appears in every active
-  // tier pool (free as upsell, Boost/Pro as reminder); CTA is resolved
-  // per-tier in the render path, not by kind.
+  // Outcome explainer — one slot per Outcome, naming what the outcome
+  // promotes in associate-legible language. Appears in every active tier pool
+  // (free as upsell, Boost/Pro as reminder); CTA is resolved per-tier in the
+  // render path, not by kind.
   | "outcome_explainer";
 
 // Each slot is an anchor (one tight line) + 2-3 bullets. Designed for
@@ -30,6 +30,10 @@ type Slot = {
   kind: SlotKind;
   photo: string;
   customizeCta?: { label: string; href: string };
+  /** Outcome explainer for something Entuned Free already ships with. Free's
+   *  explainer CTA otherwise reads "See what Boost unlocks", which is wrong
+   *  for the outcome they're listening to right now. Set on Dwell only. */
+  includedOnFree?: boolean;
 };
 
 const SLOTS: Slot[] = [
@@ -44,22 +48,25 @@ const SLOTS: Slot[] = [
     kind: "core_upsell",
     photo: "/promo/retail-store.jpg",
   },
+  // The fit wall.
   {
-    anchor: "Music shaped by your customer.",
+    anchor: "Tuned to your customer, not a stock station.",
     points: [
-      "Tuned to your single ICP",
-      "Songs picked for who's on your floor",
-      "Not the general catalogue",
+      "Free is one catalogue, shared by every store",
+      "Boost builds a library around who walks in",
+      "Every song picked for your floor",
     ],
     kind: "core_upsell",
     photo: "/promo/mara-icp.jpg",
   },
+  // The hour wall. Free ships one outcome and plays it from open to close;
+  // the rush is the moment that most obviously wants a different one.
   {
-    anchor: "Beyond Chill, Steady, and Upbeat.",
+    anchor: "The rush needs different music.",
     points: [
-      "Every research-backed outcome unlocked",
-      "Switch the floor's mood any moment",
-      "Not just the three free modes",
+      "Free plays Dwell every hour of the day",
+      "Peak wants music that moves the line",
+      "Boost unlocks the outcome for the moment",
     ],
     kind: "core_upsell",
     photo: "/promo/shopping.jpg",
@@ -85,22 +92,25 @@ const SLOTS: Slot[] = [
     photo: "/promo/alcott-store.jpg",
   },
   // ── Pro upsell (Free / Core → Pro) ──────────────────────────────────────
+  // The hour wall, answered: Outcome Scheduling is the thing that puts rush
+  // music on at peak without anyone behind the counter remembering to do it.
   {
-    anchor: "Music that shifts with the day.",
+    anchor: "Rush music at the rush, on its own.",
     points: [
       "Opening calm, peak energy, closing wind-down",
-      "Switches automatically",
-      "No one has to remember the mode",
+      "Outcome Scheduling switches it for you",
+      "Nobody behind the counter has to remember",
     ],
     kind: "pro_upsell",
     photo: "/promo/parallax-green-lamp.jpg",
   },
+  // The proof wall — what the music did, not just what played.
   {
-    anchor: "Music tied to your sales.",
+    anchor: "Know what the music did.",
     points: [
-      "Integrates with your POS",
-      "Refines against real sales data",
-      "Lift shows up in the report",
+      "Reads your POS, hour by hour",
+      "Reports the lift, not just the track list",
+      "Refines against what actually sold",
     ],
     kind: "pro_upsell",
     photo: "/promo/parallax-cosmetics-store.jpg",
@@ -128,11 +138,11 @@ const SLOTS: Slot[] = [
     customizeCta: { label: "Customize this →", href: "https://app.entuned.co/intake" },
   },
   {
-    anchor: "Three free modes ready.",
+    anchor: "Every outcome is yours now.",
     points: [
-      "Chill",
-      "Steady",
-      "Upbeat",
+      "Dwell, Keep It Moving, Trade Them Up",
+      "Grab It Now, Our Sound",
+      "Switch the floor in one tap",
     ],
     kind: "core_reminder",
     photo: "/promo/alcott-store.jpg",
@@ -193,7 +203,7 @@ const SLOTS: Slot[] = [
   {
     anchor: "Every outcome unlocked.",
     points: [
-      "Chill, Steady, Upbeat, and more",
+      "Dwell, Keep It Moving, Trade Them Up, and more",
       "Switch any time below",
       "Match the moment, not just the day",
     ],
@@ -211,7 +221,8 @@ const SLOTS: Slot[] = [
     photo: "/promo/shopping.jpg",
   },
   // ── Outcome explainers (every active tier) ──────────────────────────────
-  // One slot per Boost/Pro Outcome. Anchor format is "Name: what it promotes."
+  // One slot per Outcome — Dwell is the one Entuned Free ships with, the other
+  // four are Boost/Pro. Anchor format is "Name: what it promotes."
   // so a floor associate scans the name and the promise in one beat. Bullets
   // give the texture (mood, when to switch to it). Order roughly follows the
   // dash.entuned.co outcome list.
@@ -220,10 +231,11 @@ const SLOTS: Slot[] = [
     points: [
       "Slower tempo, warmer feel",
       "Customers settle in instead of breezing through",
-      "Right when you want dwell, not turnover",
+      "The outcome every Entuned store starts on",
     ],
     kind: "outcome_explainer",
     photo: "/promo/parallax-luxury-store.jpg",
+    includedOnFree: true,
   },
   {
     anchor: "Trade Them Up: lift the average ticket.",
@@ -347,7 +359,9 @@ export function UpgradeRail({ rotationKey, tier, compact = false, withPhoto = fa
       case "outcome_explainer":
         // Free reads this card as an upsell ("here's what you'd unlock"); paid
         // tiers read it as a reminder of what's already at their fingertips.
-        if (tier === "free") {
+        // The one outcome Free already ships with takes the paid CTA — telling
+        // someone to unlock what they're currently hearing reads as a bug.
+        if (tier === "free" && !slot.includedOnFree) {
           return { label: "See what Boost unlocks →", href: "https://app.entuned.co/upgrade" };
         }
         return { label: "Open your dashboard →", href: "https://app.entuned.co" };

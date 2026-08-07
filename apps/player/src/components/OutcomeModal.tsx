@@ -8,11 +8,15 @@ import { effectFor } from "../lib/outcomeCopy.js";
 // "more outcomes" section of the upgrade page.
 const UPGRADE_URL = "https://app.entuned.co/upgrade#outcomes";
 
-// Canonical display order for free-tier modes. Chill → Steady → Upbeat.
+// Canonical display order for what the free tier can play. Dwell Launch Spec
+// v1 (2026-08-06): the free tier ships a single outcome, Dwell — the three
+// Chill / Steady / Upbeat modes are retired from every customer picker (the
+// server drops them from GET /hendrix/outcomes). The array stays so a second
+// free outcome later is a one-line append.
 // Matches by lowercased title so capitalisation in the DB doesn't matter.
-const FREE_MODE_ORDER = ["chill", "steady", "upbeat"];
-function modeSortKey(o: OutcomeOption): number {
-  const idx = FREE_MODE_ORDER.indexOf(o.title.toLowerCase());
+const FREE_OUTCOME_ORDER = ["dwell"];
+function freeSortKey(o: OutcomeOption): number {
+  const idx = FREE_OUTCOME_ORDER.indexOf(o.title.toLowerCase());
   return idx === -1 ? 999 : idx;
 }
 
@@ -38,9 +42,8 @@ type Props = {
 export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, onSelect, onSelectAll, onClose }: Props) {
   const isFree = viewerTier === "free";
 
-  // Split outcomes into available-now vs locked. Free-tier: available = modes
-  // (availableOnFree), locked = outcomes. Paid tiers: all available, none locked.
-  // Free modes are sorted Chill → Steady → Upbeat for consistent display order.
+  // Split outcomes into available-now vs locked by the server's allowlist
+  // annotation. Paid tiers: all available, none locked.
   const { available, locked } = useMemo(() => {
     const a: OutcomeOption[] = [];
     const l: OutcomeOption[] = [];
@@ -48,15 +51,20 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
       if (isFree && !o.availableOnFree) l.push(o);
       else a.push(o);
     }
-    if (isFree) a.sort((x, y) => modeSortKey(x) - modeSortKey(y));
+    if (isFree) a.sort((x, y) => freeSortKey(x) - freeSortKey(y));
     return { available: a, locked: l };
   }, [outcomes, isFree]);
 
-  // Viewport-aware density. The free tier renders 9 outcomes + 2 section
-  // labels + footer + header — at default sizing that's ~720px, which spills
-  // off iPad-landscape (768h) and any short tablet/phone-landscape screen.
-  // We track height and switch to a denser layout when there isn't room for
-  // the comfortable defaults, so the surface fits without an inner scrollbar.
+  // "Play All Outcomes" only means something when there's more than one thing
+  // to play. On Free — a single outcome since the Dwell launch — it would be a
+  // duplicate row that does exactly what the row under it does, so it's hidden.
+  const showPlayAll = available.length > 1;
+
+  // Viewport-aware density. A long outcome list plus 2 section labels, footer
+  // and header runs ~720px at default sizing, which spills off iPad-landscape
+  // (768h) and any short tablet/phone-landscape screen. We track height and
+  // switch to a denser layout when there isn't room for the comfortable
+  // defaults, so the surface fits without an inner scrollbar.
   const [winH, setWinH] = useState(() => (typeof window !== "undefined" ? window.innerHeight : 1024));
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -64,9 +72,9 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
-  // Total row count drives the threshold — free tier with 9 outcomes needs
-  // compact below ~820px; paid pools (3-5 rows) only compact below ~620px.
-  const totalRows = available.length + locked.length + 1; // +1 for All Outcomes
+  // Total row count drives the threshold — a long list needs compact below
+  // ~820px; short pools (3-5 rows) only compact below ~620px.
+  const totalRows = available.length + locked.length + (showPlayAll ? 1 : 0);
   const compact = winH < (totalRows >= 8 ? 820 : 620);
 
   // When a user taps a locked tile, briefly pulse the persistent upgrade bar
@@ -155,17 +163,19 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
             Outcomes section (paid). overflowY:auto is a fallback for extreme
             viewports; default sizing is tuned to fit without scroll on most screens. */}
         <div style={{ overflowY: "auto", padding: compact ? "12px 16px 14px" : "16px 20px 20px", flex: 1 }}>
-          <SectionLabel compact={compact}>{isFree ? "Modes" : "Outcomes"}</SectionLabel>
+          <SectionLabel compact={compact}>{isFree ? "Available now" : "Outcomes"}</SectionLabel>
           <div style={{ display: "flex", flexDirection: "column", gap: compact ? 4 : 6, marginBottom: compact ? 12 : 18 }}>
-            {/* Play All Available Modes — same row treatment as a peer outcome */}
-            <OutcomeRow
-              label="Play All Available Modes"
-              active={allOutcomesMode}
-              empty={false}
-              locked={false}
-              compact={compact}
-              onClick={onSelectAll}
-            />
+            {/* Play All Outcomes — same row treatment as a peer outcome */}
+            {showPlayAll ? (
+              <OutcomeRow
+                label="Play All Outcomes"
+                active={allOutcomesMode}
+                empty={false}
+                locked={false}
+                compact={compact}
+                onClick={onSelectAll}
+              />
+            ) : null}
             {available.map((o) => (
               <OutcomeRow
                 key={o.outcomeId}
@@ -182,13 +192,13 @@ export function OutcomeModal({ outcomes, activeId, allOutcomesMode, viewerTier, 
 
           {locked.length > 0 && (
             <>
-              {/* Faint rule separating free modes from locked outcomes */}
+              {/* Faint rule separating what plays now from what Boost unlocks */}
               <div style={{
                 height: 1,
                 background: "rgba(255,255,255,0.07)",
                 margin: compact ? "2px 0 10px" : "0 0 14px",
               }} />
-              <SectionLabel compact={compact}>Outcomes</SectionLabel>
+              <SectionLabel compact={compact}>With Boost</SectionLabel>
               <div style={{ display: "flex", flexDirection: "column", gap: compact ? 4 : 6 }}>
                 {locked.map((o) => (
                   <OutcomeRow

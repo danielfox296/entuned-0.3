@@ -34,10 +34,10 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
   },
   welcomeFree: {
     subject: 'Welcome to Entuned Free',
-    preheader: 'Open the player on the device that drives your shop speakers. Pick a mode. Music starts.',
+    preheader: 'Open the player on the device that drives your shop speakers. Music starts.',
     body: `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">You&rsquo;re on Entuned Free.</p>
-    <p style="margin:0 0 14px 0;"><strong style="color:#50929c;">Start here:</strong> open the player on whatever device drives your shop&rsquo;s speakers (the laptop behind the counter, an iPad, a Bluetooth-paired phone). Pick Chill, Steady, or Upbeat. Music starts.</p>
+    <p style="margin:0 0 14px 0;"><strong style="color:#50929c;">Start here:</strong> open the player on whatever device drives your shop&rsquo;s speakers (the laptop behind the counter, an iPad, a Bluetooth-paired phone). Music starts on Dwell &mdash; the outcome that holds browsers on the floor longer.</p>
     <p style="margin:0 0 14px 0;">One thing to know: the free catalogue is shared by every store and deliberately broad &mdash; it&rsquo;s tuned to a mood, not to your customer. When a track comes on that doesn&rsquo;t sound like your shop, you&rsquo;ve found the free tier&rsquo;s real limit &mdash; the one Boost removes with a library built around your customer.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{playerUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Open player</a></td></tr></table>
     <p style="margin:22px 0 6px 0;font-size:14px;color:#8a929a;">When you have a minute &mdash; the dashboard is where you manage your account, add another location, or upgrade.</p>
@@ -168,7 +168,7 @@ export const EDITABLE_TEMPLATES: Partial<Record<TemplateName, TemplateSeed>> = {
     preheader: 'A library built around your customer. $99 / location / month.',
     body: `
     <p style="margin:0 0 14px 0;font-size:18px;font-weight:600;color:#d4e1e5;">On Boost, your library is built around your customer.</p>
-    <p style="margin:0 0 14px 0;">Entuned Free gives you a soundtrack engineered for retail in general &mdash; Chill, Steady, or Upbeat on a 100+ song shared catalogue. It&rsquo;s the same one every store starts on, broad across styles by design &mdash; which is why some tracks won&rsquo;t sound like your store.</p>
+    <p style="margin:0 0 14px 0;">Entuned Free gives you a soundtrack engineered for retail in general &mdash; one outcome, Dwell, on a 100+ song shared catalogue. It&rsquo;s the same one every store starts on, broad across styles by design &mdash; which is why some tracks won&rsquo;t sound like your store.</p>
     <p style="margin:0 0 14px 0;">On Boost, you answer seven questions about who walks in and we build a private library around them. All research-backed outcomes unlocked. $99 per location, per month. No setup fee, no contracts, cancel any time.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;"><tr><td style="background:#50929c;border-radius:10px;"><a href="{{upgradeUrl}}" style="display:inline-block;padding:12px 22px;font-size:14px;font-weight:600;letter-spacing:0.02em;color:#1a1a17;text-decoration:none;border-radius:10px;">Unlock Boost</a></td></tr></table>
     <p style="margin:18px 0 6px 0;font-size:13px;color:#8a929a;">Your current player: <a href="{{playerUrl}}" style="color:#50929c;">{{playerUrl}}</a></p>

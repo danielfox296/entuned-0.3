@@ -11,7 +11,7 @@ import { requireAuth } from '../lib/session.js'
 import { effectiveTier, compIsActive, tierRank, applyTierChange } from '../lib/tier.js'
 import { uniqueStoreSlug } from '../lib/account.js'
 import { FREE_TIER_ICP_ID } from '../lib/freeTier.js'
-import { pickSystemDefaultOutcomeId, isFreeTierAllowedOutcome, getFreeTierAllowedOutcomeIds } from '../lib/outcomes.js'
+import { pickSystemDefaultOutcomeId, isFreeTierAllowedOutcome, getFreeTierAllowedOutcomeIds, isPickerHiddenOutcome } from '../lib/outcomes.js'
 import { listActiveStations, setStoreStation } from '../lib/stations.js'
 import { AppError, sendError } from '../lib/http-errors.js'
 import {
@@ -682,6 +682,9 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
   // GET /me/outcomes — active outcomes list, for the schedule slot outcome picker.
   // Annotated with availableOnFree so the dashboard can filter/lock the picker
   // for free-tier stores (mirrors GET /hendrix/outcomes).
+  //
+  // Picker-hidden outcomes are dropped here — this is a customer surface. The
+  // operator equivalent in routes/admin.ts intentionally still returns them.
   app.get('/outcomes', { preHandler: requireAuth }, async (_req, reply) => {
     const [rows, allowedIds] = await Promise.all([
       prisma.outcome.findMany({
@@ -691,7 +694,11 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       }),
       getFreeTierAllowedOutcomeIds(),
     ])
-    return reply.send(rows.map((r) => ({ ...r, availableOnFree: allowedIds.has(r.id) })))
+    return reply.send(
+      rows
+        .filter((r) => !isPickerHiddenOutcome(r))
+        .map((r) => ({ ...r, availableOnFree: allowedIds.has(r.id) })),
+    )
   })
 
   // ----- Stations (Card 23) -----------------------------------------------

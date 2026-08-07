@@ -9,13 +9,17 @@
 // anchor copy — eventually these should live on Outcome.description in
 // the DB so Dash can edit them, but for now this is the player SSOT.
 export const OUTCOME_EFFECT: Record<string, string> = {
-  // Boost / Pro outcomes (post 2026-07-11 merge: 5 paid outcomes)
+  // The five live outcomes (post 2026-07-11 merge). Dwell is what Entuned Free
+  // ships with as of the 2026-08-06 repoint; the other four are Boost / Pro.
   "Dwell": "linger longer on the floor",
   "Keep It Moving": "speed turnover when it's busy",
   "Trade Them Up": "lift the average ticket",
   "Grab It Now": "drive impulse pickups",
   "Our Sound": "pure brand vibe",
-  // Free-tier modes
+  // Retired free-tier modes (2026-08-06). Still live rows in the catalogue, so
+  // their songs keep playing — but the server drops them from the customer
+  // pickers, so the player no longer renders these. Kept for the admin-side
+  // preview paths and so an operator-visible name never renders bare.
   "Chill": "slow the room down",
   "Steady": "hold an even pace",
   "Upbeat": "lift the energy",

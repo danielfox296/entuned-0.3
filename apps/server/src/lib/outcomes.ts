@@ -6,9 +6,9 @@
 // automatically at Store creation.
 //
 // Tier-aware preference (Daniel 2026-05-11):
-//   - free tier: prefer "All Outcomes" → "Add Energy" → "Lift Energy"
-//     → first allowlisted outcome alphabetically. Free-tier stores must
-//     never get a default outside the FreeTierOutcome allowlist.
+//   - free tier: walk FREE_TIER_PREFERENCE in order, then fall back to the
+//     first allowlisted outcome alphabetically. Free-tier stores must never
+//     get a default outside the FreeTierOutcome allowlist.
 //   - other tiers: alphabetically-first non-superseded Outcome.
 //
 // If no outcomes match the preference chain, returns null and the caller
@@ -23,10 +23,33 @@
 // Backfill of existing rows handled by migrations:
 //   - 20260511010000_default_outcome_for_existing_stores
 //   - 20260511020000_default_outcome_free_tier_preference
+//   - 20260806140000_free_tier_dwell_only
 
 import { prisma } from '../db.js'
 
-const FREE_TIER_PREFERENCE = ['chill', 'steady', 'upbeat']
+// Preference chain for a free-tier Store's default outcome, matched against
+// `displayTitle ?? title` (case-insensitive). Dwell Launch Spec v1
+// (2026-08-06): the free tier is a single outcome, so the chain is one entry.
+// Matched by NAME, not key — `Outcome.outcomeKey` is a UUID.
+const FREE_TIER_PREFERENCE = ['dwell']
+
+// Outcomes retired from the CUSTOMER-facing pickers (player modal, dashboard
+// schedule picker) by the Dwell launch. The rows stay live: their songs keep
+// playing, they remain assignable from Dash, and nothing is superseded. This
+// list only controls what a customer is offered.
+//
+// Operator surfaces (`/admin/*`) deliberately do NOT filter — an operator has
+// to be able to see and manage the whole catalogue.
+const PICKER_HIDDEN_TITLES = new Set(['chill', 'steady', 'upbeat'])
+
+/**
+ * True iff this outcome should be hidden from customer-facing outcome pickers.
+ * Takes the raw row fields so callers can filter a findMany result without a
+ * second round-trip.
+ */
+export function isPickerHiddenOutcome(o: { title: string; displayTitle?: string | null }): boolean {
+  return PICKER_HIDDEN_TITLES.has((o.displayTitle ?? o.title).trim().toLowerCase())
+}
 
 /**
  * Resolve the set of Outcome IDs currently allowed for free-tier stores by
