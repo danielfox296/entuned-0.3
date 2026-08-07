@@ -7,6 +7,11 @@ import { resolveActiveOutcome } from './outcomeSchedule.js'
 import { effectiveTier, type StoreTierFields } from './tier.js'
 import { FREE_TIER_AD_STORE_ID } from './freeTier.js'
 import { getFreeTierAllowedOutcomeIds } from './outcomes.js'
+import {
+  resolveStationPoolIcpId,
+  stationNoRepeatWindowMinutes,
+  type StationNoRepeatRules,
+} from './stations.js'
 
 // `normal`: ≥1 song passed sibling-spacing + no-repeat filters.
 // `panic`:  pool exists but every song was filtered out — pick the least-played /
@@ -262,6 +267,18 @@ function interleaveByOutcome(ranked: PoolRow[]): PoolRow[] {
 
 type PlaybackRules = { siblingSpacingMinutes: number; noRepeatWindowMinutes: number }
 
+// Station anti-repeat knobs, read off the PlaybackRules singleton with the
+// documented DB defaults as fallbacks. The columns are NOT NULL DEFAULT, so a
+// real row always carries them; this keeps the read total for a pre-migration
+// row or a partial fixture. Card 23 — see lib/stations.ts for the formula.
+function stationRulesFrom(rules: Partial<StationNoRepeatRules>): StationNoRepeatRules {
+  return {
+    stationNoRepeatCoverage: rules.stationNoRepeatCoverage ?? 0.6,
+    stationNoRepeatMinMinutes: rules.stationNoRepeatMinMinutes ?? 45,
+    stationNoRepeatMaxMinutes: rules.stationNoRepeatMaxMinutes ?? 480,
+  }
+}
+
 async function hydrateQueue(top: PoolRow[]): Promise<QueueItem[]> {
   const lineageIds = top.map((r) => r.id)
   // Filter nulls before sending to Prisma — general-pool rows have null hook/icp.
@@ -300,11 +317,22 @@ async function buildQueueFromPool(
   unfilteredPool: PoolRow[],
   rules: PlaybackRules,
   now: Date,
-  opts: { interleaveOutcomes?: boolean } = {},
+  opts: { interleaveOutcomes?: boolean; stationNoRepeat?: StationNoRepeatRules } = {},
 ): Promise<{ queue: QueueItem[]; fallbackTier: FallbackTier }> {
   if (unfilteredPool.length === 0) return { queue: [], fallbackTier: 'normal' }
 
-  const eligible = await applyFilters(storeId, unfilteredPool, rules, now)
+  // Station-scoped requests derive the no-repeat window from pool size instead
+  // of the flat global window. `unfilteredPool` is already deduped by song, so
+  // its length is the distinct-track count actually being rotated through —
+  // which is the number the window should track. Card 23.
+  const effectiveRules = opts.stationNoRepeat
+    ? {
+        ...rules,
+        noRepeatWindowMinutes: stationNoRepeatWindowMinutes(unfilteredPool.length, opts.stationNoRepeat),
+      }
+    : rules
+
+  const eligible = await applyFilters(storeId, unfilteredPool, effectiveRules, now)
 
   // Normal path: ≥1 song survived sibling-spacing + no-repeat. Rank, dedupe
   // siblings within the batch, take top 3.
@@ -406,9 +434,14 @@ export async function nextQueue(
 
   const roomLoudness = roomLoudnessFlag(store.roomLoudnessSamplingEnabled)
 
+  // No PlaybackRules row at all (fresh DB) — fall back to the DB column
+  // defaults, station knobs included.
   const rules = (await prisma.playbackRules.findFirst()) ?? {
     siblingSpacingMinutes: 240,
     noRepeatWindowMinutes: 45,
+    stationNoRepeatCoverage: 0.6,
+    stationNoRepeatMinMinutes: 45,
+    stationNoRepeatMaxMinutes: 480,
   }
 
   // Resolve the Store's active ICP set via the StoreICP join (Free Tier ICP
@@ -421,21 +454,40 @@ export async function nextQueue(
   const icpIds = icps.map((i) => i.id)
   const retiredSongIds = await fetchRetiredSongIds(storeId)
 
-  // Free-tier allowlist enforcement at the playback selection point. A free
-  // store may only hear allowlisted outcomes regardless of how the outcome
-  // was picked — selection, schedule, default, or the all-outcomes blend.
-  // The player UI and the selection/schedule routes gate too, but this is
-  // the last line of defense against stale selections, tier downgrades, and
-  // allowlist tightening. Null for paid tiers = no filtering.
-  const freeAllowedIds =
-    effectiveTier(store, now) === 'free' ? await getFreeTierAllowedOutcomeIds() : null
+  // ---- Free-tier scoping. Two orthogonal narrowings, one branch. ----------
+  //
+  // Outcome axis (allowlist): a free store may only hear allowlisted outcomes
+  // regardless of how the outcome was picked — selection, schedule, default, or
+  // the all-outcomes blend. The player UI and the selection/schedule routes gate
+  // too, but this is the last line of defense against stale selections, tier
+  // downgrades, and allowlist tightening.
+  //
+  // ICP axis (station, Card 23): a free store's candidate pool is its station's
+  // pool. Stations own one ICP each, so narrowing the ICP set to the station's
+  // ICP is all it takes — every branch below (resolved-outcome pool, empty-pool
+  // fallback, all-outcomes blend) inherits the narrowing for free, and the
+  // LineageRow (icp_id, outcome_id, active) index still covers the read.
+  //
+  // Both are null/no-op for paid tiers.
+  const isFree = effectiveTier(store, now) === 'free'
+  const freeAllowedIds = isFree ? await getFreeTierAllowedOutcomeIds() : null
   const restrictPool = (pool: PoolRow[]) =>
     freeAllowedIds ? pool.filter((r) => freeAllowedIds.has(r.outcomeId)) : pool
 
+  // Null when the store has no station, the station was deactivated, or the
+  // station pool has no songs yet — all three fall back to the store's full
+  // StoreICP set rather than returning silence. See resolveStationPoolIcpId.
+  const stationIcpId = isFree ? await resolveStationPoolIcpId(store) : null
+  const poolIcpIds = stationIcpId ? [stationIcpId] : icpIds
+  // Pool-size-tuned no-repeat spacing applies only on station-scoped requests;
+  // paid stores and free stores with no station keep the flat global window.
+  const stationNoRepeat = stationIcpId ? stationRulesFrom(rules) : undefined
+  const buildOpts = { stationNoRepeat }
+
   // All-outcomes mode: pull from every outcome's pool without restricting to the active one.
   if (opts.allOutcomes) {
-    const pool = dedupeBySong(restrictPool(await fetchAllPool(icpIds, retiredSongIds)))
-    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, now, { interleaveOutcomes: true })
+    const pool = dedupeBySong(restrictPool(await fetchAllPool(poolIcpIds, retiredSongIds)))
+    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, now, { ...buildOpts, interleaveOutcomes: true })
     return {
       storeId,
       decidedAt,
@@ -457,8 +509,8 @@ export async function nextQueue(
   if (!resolved) {
     // No outcome configured (no selection, schedule, or default) — fall back to all-outcomes pool
     // so the player always plays something when songs exist.
-    const pool = dedupeBySong(restrictPool(await fetchAllPool(icpIds, retiredSongIds)))
-    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, now, { interleaveOutcomes: true })
+    const pool = dedupeBySong(restrictPool(await fetchAllPool(poolIcpIds, retiredSongIds)))
+    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, now, { ...buildOpts, interleaveOutcomes: true })
     return {
       storeId,
       decidedAt,
@@ -470,13 +522,13 @@ export async function nextQueue(
     }
   }
 
-  const poolsByIcp = await Promise.all(icpIds.map((id) => fetchPool(id, resolved.outcomeId, retiredSongIds)))
+  const poolsByIcp = await Promise.all(poolIcpIds.map((id) => fetchPool(id, resolved.outcomeId, retiredSongIds)))
   const unfilteredPool = dedupeBySong(poolsByIcp.flat())
   if (unfilteredPool.length === 0) {
     // Resolved outcome exists but has no songs — fall back to all-outcomes pool
     // so the player always has something to play when songs exist under any outcome.
-    const pool = dedupeBySong(restrictPool(await fetchAllPool(icpIds, retiredSongIds)))
-    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, now, { interleaveOutcomes: true })
+    const pool = dedupeBySong(restrictPool(await fetchAllPool(poolIcpIds, retiredSongIds)))
+    const { queue, fallbackTier } = await buildQueueFromPool(storeId, pool, rules, now, { ...buildOpts, interleaveOutcomes: true })
     return {
       storeId,
       decidedAt,
@@ -488,7 +540,7 @@ export async function nextQueue(
     }
   }
 
-  const { queue, fallbackTier } = await buildQueueFromPool(storeId, unfilteredPool, rules, now)
+  const { queue, fallbackTier } = await buildQueueFromPool(storeId, unfilteredPool, rules, now, buildOpts)
   return {
     storeId,
     decidedAt,

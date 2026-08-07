@@ -888,3 +888,86 @@ describe('GET /loved', () => {
     expect(res.json()).toEqual({ songIds: [] })
   })
 })
+
+// =========================================================================
+// Station telemetry allow-list (Card 23)
+// =========================================================================
+
+describe('POST / — station events', () => {
+  const STATION_ID = '00000000-0000-0000-0000-000000000201'
+  const PREV_STATION_ID = '00000000-0000-0000-0000-000000000202'
+
+  beforeEach(() => {
+    vi.resetAllMocks()
+    createManyMock.mockResolvedValue({ count: 1 })
+    rawCreateMock.mockResolvedValue({ id: 'raw-1' })
+    lineageFindManyMock.mockResolvedValue([])
+    cpsUpdateManyMock.mockResolvedValue({ count: 0 })
+    cpsUpsertMock.mockResolvedValue({})
+    casFindUniqueMock.mockResolvedValue(null)
+    casUpsertMock.mockResolvedValue({})
+    adAssetCountMock.mockResolvedValue(0)
+  })
+
+  it('accepts station_selected without quarantining it', async () => {
+    const app = await buildTestApp(eventsRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/',
+      headers: AUTHED,
+      payload: baseEvent({
+        event_type: 'station_selected',
+        extra: { station_id: STATION_ID, station_key: 'solo-piano' },
+      }),
+    })
+
+    expect(res.statusCode).toBe(201)
+    expect(res.json()).toEqual({ accepted: 1, quarantined: 0 })
+    expect(rawCreateMock).not.toHaveBeenCalled()
+    expect(createManyMock.mock.calls[0]![0].data[0]).toMatchObject({
+      eventType: 'station_selected',
+      extra: { station_id: STATION_ID, station_key: 'solo-piano' },
+    })
+  })
+
+  it('accepts station_switched with the previous-station payload', async () => {
+    const app = await buildTestApp(eventsRoutes)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/',
+      headers: AUTHED,
+      payload: baseEvent({
+        event_type: 'station_switched',
+        extra: {
+          station_id: STATION_ID,
+          station_key: 'solo-piano',
+          previous_station_id: PREV_STATION_ID,
+          previous_station_key: 'lofi-beats',
+        },
+      }),
+    })
+
+    expect(res.statusCode).toBe(201)
+    expect(rawCreateMock).not.toHaveBeenCalled()
+    expect(createManyMock.mock.calls[0]![0].data[0].extra).toEqual({
+      station_id: STATION_ID,
+      station_key: 'solo-piano',
+      previous_station_id: PREV_STATION_ID,
+      previous_station_key: 'lofi-beats',
+    })
+  })
+
+  it('does not advance the ad cadence counter for station events', async () => {
+    // Only song_complete / ad_play touch songsPlayedSinceAd.
+    const app = await buildTestApp(eventsRoutes)
+    await app.inject({
+      method: 'POST',
+      url: '/',
+      headers: AUTHED,
+      payload: baseEvent({ event_type: 'station_switched', extra: { station_id: STATION_ID, station_key: 'solo-piano' } }),
+    })
+
+    expect(cpsUpdateManyMock).not.toHaveBeenCalled()
+    expect(cpsUpsertMock).not.toHaveBeenCalled()
+  })
+})

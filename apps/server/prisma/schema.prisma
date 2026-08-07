@@ -162,6 +162,10 @@ model Store {
   outcomeSelectionId          String?   @map("outcome_selection_id") @db.Uuid
   outcomeSelectionExpiresAt   DateTime? @map("outcome_selection_expires_at") @db.Timestamptz(6)
   roomLoudnessSamplingEnabled Boolean   @default(false) @map("room_loudness_sampling_enabled")
+  // The free tier's music choice (Card 23 Stations). Nullable: paid Stores
+  // never have one, and NULL is the correct fallback state — the Store then
+  // reads its full StoreICP set (the canonical Free Tier ICP pool).
+  stationId                   String?   @map("station_id") @db.Uuid
   // Customer-dashboard fields absorbed from the dropped `Location` table 2026-05-04.
   // `slug` is the URL fragment for music.entuned.co/<slug>. `tier` is a string
   // (not enum) so adding tiers doesn't require a migration.
@@ -181,6 +185,7 @@ model Store {
   updatedAt                   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   client                    Client                     @relation(fields: [clientId], references: [id])
+  station                   Station?                   @relation(fields: [stationId], references: [id], onDelete: SetNull)
   icpLinks                  StoreICP[]
   defaultOutcome            Outcome?                   @relation("StoreDefaultOutcome", fields: [defaultOutcomeId], references: [id])
   outcomeSelection          Outcome?                   @relation("StoreOutcomeSelection", fields: [outcomeSelectionId], references: [id])
@@ -276,8 +281,51 @@ model ICP {
   referenceTracks  ReferenceTrack[]
   lineageRows      LineageRow[]
 
+  station          Station?
+
   @@index([clientId])
   @@map("icps")
+}
+
+// ---------- Card 23 Station (free-tier music choice) ----------
+//
+// A Station is a named shared song pool. It owns exactly one ICP under the
+// Free Tier Client; the Station's pool IS that ICP's LineageRow set. Every
+// free Store that picks the Station reads the same rows.
+//
+// Deliberately not a new pool mechanism: Hendrix already resolves a Store's
+// candidate pool through StoreICP links, which is how one canonical Free Tier
+// ICP serves every free Store. A Station reuses that path exactly
+// (Station → ICP → LineageRow). There is no LineageRow.stationId and no second
+// pool query. Outcome scoping stays orthogonal, on the FreeTierOutcome
+// allowlist. SSOT: ../entune v0.3/schema/23-stations.md.
+
+model Station {
+  id          String   @id @default(uuid()) @db.Uuid
+  // Stable slug identity, durable across renames. Telemetry keys off this,
+  // never off displayName.
+  stationKey  String   @unique @map("station_key")
+  displayName String   @map("display_name")
+  subtitle    String?
+  // Generation-side anchor phrase for this station's sound. In the DB, not in
+  // code — same rule as every other prompt/rule surface.
+  genreSteering String @map("genre_steering")
+  sortOrder   Int      @default(0) @map("sort_order")
+  // Inactive stations leave the picker and stop being assignable. Stores
+  // already pointing at one keep playing it — deactivation is a catalogue
+  // decision, not a playback kill switch.
+  active      Boolean  @default(true)
+  // 1:1 with ICP. The unique constraint is load-bearing: without it two
+  // stations could silently share a pool and "switching" would be a no-op.
+  icpId       String   @unique @map("icp_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  icp    ICP     @relation(fields: [icpId], references: [id])
+  stores Store[]
+
+  @@index([active, sortOrder])
+  @@map("stations")
 }
 
 // Store ↔ ICP many-to-many. Replaces the legacy `ICP.store_id` 1:N FK so the
@@ -1143,6 +1191,19 @@ model PlaybackRules {
   id                    String   @id @default(uuid()) @db.Uuid
   siblingSpacingMinutes Int      @default(240) @map("sibling_spacing_minutes")
   noRepeatWindowMinutes Int      @default(45) @map("no_repeat_window_minutes")
+  // Station anti-repeat (Card 23). Replaces noRepeatWindowMinutes on
+  // station-scoped requests ONLY — paid stores and free stores with no station
+  // keep the flat window, and siblingSpacingMinutes is untouched in both cases.
+  //
+  //   window = clamp(poolSize * 3min * coverage, min, max)
+  //
+  // A 100-track station pool played across a full store day (~240 plays)
+  // cycles ~2.4x; the flat 45-minute window only blocks ~15 tracks back, so
+  // the same track can return up to 16 times a day. At these defaults:
+  // 100 tracks -> 180min, 25 tracks -> 45min (floor), 267+ -> 480min (cap).
+  stationNoRepeatCoverage   Float @default(0.6) @map("station_no_repeat_coverage")
+  stationNoRepeatMinMinutes Int   @default(45) @map("station_no_repeat_min_minutes")
+  stationNoRepeatMaxMinutes Int   @default(480) @map("station_no_repeat_max_minutes")
   updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   updatedById           String?  @map("updated_by") @db.Uuid
 

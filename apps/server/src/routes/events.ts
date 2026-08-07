@@ -57,6 +57,15 @@ const EventSchema = z.object({
     // we served from the full pool ranked by least-played — a signal the
     // library is too small relative to playback rate.
     'queue_refill',
+    // Card 23 Stations (2026-08-06). Written server-side by
+    // lib/stations.ts setStoreStation — the server is what changed the state,
+    // so the client is never trusted to report a transition it didn't make.
+    // Allow-listed here so a client-initiated switch surfaced by the player or
+    // dashboard isn't quarantined into PlaybackEventRaw.
+    // extra: { station_id, station_key } plus previous_station_id /
+    // previous_station_key on a switch.
+    'station_selected',
+    'station_switched',
   ]),
   store_id: z.string().uuid(),
   occurred_at: z.string().datetime(),
