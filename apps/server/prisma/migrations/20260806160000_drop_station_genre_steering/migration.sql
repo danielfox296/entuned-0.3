@@ -1,0 +1,31 @@
+-- Drop stations.genre_steering — written and seeded by 20260806120000_add_stations,
+-- never read by any code.
+--
+-- The column's comment claimed it was "the generation-side anchor phrase for this
+-- station's sound." It was not wired to anything, and wiring it as written would
+-- have made output worse, not better:
+--
+--   * Generation is ICP x Outcome x ReferenceTrack. Genre reaches Suno as
+--     ReferenceTrack -> StyleAnalysis -> Mars anchor (lib/mars/style-anchor.ts).
+--     The anchor is ONE genre tag, by contract: "Anchor is one phrase. Never a
+--     comma stack." Every seeded genre_steering value is a 5-6 clause comma stack.
+--   * Appending it to the Mars style would hand Suno two competing genre signals.
+--     Genre is Suno's dominant token, so corrupting it is the worst available
+--     failure (same class as the 2026-07-26 space-join bug in composeFinalStyle).
+--   * It is ~90% technical vocabulary, which Suno ignores. See apps/server/CLAUDE.md,
+--     "anchor and carve": don't pile on adjectives expecting them to land.
+--
+-- A station's sound comes from its ICP's reference-track pool, not from a prompt
+-- fragment on the Station row. That is the same path every other pool uses.
+--
+-- The seeded phrasing is not lost — it stays in git at
+-- prisma/migrations/20260806120000_add_stations/migration.sql, and is decent raw
+-- material if station ICPs are ever given curated reference tracks.
+--
+-- Safe to drop: no code selects the column. Every station read in the codebase is
+-- an explicit `select` (lib/stations.ts, lib/hendrix.ts, routes/hendrix.ts) and
+-- none of them list it. Nothing writes it but the seed above.
+--
+-- SSOT: ../../../../entune v0.3/schema/23-stations.md
+
+ALTER TABLE "stations" DROP COLUMN "genre_steering";

@@ -120,13 +120,20 @@ describe('listActiveStations', () => {
     )
   })
 
-  it('does not leak genreSteering into the picker payload', async () => {
-    // genreSteering is a generation-side prompt surface, not customer copy.
+  it('selects exactly the customer-facing picker fields', async () => {
+    // The picker payload is an explicit allow-list, not a row dump. Pinning the
+    // exact key set means any future non-customer column added to Station (an
+    // internal note, a steering phrase, an operator flag) fails here instead of
+    // silently shipping to the player. Replaces an earlier assertion that the
+    // since-dropped `genreSteering` column stayed out of this select — the
+    // invariant outlives that particular column.
     stationFindMany.mockResolvedValue([])
     await listActiveStations()
     const select = stationFindMany.mock.calls[0][0].select
-    expect(select.genreSteering).toBeUndefined()
-    expect(select.displayName).toBe(true)
+    expect(Object.keys(select).sort()).toEqual(
+      ['displayName', 'id', 'sortOrder', 'stationKey', 'subtitle'],
+    )
+    expect(Object.values(select).every((v) => v === true)).toBe(true)
   })
 })
 

@@ -307,9 +307,10 @@ model Station {
   stationKey  String   @unique @map("station_key")
   displayName String   @map("display_name")
   subtitle    String?
-  // Generation-side anchor phrase for this station's sound. In the DB, not in
-  // code — same rule as every other prompt/rule surface.
-  genreSteering String @map("genre_steering")
+  // No genre/steering column here by design. A station's sound comes from its
+  // ICP's reference-track pool (ReferenceTrack → StyleAnalysis → Mars anchor),
+  // the same path every other pool uses. The dropped `genre_steering` column is
+  // documented in migration 20260806160000_drop_station_genre_steering.
   sortOrder   Int      @default(0) @map("sort_order")
   // Inactive stations leave the picker and stop being assignable. Stores
   // already pointing at one keep playing it — deactivation is a catalogue
