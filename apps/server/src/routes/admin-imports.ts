@@ -1,23 +1,42 @@
 // POST /admin/free-tier-imports — bulk-ingest externally-produced instrumental
-// MP3s straight into the free-tier pool.
+// MP3s straight into a free-tier pool.
 //
 // These tracks were produced outside the generation pipeline (no Hook, no
 // SongSeed, no ReferenceTrack, no tempo/arrangement metadata). The playback
 // path (lib/hendrix.ts) selects purely on (icpId, outcomeId, active) and never
 // reads per-song musical metadata, so a track is fully playable as just two
-// rows: a Song (R2 audio) and a LineageRow pointing at FREE_TIER_ICP_ID.
+// rows: a Song (R2 audio) and a LineageRow pointing at the target ICP.
 //
 // This is the same two-row shape that POST /admin/lineage-rows/:id/toggle-general
 // writes when an operator checks "free tier" on a library song — except here
 // there is no source LineageRow to copy from, so we create both rows directly.
-// We deliberately reuse FREE_TIER_ICP_ID rather than minting a new ICP: free
-// stores resolve their pool through StoreICP → FREE_TIER_ICP_ID, so that is the
-// only attribution that actually plays.
+//
+// Two targets, selected by the optional `?station=` param:
+//
+//   absent   → FREE_TIER_ICP_ID, the canonical free pool every free Store falls
+//              back to. This is the original behaviour and stays the default.
+//   present  → that Station's own ICP (Card 23). A Station's pool IS its ICP's
+//              LineageRow set, so importing at station.icpId is the whole of
+//              what "populate this station" means — there is no LineageRow.
+//              stationId and no second pool mechanism.
+//
+// Station targeting exists because manually-produced station libraries have no
+// other way in: the only other LineageRow writers are toggle-general (hardcoded
+// to FREE_TIER_ICP_ID) and the accept-takes path (which derives its icpId from a
+// SongSeed, i.e. the generation pipeline). Without this param a manual track can
+// only land in the sentinel pool, where it would play on every station at once
+// and none of them specifically.
+//
+// Inactive stations are accepted on purpose: pre-loading a station's pool before
+// flipping it live is the launch workflow. `active` comes back in the response so
+// the operator can see what they're writing into.
 //
 // Idempotency: the R2 object key is content-addressed (sha256 of the bytes), so
 // re-running a partially-failed batch upserts the same Song instead of
 // duplicating audio, and the LineageRow is only created if an active one for
-// (songId, outcomeId, FREE_TIER_ICP_ID) doesn't already exist.
+// (songId, outcomeId, targetIcpId) doesn't already exist. The key deliberately
+// does NOT include the station — identical bytes on two stations should be one
+// Song with two LineageRows, which is the same shape toggle-general produces.
 
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify'
 import { createHash } from 'node:crypto'
@@ -31,13 +50,14 @@ export const adminImportRoutes: FastifyPluginAsync = async (app) => {
   ensureOperatorDecorator(app)
   app.addHook('preHandler', adminPreHandler)
 
-  // POST /admin/free-tier-imports?outcome=<title|displayTitle>
+  // POST /admin/free-tier-imports?outcome=<title|displayTitle>[&station=<stationKey>]
   // multipart body: exactly one audio file field.
   // Resolves the outcome by name (case-insensitive title or displayTitle),
-  // asserts it's in the FreeTierOutcome allowlist, then upserts Song +
-  // LineageRow @ FREE_TIER_ICP_ID.
+  // asserts it's in the FreeTierOutcome allowlist, resolves the target ICP
+  // (a Station's ICP, or the sentinel), then upserts Song + LineageRow.
   app.post('/free-tier-imports', async (req, reply) => {
-    const outcomeName = (req.query as Record<string, string>).outcome?.trim()
+    const query = req.query as Record<string, string>
+    const outcomeName = query.outcome?.trim()
     if (!outcomeName) {
       return reply.code(400).send({ error: 'missing_outcome', message: 'Pass ?outcome=<name> (e.g. dwell).' })
     }
@@ -68,6 +88,35 @@ export const adminImportRoutes: FastifyPluginAsync = async (app) => {
         error: 'outcome_not_in_free_tier_allowlist',
         message: `Outcome "${outcome.title}" is not in the free-tier allowlist.`,
       })
+    }
+
+    // Resolve the target pool. No ?station= keeps the original sentinel
+    // behaviour; a stationKey redirects the LineageRow to that Station's ICP.
+    // Resolved BEFORE the upload so a typo'd key fails without burning R2.
+    let targetIcpId = FREE_TIER_ICP_ID
+    let station: { stationKey: string; displayName: string; active: boolean } | null = null
+    const stationKey = query.station?.trim()
+    if (stationKey) {
+      const found = await prisma.station.findUnique({
+        where: { stationKey },
+        select: { icpId: true, stationKey: true, displayName: true, active: true },
+      })
+      if (!found) {
+        // Fail loudly with the candidate list rather than silently importing
+        // into the sentinel — a typo'd station must never quietly become a
+        // write to the pool every free Store reads.
+        const all = await prisma.station.findMany({
+          select: { stationKey: true },
+          orderBy: { sortOrder: 'asc' },
+        })
+        return reply.code(404).send({
+          error: 'station_not_found',
+          message: `No station with key "${stationKey}".`,
+          candidates: all.map((s) => s.stationKey),
+        })
+      }
+      targetIcpId = found.icpId
+      station = { stationKey: found.stationKey, displayName: found.displayName, active: found.active }
     }
 
     // Read the single uploaded file.
@@ -120,18 +169,18 @@ export const adminImportRoutes: FastifyPluginAsync = async (app) => {
         })
 
         const existingRow = await tx.lineageRow.findFirst({
-          where: { songId: song.id, outcomeId: outcome.id, icpId: FREE_TIER_ICP_ID, active: true },
+          where: { songId: song.id, outcomeId: outcome.id, icpId: targetIcpId, active: true },
           select: { id: true },
         })
         if (existingRow) {
-          return { songId: song.id, lineageRowId: existingRow.id, r2Url: obj.url, deduped: true }
+          return { songId: song.id, lineageRowId: existingRow.id, r2Url: obj.url, deduped: true, icpId: targetIcpId, station }
         }
 
         const row = await tx.lineageRow.create({
           data: {
             songId: song.id,
             r2Url: obj.url,
-            icpId: FREE_TIER_ICP_ID,
+            icpId: targetIcpId,
             outcomeId: outcome.id,
             outcomeVersion: outcome.version,
             hookId: null,
@@ -139,7 +188,7 @@ export const adminImportRoutes: FastifyPluginAsync = async (app) => {
             active: true,
           },
         })
-        return { songId: song.id, lineageRowId: row.id, r2Url: obj.url, deduped: false }
+        return { songId: song.id, lineageRowId: row.id, r2Url: obj.url, deduped: false, icpId: targetIcpId, station }
       })
       return result
     } catch (e: any) {
