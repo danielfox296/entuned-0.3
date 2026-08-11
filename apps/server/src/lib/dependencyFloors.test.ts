@@ -11,6 +11,10 @@ import { fileURLToPath } from 'node:url'
 // - brace-expansion 1.x >=1.1.16, 2.x >=2.1.3
 //                           GHSA-3jxr-9vmj-r5cp / GHSA-mh99-v99m-4gvg (ReDoS/OOM)
 // - find-my-way >=9.7.0     GHSA-c96f-x56v-gq3h (HTTP/2 DDoS)
+// - nanoid >=3.3.17         GHSA-2v37-7h3g-55p8 (infinite loop, fixed on 3.x line)
+// - js-yaml >=4.3.1         GHSA-5p4m-2wfm-xmqj (!!omap quadratic CPU; 3.x has no
+//                           backport, so any 3.x resolution fails too)
+// - postcss >=8.5.23        GHSA-fxqj-rqcc-2cmp (sourceMappingURL file read)
 //
 // react-router 6.x (GHSA-jjmj-jmhj-qwj2 et al.) is intentionally absent: no
 // patched 6.x exists, the fix is the v7 major, declined 2026-07-14 (ignore-majors).
@@ -18,6 +22,9 @@ const FLOORS: Record<string, Record<number, string>> = {
   'fast-uri': { 3: '3.1.5' },
   'brace-expansion': { 1: '1.1.16', 2: '2.1.3' },
   'find-my-way': { 8: '9.7.0', 9: '9.7.0' },
+  nanoid: { 1: '3.3.17', 2: '3.3.17', 3: '3.3.17' },
+  'js-yaml': { 3: '4.3.1', 4: '4.3.1' },
+  postcss: { 7: '8.5.23', 8: '8.5.23' },
 }
 
 function parseVersion(v: string): [number, number, number] {
