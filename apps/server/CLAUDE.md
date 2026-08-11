@@ -31,10 +31,11 @@ All registered in [`src/index.ts`](src/index.ts).
 | `/health` | `routes/health.ts` | none | Railway healthcheck |
 | `/hendrix` | `routes/hendrix.ts` | Bearer | player |
 | `/stores` | `routes/stores.ts` | Bearer | player, admin |
+| `/stations` | `routes/stations.ts` | Bearer | player (station pools, Dwell launch 2026-08) |
 | `/events` | `routes/events.ts` | Bearer | player |
 | `/auth` | `routes/auth.ts` | mixed | admin, player (operator login) |
 | `/login` | `routes/login.ts` | none | dashboard (magic link, Google OAuth) |
-| `/admin` | `routes/admin.ts` + `admin-retention.ts` + `admin-reliability.ts` | Bearer | admin |
+| `/admin` | `routes/admin.ts` + `admin-retention.ts` + `admin-reliability.ts` + `admin-import.ts` | Bearer | admin |
 | (no prefix — see file) | `routes/billing.ts` | cookie | dashboard (Stripe webhooks too) |
 | `/me` | `routes/me.ts` | cookie | dashboard |
 | `/email` | `routes/email.ts` | mixed | dashboard (unsubscribe), webhooks |
@@ -66,7 +67,7 @@ These are rules that have bitten in the past and are not enforceable by types or
 
 - **DB values are unchanged: `free`, `core`, `pro`.** API params and Prisma enum stay `tier=core`.
 - **Display names are different:** `free` → "Entuned Free", `core` → "Boost", `pro` → "Pro". Don't reintroduce "Essentials" or "Core" in any user-facing string (UI, emails, error messages, log lines that surface to operators).
-- See `marketing/ICP/` and the tier-rename memory entries if you need more context.
+- See memory `reference_tier_naming` if you need more context.
 
 ### Naming hygiene in copy
 

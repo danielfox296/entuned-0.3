@@ -1,6 +1,6 @@
 # CLAUDE.md — entuned-0.3 player
 
-In-store player ("Oscar"). React 18 + Vite 5 + Howler + TS strict, ESM. Deploys to GitHub Pages at `music.entuned.co`. Runs on tablet, phone, and desktop in-shop.
+In-store player ("Oscar"). React 19 + Vite 8 + Howler + TS strict, ESM. Deploys to GitHub Pages at `music.entuned.co`. Runs on tablet, phone, and desktop in-shop.
 
 ## Read first
 
@@ -10,7 +10,7 @@ In-store player ("Oscar"). React 18 + Vite 5 + Howler + TS strict, ESM. Deploys 
 
 ## Stack
 
-- React 18 + Vite 5 + TS strict, ESM
+- React 19 + Vite 8 + TS strict, ESM (majors adopted 2026-07-14)
 - Howler for audio
 - Service worker (`src/sw.ts`) for PWA installability
 - Port **5177** (server 3000, admin 5178, dashboard 5179)

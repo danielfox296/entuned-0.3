@@ -10,7 +10,7 @@ Operator-facing admin shell for entune v0.3. Separate Vite app from `apps/player
 
 ## Stack
 
-- React 18 + Vite 5 + TS strict, ESM
+- React 19 + Vite 8 + TS strict, ESM (majors adopted 2026-07-14)
 - Port **5178** (player is 5177, server is 3000)
 - Talks to Railway server via `VITE_API_URL` (set in `apps/admin/.env`)
 - Auth: Bearer JWT, same operator table as the player
