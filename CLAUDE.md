@@ -26,6 +26,9 @@ Production monorepo. 4 apps: `apps/server` (Fastify + Prisma) → `api.entuned.c
 - **Push after edits.** Daniel runs everything live.
 - **All new code in `apps/server/` and `packages/` ships with tests in the same PR.** Bug fixes ship with a test that failed before the fix. Cleanup/refactor PRs ship with regression tests proving behavior equivalence. Frontend component tests are out of scope by current policy. See `TESTING.md`.
 - **Tests gate every production deploy.** Railway and both Pages workflows run `pnpm test`; if anything fails, no new deploy is promoted. There is no skip flag — if the gate blocks you, fix or revert.
+- **Verify TS with `pnpm build`, never bare `tsc --noEmit`** — the incremental cache (`node_modules/.cache/tsc`) can pass stale results and hide errors the Railway build catches (bit the Flow-engine deploy, 2026-05-29).
+- **Railway's build phase runs `pnpm test` with `NODE_ENV=production` already set** — vitest won't override it, so tests reading NODE_ENV behave differently than locally (where it defaults to `test`). Pin it in the test if behavior depends on it; green local can still red the deploy gate.
+- **Lifecycle emails are DB rows** (12 templates, 6 drips, DB-editable). Edit them in the DB (Dash or `railway ssh`) — editing the TS seed files alone is a prod NO-OP.
 - **Schema changes:** update `../entune v0.3/schema/` first (the SSOT), then mirror into `apps/server/prisma/schema.prisma`, then `prisma migrate`.
 - **Railway deploy:** server only. `railway up` from the **monorepo root** (`entuned-0.3/`). The Railway service has Root Directory=`apps/server` set in the dashboard, so the upload must contain that path. Do NOT use `--path-as-root` — that flag conflicts with the dashboard's Root Directory setting and breaks the build.
 - **Railway SSH:** `cd entuned-0.3 && railway ssh "..."`. Two gotchas:
