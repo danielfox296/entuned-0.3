@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 // Minimum safe versions per Dependabot advisories (2026-08), enforced via
@@ -49,15 +49,44 @@ function resolvedVersions(lockText: string, pkg: string): string[] {
   return [...versions]
 }
 
-describe('dependency security floors (pnpm-lock.yaml)', () => {
-  const here = dirname(fileURLToPath(import.meta.url))
-  const lockText = readFileSync(resolve(here, '../../../../pnpm-lock.yaml'), 'utf8')
+// Railway's build mounts apps/server at /app without the monorepo root, so
+// the lockfile is not at a fixed relative path — find it by walking up from
+// both the test file and the cwd. When absent (Railway), skip loudly: the
+// floors are still enforced at install time by pnpm.overrides, and this test
+// runs from a full checkout locally and in both Pages workflows.
+function findLockfile(startDirs: string[]): string | null {
+  for (const start of startDirs) {
+    let dir = start
+    for (;;) {
+      const candidate = join(dir, 'pnpm-lock.yaml')
+      if (existsSync(candidate)) return candidate
+      const parent = dirname(dir)
+      if (parent === dir) break
+      dir = parent
+    }
+  }
+  return null
+}
+
+const lockPath = findLockfile([dirname(fileURLToPath(import.meta.url)), process.cwd()])
+if (!lockPath) {
+  console.warn('[dependencyFloors] pnpm-lock.yaml not found from test dir or cwd — skipping floor checks in this environment')
+}
+
+describe.skipIf(!lockPath)('dependency security floors (pnpm-lock.yaml)', () => {
+  const lockText = readFileSync(lockPath!, 'utf8')
+
+  it('lockfile parser matches at least one covered package', () => {
+    // Guards against a lockfile format change making every check vacuous.
+    // Per-package absence is allowed: a pruned lockfile (Railway) may lack
+    // frontend-only packages, and absent is not vulnerable.
+    const total = Object.keys(FLOORS).reduce((n, pkg) => n + resolvedVersions(lockText, pkg).length, 0)
+    expect(total).toBeGreaterThan(0)
+  })
 
   for (const [pkg, floorsByMajor] of Object.entries(FLOORS)) {
     it(`${pkg} resolutions meet the advisory floor`, () => {
-      const versions = resolvedVersions(lockText, pkg)
-      expect(versions.length).toBeGreaterThan(0)
-      const belowFloor = versions.filter((v) => {
+      const belowFloor = resolvedVersions(lockText, pkg).filter((v) => {
         const floor = floorsByMajor[parseVersion(v)[0]]
         return floor !== undefined && !gte(v, floor)
       })
