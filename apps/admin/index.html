@@ -3,6 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- dash.entuned.co is an internal operator console on a public host, and
+         the entuned.co Search Console property is a Domain property, so Google
+         crawls it. The player and dashboard apps have carried this tag from the
+         start; admin was the one that missed it. Left crawlable on purpose —
+         robots.txt Disallow would stop Google fetching the page and therefore
+         stop it ever seeing this noindex. -->
+    <meta name="robots" content="noindex, nofollow" />
     <title>entuned admin</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
