@@ -1,4 +1,4 @@
-name: Push admin to entuned-0.3-admin + push player to entuned-0.3-player
+name: Deploy admin to GitHub Pages + push player to entuned-0.3-player
 
 on:
   push:
@@ -17,6 +17,8 @@ on:
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: pages
@@ -69,18 +71,21 @@ jobs:
           mkdir -p dist
           cp -R apps/admin/dist/. dist/
           echo "dash.entuned.co" > dist/CNAME
-          touch dist/.nojekyll
-      - name: Push to entuned-0.3-admin
-        uses: peaceiris/actions-gh-pages@v4
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
-          deploy_key: ${{ secrets.ADMIN_DEPLOY_KEY }}
-          external_repository: danielfox296/entuned-0.3-admin
-          publish_branch: main
-          publish_dir: ./dist
-          force_orphan: true
-          commit_message: "Build"
-          user_name: "github-actions[bot]"
-          user_email: "41898282+github-actions[bot]@users.noreply.github.com"
+          path: dist
+
+  deploy-admin:
+    needs: build-admin
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
 
   # Build the player and push the static dist to danielfox296/entuned-0.3-player,
   # whose Pages serves music.entuned.co. The PLAYER_DEPLOY_TOKEN secret must be a
